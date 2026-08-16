@@ -12,11 +12,12 @@
   "engines": {
     "node": ">=22"
   },
+  "packageManager": "yarn@4.18.0",
   "scripts": {
-    "dev": "npm run dev -w @lindocara/main",
-    "build": "npm run build -w @lindocara/main",
-    "deploy": "npm run deploy -w @lindocara/main",
-    "lab": "npm run dev -w @lindocara/lab",
+    "dev": "yarn workspace @lindocara/main run dev",
+    "build": "yarn workspace @lindocara/main run build",
+    "deploy": "yarn workspace @lindocara/main run deploy",
+    "lab": "yarn workspace @lindocara/lab run dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine": "vitest run --project engine",
@@ -47,13 +48,13 @@
     "adventure:build:city": "tsx scripts/legacy/cite-assiegee/build.ts && biome format --write adventures/legacy/cite-assiegee.json",
     "adventure:export": "tsx scripts/adventure-io.ts export",
     "adventure:import": "tsx scripts/adventure-io.ts import",
-    "map:check": "npm run map:build && git diff --exit-code -- packages/engine/src/zones/verdant-reach-tiles.ts packages/engine/src/zones/mmo-test-zone-tiles.ts packages/engine/src/zones/sunken-isles-tiles.ts",
-    "catalog:build": "npm run catalog:build -w @lindocara/catalog",
-    "catalog:check": "npm run catalog:check -w @lindocara/catalog",
+    "map:check": "yarn map:build && git diff --exit-code -- packages/engine/src/zones/verdant-reach-tiles.ts packages/engine/src/zones/mmo-test-zone-tiles.ts packages/engine/src/zones/sunken-isles-tiles.ts",
+    "catalog:build": "yarn workspace @lindocara/catalog run catalog:build",
+    "catalog:check": "yarn workspace @lindocara/catalog run catalog:check",
     "music:catalog": "tsx scripts/build-music-catalog.ts",
     "music:check": "tsx scripts/build-music-catalog.ts --check",
     "format": "biome format --write .",
-    "typecheck": "npm run typecheck:engine && npm run typecheck:hd2d && npm run typecheck:audio && npm run typecheck:lab && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:testing && npm run typecheck:catalog && npm run typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
+    "typecheck": "yarn typecheck:engine && yarn typecheck:hd2d && yarn typecheck:audio && yarn typecheck:lab && yarn typecheck:server && yarn typecheck:renderer && yarn typecheck:client && yarn typecheck:editor && yarn typecheck:testing && yarn typecheck:catalog && yarn typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
     "typecheck:hd2d": "tsc -p packages/hd2d/tsconfig.json",
     "typecheck:audio": "tsc -p packages/audio/tsconfig.json",
@@ -64,17 +65,18 @@
     "typecheck:editor": "tsc -p packages/editor/tsconfig.json && tsc -p packages/editor/tsconfig.api.json",
     "typecheck:testing": "tsc -p packages/testing/tsconfig.json",
     "typecheck:main": "tsc -p apps/main/tsconfig.json",
-    "check": "npm run catalog:check && npm run music:check && npm run map:check && npm run lint && npm run typecheck && npm run test",
-    "check:runtime": "npm run lint && npm run typecheck && npm run test:runtime && npm run test:ui:runtime && npm run build",
+    "check": "yarn catalog:check && yarn music:check && yarn map:check && yarn lint && yarn typecheck && yarn test",
+    "check:runtime": "yarn lint && yarn typecheck && yarn test:runtime && yarn test:ui:runtime && yarn build",
     "typecheck:catalog": "tsc -p packages/catalog/tsconfig.json",
     "clean": "node -e \"const fs=require('node:fs'); for (const path of ['apps/main/dist','apps/lab/dist','apps/lab/dist-client']) fs.rmSync(path,{recursive:true,force:true})\"",
     "smoke": "tsx scripts/smoke-boot.ts",
-    "verify": "alepha verify",
-    "v": "alepha verify"
+    "verify": "yarn alepha verify",
+    "v": "yarn alepha verify"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@tailwindcss/vite": "^4.3.2",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -83,8 +85,10 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.3",
-    "alepha": "^0.24.0",
+    "alepha": "*",
     "jsdom": "^29.1.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "shadcn": "^4.13.1",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.2",
@@ -94,10 +98,8 @@
     "vitest": "^4.1.10",
     "ws": "^8.21.0"
   },
-  "overrides": {
-    "@esbuild-kit/core-utils": {
-      "esbuild": "^0.25.4"
-    },
+  "resolutions": {
+    "@esbuild-kit/core-utils/esbuild": "^0.25.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   }

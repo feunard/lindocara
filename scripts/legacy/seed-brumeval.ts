@@ -3,9 +3,9 @@
  * through the same /api/* surface the editor uses. Idempotent: re-running updates in place;
  * `--reset` deletes the adventure first.
  *
- * Run with: npm run seed:brumeval -- --target=http://localhost:5273
- * Dry run:  npm run seed:brumeval -- --dry-run
- * Prod:     SEED_PASSWORD=… npm run seed:brumeval -- --target=https://lindocara.bay.alepha.dev \
+ * Run with: yarn seed:brumeval --target=http://localhost:5273
+ * Dry run:  yarn seed:brumeval --dry-run
+ * Prod:     SEED_PASSWORD=… yarn seed:brumeval --target=https://lindocara.bay.alepha.dev \
  *             --allow-remote --allow-production
  *
  * Design: docs/superpowers/specs/2026-07-24-brumeval-adventure-design.md

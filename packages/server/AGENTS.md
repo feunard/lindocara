@@ -8,7 +8,7 @@ reports where it ended up. **That conceded AUTHORITY, not VALIDITY** — `applyR
 (`worldTick.ts`) bounds the claim against the real map (`withinRoomBounds`), the parser caps every
 coordinate at `MOVE_COORDINATE_LIMIT`, and a corpse's or a mid-handoff hero's frames are dropped.
 Everything else in the list above stayed here, and this package still owns everything that must be
-trusted. It runs on Node/SQLite in dev (`npm run dev` from the repo root, i.e.
+trusted. It runs on Node/SQLite in dev (`yarn dev` from the repo root, i.e.
 `apps/main`'s `alepha dev`) and as a plain Node process on Alepha Bay in production
 (`alepha platform up`).
 
@@ -145,21 +145,21 @@ keeps writes safe regardless.
 ## Commands
 
 ```bash
-npm run typecheck:server        # tsc -p packages/server/tsconfig.json (one program, alepha base)
-npm run test:server             # or: npm test -w @lindocara/server — the Node test-api project
-npm run db:generate -w @lindocara/main         # entity change -> apps/main/migrations/
-npm run check:migrations -w @lindocara/main    # entity/migration drift check
+yarn typecheck:server        # tsc -p packages/server/tsconfig.json (one program, alepha base)
+yarn test:server             # or: yarn workspace @lindocara/server run test — the Node test-api project
+yarn workspace @lindocara/main run db:generate         # entity change -> apps/main/migrations/
+yarn workspace @lindocara/main run check:migrations    # entity/migration drift check
 
 # The proving map: generate the HD-2D heightfield and store it on a map row (run from the repo
 # root). `--dry-run` generates and reports without touching the database; `--out` also writes the
 # encoded `MapData` to a file; `--database` overrides the dev SQLite file.
-npm run map:proving -- --map=<mapId>
-npm run map:proving -- --dry-run --out=/tmp/proving.json
+yarn map:proving --map=<mapId>
+yarn map:proving --dry-run --out=/tmp/proving.json
 
 # A whole playable heightfield adventure, over HTTP only — the one path that also works against a
 # deployed instance, whose database no local process can open. Needs the app running at --target.
-npm run adventure:proving
-SEED_PASSWORD=... npm run adventure:proving -- --target=https://lindocara.bay.alepha.dev \
+yarn adventure:proving
+SEED_PASSWORD=... yarn adventure:proving --target=https://lindocara.bay.alepha.dev \
   --allow-remote=true --allow-production=true
 ```
 

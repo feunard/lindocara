@@ -142,7 +142,7 @@ at 1%. Alert on tick overruns, D1 errors, queue saturation, reconnect spikes, an
 With the local stack running:
 
 ```bash
-npm run loadtest -- --players=50 --duration=60 --scenario=mixed
+yarn loadtest --players=50 --duration=60 --scenario=mixed
 ```
 
 Scenarios are `idle`, `movement`, `combat`, `mixed`, `reconnect`, and `zone-transition`. The runner
@@ -175,7 +175,7 @@ Tests cover malformed/oversized traffic, invalid ids, replayed commands, stale p
 unauthorized equipment, double potion use, duplicate reward attribution, forged party invites,
 private loot, and navigation budgets. The remaining public-edge gap is credential-abuse protection
 by source (Cloudflare rate limiting and/or Turnstile); a room limiter cannot stop distributed login
-attempts. Review CSP/browser security headers before public promotion. `npm audit` remains a release
+attempts. Review CSP/browser security headers before public promotion. `yarn npm audit` remains a release
 check, but development-tool advisories should not be “fixed” through blind breaking downgrades.
 
 ## Current limits and next scale boundary

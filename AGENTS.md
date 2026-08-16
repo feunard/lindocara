@@ -17,32 +17,57 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | `alepha dev` â€” the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell, always on **port 5273** (see below) |
-| `npm run verify` (or `npm run v`, `npx alepha verify`) | the full verify pipeline: clean â†’ lint â†’ typecheck + tests (parallel) â†’ migrations drift check â†’ catalog/map/music content checks â†’ build â†’ boot smoke; `--fast` keeps the migrations check but skips content checks, the build and the smoke. There is no separate i18n check â€” en/fr parity, empty strings and per-`EventCode` templates are asserted by `packages/engine/test/i18n.test.ts`, so `npm test` covers it |
-| `npm run clean` | remove every build output (`apps/main/dist`, `apps/lab/dist`, `apps/lab/dist-client`). `verify` runs it first so a green build cannot be a stale directory; it does NOT run it last, because the artifact is worth keeping |
-| `npm run smoke` | boot the BUILT artifact and prove it runs (see below). Needs `npm run build` first â€” `verify` and CI both sequence it there |
-| `npm run check` | catalog/map checks, lint, typecheck, test â€” run this before committing |
-| `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
-| `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
-| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
-| `npm run lab` | `vite dev` on `apps/lab` â€” the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
-| `npm run deploy -w @lindocara/lab` | ship the witness to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as a **static site** â€” files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
-| `npm run lint` / `lint:fix` | Biome |
-| `npm run typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
-| `npm test` | Vitest â€” every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
-| `npm run build` | `alepha build` â€” bundles `apps/main`; CI builds the production shape via `npm run build -w @lindocara/main -- --target bare` |
-| `npm run deploy` | `alepha platform up -e production` â€” build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
-| `npm run db:generate -w @lindocara/main` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration â€” **currently broken repo-wide**, see below |
-| `npm run check:migrations -w @lindocara/main` | fail on entity/migration drift (also part of `npm run v`) |
+| `yarn dev` | `alepha dev` â€” the whole app on Node: auto-synced SQLite, `/api/*`, auth, the `/ws/*` realtime rooms and the SPA shell, always on **port 5273** (see below) |
+| `yarn verify` (or `yarn v`, `yarn alepha verify`) | the full verify pipeline: clean â†’ lint â†’ typecheck + tests (parallel) â†’ migrations drift check â†’ catalog/map/music content checks â†’ build â†’ boot smoke; `--fast` keeps the migrations check but skips content checks, the build and the smoke. There is no separate i18n check â€” en/fr parity, empty strings and per-`EventCode` templates are asserted by `packages/engine/test/i18n.test.ts`, so `yarn test` covers it |
+| `yarn clean` | remove every build output (`apps/main/dist`, `apps/lab/dist`, `apps/lab/dist-client`). `verify` runs it first so a green build cannot be a stale directory; it does NOT run it last, because the artifact is worth keeping |
+| `yarn smoke` | boot the BUILT artifact and prove it runs (see below). Needs `yarn build` first â€” `verify` and CI both sequence it there |
+| `yarn check` | catalog/map checks, lint, typecheck, test â€” run this before committing |
+| `yarn check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
+| `yarn alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` (each sync = its own commit, pinned in `.vendor/vendor.json`) |
+| `yarn loadtest --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
+| `yarn lab` | `vite dev` on `apps/lab` â€” the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
+| `yarn workspace @lindocara/lab run deploy` | ship the witness to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as a **static site** â€” files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
+| `yarn lint` / `lint:fix` | Biome |
+| `yarn typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below) |
+| `yarn test` | Vitest â€” every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
+| `yarn build` | `alepha build` â€” bundles `apps/main`; CI builds the production shape via `yarn workspace @lindocara/main run build --target bare` |
+| `yarn deploy` | `alepha platform up -e production` â€” build, pack and upload to Bay; CI runs it on every push to `main` and migrations run at app boot |
+| `yarn workspace @lindocara/main run db:generate` | diff the `$entity` schemas into a new `apps/main/migrations/sqlite/` migration â€” **currently broken repo-wide**, see below |
+| `yarn workspace @lindocara/main run check:migrations` | fail on entity/migration drift (also part of `yarn v`) |
 | `python3 studio/studio.py sprite\|sfx\|voice\|music` | generate a game asset locally, in this game's art direction â€” sprites, sound effects, voice lines, music. No API, no cloud, no key. See [Generating assets](#generating-assets) |
 | `python3 studio/studio.py doctor` | check the asset studio's runtimes and weights, then generate one artifact per lane â€” run it first on a machine that has never generated anything |
 
 Asset generation runs on macOS (Apple Silicon) and on Windows/Linux with an NVIDIA GPU; on
 Windows the commands start with `python`, not `python3`.
 
+### The package manager is Yarn 4 — never npm
+
+`yarn.lock` is the lockfile, `packageManager` in the root `package.json` pins **yarn@4.18.0**, and
+corepack is what installs that exact version (`corepack enable`, once per machine). This matches
+the sibling repos — `../alepha` and `../club` — so the same commands work across all three, and it
+is what `alepha platform up` detects: `BayAdapter` composes its build invocation from the lockfile
+it finds, and takes the `yarn alepha build` branch here.
+
+- **`yarn install`** to install, **`yarn install --immutable`** in CI — the `npm ci` guarantee:
+  it fails rather than writing a lockfile, so a dependency edited without regenerating `yarn.lock`
+  is caught before merge.
+- **Running one workspace's script is `yarn workspace <name> run <script>`**, and flags need no
+  `--` separator (`yarn workspace @lindocara/main run build --target bare`).
+- **Never run `npm install` here.** It writes a `package-lock.json` beside `yarn.lock` and the two
+  disagree silently: the tree on your disk stops being the tree CI resolves, which is exactly the
+  class of bug a lockfile exists to prevent.
+- `.yarnrc.yml` chooses the **`node-modules` linker**, not PnP, and states `enableScripts: false`
+  (Yarn 4's own default). Nothing here needs install-time scripts — esbuild and sharp both resolve
+  their binary from a per-platform package — so the day something does, it belongs in an explicit
+  `dependenciesMeta.built` rather than a silent flip of that line.
+- The root `alepha` devDependency is `"*"`, not a semver range, and that is load-bearing: yarn
+  resolves a workspace transparently only when the range matches, so a pinned `^0.24.0` beside a
+  vendored `alepha@0.25.1` would quietly download the framework from npm and shadow
+  `.vendor/alepha`. `*` always matches, which is why every internal dependency here uses it.
+
 ### The dev server has a dedicated port: 5273
 
-`npm run dev` always serves <http://localhost:5273>, pinned with `port` + `strictPort` in
+`yarn dev` always serves <http://localhost:5273>, pinned with `port` + `strictPort` in
 [`apps/main/vite.config.ts`](./apps/main/vite.config.ts). **Use that address, never 5173.**
 
 5173 is the Vite/Alepha default, shared by every Alepha project on the machine, and without a pin
@@ -102,7 +127,7 @@ it still refuses one: `applyReportedMove` bounds a reported position against the
 grant is a server-issued distance with a server-issued deadline. A client that reports where it
 wishes it were is dropped, not believed.
 
-### Monorepo layout (npm workspaces)
+### Monorepo layout (yarn workspaces)
 
 The old single `src/` is now **workspace packages under `packages/*` plus the deployable app under
 `apps/*`**. The **repo root holds only project setup** â€” the workspace `package.json`, the shared
@@ -129,14 +154,14 @@ prefixes in the file map further down map straight onto these homes:
 `.vendor/alepha` is the vendored framework â€” a real workspace member, pinned by
 `.vendor/vendor.json` to a commit of the sibling `../alepha` repo. **The dogfood loop for
 framework work:** a framework fix is implemented in `../alepha` (its tests live there), verified
-with `yarn v` upstream, committed and pushed, then pulled here with `npx alepha vendor sync` â€” the
-sync is its own commit. `npx alepha vendor diff` shows any local patches; keep it clean.
+with `yarn v` upstream, committed and pushed, then pulled here with `yarn alepha vendor sync` â€” the
+sync is its own commit. `yarn alepha vendor diff` shows any local patches; keep it clean.
 
 > **Every valid authored map has a playable heightfield.** Map create/update/import compiles the
 > tile-editor document and its events through `compileAuthoredMap`; `HeightfieldBackfillProvider`
 > performs the same conversion once for historical database rows whose heightfield is empty. The
 > owner-fenced `PUT /api/maps/:id/heightfield` remains the remote terrain-seeding escape hatch used by
-> `npm run adventure:proving -- --target=â€¦ --allow-remote=true`. Malformed legacy authoring payloads
+> `yarn adventure:proving --target=â€¦ --allow-remote=true`. Malformed legacy authoring payloads
 > are deliberately skipped by the startup backfill and remain unjoinable instead of being guessed at.
 >
 > **Heightfield rooms run authored events in heightfield coordinates.** `zoneFromMapPayload`
@@ -172,11 +197,11 @@ editor`; `apps/main` composes `client` + `server` into one deploy. The client's 
 `client â†’ editor` cycle. Cross-package imports use `@lindocara/<pkg>/<file>.js`; the `@` alias means
 the client source root everywhere.
 
-`npm run typecheck` runs every package `tsc`, including `typecheck:editor`, plus
+`yarn typecheck` runs every package `tsc`, including `typecheck:editor`, plus
 `apps/main`'s own `tsconfig.json` (covers its
 `main.ts`/`main.browser.ts` bootstrap entries, previously typechecked by no program at all â€” it
 extends alepha's own base config, the same fix `packages/client/tsconfig.api.json` already needed,
-because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `npm run
+because both entries import the alepha-flavored `AppRouter`) and the Node tooling program; `yarn
 typecheck:<pkg>` (or `typecheck:main`) checks one â€” `typecheck:hd2d`/`typecheck:lab` follow the same
 pattern for the two newest members. **Tests are co-located per package** in `packages/<pkg>/test/`
 (the server's live in `packages/server/test-api/`; `apps/lab`'s in `apps/lab/test/`), each with its
@@ -185,8 +210,9 @@ and lab need no DOM because three itself builds geometry/material/color data ide
 browser, and the two packages' own pure logic â€” `tiltShiftRadius`/`fillAmount`/`sheetUv` in hd2d,
 `island.ts` in lab (its sibling `terrain-query.ts` moved into `@lindocara/engine/hd2d/` in S2,
 alongside the rest of the hero's movement rule) â€” is exactly what's left once anything
-canvas/WebGL is excluded). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything
-and `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`, e.g. `test:hd2d`/`test:lab`) runs one.
+canvas/WebGL is excluded). The root `vitest.config.ts` aggregates them via `projects`, so `yarn test` runs everything
+and `yarn workspace @lindocara/<pkg> run test` (or `yarn test:<pkg>`, e.g. `test:hd2d`/`test:lab`)
+runs one.
 
 **The app's config lives with the app:** `apps/main/alepha.config.ts` declares the production
 platform (Bay adapter, public domain and bay-admin endpoint); `apps/main/migrations/`
@@ -430,8 +456,8 @@ errors. The **package boundary carries that split**: `engine` is pure (neither l
 has one `tsconfig.json` extending the root `tsconfig.json` base and typechecking its own `src`
 **and** `test/`. The only root program is `tsconfig.tooling.json` (Node): the Vite/vitest
 configs, the root `scripts/`, and the engine's tests (which use Node globals its pure src
-config can't host). `npm run typecheck` runs each package's `tsc` then the tooling one;
-`npm run typecheck:<pkg>` runs just one.
+config can't host). `yarn typecheck` runs each package's `tsc` then the tooling one;
+`yarn typecheck:<pkg>` runs just one.
 
 The Alepha migration added a second split inside `client` and `editor`: alepha's own package.json
 points `types` at raw framework source rather than a compiled `.d.ts`, so any file importing
@@ -442,13 +468,13 @@ fail it by the hundreds. Each affected package therefore also has a `tsconfig.ap
 `.vendor/alepha/tsconfig.base.json` instead of the repo base, that owns only the files that import
 alepha (`ui/AppRouter.tsx`, `state/atoms.ts` and their alepha-reading consumers for
 `client`/`editor`) â€” each such file is `exclude`d from the package's plain `tsconfig.json` so it is
-never checked under both regimes. `npm run typecheck:<pkg>` runs both programs for an affected
+never checked under both regimes. `yarn typecheck:<pkg>` runs both programs for an affected
 package. `apps/main/tsconfig.json` follows the same fix for its two bootstrap entries (`main.ts`,
 `main.browser.ts`), which both import the alepha-flavored `AppRouter` â€” extending alepha's base
 directly rather than needing a plain-vs-alepha split of its own, since neither entry has a
 non-alepha half to keep separate. `server` needs no split at all: its sole `tsconfig.json`
 extends alepha's base and covers all of `src` plus `test-api/` â€” one program,
-`npm run typecheck:server`.
+`yarn typecheck:server`.
 
 ### Classes
 
@@ -532,10 +558,10 @@ Migrations live in `apps/main/migrations/sqlite/`:
 # edit packages/server/src/api/entities/*.ts
 # BROKEN as of 2026-08-04 and not yet fixed: a top-level `await` inside an `if` in
 # apps/main/src/main.ts defeats drizzle-kit's esbuild bundling, and every `alepha db` command boots
-# that entry. `npm run check:migrations` (the drift check) is unaffected. Writing a migration by
+# that entry. `yarn check:migrations` (the drift check) is unaffected. Writing a migration by
 # hand, or hoisting that await, are the two ways round it until someone fixes the entry.
-npm run db:generate -w @lindocara/main        # alepha db migrations create â€” commit the output
-npm run check:migrations -w @lindocara/main   # entity/migration drift check (also inside `npm run v`)
+yarn workspace @lindocara/main run db:generate        # alepha db migrations create â€” commit the output
+yarn workspace @lindocara/main run check:migrations   # entity/migration drift check (also inside `yarn v`)
 ```
 
 `alepha platform up` packs the migrations with the Bay artifact; the production app applies them
@@ -984,7 +1010,7 @@ compilation. Relatedly, any `alepha db` command boots the
 real server entry (`apps/main/src/main.ts`) and needs a resolvable `DATABASE_URL` (the dev SQLite
 default suffices locally).
 
-**`npm run smoke` is what closes that gap** (`scripts/smoke-boot.ts`, last step of `npm run verify`
+**`yarn smoke` is what closes that gap** (`scripts/smoke-boot.ts`, last step of `yarn verify`
 and of CI). It boots the built artifact the way Bay boots it and asserts five things a compiler
 cannot see: migrations applied against an empty database, `/api/health` answers, `GET /` serves the
 Lindocara shell with a module entry script, an unadmitted `/ws/world` dial is refused BY THE ROOM,
@@ -1009,7 +1035,7 @@ hero. A Playwright suite over the real screens is still an open gap.
 
 **IDE tsserver misprojects the vendored-source programs.** alepha's `package.json` points `types`
 at raw framework source, so an open file can be assigned the wrong tsconfig program and show false
-diagnostics that no CI check reproduces. `npm run typecheck` is the truth, not the editor
+diagnostics that no CI check reproduces. `yarn typecheck` is the truth, not the editor
 squiggles.
 
 **Empty rooms reset.** Room state is memory-only: the tick stops when a room empties and Node
@@ -1237,11 +1263,11 @@ guest account per press), and the hidden username-only user columns. To add an a
   "@alepha/ui/components/ui/button"` - note the `ui/` segment and no `.js`). Never import a Tiny
   component into an editor to "match the theme".
 - `@alepha/ui` is VENDORED, not local: it lives in `.vendor/@alepha/ui`, is listed in the root
-  `alepha.config.ts` vendor plugin, and arrives with `npx alepha vendor sync`. Do not hand-edit it -
+  `alepha.config.ts` vendor plugin, and arrives with `yarn alepha vendor sync`. Do not hand-edit it -
   a local change becomes a patch `vendor diff` reports forever and the next sync fights. A component
   that needs changing is changed upstream in `../alepha` and synced back, exactly like the framework
   (see the dogfood loop above). It replaced the project's own `packages/ui` shadcn copy, which is
-  deleted; `npm run ui:add` is gone with it, because adding a component is now an upstream concern.
+  deleted; `yarn ui:add` is gone with it, because adding a component is now an upstream concern.
   The historical port spec (`docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`)
   describes that deleted package.
   package's `components.json`.

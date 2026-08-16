@@ -2,9 +2,9 @@
  * Build and validate "La Cité assiégée".
  *
  * Usage:
- *   npm run adventure:build:city
+ *   yarn adventure:build:city
  *
- * Rendering is deliberately separate (`npm run adventure:render -- adventures/cite-assiegee.json`)
+ * Rendering is deliberately separate (`yarn adventure:render adventures/cite-assiegee.json`)
  * so CI can validate the deterministic source bundle without requiring image output.
  */
 import { writeFileSync } from "node:fs";

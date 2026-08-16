@@ -25,7 +25,7 @@ Traveler et de The Adventures of Elliot, appliquÃ©e aux assets **Tiny Swords**
 ## Lancer
 
 ```bash
-npm run lab
+yarn lab
 ```
 
 | EntrÃ©e | Effet |

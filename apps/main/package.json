@@ -11,9 +11,9 @@
     "check:migrations": "alepha db migrations check"
   },
   "dependencies": {
+    "@alepha/sigil": "*",
     "@lindocara/client": "*",
     "@lindocara/server": "*",
-    "alepha": "*",
-    "@alepha/sigil": "*"
+    "alepha": "*"
   }
 }

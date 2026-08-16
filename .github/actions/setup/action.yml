@@ -1,0 +1,29 @@
+name: Setup
+description: Node.js + Yarn (with cache) + workspace deps.
+
+# One place for the three jobs that all start the same way (check, deploy,
+# deploy-lab), matching the composite `../alepha` and `../club` use.
+#
+# Corepack runs FIRST, before setup-node: it is what honours the `packageManager`
+# pin in package.json, and `cache: "yarn"` shells out to `yarn` to locate the cache
+# folder — the runner's preinstalled Yarn 1 names a different one, so a cache wired
+# the other way round is filled and never hit.
+runs:
+  using: composite
+  steps:
+    - name: Enable Corepack
+      run: corepack enable
+      shell: bash
+
+    - name: Prepare Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: "22"
+        cache: "yarn"
+
+    # `--immutable` is `npm ci`'s guarantee: the install fails rather than writing a
+    # lockfile, so a dependency edited without regenerating `yarn.lock` is caught here
+    # instead of merged.
+    - name: Install Dependencies
+      run: yarn install --immutable
+      shell: bash

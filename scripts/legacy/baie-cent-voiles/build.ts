@@ -2,8 +2,8 @@
  * Construit « La Baie des Cent Voiles » en un bundle JSON portable, et refuse de l'écrire s'il n'est
  * pas jouable.
  *
- *   npm run adventure:build:baie              # écrit adventures/baie-cent-voiles.json
- *   npm run adventure:build:baie -- --preview # + un aperçu ASCII de chaque carte
+ *   yarn adventure:build:baie              # écrit adventures/baie-cent-voiles.json
+ *   yarn adventure:build:baie --preview # + un aperçu ASCII de chaque carte
  *
  * Rien ici ne touche au réseau : la publication est le travail de `scripts/adventure-io.ts`. Ce
  * script ne fait qu'une chose — transformer le contenu écrit à la main en bundle validé, avec les

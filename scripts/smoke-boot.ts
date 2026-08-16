@@ -6,7 +6,7 @@
  * assembled and booted for real — a `$action` name colliding with an alepha builtin, a service
  * missing from `LindocaraApi.services`, an entity whose migration was never generated, a `ready()`
  * hook that throws. Every one of those ships a green CI and a dead process. This is the cheapest
- * check that can tell them apart, so it runs at the end of `npm run verify`, after the build whose
+ * check that can tell them apart, so it runs at the end of `yarn verify`, after the build whose
  * output it consumes.
  *
  * It is NOT a browser end-to-end test: nothing here logs in, creates a party or renders a hero.
@@ -15,7 +15,7 @@
  * unadmitted WebSocket is refused — then proves the process also stops on SIGTERM, because a
  * container that will not shut down is its own outage.
  *
- * Run standalone with `npm run smoke` (build first), or let `npm run verify` sequence it.
+ * Run standalone with `yarn smoke` (build first), or let `yarn verify` sequence it.
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -77,7 +77,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function main(): Promise<void> {
   if (!existsSync(entry)) {
-    fail(`no build at ${path.relative(root, entry)} — run 'npm run build' first`);
+    fail(`no build at ${path.relative(root, entry)} — run 'yarn build' first`);
   }
 
   const port = await freePort();

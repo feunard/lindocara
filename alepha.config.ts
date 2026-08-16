@@ -36,30 +36,30 @@ export default defineConfig({
           // Nothing here is incremental (no `tsBuildInfoFile`, `noEmit` everywhere), so this costs
           // no rebuild time. Deliberately NOT repeated at the end: the artifact is worth keeping
           // for inspection, and CI uploads `apps/main/dist` after its own build.
-          await run("npm run clean");
+          await run("yarn clean");
 
-          await run("npm run lint");
+          await run("yarn lint");
 
           // typecheck and the vitest projects share no state — parallel. This is also where
           // i18n parity is verified: `packages/engine/test/i18n.test.ts` asserts en/fr key
           // equality, no empty strings and a template per `EventCode`, so there is no separate
-          // i18n check to call — a missing translation fails `npm test`.
-          await run(["npm run typecheck", "npm test"]);
+          // i18n check to call — a missing translation fails `yarn test`.
+          await run(["yarn typecheck", "yarn test"]);
 
           // Catches schema drift (an edited entity with no matching migration) before it ships —
           // cheap (boots the app once, no build), so it stays in even under --fast.
-          await run("npm run check:migrations -w @lindocara/main");
+          await run("yarn workspace @lindocara/main run check:migrations");
 
           if (flags.fast) return;
 
           // Content checks stay sequential: map:check regenerates tracked
           // zone files in place before git-diffing them, so racing another
           // generator against it would produce phantom diffs.
-          await run("npm run catalog:check");
-          await run("npm run map:check");
-          await run("npm run music:check");
+          await run("yarn catalog:check");
+          await run("yarn map:check");
+          await run("yarn music:check");
 
-          await run("npm run build");
+          await run("yarn build");
 
           // The build proves the app COMPILES. This proves it BOOTS — it starts the artifact the
           // way Bay starts it (production mode, migrations from `apps/main/migrations/`, a
@@ -69,7 +69,7 @@ export default defineConfig({
           // colliding with an alepha builtin, a service missing from `LindocaraApi`, an entity
           // whose migration was never generated, a throwing `ready()` hook — fails here instead of
           // in production. Last, because it consumes the build above.
-          await run("npm run smoke");
+          await run("yarn smoke");
         },
       }),
     }),

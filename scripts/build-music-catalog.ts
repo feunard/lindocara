@@ -162,9 +162,9 @@ export const GENERATED_MUSIC_TRACKS = ${serialise(runtimeTracks)} as const;
     try {
       current = await readFile(outputPath, "utf8");
     } catch {
-      fail("generated catalogue is missing; run npm run music:catalog");
+      fail("generated catalogue is missing; run yarn music:catalog");
     }
-    if (current !== source) fail("generated catalogue drift; run npm run music:catalog");
+    if (current !== source) fail("generated catalogue drift; run yarn music:catalog");
     console.log("Music catalogue is current.");
     return;
   }

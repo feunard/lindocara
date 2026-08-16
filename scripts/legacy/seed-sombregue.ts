@@ -3,8 +3,8 @@
  * chain — through the same /api/* surface the editor uses. Idempotent: re-running updates in place;
  * `--reset` deletes the adventure first.
  *
- * Run with: npm run seed:sombregue -- --target=http://localhost:5273
- * Dry run:  npm run seed:sombregue -- --dry-run
+ * Run with: yarn seed:sombregue --target=http://localhost:5273
+ * Dry run:  yarn seed:sombregue --dry-run
  *
  * There is no adventure GRAPH here. Every crossing is a `teleport` command on an ordinary scripted
  * event, which is why the seed runs in two content passes: pass one writes each map (terrain, props,

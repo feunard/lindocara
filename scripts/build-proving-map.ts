@@ -24,8 +24,8 @@
  * same map with the same `buildProvingMap` below and stamps it through that route.
  *
  * Run (from the repo root):
- *   npm run map:proving -- --map=<mapId>
- *   npm run map:proving -- --dry-run --out=/tmp/proving.json
+ *   yarn map:proving --map=<mapId>
+ *   yarn map:proving --dry-run --out=/tmp/proving.json
  *
  * Flags:
  *   --map=<uuid>      the map row whose `heightfield` column is written (required unless --dry-run)
@@ -248,7 +248,7 @@ async function main(): Promise<void> {
   process.env.NODE_ENV ??= "development";
   process.env.DATABASE_URL = args.get("database") ?? DEV_DATABASE;
   // Port 0 rather than the 3000 default: booting the app to reach `MapService` must not fail
-  // because `npm run dev` already holds that port.
+  // because `yarn dev` already holds that port.
   process.env.SERVER_PORT = "0";
   const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
   await alepha.start();

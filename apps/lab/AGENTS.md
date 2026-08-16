@@ -159,7 +159,7 @@ rule and the client's prediction function, the same way `shared/simulation.ts`'s
 (root `AGENTS.md`, "Why `step()` lives in `shared/`"). That port is meant to be exactly as cheap as
 this one was â€” another file already living in the right package, wired into a tick loop â€” and it
 stays that cheap for exactly as long as `hero-state.ts`/`hero-step.ts`/`locomotion.ts`
-stay pure. Nothing enforces that after this task except discipline: `npm run typecheck:engine`
+stay pure. Nothing enforces that after this task except discipline: `yarn typecheck:engine`
 catches a stray `three` type or a leaked DOM global (the package has neither in its `tsconfig`),
 but it does NOT catch a call to `performance.now()`, a bare `Math.random()`, or a `dt` silently
 assumed to be `1/60` instead of read from the parameter â€” all three typecheck clean, all three
@@ -564,28 +564,28 @@ an upstream fix: `alepha pack` names the artifact from `package.json` while the 
 `${project}-latest.tar.gz`, so a name override cannot be found after packing.
 
 The deploy needs `LORE_API_KEY` in the environment (it is a repository secret for the game's
-workflow). `npm run deploy -w @lindocara/lab` builds the client, builds the artifact and uploads the
+workflow). `yarn workspace @lindocara/lab run deploy` builds the client, builds the artifact and uploads the
 release to Lore; the machine picks it up on its own outbound channel. CI does the same on every push
 to `main` (`deploy-lab` in `.github/workflows/deploy.yml`), gated on the same checks a PR runs.
 
 ## Commands
 
 ```bash
-npm run lab                  # (root) vite dev â€” http://localhost:5174
-npm run build -w @lindocara/lab      # client + static artifact into dist/
-npm run build:client -w @lindocara/lab   # just the vite half, into dist-client/
-npm run deploy -w @lindocara/lab     # needs LORE_API_KEY
-npm run build:map -w @lindocara/lab  # regenerate public/maps/ile.json â€” required after editing
+yarn lab                  # (root) vite dev â€” http://localhost:5174
+yarn workspace @lindocara/lab run build      # client + static artifact into dist/
+yarn workspace @lindocara/lab run build:client   # just the vite half, into dist-client/
+yarn workspace @lindocara/lab run deploy     # needs LORE_API_KEY
+yarn workspace @lindocara/lab run build:map  # regenerate public/maps/ile.json â€” required after editing
                               # `world/island.ts`/`world/props.ts`'s placement rules, or anything
                               # else `scripts/build-map.ts` bakes into the map: the file is
                               # committed, not generated at dev-server start, so an edit that
                               # changes the map silently drifts from what's on disk until this runs.
-npm run typecheck:lab        # tsc
-npm test -w @lindocara/lab   # or: npm run test:lab â€” Node env, pure logic only (island,
+yarn typecheck:lab        # tsc
+yarn workspace @lindocara/lab run test   # or: yarn test:lab â€” Node env, pure logic only (island,
                               # map-parite, zones, bench). The hero's own tests
                               # (hero-state/hero-step/hero-friction) AND terrain-query's
                               # moved to `packages/engine/test/hd2d/` alongside the code â€” run with
-                              # `npm run test:engine`.
+                              # `yarn test:engine`.
 ```
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the full monorepo layout, and the `playwright-cli`

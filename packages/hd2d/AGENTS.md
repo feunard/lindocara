@@ -22,7 +22,7 @@ time once each:
   it is a side ELEVATION, half transparent, and horizontal slices of it draw neither tread nor slope.
 
 See `docs/hd2d-rendering.md` for the full sheet anatomy, and
-`scripts/build-showcase-map.ts` for a map that exercises every case (`npm run adventure:showcase`).
+`scripts/build-showcase-map.ts` for a map that exercises every case (`yarn adventure:showcase`).
 
 ## The boundary
 
@@ -117,7 +117,7 @@ settled it.
 
 `vitest.config.ts` runs `test/` in **Node**, not jsdom â€” three builds geometries, materials and
 colors identically outside a browser, and that pure math/data path is everything these tests touch
-(`npm test -w @lindocara/hd2d` or `npm run test:hd2d`). What is **not** unit-testable here, by
+(`yarn workspace @lindocara/hd2d run test` or `yarn test:hd2d`). What is **not** unit-testable here, by
 construction:
 
 - anything that needs a `<canvas>` 2D context (the contact-shadow/glow/ripple textures in
@@ -189,8 +189,8 @@ instead of the window.
 ## Commands
 
 ```bash
-npm run typecheck:hd2d          # tsc
-npm test -w @lindocara/hd2d     # or: npm run test:hd2d â€” Node env, no canvas/WebGL
+yarn typecheck:hd2d          # tsc
+yarn workspace @lindocara/hd2d run test     # or: yarn test:hd2d â€” Node env, no canvas/WebGL
 ```
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the full monorepo layout.

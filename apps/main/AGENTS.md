@@ -22,7 +22,7 @@ second site would be a sibling `apps/<name>`.
   dev port 5273** (`port` + `strictPort`, so a collision fails loudly instead of drifting onto the
   next free port). All local tooling targets that port; see the root
   [`AGENTS.md`](../../AGENTS.md).
-- `migrations/sqlite/` — the generated database migrations (`npm run db:generate` here diffs the
+- `migrations/sqlite/` — the generated database migrations (`yarn db:generate` here diffs the
   `$entity` schemas; the Bay app applies packed migrations at boot).
 - `index.html` — vestigial: the framework generates its own shell from `main.browser.ts`; this
   file exists only in case a raw Vite root is ever pointed at the app directly.
@@ -34,11 +34,11 @@ second site would be a sibling `apps/<name>`.
 ## Commands
 
 ```bash
-npm run dev                 # (root delegates here) alepha dev — Node + SQLite, the whole app, :5273
-npm run build               # alepha build; add -- --target bare for the Bay production shape
-npm run deploy              # alepha platform up -e production (CI runs this on push to main)
-npm run db:generate         # alepha db migrations create
-npm run check:migrations    # alepha db migrations check (also inside `npm run v`)
+yarn dev                 # (root delegates here) alepha dev — Node + SQLite, the whole app, :5273
+yarn build               # alepha build; add --target bare for the Bay production shape
+yarn deploy              # alepha platform up -e production (CI runs this on push to main)
+yarn db:generate         # alepha db migrations create
+yarn check:migrations    # alepha db migrations check (also inside `yarn v`)
 ```
 
 ## Rules
@@ -51,6 +51,6 @@ npm run check:migrations    # alepha db migrations check (also inside `npm run v
   process applies migrations at boot. CI needs `BAY_API_KEY` and `APP_SECRET`. A green
   `alepha build` alone is not a deploy.
 - Changing `alepha.config.ts` or the Vite wiring is deploy-critical — verify
-  `npm run build -- --target bare`, then smoke the SPA, `/api/*` and `/ws/*` paths.
+  `yarn build --target bare`, then smoke the SPA, `/api/*` and `/ws/*` paths.
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the full monorepo layout.

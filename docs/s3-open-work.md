@@ -124,7 +124,7 @@ Both are documented in the root [`AGENTS.md`](../AGENTS.md) and are deliberate:
   are invisible to a running room.
 
 `PUT /api/maps/:id/heightfield` (added 2026-08-06) is the way terrain reaches a deployed instance,
-whose database no local script can open. `npm run adventure:proving -- --target=… --allow-remote=true`
+whose database no local script can open. `yarn adventure:proving --target=… --allow-remote=true`
 seeds a playable one.
 
 ## Deploying

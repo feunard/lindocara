@@ -24,7 +24,7 @@ Single-package helpers do **not** live here — they sit with their package's te
 ## Commands
 
 ```bash
-npm run typecheck:testing   # tsc (no tests of its own — it *is* test support)
+yarn typecheck:testing   # tsc (no tests of its own — it *is* test support)
 ```
 
 ## Rules

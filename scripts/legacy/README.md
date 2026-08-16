@@ -18,7 +18,7 @@ later piece. See the root [`AGENTS.md`](../../AGENTS.md) and
 ## What still works, and what does not
 
 The build scripts still run and still produce valid bundles: they only exercise the tile model and
-the authoring API, both of which are intact. `npm run adventure:build:baie` and its siblings write
+the authoring API, both of which are intact. `yarn adventure:build:baie` and its siblings write
 into [`adventures/legacy/`](../../adventures/legacy/). Import/export through
 `scripts/adventure-io.ts` is unchanged, and so is the shared tooling in `scripts/lib/` — nothing in
 here was rewritten beyond the import paths the move itself broke.

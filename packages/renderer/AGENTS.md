@@ -76,8 +76,8 @@ The raw Tiny Swords art is bundled via a Vite glob over `../../catalog/assets/**
 ## Commands
 
 ```bash
-npm run typecheck:renderer        # tsc, DOM lib, no React types needed
-npm test -w @lindocara/renderer   # or: npm run test:renderer â€” jsdom
+yarn typecheck:renderer        # tsc, DOM lib, no React types needed
+yarn workspace @lindocara/renderer run test   # or: yarn test:renderer â€” jsdom
 ```
 
 ## Rules

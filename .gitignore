@@ -1,4 +1,10 @@
 node_modules/
+
+# Yarn's own state. `yarn.lock` and `.yarnrc.yml` are tracked; everything the install
+# writes under `.yarn/` is machine-local — the cache is global (`~/.yarn/berry/cache`)
+# and `install-state.gz` is a resolution snapshot. Same line as ../alepha and ../club.
+.yarn
+
 __pycache__/
 *.py[cod]
 dist/

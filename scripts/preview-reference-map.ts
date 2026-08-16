@@ -6,7 +6,7 @@
  * fit, and no building is standing in the sea. It reads the same `buildReferenceMapBuild()` the
  * browser does, so the two can never describe different maps.
  *
- *   npx tsx scripts/preview-reference-map.ts
+ *   yarn tsx scripts/preview-reference-map.ts
  */
 import { buildReferenceMapBuild } from "@lindocara/client/dev/reference-map.js";
 import { bakeCollision, elementCells } from "@lindocara/engine/map-data.js";

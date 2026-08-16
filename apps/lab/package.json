@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build:client": "vite build --outDir dist-client --emptyOutDir",
-    "build": "npm run build:client && alepha build",
-    "deploy": "npm run build:client && alepha platform up -e production",
+    "build": "yarn build:client && alepha build",
+    "deploy": "yarn build:client && alepha platform up -e production",
     "preview": "vite preview",
     "test": "vitest run",
     "build:map": "tsx scripts/build-map.ts"

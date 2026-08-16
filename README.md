@@ -41,12 +41,19 @@ migration report explicitly documents a temporary exception.
 
 ## Quick start
 
+The package manager is **Yarn 4**, pinned by `packageManager` in the root `package.json` and
+installed by corepack — once per machine:
+
 ```bash
-npm install
-npm run dev
+corepack enable
 ```
 
-`npm run dev` runs the whole app (`alepha dev`) on Node: the API, auth, the realtime world rooms
+```bash
+yarn install
+yarn dev
+```
+
+`yarn dev` runs the whole app (`alepha dev`) on Node: the API, auth, the realtime world rooms
 and the SPA shell, over a local SQLite database whose schema is auto-synced from the entity
 definitions. No secrets or migration step are needed locally.
 
@@ -58,10 +65,10 @@ taken means a stale dev server is still running — stop it rather than starting
 somewhere else.
 
 ```bash
-npm run v             # the full verify pipeline (lint, typecheck, tests, drift/content checks, build)
-npm run check:runtime # lint + typecheck + runtime server/player UI tests + build
-npm run check         # full repository gates, including catalog and authored-map checks
-npm run deploy        # alepha platform up -e production (CI does this on every push to main)
+yarn v             # the full verify pipeline (lint, typecheck, tests, drift/content checks, build)
+yarn check:runtime # lint + typecheck + runtime server/player UI tests + build
+yarn check         # full repository gates, including catalog and authored-map checks
+yarn deploy        # alepha platform up -e production (CI does this on every push to main)
 ```
 
 ## Local load testing
@@ -69,8 +76,8 @@ npm run deploy        # alepha platform up -e production (CI does this on every 
 Start the local stack, then run a scenario from another terminal:
 
 ```bash
-npm run dev
-npm run loadtest -- --players=10 --duration=60 --scenario=mixed
+yarn dev
+yarn loadtest --players=10 --duration=60 --scenario=mixed
 ```
 
 Available scenarios are `idle`, `movement`, `combat`, `mixed`, `reconnect`, and
@@ -170,8 +177,8 @@ authored-quest state belongs to the party, while unique reward claims make deliv
 and XP/gold/item rewards idempotent.
 
 ```bash
-npm run db:generate -w @lindocara/main        # entity change -> apps/main/migrations/
-npm run check:migrations -w @lindocara/main   # fail on entity/migration drift
+yarn workspace @lindocara/main run db:generate        # entity change -> apps/main/migrations/
+yarn workspace @lindocara/main run check:migrations   # fail on entity/migration drift
 ```
 
 Production migrations run automatically when the Bay process boots, before it serves the new code.

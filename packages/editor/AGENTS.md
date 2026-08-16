@@ -59,9 +59,9 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 
 ## Commands
 
-- `npm run typecheck:editor` checks this package.
-- `npm run test:editor` runs its jsdom Vitest project.
-- Root `npm run typecheck`, `npm test` and `npm run check` include the editor.
+- `yarn typecheck:editor` checks this package.
+- `yarn test:editor` runs its jsdom Vitest project.
+- Root `yarn typecheck`, `yarn test` and `yarn check` include the editor.
 
 ## Rendering and data rules
 

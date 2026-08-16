@@ -66,8 +66,8 @@ DOM, React or Node.** Valid in a browser *and* in workerd — its tsconfig gives
 ## Commands
 
 ```bash
-npm run typecheck:engine        # tsc, pure ES2022 (no DOM/Workers)
-npm test -w @lindocara/engine   # or: npm run test:engine  — Node env, no workerd
+yarn typecheck:engine        # tsc, pure ES2022 (no DOM/Workers)
+yarn workspace @lindocara/engine run test   # or: yarn test:engine  — Node env, no workerd
 ```
 
 ## Rules

@@ -21,13 +21,13 @@
  * A DEV SCRIPT. It lives in the repo's root `scripts/` so `tsconfig.tooling.json` typechecks it,
  * and nothing a package ships may import it.
  *
- * Run (from the repo root, with `npm run dev` already up):
- *   npm run adventure:proving
- *   npm run adventure:proving -- --title="Another Island"
+ * Run (from the repo root, with `yarn dev` already up):
+ *   yarn adventure:proving
+ *   yarn adventure:proving --title="Another Island"
  *
  * Against a deployed instance (gated exactly like every other seeding CLI — see
  * `scripts/lib/adventure-api.ts`):
- *   SEED_PASSWORD=... npm run adventure:proving -- \
+ *   SEED_PASSWORD=... yarn adventure:proving \
  *     --target=https://lindocara.bay.alepha.dev --allow-remote=true --allow-production=true
  *
  * Flags:

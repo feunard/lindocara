@@ -20,46 +20,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Install dependencies
-        run: npm ci
-
-      # `npm run check` bundles the steps below; CI runs them one by one so a failure names
+      # `yarn check` bundles the steps below; CI runs them one by one so a failure names
       # itself in the job graph instead of hiding behind a single "check" step.
       - name: Catalogue up to date
-        run: npm run catalog:check
+        run: yarn catalog:check
 
       - name: Maps up to date
-        run: npm run map:check
+        run: yarn map:check
 
       - name: Music catalogue up to date
-        run: npm run music:check
+        run: yarn music:check
 
       - name: Lint
-        run: npm run lint
+        run: yarn lint
 
       - name: Typecheck
-        run: npm run typecheck
+        run: yarn typecheck
 
       - name: Test
-        run: npm test
+        run: yarn test
 
       # `--target bare` is what Bay runs: plain Node, the framework's own
       # websocket server, SQLite on disk. The root `build` script is itself
-      # `npm run build -w @lindocara/main`, so passing the flag through it would
-      # hand it to that inner `npm run` rather than to `alepha build` — call the
+      # `yarn workspace @lindocara/main run build`, so passing the flag through it would
+      # hand it to that inner `yarn run` rather than to `alepha build` — call the
       # workspace script directly.
       #
       # A build here and a build in the deploy job is deliberate duplication:
       # this one proves a PR compiles, that one is what actually ships, and
       # `platform up` refuses to deploy something it did not build itself.
       - name: Build
-        run: npm run build -w @lindocara/main -- --target bare
+        run: yarn workspace @lindocara/main run build --target bare
 
       # A compiled artifact is not a working one. This boots the thing the step above just
       # produced — production mode, real migrations, a throwaway SQLite file — and asserts the API
@@ -68,7 +62,7 @@ jobs:
       # the shape Bay runs, so this is the last gate before a deploy that would otherwise only
       # discover a failed `ready()` hook in production.
       - name: Boot smoke
-        run: npm run smoke
+        run: yarn smoke
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

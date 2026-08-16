@@ -28,15 +28,15 @@ raw art it holds **is** bundled by the renderer at build time.
 ## Commands
 
 ```bash
-npm run typecheck:catalog          # tsc (Node)
-npm run catalog:build              # regenerate the catalogue into engine + client + docs
-npm run catalog:check              # fail if any generated output is stale (part of `npm run check`)
-npm test -w @lindocara/catalog     # or: npm run test:catalog — Node
+yarn typecheck:catalog          # tsc (Node)
+yarn catalog:build              # regenerate the catalogue into engine + client + docs
+yarn catalog:check              # fail if any generated output is stale (part of `yarn check`)
+yarn workspace @lindocara/catalog run test     # or: yarn test:catalog — Node
 ```
 
 ## Rules
 
-- After changing the source catalogue or the generators, run `npm run catalog:build` and commit the
+- After changing the source catalogue or the generators, run `yarn catalog:build` and commit the
   regenerated files in `engine`/`client`/`docs` — `catalog:check` (and CI) fails otherwise.
 - The generated `.generated.ts` is excluded from Biome (do not hand-edit it).
 

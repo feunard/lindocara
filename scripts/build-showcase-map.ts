@@ -17,8 +17,8 @@
  * nothing a package ships may import it.
  *
  * Run (from the repo root):
- *   npm run map:showcase -- --dry-run       # print the ASCII plan and the coverage report
- *   npm run adventure:showcase              # seed it into a running app (see the sibling script)
+ *   yarn map:showcase --dry-run       # print the ASCII plan and the coverage report
+ *   yarn adventure:showcase              # seed it into a running app (see the sibling script)
  */
 
 import { writeFileSync } from "node:fs";

@@ -11,11 +11,11 @@
  * which is what you want while iterating on the terrain: regenerate, reload, look. Every re-stamp
  * bumps the map's revision, which is what makes a live session pick the new terrain up.
  *
- * Run (from the repo root, with `npm run dev` already up):
- *   npm run adventure:showcase
+ * Run (from the repo root, with `yarn dev` already up):
+ *   yarn adventure:showcase
  *
  * Against a deployed instance (gated exactly like every other seeding CLI):
- *   SEED_PASSWORD=... npm run adventure:showcase -- \
+ *   SEED_PASSWORD=... yarn adventure:showcase \
  *     --target=https://lindocara.bay.alepha.dev --allow-remote=true --allow-production=true
  *
  * Flags:

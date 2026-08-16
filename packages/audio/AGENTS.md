@@ -72,6 +72,6 @@ resurrect stale copies on the next sync.
 ## Commands
 
 ```bash
-npm run typecheck:audio
-npm test -w @lindocara/audio   # or: npm run test:audio — node, with a hand-rolled fake context
+yarn typecheck:audio
+yarn workspace @lindocara/audio run test   # or: yarn test:audio — node, with a hand-rolled fake context
 ```

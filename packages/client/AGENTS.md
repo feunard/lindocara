@@ -56,8 +56,8 @@ glue that binds the renderer to the network. Browser + React. This is the base t
 ## Commands
 
 ```bash
-npm run typecheck:client        # tsc, DOM + React
-npm test -w @lindocara/client   # or: npm run test:client â€” jsdom
+yarn typecheck:client        # tsc, DOM + React
+yarn workspace @lindocara/client run test   # or: yarn test:client â€” jsdom
 ```
 
 ## Rules
