@@ -13,7 +13,7 @@ way around.
 `server`, `client` or `renderer`. It also does not (yet) feed the game: the game's render path is
 now HD-2D, and the lab remains its isolated render witness (see the root
 [`AGENTS.md`](../../AGENTS.md) and
-[`docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md`](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
+[`docs/archive/specs/2026-08-02-hd2d-reboot-design.md`](../../docs/archive/specs/2026-08-02-hd2d-reboot-design.md)).
 `island.ts` is the remaining deliberate exception to "witness, don't build product here": it is
 written as the future `@lindocara/engine` generation module, kept pure and `three`-free on
 purpose, so a later task can promote it by moving the file, not rewriting it. Its siblings already
@@ -233,8 +233,8 @@ island content: it belongs to the separate glider chantier (`.superpowers/sdd/20
 A fifth island, `ILES[4]` in `world/island.ts`, west of the main one (`WEST`, `settings.ts`) and
 reached only by swimming. It carries a **terraced mountain** and a **three-drop cascade** with its
 own zone, roar, mist, spray and rainbow. Design and plan:
-[spec](../../docs/superpowers/specs/2026-08-11-mountain-waterfall-design.md),
-[plan](../../docs/superpowers/plans/2026-08-11-mountain-waterfall.md).
+[spec](../../docs/archive/specs/2026-08-11-mountain-waterfall-design.md),
+[plan](../../docs/archive/plans/2026-08-11-mountain-waterfall.md).
 
 **The face is a CUT, not a tangent.** Four concentric relief discs a cell apart (6/5/4/3, so every
 wall is one level), sliced along `MOUNTAIN_FACE_Z` by the island's `carve` hook. An earlier shape

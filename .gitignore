@@ -47,6 +47,10 @@ artifacts/
 .claude/*
 # Skills are project tooling, shared by everyone working here.
 !.claude/skills/
+# The permission allowlist: read-only git/gh, the yarn scripts, and the search tools. It exists so a
+# session spends its interruptions on decisions rather than on `yarn typecheck` for the ninth time.
+# Deliberately absent: commit, push, deploy, rm — those stay a question every time.
+!.claude/settings.json
 
 wireframes
 

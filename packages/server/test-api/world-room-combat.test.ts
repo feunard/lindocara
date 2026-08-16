@@ -74,18 +74,16 @@ import {
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
-import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
-  advanceWorldTick,
-  applyReportedMove,
   finishHeldPlayerAction,
-  resolveMonsterAction,
   resolvePlayerAction,
-  startMonsterAttack,
   startPlayerAction,
-  type WorldGlue,
-  type WorldTickDeps,
-} from "../src/api/realtime/worldTick.ts";
+} from "../src/api/realtime/world-actions.ts";
+import { resolveMonsterAction, startMonsterAttack } from "../src/api/realtime/world-combat.ts";
+import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
+import { applyReportedMove } from "../src/api/realtime/world-move-life.ts";
+import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
+import { advanceWorldTick } from "../src/api/realtime/worldTick.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createBuildings } from "../src/world/building-system.ts";
 import { createTestApp, provingHeightfield } from "./helpers.ts";

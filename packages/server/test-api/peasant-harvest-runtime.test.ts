@@ -14,16 +14,15 @@ import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
-import { evaluateActiveEvents } from "../src/api/realtime/worldEvents.ts";
-import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import {
   advancePeasantHarvestJobs,
   pruneInvalidPeasantHarvestJobs,
   resolvePlayerAction,
   startPlayerAction,
-  type WorldGlue,
-  type WorldTickDeps,
-} from "../src/api/realtime/worldTick.ts";
+} from "../src/api/realtime/world-actions.ts";
+import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
+import { evaluateActiveEvents } from "../src/api/realtime/worldEvents.ts";
+import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import { cancelPeasantHarvestJob } from "../src/world/peasant-harvest-system.ts";
 import { newPlayer } from "../src/world/world-runtime.ts";
 

@@ -40,8 +40,9 @@ import {
 } from "@lindocara/server/world/world-runtime.js";
 
 import { describe, expect, it, vi } from "vitest";
+import type { WorldGlue } from "../src/api/realtime/world-glue.ts";
+import { sendPeasantCampsTo } from "../src/api/realtime/world-send.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
-import { sendPeasantCampsTo, type WorldGlue } from "../src/api/realtime/worldTick.ts";
 
 /**
  * Coordinates here are the suite's original PIXEL values over `TILE_SIZE`, on a flat 32x32

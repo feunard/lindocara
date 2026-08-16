@@ -7,6 +7,8 @@ import {
   SPAWN_POINTS,
   TERRAIN_BLOCKERS,
 } from "@lindocara/engine/game.js";
+import { SUNKEN_ISLES_TILES } from "@lindocara/engine/generated/zones/sunken-isles-tiles.js";
+import { VERDANT_REACH_TILES } from "@lindocara/engine/generated/zones/verdant-reach-tiles.js";
 // PLAYER_SIZE lives in simulation.ts, not game.ts.
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
 import {
@@ -17,11 +19,9 @@ import {
   TILE_SIZE,
 } from "@lindocara/engine/tilemap.js";
 import { SUNKEN_ISLES_SPAWNS } from "@lindocara/engine/zones/sunken-isles.js";
-import { SUNKEN_ISLES_TILES } from "@lindocara/engine/zones/sunken-isles-tiles.js";
-import { VERDANT_REACH_TILES } from "@lindocara/engine/zones/verdant-reach-tiles.js";
 import { describe, expect, it } from "vitest";
 
-// Frozen exactly as `packages/engine/src/zones/verdant-reach-tiles.ts` read the moment before Task 1
+// Frozen exactly as `packages/engine/src/generated/zones/verdant-reach-tiles.ts` read the moment before Task 1
 // touched the generator — copied by hand from the committed file, not computed from it, and
 // never regenerated. At that point the generator only ever emitted "water" or "grass", so solid
 // meant one thing: the character is "#". This is the independent witness the bit-identical test

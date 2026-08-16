@@ -6,7 +6,7 @@ Traveler et de The Adventures of Elliot, appliquÃ©e aux assets **Tiny Swords**
 
 > **Origine.** Ce document est le carnet de bord du PoC `poc-hd-2d`, Ã©crit pendant que le rendu se
 > cherchait, puis rapatriÃ© ici quand le chantier S1 a portÃ© ce PoC en `@lindocara/hd2d` et
-> `apps/lab` (voir [le spec du reboot](./superpowers/specs/2026-08-02-hd2d-reboot-design.md)). Le
+> `apps/lab` (voir [le spec du reboot](./archive/specs/2026-08-02-hd2d-reboot-design.md)). Le
 > dÃ©pÃ´t d'origine n'existe plus ; les chemins ci-dessous ont Ã©tÃ© repointÃ©s vers le code portÃ©.
 >
 > **C'est un registre de piÃ¨ges autant qu'une explication.** Chaque section dit ce qui a Ã©tÃ©

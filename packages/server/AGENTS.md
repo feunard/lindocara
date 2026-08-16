@@ -5,7 +5,7 @@ The authoritative game server, built on the vendored [Alepha](../../.vendor/alep
 XP, deaths, loot or quest completion. Since S3 moved movement to the client, a `move` frame is the
 one message that carries a FACT rather than an intent: the hero's own client ran the rule and
 reports where it ended up. **That conceded AUTHORITY, not VALIDITY** — `applyReportedMove`
-(`worldTick.ts`) bounds the claim against the real map (`withinRoomBounds`), the parser caps every
+(`world-move-life.ts`) bounds the claim against the real map (`withinRoomBounds`), the parser caps every
 coordinate at `MOVE_COORDINATE_LIMIT`, and a corpse's or a mid-handoff hero's frames are dropped.
 Everything else in the list above stayed here, and this package still owns everything that must be
 trusted. It runs on Node/SQLite in dev (`yarn dev` from the repo root, i.e.
@@ -77,7 +77,10 @@ never duplicate the message variants in zod.
 - **`WorldRoom`** (`/ws/world`, roomId `partyId:mapId`) — the room owner: admission, the full
   authoritative tick order (`worldTick.ts`: combat actions, projectiles, monsters, guards, loot,
   events, quests, snapshots/deltas), reusing the pure `src/world/*` systems with injected
-  dependencies. HERO movement is no longer in that order: it arrives as a reported `move` and is
+  dependencies. `worldTick.ts` is the ORDER; what each beat does lives in its siblings —
+  `world-glue.ts` (the `WorldGlue`/`WorldTickDeps` seam and room accessors), `world-send.ts`,
+  `world-move-life.ts`, `world-combat.ts`, `world-actions.ts`, `world-interactions.ts`. Add a beat
+  to the order here, its body there. HERO movement is no longer in that order: it arrives as a reported `move` and is
   validated on receipt (`applyReportedMove`), while `movement-system.ts` keeps only the per-player
   beat that used to sit beside it — resource regeneration, the presence heartbeat, corpse reclaim,
   loot collection, the attachment write and the dirty flush. Monsters, guards and projectiles are

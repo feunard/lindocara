@@ -32,7 +32,7 @@ corriger. `npm ci` signale quatre vulnérabilités modérées dans les dépendan
 ## Ce qui n’est encore que documenté ou incomplet
 
 - La coupure d’admission décrite dans
-  `docs/superpowers/specs/2026-07-18-admission-cutover-design.md` n’est pas implémentée : il n’existe
+  `docs/archive/specs/2026-07-18-admission-cutover-design.md` n’est pas implémentée : il n’existe
   ni `hero-profile.ts`, ni `HeroPresence`, ni WebSocket `?party=&hero=`.
 - Une partie n’est pas encore l’identité du Durable Object. `World` est toujours une salle unique
   indexée par carte/instance, sans salles internes par carte ; deux parties ne sont donc pas encore

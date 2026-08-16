@@ -55,7 +55,7 @@ interface GenerationRegistry {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const configPath = path.join(root, "studio", "musics", "lindocara-music.json");
 const registryPath = path.join(root, "studio", "musics", "generations.json");
-const outputPath = path.join(root, "packages", "engine", "src", "music-catalog.generated.ts");
+const outputPath = path.join(root, "packages", "engine", "src", "generated", "music-catalog.ts");
 
 function fail(message: string): never {
   throw new Error(`[music-catalog] ${message}`);

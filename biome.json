@@ -15,7 +15,7 @@
       "!apps/lab/public/maps",
       "!packages/catalog/assets/index.json",
       "!packages/catalog/assets/lindocara-asset-catalog.json",
-      "!packages/engine/src/tiny-swords-catalog.generated.ts"
+      "!packages/engine/src/generated/tiny-swords-catalog.ts"
     ]
   },
   "formatter": {

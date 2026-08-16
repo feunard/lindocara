@@ -1,4 +1,5 @@
 import { type ColliderIndex, emptyColliderIndex, overlapsCollider } from "./collider.js";
+import { VERDANT_REACH_TILES } from "./generated/zones/verdant-reach-tiles.js";
 import type { GroundVector, WorldPosition } from "./ground.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import {
@@ -18,7 +19,6 @@ import {
   type TileMap,
 } from "./tilemap.js";
 import type { EditorAssetId } from "./tiny-swords-catalog.js";
-import { VERDANT_REACH_TILES } from "./zones/verdant-reach-tiles.js";
 
 export interface Rect {
   x: number;

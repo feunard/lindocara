@@ -13,8 +13,8 @@
  */
 import { emptyColliderIndex } from "../collider.js";
 import type { Rect, TerrainGeometry, WorldLandmark } from "../game.js";
+import { SUNKEN_ISLES_TILES } from "../generated/zones/sunken-isles-tiles.js";
 import type { Vec2, WorldBounds } from "../simulation.js";
-import { SUNKEN_ISLES_TILES } from "./sunken-isles-tiles.js";
 
 export const SUNKEN_ISLES_BOUNDS: WorldBounds = { width: 2560, height: 1920 };
 

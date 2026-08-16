@@ -3,7 +3,7 @@
 The HD-2D **render engine**: pixel art sprites billboarded into a lit, post-processed Three.js
 scene â€” the technique behind Octopath Traveler and The Adventures of Elliot, applied to Tiny
 Swords. Ported verbatim from the `poc-hd-2d` PoC, now retired (Task 1-10 of the
-[S1 spec](../../docs/superpowers/specs/2026-08-02-hd2d-reboot-design.md)).
+[S1 spec](../../docs/archive/specs/2026-08-02-hd2d-reboot-design.md)).
 
 ## The terrain sheet has two cliff feet, and a ramp is a slope
 

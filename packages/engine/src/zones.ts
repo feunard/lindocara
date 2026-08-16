@@ -14,6 +14,7 @@ import {
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
+import { MMO_TEST_ZONE_TILES } from "./generated/zones/mmo-test-zone-tiles.js";
 import type { ColliderIndex } from "./hd2d/collider-index.js";
 import type { TerrainQuery } from "./hd2d/terrain-query.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
@@ -22,7 +23,6 @@ import type { MapHeroSettings } from "./map-hero-settings.js";
 import type { MapFixedLighting } from "./map-lighting.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
-import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
 import { SUNKEN_ISLES_TERRAIN } from "./zones/sunken-isles.js";
 
 /**

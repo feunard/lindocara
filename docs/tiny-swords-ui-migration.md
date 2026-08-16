@@ -31,7 +31,7 @@ which Tiny Swords supplies artwork. CSS remains necessary for clipping bar fills
 text contrast over pixel art.
 
 The locally vendored OFL fonts predate this migration and remain because Tiny Swords contains no
-font files. Historical design/implementation plans under `docs/superpowers/` retain references to
+font files. Historical design/implementation plans under `docs/archive/` retain references to
 the prior garrison implementation as an audit trail; they are not current product guidance.
 
 ## Runtime art boundary still to consolidate

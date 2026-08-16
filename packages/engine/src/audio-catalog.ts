@@ -9,7 +9,7 @@ import {
   GENERATED_MUSIC_TRACKS,
   LINDOCARA_MUSIC_DNA,
   MUSIC_PROFILES,
-} from "./music-catalog.generated.js";
+} from "./generated/music-catalog.js";
 
 export { LINDOCARA_MUSIC_DNA, MUSIC_PROFILES };
 
@@ -18,7 +18,7 @@ export { LINDOCARA_MUSIC_DNA, MUSIC_PROFILES };
  * the catalogue carries no third-party licence obligation. The third-party OpenGameArt music that
  * used to live here was removed with its files; only `AMBIENCE_TRACKS` below is still borrowed.
  * Legacy captions/seeds are in `audio/CREDITS.md`; profile generations are reproducibly recorded
- * in `studio/musics/generations.json` and compiled into `music-catalog.generated.ts`.
+ * in `studio/musics/generations.json` and compiled into `generated/music-catalog.ts`.
  */
 const LEGACY_MUSIC_TRACKS = [
   {

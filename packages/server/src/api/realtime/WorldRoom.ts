@@ -123,6 +123,40 @@ import { PresenceRoom } from "./PresenceRoom.ts";
 import { runPeasantSupportSaga } from "./peasantSupportSaga.ts";
 import { frameByteLength } from "./wire.ts";
 import {
+  activatePeasantSupportRequest,
+  cancelPeasantSupportRequest,
+  finishHeldPlayerAction,
+  handleSheepHit,
+  preparePeasantSupportRequest,
+  pruneInvalidPeasantHarvestJobs,
+  startPlayerAction,
+} from "./world-actions.ts";
+import type { WorldGlue } from "./world-glue.ts";
+import {
+  handleBuyConsumable,
+  handleChat,
+  handleEventAdvance,
+  handleEventChoose,
+  handleInteract,
+  handlePeasantCampGold,
+  handleQuestAbandon,
+  handleQuestAction,
+  handleQuestChanges,
+  handleTalentReset,
+  handleTalentUnlock,
+  handleUseConsumable,
+} from "./world-interactions.ts";
+import { applyDrowning, applyReportedMove, handleRelease } from "./world-move-life.ts";
+import {
+  recordMapEntered,
+  selfStateFor,
+  sendPeasantCampsTo,
+  sendPeasantRationsTo,
+  sendPriestLumenEffectsTo,
+  sendResyncTo,
+  sendStateTo,
+} from "./world-send.ts";
+import {
   abortRunsForStalePages,
   evaluateActiveEvents,
   logTeleportRefusedOnce,
@@ -134,39 +168,7 @@ import {
   type WorldRoomState,
   zoneFromMapPayload,
 } from "./worldState.ts";
-import {
-  activatePeasantSupportRequest,
-  advanceWorldTick,
-  applyDrowning,
-  applyReportedMove,
-  cancelPeasantSupportRequest,
-  finishHeldPlayerAction,
-  handleBuyConsumable,
-  handleChat,
-  handleEventAdvance,
-  handleEventChoose,
-  handleInteract,
-  handlePeasantCampGold,
-  handleQuestAbandon,
-  handleQuestAction,
-  handleQuestChanges,
-  handleRelease,
-  handleSheepHit,
-  handleTalentReset,
-  handleTalentUnlock,
-  handleUseConsumable,
-  preparePeasantSupportRequest,
-  pruneInvalidPeasantHarvestJobs,
-  recordMapEntered,
-  selfStateFor,
-  sendPeasantCampsTo,
-  sendPeasantRationsTo,
-  sendPriestLumenEffectsTo,
-  sendResyncTo,
-  sendStateTo,
-  startPlayerAction,
-  type WorldGlue,
-} from "./worldTick.ts";
+import { advanceWorldTick } from "./worldTick.ts";
 
 /** Copied from legacy `character-presence.ts`'s `PRESENCE_HEARTBEAT_MS` (that module defines a
  *  Durable Object and cannot load under Node) — how often the room re-asserts every player's

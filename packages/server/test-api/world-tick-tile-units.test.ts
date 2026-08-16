@@ -36,17 +36,16 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
-import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
-import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
+import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
+import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
+import { teleportSameMap } from "../src/api/realtime/world-interactions.ts";
 import {
   applyReportedMove,
   handleRelease,
   killPlayer,
-  startPlayerAction,
-  teleportSameMap,
-  type WorldGlue,
-  type WorldTickDeps,
-} from "../src/api/realtime/worldTick.ts";
+} from "../src/api/realtime/world-move-life.ts";
+import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
+import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import { newPlayer, type PlayerRuntime } from "../src/world/world-runtime.js";
 
 const SIZE = 16;

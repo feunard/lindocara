@@ -13,7 +13,7 @@ produces a party that joins successfully and stares at a blank screen.
 
 That was the increment's accepted cost, not an accident — the spec put porting the adventures in a
 later piece. See the root [`AGENTS.md`](../../AGENTS.md) and
-[`docs/superpowers/specs/2026-08-04-s3-terrain-on-hd2d-design.md`](../../docs/superpowers/specs/2026-08-04-s3-terrain-on-hd2d-design.md).
+[`docs/archive/specs/2026-08-04-s3-terrain-on-hd2d-design.md`](../../docs/archive/specs/2026-08-04-s3-terrain-on-hd2d-design.md).
 
 ## What still works, and what does not
 

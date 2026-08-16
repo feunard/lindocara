@@ -3,7 +3,7 @@ import type { Rect } from "./game.js";
 import {
   GENERATED_EDITOR_ASSETS,
   GENERATED_TINY_SWORDS_UI_ASSETS,
-} from "./tiny-swords-catalog.generated.js";
+} from "./generated/tiny-swords-catalog.js";
 
 export const TINY_SWORDS_PACKS = [
   "Tiny Swords (Free Pack)",

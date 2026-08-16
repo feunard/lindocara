@@ -34,7 +34,7 @@ sub-decomposition.
 
 Terrain was one character per cell over six `TileKind` values, with the sprite derived from
 neighbours at draw time. It is now three layers of frozen tile ids over an authored tileset, in the
-RPG Maker XP model. `docs/superpowers/specs/2026-07-18-layered-map-model-design.md` has the full
+RPG Maker XP model. `docs/archive/specs/2026-07-18-layered-map-model-design.md` has the full
 design; `CLAUDE.md`'s "Maps and the editor" section has the short version.
 
 Three rules came out of it that later tranches must not break:
@@ -181,7 +181,7 @@ single, deliberately commented test-only seam, left as tranche 5's entry point. 
 the controller: the registry dialog opens by mouse, the empty state is calm, zero console errors;
 the runtime path itself is covered by tests against the real Durable Object rather than a browser
 pass. See
-[`docs/superpowers/specs/2026-07-19-adventure-state-design.md`](./docs/superpowers/specs/2026-07-19-adventure-state-design.md)
+[`docs/archive/specs/2026-07-19-adventure-state-design.md`](../docs/archive/specs/2026-07-19-adventure-state-design.md)
 for the full design.
 
 **Obligations recorded for tranche 5:**
@@ -196,7 +196,7 @@ for the full design.
 ## Tranche 4.5 — the UX feedback wave
 
 A user feedback wave arrived mid-tranche-4 and is sequenced between 4 and 5 rather than folded into
-either: `docs/superpowers/specs/2026-07-19-ux-feedback-wave.md` records the thirteen items verbatim,
+either: `docs/archive/specs/2026-07-19-ux-feedback-wave.md` records the thirteen items verbatim,
 translated into requirements — no dark mode, the editor opening on an adventure picker rather than
 straight into the editor (item 15; **delivered** — entering the editor now mints a fresh unsaved
 scratch adventure and opens it, `File → Open` reaches an existing one, `File → New adventure` starts
@@ -234,8 +234,8 @@ wired. Tranche 5 may proceed.
 
 The largest tranche by a wide margin. Authored commands became a language, and it runs inside the
 Durable Object. Shipped in six tasks (`feature/interpreter`), each independently green, on the six
-settled multiplayer answers (`docs/superpowers/specs/2026-07-19-interpreter-questions.md`, the WoW
-compass) and the full design (`docs/superpowers/specs/2026-07-20-interpreter-design.md`).
+settled multiplayer answers (`docs/archive/specs/2026-07-19-interpreter-questions.md`, the WoW
+compass) and the full design (`docs/archive/specs/2026-07-20-interpreter-design.md`).
 
 **The t5 vocabulary** (the wireframe's catalogue filtered by the settled answers): show text · show
 choices · set switch · set variable (set/add) · set self-switch · conditional (switch / variable ≥ /
@@ -318,7 +318,7 @@ The editor no longer opens on a list. Entering it drops you straight onto a blan
 `File → Open` reaches an existing adventure and `File → New adventure` starts another, both
 dirty-guarded. `AdventurePickerScreen` is deleted, and so is `editor-last-adventure.ts` — an orphan
 that solved this same problem by reopening the last adventure, a premise this rejects.
-See [the design](./superpowers/specs/2026-08-10-editor-entry-flow-design.md).
+See [the design](./archive/specs/2026-08-10-editor-entry-flow-design.md).
 
 **That blank map is no longer a row.** The first cut minted a real adventure on entry
 (`ensureScratchAdventure()`, one `POST /api/adventures`) and deliberately never collected the
@@ -403,9 +403,9 @@ and 2, and both editor and world renderer priority-routing branches have direct 
 
 - `CLAUDE.md` — the agent contract. Read it fully before touching anything.
 - `wireframes/RPG Editor.dc.html` — the visual target.
-- `docs/superpowers/specs/2026-07-18-layered-map-model-design.md` — tranche 1's design.
-- `docs/superpowers/specs/2026-07-19-map-events-design.md` — tranche 3's design.
+- `docs/archive/specs/2026-07-18-layered-map-model-design.md` — tranche 1's design.
+- `docs/archive/specs/2026-07-19-map-events-design.md` — tranche 3's design.
 - `docs/adventure-runtime-architecture.md` — room ownership, routing, presence fencing.
-- `docs/superpowers/specs/2026-07-16-map-editor-design.md` — the current editor's spec, which
+- `docs/archive/specs/2026-07-16-map-editor-design.md` — the current editor's spec, which
   tranche 2 supersedes but should not contradict without saying so.
 - `.superpowers/sdd/progress.md` — every finding from tranche 1, with commit shas.
