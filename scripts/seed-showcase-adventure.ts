@@ -16,7 +16,7 @@
  *
  * Against a deployed instance (gated exactly like every other seeding CLI):
  *   SEED_PASSWORD=... yarn adventure:showcase \
- *     --target=https://lindocara.bay.alepha.dev --allow-remote=true --allow-production=true
+ *     --target=https://lc.alepha.dev --allow-remote=true --allow-production=true
  *
  * Flags:
  *   --target=<url>          the running app; defaults to http://localhost:5273

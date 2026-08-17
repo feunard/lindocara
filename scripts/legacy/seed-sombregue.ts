@@ -31,8 +31,13 @@ import {
 import { buildQuests, type MapIdByKey } from "./sombregue/quests.js";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-// Bay is current; keep the retired Cloudflare host protected while its data remains reachable.
-const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
+// Both Bay hosts serve the same app, so both are production; the retired Cloudflare
+// host stays protected while its data remains reachable.
+const PRODUCTION_HOSTS = new Set([
+  "lc.alepha.dev",
+  "lindocara.bay.alepha.dev",
+  "lindocara.alepha.dev",
+]);
 const ADVENTURE_TITLE = "Sombregué";
 const AUTHOR_USERNAME = "sombregueauthor";
 const MAX_PLAYERS = 4;

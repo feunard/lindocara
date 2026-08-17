@@ -14,8 +14,9 @@ second site would be a sibling `apps/<name>`.
 - `src/main.browser.ts` — the BROWSER entry (Alepha's `src/main.browser.ts` convention): runs the
   client's `bootClient()` pre-mount bootstrap (locale, theme, the `#stage` canvas), then boots
   Alepha and mounts `AppRouter`.
-- `alepha.config.ts` — the platform declaration (`production` = `lindocara.bay.alepha.dev`, adapter
-  `bay`) and the authenticated bay-admin endpoint used by CI.
+- `alepha.config.ts` — the platform declaration (`production` = `lc.alepha.dev`, with
+  `lindocara.bay.alepha.dev` kept beside it in the same comma-separated `domain`; adapter `bay`)
+  and the authenticated bay-admin endpoint used by CI.
 - `vite.config.ts` — auto-loaded by `alepha dev`/`alepha build`. Alepha owns the server/plugin
   wiring; this file only adds what the framework cannot know: the Tailwind plugin, the client
   `publicDir`, the `@` alias, `fs.allow` for workspace-wide asset globs, and the app's **dedicated

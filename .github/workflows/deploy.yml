@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://lindocara.bay.alepha.dev
+      url: https://lc.alepha.dev
     env:
       # Bay is reached over SSH and nothing else — there is no admin panel and no
       # inbound control port. `alepha platform` drives this runner's own `ssh`

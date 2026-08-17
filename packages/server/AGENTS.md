@@ -162,7 +162,7 @@ yarn map:proving --dry-run --out=/tmp/proving.json
 # A whole playable heightfield adventure, over HTTP only — the one path that also works against a
 # deployed instance, whose database no local process can open. Needs the app running at --target.
 yarn adventure:proving
-SEED_PASSWORD=... yarn adventure:proving --target=https://lindocara.bay.alepha.dev \
+SEED_PASSWORD=... yarn adventure:proving --target=https://lc.alepha.dev \
   --allow-remote=true --allow-production=true
 ```
 

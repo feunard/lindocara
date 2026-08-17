@@ -13,7 +13,7 @@ hero's last map, position and core stats later. The compiled **Verdant Reach** c
 test and reference content, not the product entry point. The whole
 UI is localized in French and English, with a live toggle.
 
-**Live:** [lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev)
+**Live:** [lc.alepha.dev](https://lc.alepha.dev)
 
 ## Stack
 
@@ -197,9 +197,12 @@ Required repository secrets:
 | `BAY_API_KEY` | bay-admin API key for a user with the `admin` role |
 | `APP_SECRET` | generate one: `gh secret set APP_SECRET --body "$(openssl rand -base64 48)"` |
 
-The public domain `lindocara.bay.alepha.dev` and the bay-admin control endpoint are declared in
-`apps/main/alepha.config.ts`. The old `lindocara.alepha.dev` Worker is a frozen legacy deployment,
-not the live application.
+The public domain `lc.alepha.dev` and the bay-admin control endpoint are declared in
+`apps/main/alepha.config.ts`. The app also still answers on `lindocara.bay.alepha.dev`, the name
+Bay composes from the app name — Bay serves a list of domains, and the old one is kept so existing
+links and `--target=` examples do not 404. Both must be grey-clouded (DNS only) in Cloudflare: Bay
+terminates TLS itself, so a proxied record answers 525. The old `lindocara.alepha.dev` Worker is a
+frozen legacy deployment, not the live application.
 
 ## Sessions
 

@@ -28,7 +28,7 @@
  * Against a deployed instance (gated exactly like every other seeding CLI — see
  * `scripts/lib/adventure-api.ts`):
  *   SEED_PASSWORD=... yarn adventure:proving \
- *     --target=https://lindocara.bay.alepha.dev --allow-remote=true --allow-production=true
+ *     --target=https://lc.alepha.dev --allow-remote=true --allow-production=true
  *
  * Flags:
  *   --target=<url>          the running app; defaults to http://localhost:5273

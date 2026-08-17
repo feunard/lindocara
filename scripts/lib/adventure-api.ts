@@ -10,8 +10,19 @@
  */
 
 export const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-/** Bay is current; keep the retired Cloudflare host protected while its data remains reachable. */
-export const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
+/**
+ * Every host that is production, not just the canonical one.
+ *
+ * `lc.alepha.dev` is the public name and `lindocara.bay.alepha.dev` is the same
+ * Bay app under its composed name — both reach the same database, so both need
+ * the same `--allow-production` gate. `lindocara.alepha.dev` is the retired
+ * Cloudflare Worker, kept protected while its data remains reachable.
+ */
+export const PRODUCTION_HOSTS = new Set([
+  "lc.alepha.dev",
+  "lindocara.bay.alepha.dev",
+  "lindocara.alepha.dev",
+]);
 /** The app's dedicated dev port — pinned in `apps/main/vite.config.ts`, never Vite's shared 5173. */
 export const DEFAULT_LOCAL_TARGET = "http://localhost:5273";
 

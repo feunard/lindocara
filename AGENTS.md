@@ -2,7 +2,7 @@
 
 A modern cooperative RPG adventure creator built on the [Alepha](./.vendor/alepha) framework â€”
 Node + SQLite in dev and on the self-hosted Alepha Bay production instance
-([lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev)) â€” targeting solo play through
+([lc.alepha.dev](https://lc.alepha.dev)) â€” targeting solo play through
 four-player sessions. The current authoritative vertical slice contains players, terrain, Warden Mira,
 roaming monsters, combat, loot, progression, quests, local chat and a database-backed map editor.
 Those systems are foundations for authored multi-map adventures, not a commitment to MMO scale.
@@ -131,7 +131,7 @@ lindocara is a pure Alepha app. The original hand-rolled stack â€” a Cloudf
 screen machine â€” was migrated in four tranches (API port, realtime rooms, React shell, deploy +
 cleanup) and then fully retired: no legacy code, config or rollback path remains. Production later
 moved from Cloudflare to Alepha Bay and now ships through `alepha platform up` at
-[lindocara.bay.alepha.dev](https://lindocara.bay.alepha.dev). The
+[lc.alepha.dev](https://lc.alepha.dev). The
 memory of the migration lives in git and in the
 [spec](./docs/archive/specs/2026-07-29-alepha-migration-design.md) + plans
 ([tranches 0-1](./docs/archive/plans/2026-07-29-alepha-migration-tranches-0-1.md),
@@ -236,6 +236,18 @@ Cloudflare assets block: Alepha serves the SPA/API/WebSocket routes and Bay prox
 domain to that process. `endpoint` is the authenticated bay-admin control plane used only for
 deploys; it is not the application origin. The retired `lindocara.alepha.dev` Worker remains an
 old, frozen deployment and must never be presented as the live application.
+
+**Two public hosts, one app.** `domain` in `apps/main/alepha.config.ts` is comma-separated and Bay
+stores it as a list: `lc.alepha.dev` is canonical and `lindocara.bay.alepha.dev` â€” the name Bay
+composes from the app name â€” keeps answering, because Bay has no redirect primitive and dropping a
+host 404s every link into it. Both reach the same database, so both are in the `PRODUCTION_HOSTS`
+allowlists that gate `--allow-production`.
+
+**Every Bay host is grey-clouded in Cloudflare (DNS only), never proxied.** Bay terminates TLS
+itself with CertMagic, issuing per host on demand for names registered with it. Behind the orange
+cloud Cloudflare terminates at the edge and then cannot handshake with the origin, so the host
+answers **525** while DNS, the deploy and `bay status` all look perfectly healthy. That is what
+`lc.alepha.dev` did on its first day. `*.bay.alepha.dev` is DNS only for the same reason.
 
 ## Generating assets
 

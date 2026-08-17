@@ -5,7 +5,7 @@
  *
  * Run with: yarn seed:brumeval --target=http://localhost:5273
  * Dry run:  yarn seed:brumeval --dry-run
- * Prod:     SEED_PASSWORD=… yarn seed:brumeval --target=https://lindocara.bay.alepha.dev \
+ * Prod:     SEED_PASSWORD=… yarn seed:brumeval --target=https://lc.alepha.dev \
  *             --allow-remote --allow-production
  *
  * Design: docs/superpowers/specs/2026-07-24-brumeval-adventure-design.md
@@ -24,8 +24,13 @@ import { type BuiltWorld, buildWorld, type MapContent } from "./brumeval/maps.js
 import { buildRegistry, type MapIdByKey } from "./brumeval/quests.js";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-// Bay is current; keep the retired Cloudflare host protected while its data remains reachable.
-const PRODUCTION_HOSTS = new Set(["lindocara.bay.alepha.dev", "lindocara.alepha.dev"]);
+// Both Bay hosts serve the same app, so both are production; the retired Cloudflare
+// host stays protected while its data remains reachable.
+const PRODUCTION_HOSTS = new Set([
+  "lc.alepha.dev",
+  "lindocara.bay.alepha.dev",
+  "lindocara.alepha.dev",
+]);
 const ADVENTURE_TITLE = "Brumeval";
 const AUTHOR_USERNAME = "brumevalauthor";
 const MAX_PLAYERS = 4;

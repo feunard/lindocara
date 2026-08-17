@@ -40,13 +40,30 @@ export default defineConfig({
          * straight through as `--control-socket`.
          *
          * `domain` stays explicit. Bay can compose `<app>.<base-domain>` itself
-         * (its `--base-domain` here is `bay.alepha.dev`, which would produce the
-         * same name), but naming it keeps the served host a property of this
-         * file rather than of whichever Bay the artifact lands on.
+         * (its `--base-domain` here is `bay.alepha.dev`), but naming it keeps
+         * the served host a property of this file rather than of whichever Bay
+         * the artifact lands on — and the public name is no longer the one Bay
+         * would compose.
+         *
+         * TWO hosts, comma-separated, canonical first. The adapter splits on
+         * commas and passes one `--domain` per host; Bay stores them as a list
+         * and serves all of them. `lc.alepha.dev` is the public name;
+         * `lindocara.bay.alepha.dev` stays because Bay offers no redirect
+         * primitive, so dropping a host 404s every link and bookmark into it
+         * rather than forwarding them. It costs one extra certificate.
+         *
+         * `lc.alepha.dev` MUST be grey-clouded (DNS only) in Cloudflare, like
+         * the `*.bay.alepha.dev` wildcard beside it. Bay terminates TLS itself
+         * (CertMagic, Let's Encrypt, issued on demand for hosts registered with
+         * it), so behind the orange cloud Cloudflare terminates at the edge and
+         * then cannot handshake with the origin: the whole host answers 525
+         * while DNS, the deploy and `bay status` all look healthy. The record
+         * was proxied when it was first created, and 525 is exactly what it
+         * served.
          */
         production: {
           adapter: "bay",
-          domain: "lindocara.bay.alepha.dev",
+          domain: "lc.alepha.dev,lindocara.bay.alepha.dev",
           host: "ovh-bay",
           socket: "/run/bay/control.sock",
         },
