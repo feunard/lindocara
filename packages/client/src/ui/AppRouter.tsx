@@ -2,9 +2,9 @@
  * The `$page` route tree — Alepha's router that replaced the old zustand `screen` machine
  * (`App.tsx`, formerly `ui/LegacyShell.tsx`, the frozen rollback-only counterpart to this file
  * until the legacy retirement tranche deleted it entirely). Every route is live now:
- * `title`/`menu`/`credits`/`login` (path `/auth` — see that field's own docblock for why the
- * ROUTE NAME and the URL PATH deliberately differ since Task 2's fix round 3), the three launch
- * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
+ * `title`/`menu`/`credits`, the four sign-in pages (vendored — `AuthRouter`, at `/auth/*`; the
+ * route NAME `login` is load-bearing for `$secure`'s redirect, see that field's docblock), the
+ * three launch carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
  * docblock below), `game` (Task 5) and `editor`. `editor` was a lazy-loaded route rendering the real
  * `@lindocara/editor` shell; since S3 retired the PixiJS render path it lazy-loads the rebuilt
  * notice instead, because that package no longer compiles. Its own field docblock has the whole
@@ -29,7 +29,9 @@
  * directly, since that event never fires for them.
  */
 
+import { AccountRouter } from "@alepha/ui/components/account/account-router";
 import { AdminRouter } from "@alepha/ui/components/admin/admin-router";
+import { AuthRouter } from "@alepha/ui/components/auth/auth-router";
 import { $hook, $inject, Alepha } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
@@ -46,7 +48,6 @@ import type { GameNavigation } from "../state/navigation.js";
 import { onUnauthorized, setGameNavigation, setOnUnauthorized } from "../state/navigation.js";
 import { useUiStore } from "../store.js";
 import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
-import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { CreditsScreen } from "./CreditsScreen.js";
@@ -93,12 +94,12 @@ import { WorldMap } from "./WorldMap.js";
  * pre-migration behaviour (`git show 61836eb:packages/client/src/ui/App.tsx`, `immersive` never
  * included `"game"`), not a deviation this task introduces — see the Task 5 report.
  *
- * `/admin` isn't a member of this exact-match `Set` because its subtree has nested paths
- * (`/admin/users`, `/admin/users/:id`, ...) that a `Set.has()` lookup can never match — see the
- * `isAdminPath` check folded into `immersive` below instead. Same dense,
- * full-viewport reasoning as `/editor`: the vendored admin shell's own `NavShell` sidebar/topbar
- * is the surface's real chrome, and the floating Tiny Swords `StatusBar` would otherwise render on
- * top of it.
+ * `/admin` and `/account` are not members of this exact-match `Set` because their subtrees have
+ * nested paths (`/admin/users/:id`, `/account/sessions`, ...) that a `Set.has()` lookup can never
+ * match — see the `isVendoredShellPath` check folded into `immersive` below instead. Same dense,
+ * full-viewport reasoning as `/editor`: each vendored shell's own `NavShell` sidebar/topbar is that
+ * surface's real chrome, and the floating Tiny Swords `StatusBar` would otherwise render on top
+ * of it.
  */
 const IMMERSIVE_PATHS = new Set<string>([
   "/",
@@ -111,13 +112,24 @@ const IMMERSIVE_PATHS = new Set<string>([
 ]);
 
 /**
- * The `/admin` subtree, as a pathname test — the console's own nested routes (`/admin/users`,
- * `/admin/users/:id`, ...) are why `IMMERSIVE_PATHS`' exact-match `Set` cannot cover it. A bare
- * `startsWith("/admin")` would also swallow any unrelated future `/administration`-shaped route, so
- * the segment boundary is spelled out: the console's own root, or something genuinely under it.
+ * The vendored `@alepha/ui` subtrees, as a pathname test — `/admin` and `/account`. Their nested
+ * routes (`/admin/users/:id`, `/account/sessions`, ...) are why `IMMERSIVE_PATHS`' exact-match
+ * `Set` cannot cover them, and both want immersive for the SAME reason: each shell brings its own
+ * `NavShell` sidebar/topbar, which is that surface's real chrome, and the floating Tiny Swords
+ * `StatusBar` would otherwise render on top of it.
+ *
+ * A bare `startsWith` would also swallow an unrelated future `/administration`- or
+ * `/accounting`-shaped route, so the segment boundary is spelled out: the subtree's own root, or
+ * something genuinely under it.
+ *
+ * `/auth/*` is deliberately NOT here. Those pages are not a shell with its own chrome, and the
+ * status bar has always rendered over the sign-in screen — `/auth` was never in the set either, so
+ * adopting `AuthRouter` changed nothing about it.
  */
-const isAdminPath = (pathname: string): boolean =>
-  pathname === "/admin" || pathname.startsWith("/admin/");
+const VENDORED_SHELL_ROOTS = ["/admin", "/account"] as const;
+
+const isVendoredShellPath = (pathname: string): boolean =>
+  VENDORED_SHELL_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 
 /**
  * The in-game React tree (Task 5) — every component the old zustand-screen-machine shell (`App.tsx`,
@@ -286,7 +298,7 @@ function AppLayout() {
     stopActiveGameSession({ navigate: false });
   }, [pathname]);
 
-  const immersive = IMMERSIVE_PATHS.has(pathname) || isAdminPath(pathname);
+  const immersive = IMMERSIVE_PATHS.has(pathname) || isVendoredShellPath(pathname);
 
   return (
     <>
@@ -331,6 +343,38 @@ export class AppRouter {
    * first.
    */
   adminRouter = $inject(AdminRouter);
+
+  /**
+   * The four sign-in screens, vendored — `/auth/login`, `/auth/register`,
+   * `/auth/reset-password`, `/auth/verify-email` — replacing this app's hand-written `AuthScreen`
+   * exactly the way `AdminRouter` above replaced its hand-written pair.
+   *
+   * `AuthRouter.login` is NAMED `login`, which is the whole reason this is safe to swap: the
+   * framework resolves a route by that exact name in two places this app depends on — `$secure`'s
+   * anonymous branch (`denyGuardedPage` → `/auth/login?redirect=<original>`, which is what every
+   * guarded page below relies on) and `ButtonUser`'s sign-in action. The old page held the same
+   * name, so the two could never coexist: whichever registered second would lose, silently, with
+   * no type error and no failing test — the guards would simply start redirecting to a route that
+   * no longer answers. Deleting `AuthScreen` in the same commit that adds this is not tidiness.
+   *
+   * The URL moved with it: `/auth` → `/auth/login`. AuthRouter's paths are fixed on purpose (its
+   * docblock: "the seam is 'use this router, or write one'"), so every consumer here pushes the
+   * NAME and lets the router resolve the path — the one shape that survived the move untouched.
+   *
+   * What this cost, deliberately: the Tiny Swords sign-in screen. `AuthLogin` is stock shadcn and
+   * `AuthRouter` hardcodes its props, so there is no seam for the animated gate scene, the
+   * `TinyInput`/`TinyButton` controls, or even the wordmark — not the `centered`/`split` variant,
+   * not `logo`, not `background`. Taking the router unmodified was chosen over forking it on the
+   * first day; if the login screen is to look like the game again, the honest fix is a passthrough
+   * upstream in `@alepha/ui`, not a copy of the router here.
+   */
+  authRouter = $inject(AuthRouter);
+
+  /**
+   * The account area — profile, password, sessions — which this app never had. Pure addition: no
+   * route name it could collide with, and nothing here replaced.
+   */
+  accountRouter = $inject(AccountRouter);
 
   /**
    * Found while fixing the cold-load race below (Task 2, fix round 1): `@alepha/ui`'s `AppShell`
@@ -436,23 +480,29 @@ export class AppRouter {
    * of a slow ping; it is the CORRECT behaviour for "no confirmed session yet," and it no longer
    * traps a slow-but-real session behind a permanent wall the way the pre-round-3 shape did.
    *
-   * Skipped entirely when the browser's OWN current location is `/auth`: nothing on that page is
-   * guarded, so the atom it would populate is not read by anything there, and letting the ping run
-   * anyway would race `AuthScreen`'s own login/register actions for the same atom — a ping that
-   * started before a login and resolves after it would write `undefined` over the session that
-   * login just established. Kept rather than dropped along with the guest fallback it originally
-   * guarded, because that race is the reason that survives and it costs one line.
+   * Skipped entirely when the browser's OWN current location is under `/auth`: nothing there is
+   * guarded, so the atom it would populate is not read by anything on those pages, and letting the
+   * ping run anyway would race the sign-in form's own login/register actions for the same atom — a
+   * ping that started before a login and resolves after it would write `undefined` over the session
+   * that login just established. Kept rather than dropped along with the guest fallback it
+   * originally guarded, because that race is the reason that survives and it costs one line.
+   *
+   * A PREFIX test, not equality, since `AuthRouter` brought four pages (`/auth/login`,
+   * `/auth/register`, `/auth/reset-password`, `/auth/verify-email`) where this app had one `/auth`.
+   * Equality against the old single path would have skipped none of them — the race would have come
+   * back on every sign-in page at once, and silently, since it only bites when a login resolves
+   * inside the ping's window.
    * Reads `window.location.pathname` rather than router state: the router has not resolved
    * anything yet at `"start"` time, and `window.location` IS the value its first transition is
-   * about to use. Checked against the literal `/auth` PATH (not the `login` route NAME) on
-   * purpose — this is the one place in the file that legitimately means "the URL the browser is
-   * sitting on," which `path` describes and `name` does not.
+   * about to use. Checked against the PATH (not the `login` route NAME) on purpose — this is the
+   * one place in the file that legitimately means "the URL the browser is sitting on," which
+   * `path` describes and `name` does not.
    */
   bootPing = $hook({
     on: "start",
     handler: async () => {
       if (!this.alepha.isBrowser()) return;
-      if (window.location.pathname === "/auth") return;
+      if (window.location.pathname.startsWith("/auth")) return;
 
       // ONE ping, kept as a live promise: the race below may abandon WAITING on it, but never it.
       // Filling `currentUserAtom` is `ping()`'s own side effect, so a late answer still lands — it
@@ -489,17 +539,27 @@ export class AppRouter {
       title: "Lindocara",
       link: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     },
+    // The vendored routers are ADOPTED here rather than left at the root they register themselves
+    // at. `ReactPageProvider` excludes an adopted page from the root set, so they render nested,
+    // and nesting is what keeps them inside `AppLayout` — which is where the navigation seam and
+    // the 401 recovery are installed (`setGameNavigation`/`setOnUnauthorized`, in its effect).
+    // Left at the root, reaching `/auth/login` would UNMOUNT the layout and tear that seam down on
+    // the way to the very screen the seam exists to send people to.
     children: () => [
       this.title,
       this.menu,
       this.credits,
-      this.login,
+      this.authRouter.login,
+      this.authRouter.register,
+      this.authRouter.resetPassword,
+      this.authRouter.verifyEmail,
       this.playContinue,
       this.playNew,
       this.playJoin,
       this.game,
       this.editor,
       this.adminRouter.layout,
+      this.accountRouter.layout,
     ],
   });
 
@@ -526,27 +586,22 @@ export class AppRouter {
   menu = $page({ path: "/menu", component: MainMenu, use: [$secure({})] });
   credits = $page({ path: "/credits", component: CreditsScreen });
 
-  /**
-   * Named `login`, not `auth` — deliberately, since Task 2's fix round 3. `$page`'s route NAME
-   * (no explicit `name:` here, so it defaults to this field's own property key,
-   * `PagePrimitive.name`'s `this.options.name ?? this.config.propertyKey`) is what
-   * `ReactPageProvider.denyGuardedPage` looks up via `findRoute("login")` when a `$secure`-guarded
-   * route denies an anonymous visitor: found, it REDIRECTS (`/auth?redirect=<original>`); not
-   * found, it THROWS a 401 that latches in `NestedView`'s `ErrorBoundary` until the pathname
-   * itself changes. This app's route was named `auth`, so `findRoute("login")` always came back
-   * empty and EVERY guard denial — cold-loading `/admin` chief among them — took the throwing,
-   * latching branch. Renaming the FIELD (there is no separate `name:` to set) is the fix; nothing
-   * about routing otherwise changes.
+  /*
+   * There is no `login` page here any more — `AuthRouter` owns it, at `/auth/login`. See that
+   * field's docblock above.
    *
-   * `path: "/auth"` is UNCHANGED and must stay unchanged — the URL a player sees, bookmarks or
-   * types is a separate concern from the route's internal name, and this repo's own sign-in screen
-   * is still reached at `/auth`. Every caller that used to `push`/`path` the route by its old name
-   * (`AppRouter.tsx`'s own navigation seam and 401 recovery, `AdminShell.tsx`'s `ButtonUser`) was
-   * updated to `"login"` alongside this rename (today that `ButtonUser` lives in
-   * `admin/adminChrome.tsx`) — grepped for every remaining `"auth"` route-name reference (not
-   * `/auth` path literals, which stay put) before trusting this change was complete.
+   * The route NAME `login` is the load-bearing part and it did not change hands by accident: it is
+   * what `ReactPageProvider.denyGuardedPage` resolves via `findRoute("login")` when a guarded page
+   * denies an anonymous visitor. Found, it REDIRECTS; not found, it THROWS a 401 that latches in
+   * `NestedView`'s `ErrorBoundary` until the pathname itself changes. This app once named its route
+   * `auth`, so that lookup always came back empty and every denial took the latching branch — the
+   * bug that Task 2's fix round 3 closed by renaming the field to `login`. Handing the name to
+   * `AuthRouter` preserves the fix; deleting the page without a replacement would reopen it.
+   *
+   * Callers push the NAME, never the path, which is why the `/auth` → `/auth/login` move needed no
+   * changes at the call sites: the navigation seam's `toAuth`, the 401 recovery's `router.push`/
+   * `router.path`, and `adminChrome.tsx`'s `ButtonUser onSignIn`.
    */
-  login = $page({ path: "/auth", component: AuthScreen });
 
   /**
    * The three launch carousels (Task 4). Each loader replaces the screen's old `useEffect` fetch —

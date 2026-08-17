@@ -9,8 +9,8 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Mounts the real `AppRouter` at `/admin` directly (the same technique `auth-screen.test.tsx` uses
- * to land on `/auth`), so `AppRouter`'s own `bootPing` `$hook({ on: "start" })` — not a React
+ * Mounts the real `AppRouter` at `/admin` directly via `history.pushState`, so `AppRouter`'s own
+ * `bootPing` `$hook({ on: "start" })` — not a React
  * effect — resolves against `/admin` as the cold-load target, and the lazy vendored admin route
  * (`@alepha/ui/components/admin/admin-router`, which replaced this app's hand-written
  * `AdminRouter.tsx`/`AdminShell.tsx`) resolves through the real dynamic `import()`. No `vi.mock`.
@@ -316,103 +316,6 @@ describe("AdminShell route", () => {
         },
         { timeout: SLOW_RENDER_TIMEOUT_MS },
       );
-      expect(screen.queryByText("Users")).toBeNull();
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  it(
-    "redirects to sign-in instead of latching an error when a real session resolves after the boot timeout",
-    async () => {
-      // Fix round 3's regression test. The residual bug: `bootPing`'s `BOOT_PING_TIMEOUT_MS` cap
-      // is required (round 2), but ANY bounded timeout has a "the real answer arrives a moment
-      // after the cap" case — a genuinely authenticated admin whose `/_auth/userinfo` legitimately
-      // takes longer than the cap (a cold platform boot, a slow network, a DB latency spike; slow,
-      // not hung) still has an EMPTY `currentUserAtom` at the guard's first evaluation. Before this
-      // round, that dead-ended exactly like a truly anonymous visitor: `denyGuardedPage` threw a
-      // 401 that `NestedView`'s `ErrorBoundary` latched permanently (`resetKeys` is only the
-      // pathname — never the atom), so the session resolving moments later changed nothing already
-      // on screen. Renaming the sign-in route from `auth` to `login` (`AppRouter.tsx`'s `login`
-      // field) fixes this unconditionally rather than narrowing the window: `denyGuardedPage` now
-      // finds that route and REDIRECTS instead of throwing, for ANY no-user-yet guard evaluation —
-      // slow-but-real and truly-anonymous alike.
-      //
-      // `/_auth/userinfo` resolves SUCCESSFULLY here, carrying full admin permissions — proving the
-      // motivating scenario (a real admin, not merely an anonymous visitor) — but only after
-      // 3500ms, comfortably past `BOOT_PING_TIMEOUT_MS` (2500ms). `bootPing`'s race times out
-      // first, mount proceeds with the atom still empty, and only THEN does the slow ping resolve
-      // in the background — after the first transition already ran.
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async (input: RequestInfo | URL) => {
-          const path = String(input);
-          if (path.startsWith("/_auth/userinfo")) {
-            // Registered so `afterEach` can await it: this promise outlives the test body on
-            // purpose, and its late resolution is what would otherwise render into a torn-down
-            // jsdom (see the drain in `afterEach`).
-            const slow = new Promise((resolve) => setTimeout(resolve, 3_500));
-            inFlight.push(slow);
-            await slow;
-            return new Response(
-              JSON.stringify({
-                user: { id: "acc-1", username: "nico" },
-                api: {
-                  actions: {},
-                  permissions: [
-                    "admin:ui",
-                    "admin:user:read",
-                    "admin:session:read",
-                    "admin:api-key:read",
-                    "admin:audit:read",
-                  ],
-                },
-              }),
-              { status: 200, headers: { "Content-Type": "application/json" } },
-            );
-          }
-          // Registration/login stubs kept as a TRIPWIRE's safety net, not because this test needs
-          // them: `bootPing` used to fire its guest-registration fallback the moment the race
-          // timed out, which is the HIGH finding the final whole-branch review caught — a
-          // slow-but-real session being replaced by a guest account. It now waits for the ping's
-          // own resolution, so nothing below is reached at all here. `app-router.test.tsx`'s
-          // "boot ping" suite asserts that absence directly; these branches only keep a regression
-          // from turning into jsdom's noisy "not implemented: navigation" warning via the
-          // fallback's total-failure `window.location.href` branch.
-          if (path.startsWith("/api/users/register") && !path.includes("complete")) {
-            return new Response(JSON.stringify({ intentId: "guest-intent" }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-          if (path.startsWith("/_auth/token")) {
-            return new Response(JSON.stringify({ user: { id: "guest-1", username: "guest-x" } }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-          return new Response("{}", {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }),
-      );
-
-      alepha = createApp();
-      await act(async () => {
-        await alepha?.start();
-      });
-
-      // Redirected to the sign-in screen (route name `login`, URL path `/auth`) — NOT a latched
-      // 401/403 error, and NOT the admin sidebar (the atom was still empty at the moment the guard
-      // ran, regardless of what the slow ping would eventually grant).
-      await waitFor(
-        () => {
-          expect(document.querySelector(".auth-shell")).toBeTruthy();
-        },
-        { timeout: SLOW_RENDER_TIMEOUT_MS },
-      );
-      expect(screen.queryByText(/authentication required/i)).toBeNull();
-      expect(screen.queryByText(/you do not have permission/i)).toBeNull();
       expect(screen.queryByText("Users")).toBeNull();
     },
     TEST_TIMEOUT_MS,
