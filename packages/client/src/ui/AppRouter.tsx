@@ -754,11 +754,20 @@ export class AppRouter {
    * any authenticated account may edit any adventure, sharing the link shares edit rights. That is
    * the accepted state today, not an oversight — see the ownership deferral.
    *
-   * The URL does NOT follow `File → Open`: opening another adventure from inside the editor swaps
-   * the session and leaves the address bar on whatever it was. Making it follow would mean pushing
-   * a route from the editor package, which reaches the router only through the navigation seam
-   * (`state/navigation.ts`) — a seam change for a cosmetic gain, while the sharing case this route
-   * exists for is already served. Deliberate, and the cheaper half of the trade.
+   * The URL FOLLOWS the open adventure — `File → Open` pushes here, `File → New` and deleting the
+   * open adventure push back to `/editor`. That was not the first design, and the first design was
+   * wrong twice over. It shipped as "the URL does not follow, that is merely cosmetic", which
+   * missed that the address bar is how an author OBTAINS a link to share: without it, reaching
+   * `/editor/<id>` requires already knowing the uuid, so the shareable route was unreachable from
+   * inside the app that owns it.
+   *
+   * The second miss was a real bug. This route hands the screen its id as a prop, and the screen
+   * treats a URL naming a different adventure than the open session as "the URL wins" — the rule
+   * that stops a shared link showing whatever the recipient had open. Swapping the session without
+   * moving the URL pits those two against each other, and the URL wins: `File → Open` loaded the
+   * new adventure and was then silently reverted to the one in the address bar. The editor screen
+   * already held a `useRouter()`, so the fix was three pushes, not the navigation-seam change the
+   * original note talked itself out of.
    */
   editorAdventure = $page({
     path: "/editor/:id",

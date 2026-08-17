@@ -298,14 +298,36 @@ export function AdventureEditorScreen(props: { adventureId?: string }) {
   // cannot remount the provider mid-confirm. Its `AlertDialog` portals to `document.body`, outside
   // `.editor-root` — stock shadcn, so `legacy.css`'s `[data-slot]` fence already exempts it from the
   // Tiny Swords skin.
-  // A deep link (`/editor/:id`) names the adventure the URL is FOR, so it wins over whatever
-  // session happens to be in the atom. Without this, following a shared link while the editor
-  // already had something open would show that other adventure under the shared URL — the one
-  // failure a shareable link must not have. Reads as "the URL and the open session disagree",
-  // which covers both the empty atom and the wrong-adventure case in one test, and cannot loop:
-  // `loadAdventureSession` sets `adventureId` to exactly this value, so the next render agrees.
+  // A deep link (`/editor/:id`) names the adventure the URL is FOR, so ARRIVING at one loads it —
+  // including while another adventure is open, which is what stops a shared link showing whatever
+  // the recipient happened to have on screen.
+  //
+  // It reacts to the route CHANGING, not to the route and the session merely disagreeing, and that
+  // distinction is the whole comment. Written as a standing invariant ("URL wins whenever they
+  // differ") it also fires during the moment a menu action has swapped the session but the
+  // navigation has not landed yet — so `File → Open` and `File → New` both wrote their new session,
+  // re-rendered still on the OLD url, tripped the invariant, and had the old adventure reloaded
+  // over the top. Both silently reverted. Reordering the two writes does not fix it either; it only
+  // moves which side of the window is wrong, since the pair can never update in one atom write.
+  //
+  // Keyed off the last route id this screen ACTED on: a genuine URL change (cold load, a pasted
+  // link, back/forward) differs from it and loads; a session swap that then pushes its own matching
+  // URL never does, because by the time the route changes the session already agrees.
+  const lastRouteIdRef = useRef<string | undefined>(undefined);
   const deepLinkPending =
-    props.adventureId !== undefined && session?.adventureId !== props.adventureId;
+    props.adventureId !== undefined &&
+    lastRouteIdRef.current !== props.adventureId &&
+    session?.adventureId !== props.adventureId;
+  useEffect(() => {
+    // Recorded only once the session actually matches, so an abandoned or failed load does not mark
+    // the id as handled and leave the screen stuck on the wrong adventure.
+    if (props.adventureId !== undefined && session?.adventureId === props.adventureId) {
+      lastRouteIdRef.current = props.adventureId;
+    }
+    if (props.adventureId === undefined) {
+      lastRouteIdRef.current = undefined;
+    }
+  }, [props.adventureId, session?.adventureId]);
 
   return (
     <DialogProvider>
@@ -622,6 +644,17 @@ function AdventureEditorInner({
       const loaded = await loadAdventureSession(id);
       setSession(loaded);
       setLoadOpen(false);
+      // The URL follows the open adventure, and this is NOT cosmetic — it is how an author obtains
+      // a link to share at all. Without it the only way to reach `/editor/<id>` is to already know
+      // the uuid, which makes the shareable route unreachable from inside the app that owns it.
+      //
+      // It is also what keeps `/editor/<id>` honest. That route hands the screen its id as a prop,
+      // and the screen treats a URL that names a DIFFERENT adventure than the open session as "the
+      // URL wins" — the rule that stops a shared link showing whatever the recipient happened to
+      // have open. Swapping the session without moving the URL pits those two against each other,
+      // and the URL wins: File → Open loaded the new adventure and was then silently reverted to
+      // the one in the address bar. Shipped that way in c8ebb1ca and caught by trying it.
+      await router.push(`/editor/${id}`);
     } catch (caught) {
       fail(caught);
     } finally {
@@ -640,6 +673,11 @@ function AdventureEditorInner({
     if (savingMapRef.current || swappingSessionRef.current) return;
     setError(null);
     setSession(createSandboxSession());
+    // Off any `/editor/<id>` URL, for the same reason `File → Open` moves to the new one: a sandbox
+    // under a URL that names an adventure is the two disagreeing, and the URL wins — the brand-new
+    // sandbox would be discarded and that adventure reloaded over it. `/editor` is the sandbox's
+    // own address, and pushing it when already there is a no-op.
+    await router.push("/editor");
   }
 
   // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
@@ -2105,6 +2143,12 @@ function AdventureEditorInner({
             if (id !== adventureId) return;
             setLoadOpen(false);
             setSession(null);
+            // Off the deleted adventure's own URL before the bootstrap runs. `setSession(null)`
+            // here means "stay in the editor with a fresh sandbox" (unlike `leave()`), but on
+            // `/editor/<id>` that id is still in the address bar — so the bootstrap would try to
+            // reload the adventure just deleted and land on the not-found screen instead of the
+            // sandbox this path is asking for.
+            void router.push("/editor");
           }}
         />
 
