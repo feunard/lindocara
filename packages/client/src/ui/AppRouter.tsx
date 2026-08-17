@@ -32,7 +32,7 @@
 import { AccountRouter } from "@alepha/ui/components/account/account-router";
 import { AdminRouter } from "@alepha/ui/components/admin/admin-router";
 import { AuthRouter } from "@alepha/ui/components/auth/auth-router";
-import { $hook, $inject, Alepha } from "alepha";
+import { $hook, $inject, Alepha, z } from "alepha";
 import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
 import { I18nProvider } from "alepha/react/i18n";
@@ -94,12 +94,11 @@ import { WorldMap } from "./WorldMap.js";
  * pre-migration behaviour (`git show 61836eb:packages/client/src/ui/App.tsx`, `immersive` never
  * included `"game"`), not a deviation this task introduces — see the Task 5 report.
  *
- * `/admin` and `/account` are not members of this exact-match `Set` because their subtrees have
- * nested paths (`/admin/users/:id`, `/account/sessions`, ...) that a `Set.has()` lookup can never
- * match — see the `isVendoredShellPath` check folded into `immersive` below instead. Same dense,
- * full-viewport reasoning as `/editor`: each vendored shell's own `NavShell` sidebar/topbar is that
- * surface's real chrome, and the floating Tiny Swords `StatusBar` would otherwise render on top
- * of it.
+ * `/admin`, `/account` and `/editor` are not members of this exact-match `Set`, all for the same
+ * reason: their subtrees have paths (`/admin/users/:id`, `/account/sessions`, `/editor/<uuid>`)
+ * that a `Set.has()` lookup can never match. See `isVendoredShellPath` and `isEditorPath`, folded
+ * into `immersive` below. Same dense, full-viewport reasoning in every case — each surface brings
+ * its own chrome, and the floating Tiny Swords `StatusBar` would otherwise render on top of it.
  */
 const IMMERSIVE_PATHS = new Set<string>([
   "/",
@@ -108,7 +107,6 @@ const IMMERSIVE_PATHS = new Set<string>([
   "/play/continue",
   "/play/new",
   "/play/join",
-  "/editor",
 ]);
 
 /**
@@ -130,6 +128,18 @@ const VENDORED_SHELL_ROOTS = ["/admin", "/account"] as const;
 
 const isVendoredShellPath = (pathname: string): boolean =>
   VENDORED_SHELL_ROOTS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
+
+/**
+ * `/editor/<id>` — the shareable deep link — is the editor, and wants the editor's immersive
+ * chrome.
+ *
+ * It cannot be a `Set` entry: the id is a uuid, so there is no fixed string for `Set.has()` to
+ * match, and `IMMERSIVE_PATHS`' bare `"/editor"` covers only the sandbox route. Getting this wrong
+ * is invisible in tests and obvious on screen — the floating Tiny Swords `StatusBar` renders on top
+ * of the editor's dense chrome, exactly the bug `/admin` hit and solved the same way.
+ */
+const isEditorPath = (pathname: string): boolean =>
+  pathname === "/editor" || pathname.startsWith("/editor/");
 
 /**
  * The in-game React tree (Task 5) — every component the old zustand-screen-machine shell (`App.tsx`,
@@ -298,7 +308,8 @@ function AppLayout() {
     stopActiveGameSession({ navigate: false });
   }, [pathname]);
 
-  const immersive = IMMERSIVE_PATHS.has(pathname) || isVendoredShellPath(pathname);
+  const immersive =
+    IMMERSIVE_PATHS.has(pathname) || isVendoredShellPath(pathname) || isEditorPath(pathname);
 
   return (
     <>
@@ -558,6 +569,7 @@ export class AppRouter {
       this.playJoin,
       this.game,
       this.editor,
+      this.editorAdventure,
       this.adminRouter.layout,
       this.accountRouter.layout,
     ],
@@ -716,6 +728,48 @@ export class AppRouter {
   editor = $page({
     path: "/editor",
     use: [$secure({})],
+    lazy: async () => {
+      const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
+      return { default: module.AdventureEditorScreen };
+    },
+  });
+
+  /**
+   * The same editor, pointed at one adventure — the shareable URL.
+   *
+   * `/editor` opens an unsaved local sandbox and reaching an existing adventure is `File → Open`,
+   * which means the only way to send someone a specific adventure was "open the editor, then find
+   * it". This route is that link. The loader does nothing but name the target: the screen already
+   * knows how to load an adventure (`loadAdventureSession`, the same call `File → Open` makes), so
+   * this adds a way IN rather than a second load path.
+   *
+   * Deliberately NOT a second `$page` pointing at a different component — same `lazy`, same screen,
+   * one optional prop. The editor's session, history and stage lifecycle are subtle enough
+   * (`draftId` keying, the fire-once bootstrap latch, `leave()` vs `setSession(null)`) that a
+   * parallel entry point would be a second place for all of it to drift.
+   *
+   * Guarded like `/editor` itself. An anonymous visitor following a shared link lands on
+   * `/auth/login?redirect=%2Feditor%2F<id>` and arrives at the adventure after signing in — the
+   * `?redirect=` round trip doing exactly what it exists for. Note what that means socially: since
+   * any authenticated account may edit any adventure, sharing the link shares edit rights. That is
+   * the accepted state today, not an oversight — see the ownership deferral.
+   *
+   * The URL does NOT follow `File → Open`: opening another adventure from inside the editor swaps
+   * the session and leaves the address bar on whatever it was. Making it follow would mean pushing
+   * a route from the editor package, which reaches the router only through the navigation seam
+   * (`state/navigation.ts`) — a seam change for a cosmetic gain, while the sharing case this route
+   * exists for is already served. Deliberate, and the cheaper half of the trade.
+   */
+  editorAdventure = $page({
+    path: "/editor/:id",
+    use: [$secure({})],
+    // The params SCHEMA is not decoration: without it `params` arrives EMPTY, the loader hands the
+    // screen `undefined`, and the deep link silently opens a blank sandbox — a bug that renders a
+    // perfectly working editor, so nothing looks broken until you notice the status bar says "Not
+    // saved yet" under a URL that names an adventure. Props themselves forward to a `lazy`
+    // component fine; it is the parsing of the pathname that has to be asked for.
+    schema: { params: z.object({ id: z.string() }) },
+    loader: async ({ params }) => ({ adventureId: params.id }),
     lazy: async () => {
       const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
       return { default: module.AdventureEditorScreen };

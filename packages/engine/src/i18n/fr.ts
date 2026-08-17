@@ -1325,6 +1325,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.newAdventure": "Nouvelle aventure",
   "editor.shell.preparing": "Préparation d'une nouvelle aventure…",
   "editor.shell.preparing.failed": "Impossible de démarrer une nouvelle aventure.",
+  "editor.shell.notFound":
+    "Cette aventure n'a pas pu être ouverte. Le lien est peut-être obsolète.",
+  "editor.shell.startSandbox": "Démarrer une nouvelle aventure à la place",
   "editor.retry": "Réessayer",
   "editor.shell.quit": "Quitter l'éditeur",
   "editor.load.title": "Charger une aventure",

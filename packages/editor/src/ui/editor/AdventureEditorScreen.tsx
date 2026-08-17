@@ -279,7 +279,7 @@ function paintToolFor(
  * React never touches `#stage`: `openMapEditorStage` finds that canvas itself, and every edit flows
  * through the `MapEditorStageHandle`, exactly as before.
  */
-export function AdventureEditorScreen() {
+export function AdventureEditorScreen(props: { adventureId?: string }) {
   const [session, setSession] = useStore(adventureEditorSessionAtom);
   // Leaving the editor clears the session WHILE this component is still mounted (the route swap is
   // asynchronous and always lands later), so without this flag the no-session branch below would
@@ -298,9 +298,18 @@ export function AdventureEditorScreen() {
   // cannot remount the provider mid-confirm. Its `AlertDialog` portals to `document.body`, outside
   // `.editor-root` — stock shadcn, so `legacy.css`'s `[data-slot]` fence already exempts it from the
   // Tiny Swords skin.
+  // A deep link (`/editor/:id`) names the adventure the URL is FOR, so it wins over whatever
+  // session happens to be in the atom. Without this, following a shared link while the editor
+  // already had something open would show that other adventure under the shared URL — the one
+  // failure a shareable link must not have. Reads as "the URL and the open session disagree",
+  // which covers both the empty atom and the wrong-adventure case in one test, and cannot loop:
+  // `loadAdventureSession` sets `adventureId` to exactly this value, so the next render agrees.
+  const deepLinkPending =
+    props.adventureId !== undefined && session?.adventureId !== props.adventureId;
+
   return (
     <DialogProvider>
-      {session ? (
+      {session && !deepLinkPending ? (
         // Keyed by `draftId`, NOT by `adventureId`: an unsaved sandbox has no adventure id, and its
         // first save gives it one — remounting there would throw away the stage the author is
         // standing in mid-save. `draftId` changes only when the session is genuinely swapped (File →
@@ -314,7 +323,13 @@ export function AdventureEditorScreen() {
       ) : leaving ? // On the way out: render nothing rather than a screen that acts. The pending `router.push`
       // owns what comes next.
       null : (
-        <AdventureEditorBootstrap />
+        // Keyed by the target so the bootstrap's fire-once latch resets when the URL names a
+        // different adventure — a ref on a component that is never remounted would load the first
+        // id and ignore every later one.
+        <AdventureEditorBootstrap
+          key={props.adventureId ?? "sandbox"}
+          adventureId={props.adventureId}
+        />
       )}
     </DialogProvider>
   );
@@ -335,16 +350,44 @@ export function AdventureEditorScreen() {
  * invocation would replace the sandbox with a different one, discarding the first (empty) session
  * and its map id. Nothing is in flight any more, so cancellation has nothing left to cancel.
  */
-function AdventureEditorBootstrap() {
+function AdventureEditorBootstrap({ adventureId }: { adventureId?: string }) {
   useLocale();
   const [, setSession] = useStore(adventureEditorSessionAtom);
   const startedRef = useRef(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    setSession(createSandboxSession());
-  }, [setSession]);
+    if (adventureId === undefined) {
+      setSession(createSandboxSession());
+      return;
+    }
+    // Deep link. Unlike the sandbox branch this IS in flight, so the strict-mode note above
+    // applies again for this path — `startedRef` keeps the doubled effect from issuing two loads.
+    // No cancellation ref: a late resolution writes the session the URL asked for, which is what
+    // the author wants whether or not React discarded a render on the way.
+    void loadAdventureSession(adventureId)
+      .then(setSession)
+      .catch(() => setFailed(true));
+  }, [adventureId, setSession]);
+
+  // A link to an adventure that no longer resolves — deleted, mistyped, or from another
+  // environment — must SAY so. Falling through to a sandbox is the tempting default and the wrong
+  // one: the author would be dropped into an empty map that looks like a working editor, and the
+  // first save would create a second adventure rather than open the one they were sent.
+  if (failed) {
+    return (
+      <main className="editor-root editor-chrome flex min-h-screen flex-col items-center justify-center gap-3 bg-zinc-50 text-zinc-950">
+        <p role="alert" className="text-sm text-zinc-700">
+          {t("editor.shell.notFound")}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => setSession(createSandboxSession())}>
+          {t("editor.shell.startSandbox")}
+        </Button>
+      </main>
+    );
+  }
 
   return (
     <main className="editor-root editor-chrome flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-950">

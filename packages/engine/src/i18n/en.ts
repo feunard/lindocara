@@ -1309,6 +1309,8 @@ export const en = {
   "editor.shell.newAdventure": "New adventure",
   "editor.shell.preparing": "Preparing a new adventure…",
   "editor.shell.preparing.failed": "Could not start a new adventure.",
+  "editor.shell.notFound": "That adventure could not be opened. The link may be out of date.",
+  "editor.shell.startSandbox": "Start a new adventure instead",
   "editor.retry": "Retry",
   "editor.shell.quit": "Quit the editor",
   "editor.load.title": "Load an adventure",
