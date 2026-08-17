@@ -61,7 +61,7 @@ export class MapController {
       query: z.object({ adventure: z.string().optional() }),
       response: z.array(mapSummarySchema),
     },
-    handler: async ({ query, user }) => {
+    handler: async ({ query }) => {
       if (!query.adventure || !isUuid(query.adventure)) {
         throw new HttpError({
           status: 400,
@@ -69,7 +69,11 @@ export class MapController {
           message: "adventure query param required",
         });
       }
-      return this.mapService.listMapsForUser(user.id, query.adventure);
+      // Every map of the adventure, not just this account's. An adventure is readable by anyone
+      // signed in, and an adventure without its maps is not readable at all — the owner filter
+      // here returned an EMPTY list to a visitor rather than refusing, which reads as "this
+      // adventure has no maps" instead of "you may not see them".
+      return this.mapService.listMaps(query.adventure);
     },
   });
 
@@ -148,14 +152,15 @@ export class MapController {
     },
   });
 
-  /** `GET /api/maps/:id` */
+  /** `GET /api/maps/:id` — readable by any authenticated account, like the adventure it belongs
+   *  to. Writing it still requires owning it (`PUT`/`DELETE` below). */
   getMap = $action({
     path: "/maps/:id",
     use: [$secure({})],
     schema: { params: z.object({ id: z.string() }), response: z.any() },
-    handler: async ({ params, user }) => {
+    handler: async ({ params }) => {
       try {
-        return await this.mapService.getMapForUser(user.id, params.id);
+        return await this.mapService.getMap(params.id);
       } catch (error) {
         rethrowAsMapError(error);
       }

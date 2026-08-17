@@ -41,6 +41,13 @@ export function rethrowAsAdventureError(error: unknown): never {
   if (code === "not_found") {
     throw new HttpError({ status: 404, error: "adventure_not_found", message });
   }
+  // 403, deliberately, where the map routes answer a foreign row with 404. A map hides behind
+  // "no such map" because nothing tells the caller it exists; an adventure is READABLE by every
+  // authenticated account, so the caller has already been handed the row and telling them it does
+  // not exist would contradict the GET they just made. Refusing the write is the honest answer.
+  if (code === "forbidden") {
+    throw new HttpError({ status: 403, error: "adventure_forbidden", message });
+  }
   if (code === "referenced") {
     throw new HttpError({ status: 409, error: "adventure_referenced", message });
   }

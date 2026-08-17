@@ -31,9 +31,13 @@ trusted. It runs on Node/SQLite in dev (`yarn dev` from the repo root, i.e.
 - `src/api/controllers/*.ts` — one `$action`-based controller per surface (`MapController`,
   `AdventureController`, `PartyController`, `HeroController`, `TestSessionController`,
   `MeController`, `HealthController`, `JoinController`), each a thin HTTP shape around its
-  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`). Every map route is
-  owner-fenced: foreign lists are empty and foreign reads, writes, first-map changes, forced
-  deletes and creates under another adventure answer 404 `map_not_found`.
+  service. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`). **Read is open, write is
+  owned**, across maps AND adventures: any authenticated account may list and read any map or
+  adventure, while foreign writes, first-map changes, deletes and creates under another adventure
+  answer 404 `map_not_found` (maps) or 403 `adventure_forbidden` (adventures). The asymmetry in the
+  codes is deliberate — see `adventureAuthoring.ts`'s `rethrowAsAdventureError`. Map READS were
+  owner-fenced until adventures became shareable by URL, which made an adventure whose maps all
+  404'd look to the visitor like an adventure that did not exist.
   `PUT /api/maps/:id/heightfield` remains the terrain seeding route into a deployed instance
   whose database no script can open.
 - `src/api/providers/AppSecurityProvider.ts` — registers the app's `$realm()` (username+password

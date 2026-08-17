@@ -388,16 +388,20 @@ export class MapService {
     }
   }
 
-  /** Ported from `loadMap`. */
+  /**
+   * Ported from `loadMap`, and now the HTTP-facing read too — open to any authenticated account,
+   * because a map is as readable as the adventure that contains it.
+   *
+   * `GET /api/maps/:id` used to call an owner-scoped twin (`getMapForUser` → `requireOwnedMap`),
+   * which refused a foreign row with the same `not_found` as a missing one. That made adventures
+   * unshareable in a way nothing announced: `GET /api/adventures/:id` answered any account
+   * happily, then every one of its maps 404'd, so the editor failed the whole load and told the
+   * visitor the adventure did not exist. Writing still requires ownership; reading no longer does,
+   * and the two entry points are one function again.
+   */
   async getMap(id: string): Promise<MapPayload> {
     const row = await this.maps.findById(id);
     if (!row) throw new Error("not_found: no such map");
-    return this.toPayload(row);
-  }
-
-  /** HTTP-facing read. Missing and foreign rows deliberately share the same refusal. */
-  async getMapForUser(userId: string, id: string): Promise<MapPayload> {
-    const row = await this.requireOwnedMap(userId, id);
     return this.toPayload(row);
   }
 

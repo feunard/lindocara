@@ -126,28 +126,28 @@ export class AdventureController {
     },
   });
 
-  /** `PUT /api/adventures/:id` body `AdventureInput` -> `AdventurePayload`. Collaborative: any
-   *  authenticated account may edit. */
+  /** `PUT /api/adventures/:id` body `AdventureInput` -> `AdventurePayload`. Readable by anyone,
+   *  writable only by its owner — a foreign account gets 403 `adventure_forbidden`. */
   updateAdventure = $action({
     method: "PUT",
     path: "/adventures/:id",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body, headers }) => {
+    handler: async ({ params, body, headers, user }) => {
       enforceBodySizeCap(headers, body, MAX_ADVENTURE_JSON_BYTES);
       const input: AdventureInput | null = parseAdventureInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "adventure_invalid", message: "invalid body" });
       }
       try {
-        return await this.adventureService.updateAdventure(params.id, input);
+        return await this.adventureService.updateAdventure(params.id, input, user.id);
       } catch (error) {
         rethrowAsAdventureError(error);
       }
     },
   });
 
-  /** `DELETE /api/adventures/:id?force=true` -> 204. */
+  /** `DELETE /api/adventures/:id?force=true` -> 204. Owner only, like the PUT above. */
   deleteAdventure = $action({
     method: "DELETE",
     path: "/adventures/:id",
@@ -156,9 +156,12 @@ export class AdventureController {
       params: z.object({ id: z.string() }),
       query: z.object({ force: z.string().optional() }),
     },
-    handler: async ({ params, query }) => {
+    handler: async ({ params, query, user }) => {
       try {
-        await this.adventureService.deleteAdventure(params.id, { force: query.force === "true" });
+        await this.adventureService.deleteAdventure(params.id, {
+          force: query.force === "true",
+          ownerId: user.id,
+        });
       } catch (error) {
         rethrowAsAdventureError(error);
       }

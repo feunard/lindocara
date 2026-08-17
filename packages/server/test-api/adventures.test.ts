@@ -432,37 +432,6 @@ describe("scope=play / scope=all: collaborative listings with author", () => {
   });
 });
 
-describe("collaborative editing: any account may read, edit and (force-)delete", () => {
-  test("a foreign account may read, edit and force-delete another account's adventure", async () => {
-    const owner = await registerAndLogin("advcollab");
-    const advId = ((await (await createAdventure(owner.token)).json()) as { id: string }).id;
-    const mapA = await authorMap(advId, mapBody("A"), owner.token);
-    const mapB = await authorMap(advId, mapBody("B", eventsB()), owner.token);
-    await authedFetch(`/api/adventures/${advId}`, owner.token, {
-      method: "PUT",
-      body: JSON.stringify({ title: "Donjon", maxPlayers: 4, graph: corridorGraph(mapA, mapB) }),
-    });
-
-    const rival = await registerAndLogin("advrival2");
-    expect((await authedFetch(`/api/adventures/${advId}`, rival.token)).status).toBe(200);
-    const edited = await authedFetch(`/api/adventures/${advId}`, rival.token, {
-      method: "PUT",
-      body: JSON.stringify({
-        title: "Retouche rivale",
-        maxPlayers: 4,
-        graph: corridorGraph(mapA, mapB),
-      }),
-    });
-    expect(edited.status).toBe(200);
-    expect(await edited.json()).toMatchObject({ title: "Retouche rivale" });
-
-    const deleted = await authedFetch(`/api/adventures/${advId}`, rival.token, {
-      method: "DELETE",
-    });
-    expect(deleted.status).toBe(204);
-  });
-});
-
 describe("graph integrity: adventure_graph", () => {
   test("400s adventure_graph when the graph names a map the adventure does not own", async () => {
     const { token } = await registerAndLogin("advgraph");
@@ -719,5 +688,102 @@ describe("start map: the in_use guard excludes the editor's own test-session par
     const moved = await putAdventure(created.id, token, { startMapId: created.defaultMap.id });
     expect(moved.status).toBe(200);
     expect(await moved.json()).toMatchObject({ startMapId: created.defaultMap.id });
+  });
+});
+
+/**
+ * Read is open, write is owned.
+ *
+ * These two halves used to disagree in a way that made sharing impossible AND left writes wide
+ * open: an adventure ROW was readable and writable by any account, while every one of its MAPS
+ * was owner-fenced on read. So a shared link handed a visitor an adventure whose maps all 404'd —
+ * the editor failed the load and told them it did not exist — and meanwhile any account could
+ * rewrite or delete someone else's adventure. Both directions are asserted here because both
+ * moved, and each is silent when it breaks: the read side fails as an empty/absent adventure, the
+ * write side as no failure at all.
+ */
+describe("adventure access: any account reads, only the owner writes", () => {
+  test("a foreign account can read the adventure AND its maps", async () => {
+    const owner = await registerAndLogin("owner");
+    const visitor = await registerAndLogin("visitor");
+    const created = (await (await createAdventure(owner.token)).json()) as {
+      id: string;
+      defaultMap: { id: string };
+    };
+
+    const readAdventure = await authedFetch(`/api/adventures/${created.id}`, visitor.token);
+    expect(readAdventure.status).toBe(200);
+
+    // The half that was broken. A 404 here is what produced "this adventure could not be opened".
+    const readMap = await authedFetch(`/api/maps/${created.defaultMap.id}`, visitor.token);
+    expect(readMap.status).toBe(200);
+
+    // And the listing must not answer "no maps" — the owner filter used to make it look empty
+    // rather than refused, which is the same wrong answer wearing a friendlier face.
+    const listed = await authedFetch(`/api/maps?adventure=${created.id}`, visitor.token);
+    expect(listed.status).toBe(200);
+    expect((await listed.json()) as unknown[]).toHaveLength(1);
+  });
+
+  test("a foreign account cannot edit or delete the adventure", async () => {
+    const owner = await registerAndLogin("owner");
+    const visitor = await registerAndLogin("visitor");
+    const created = (await (await createAdventure(owner.token)).json()) as { id: string };
+
+    const edit = await authedFetch(`/api/adventures/${created.id}`, visitor.token, {
+      method: "PUT",
+      body: JSON.stringify({ title: "Stolen", maxPlayers: 4 }),
+    });
+    // 403, not 404: the visitor can read this row, so denying its existence would contradict the
+    // GET above.
+    expect(edit.status).toBe(403);
+
+    const removed = await authedFetch(`/api/adventures/${created.id}`, visitor.token, {
+      method: "DELETE",
+    });
+    expect(removed.status).toBe(403);
+
+    // Still there, and still called what its owner called it.
+    const after = await authedFetch(`/api/adventures/${created.id}`, owner.token);
+    expect(after.status).toBe(200);
+    expect(await after.json()).toMatchObject({ title: "Donjon" });
+  });
+
+  test("a foreign account cannot write the maps it can read", async () => {
+    const owner = await registerAndLogin("owner");
+    const visitor = await registerAndLogin("visitor");
+    const created = (await (await createAdventure(owner.token)).json()) as {
+      id: string;
+      defaultMap: { id: string };
+    };
+
+    const write = await authedFetch(`/api/maps/${created.defaultMap.id}`, visitor.token, {
+      method: "PUT",
+      // A fully VALID body on purpose: the controller parses and validates before it reaches the
+      // ownership fence, so a malformed one 400s and proves nothing about who may write.
+      body: JSON.stringify(mapBody("Stolen")),
+    });
+    expect(write.status).toBe(404);
+
+    const removed = await authedFetch(`/api/maps/${created.defaultMap.id}`, visitor.token, {
+      method: "DELETE",
+    });
+    expect(removed.status).toBe(404);
+  });
+
+  test("the owner can still edit and delete", async () => {
+    const owner = await registerAndLogin("owner");
+    const created = (await (await createAdventure(owner.token)).json()) as { id: string };
+
+    const edit = await authedFetch(`/api/adventures/${created.id}`, owner.token, {
+      method: "PUT",
+      body: JSON.stringify({ title: "Renamed", maxPlayers: 4 }),
+    });
+    expect(edit.status).toBe(200);
+
+    const removed = await authedFetch(`/api/adventures/${created.id}?force=true`, owner.token, {
+      method: "DELETE",
+    });
+    expect(removed.status).toBe(204);
   });
 });

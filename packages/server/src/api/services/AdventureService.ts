@@ -5,11 +5,17 @@
  * membership is implicit (`map.adventureId` IS the membership) and why a graph is COMPAT-only on the
  * PUT (the editor no longer authors one).
  *
- * **Collaborative editing, preserved from legacy.** Listing, reading and editing are open to every
- * authenticated account; only the owner-scoped default listing (`GET /api/adventures`, no `scope`)
- * filters by `userId`. Deletion follows the same collaborative contract as legacy `deleteAdventure`
- * (its own `_accountId` parameter is accepted but never read) — there is no per-adventure ownership
- * fence on delete either.
+ * **Read is open, write is owned.** Listing and reading are open to every authenticated account —
+ * only the default listing (`GET /api/adventures`, no `scope`) filters by `userId` — while editing
+ * and deletion require owning the row and answer a foreign caller 403 `adventure_forbidden`.
+ *
+ * Writing used to be as open as reading, inherited from legacy (`deleteAdventure`'s own
+ * `_accountId` parameter was accepted and never read). That was not a considered position so much
+ * as an unfinished one, and it paired badly with the MAP routes, which fenced even READS by owner:
+ * a shared adventure handed a visitor a row whose every map 404'd, so the editor failed the load
+ * and reported the adventure missing, while any account could quietly rewrite or delete someone
+ * else's work. Both halves moved at once — maps became readable, adventures became owner-writable —
+ * so that "anyone may look, only the author may change" holds across both.
  *
  * The default-map creation reuses `MapService.createMap` wholesale rather than re-implementing the
  * blank-template/first-map logic here: the adventure row is inserted first (inside the same
@@ -167,11 +173,20 @@ export class AdventureService {
     return stored;
   }
 
-  /** Ported from `updateAdventure`: collaborative editing (any authenticated account may edit), a
-   *  COMPAT-only graph write, and the live-party start-pin guard. */
-  async updateAdventure(id: string, input: AdventureInput): Promise<StoredAdventure> {
+  /** Ported from `updateAdventure`: owner-only since read/write split (pass `ownerId` from any
+   *  caller acting for a user), a COMPAT-only graph write, and the live-party start-pin guard. */
+  async updateAdventure(
+    id: string,
+    input: AdventureInput,
+    ownerId?: string,
+  ): Promise<StoredAdventure> {
     const row = await this.adventures.findById(id);
     if (!row) throw new Error("not_found: no such adventure");
+    // `ownerId` is optional so the server-side callers that legitimately act on nobody's behalf
+    // (seeding, the test-session flow) keep working unchanged; the HTTP route always passes it.
+    if (ownerId !== undefined && row.userId !== ownerId) {
+      throw new Error("forbidden: not the owner of this adventure");
+    }
     const title = input.title.trim();
     if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
     if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
@@ -243,9 +258,15 @@ export class AdventureService {
    *  SQL in legacy. `maps`/`mapElements`/`mapEvents` are FK-`cascade` off `adventureId`/`mapId`, but
    *  every child table is still cleaned up explicitly here rather than relied on — the same
    *  precaution `MapService.deleteMap` takes with its own children. */
-  async deleteAdventure(id: string, options: { force?: boolean } = {}): Promise<void> {
+  async deleteAdventure(
+    id: string,
+    options: { force?: boolean; ownerId?: string } = {},
+  ): Promise<void> {
     const row = await this.adventures.findById(id);
     if (!row) throw new Error("not_found: no such adventure");
+    if (options.ownerId !== undefined && row.userId !== options.ownerId) {
+      throw new Error("forbidden: not the owner of this adventure");
+    }
     const force = options.force === true;
 
     const relatedParties = await this.parties.findMany({ where: { adventureId: { eq: id } } });

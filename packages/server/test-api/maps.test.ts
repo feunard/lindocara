@@ -1056,15 +1056,20 @@ describe("list, get, update, delete", () => {
 });
 
 describe("map ownership fence", () => {
-  // An id is not a capability: every route proves the authenticated author before touching a row.
-  test("a foreign account cannot enumerate, read, edit, re-flag, delete or extend an adventure", async () => {
+  // An id is not a capability for WRITING: every mutating route proves the authenticated author
+  // before touching a row. Reading is a different question and deliberately answers differently —
+  // an adventure is readable by any account, and an adventure whose maps are not readable is not
+  // readable at all. That half is asserted in `adventures.test.ts`; this test owns the write half
+  // and the two enumerating/reading lines below now assert the OPEN behaviour so the split is
+  // visible in one place.
+  test("a foreign account can enumerate and read, but cannot edit, re-flag, delete or extend", async () => {
     const owner = await registerAndLogin("mapowner");
     const adventureId = await newAdventure(owner.userId);
     const id = await newMapId(adventureId, owner.token, "Shared");
 
     const rival = await registerAndLogin("maprival");
-    expect(await listMaps(adventureId, rival.token)).toEqual([]);
-    expect((await authedFetch(`/api/maps/${id}`, rival.token)).status).toBe(404);
+    expect(await listMaps(adventureId, rival.token)).toHaveLength(1);
+    expect((await authedFetch(`/api/maps/${id}`, rival.token)).status).toBe(200);
 
     const edited = await putMap(id, rival.token, mapBody({ name: "Edited by rival" }));
     expect(edited.status).toBe(404);
