@@ -88,12 +88,7 @@ import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
 import { SheepFeedbackTracker } from "./sheep-feedback.js";
 import { GameSound } from "./sound.js";
-
-function required<T extends Element>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`index.html is missing ${selector}`);
-  return element;
-}
+import { acquireStageCanvas, releaseStageCanvas } from "./stage-canvas.js";
 
 /** Shared by every teardown entry point below: `navigate: false` still clears the store/atoms but
  *  skips the router push, for a caller that already knows the browser is somewhere else (see
@@ -400,7 +395,9 @@ async function startGameIdentity(
     progress: 8,
   });
   setStatus("status.connecting", { name: identity.name });
-  const canvas = required<HTMLCanvasElement>("#stage");
+  // Acquire before building the renderer, release wherever that renderer is destroyed — the two
+  // `renderer.destroy()` sites below are the launch-race abort and the real teardown.
+  const canvas = acquireStageCanvas();
   const serverClock = new ServerClock();
   const renderer: RendererLike = await Hd2dRenderer.create(canvas, serverClock);
   // Renderer creation is asynchronous — the ONLY `await` between "loading started" and "the game
@@ -418,6 +415,7 @@ async function startGameIdentity(
   // already re-stamped ownership to itself; wiping the store here would stomp its state.
   if (launchId !== activeLaunchId) {
     renderer.destroy();
+    releaseStageCanvas();
     if (useUiStore.getState().launchOwner === launchId) {
       returnFromGameSession({ navigate: false });
     }
@@ -864,6 +862,7 @@ async function startGameIdentity(
     canvas.classList.remove("sheep-hover");
     sound.stopAmbient();
     renderer.destroy();
+    releaseStageCanvas();
     cancelHudLayoutEdit();
     if (stopActiveSession === stopSession) stopActiveSession = null;
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal

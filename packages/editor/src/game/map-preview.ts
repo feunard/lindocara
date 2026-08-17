@@ -1,6 +1,7 @@
 /** A throwaway walk through an unsaved authored map, using the shipped movement and render paths. */
 
 import { createHeroController } from "@lindocara/client/game/hero-controller.js";
+import { acquireStageCanvas, releaseStageCanvas } from "@lindocara/client/game/stage-canvas.js";
 import { t } from "@lindocara/client/i18n.js";
 import {
   BODY_VARIANTS,
@@ -96,8 +97,8 @@ export async function startMapPreview(
   options: MapPreviewOptions = {},
 ): Promise<{ stop(): void }> {
   const generation = ++previewGeneration;
-  const canvas = document.querySelector<HTMLCanvasElement>("#stage");
-  if (!canvas) throw new Error("The HD-2D preview requires the #stage canvas");
+  // A hold on the shared canvas, dropped in `stop()` and on the stale-generation abort below.
+  const canvas = acquireStageCanvas();
 
   const runtimeEvents = [...events, ...nativeHarvestEvents(data.elements, events.length + 1)];
   const heightfield = compileAuthoredMap(data, runtimeEvents);
@@ -126,6 +127,7 @@ export async function startMapPreview(
   const renderer = await Hd2dRenderer.create(canvas);
   if (generation !== previewGeneration) {
     renderer.destroy();
+    releaseStageCanvas();
     return { stop() {} };
   }
 
@@ -312,6 +314,7 @@ export async function startMapPreview(
       }
       tracker.stop();
       renderer.destroy();
+      releaseStageCanvas();
     },
   };
 }

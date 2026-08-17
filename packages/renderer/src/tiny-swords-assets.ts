@@ -1,10 +1,21 @@
 import type { CatalogAssetRef } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
 
+/**
+ * `?no-inline` rather than a bare `?url`, and that flag is the difference between a URL and a wall
+ * of base64.
+ *
+ * Vite inlines any asset under `build.assetsInlineLimit` (4 KB by default) as a `data:` URI, and
+ * most of the Tiny Swords UI pieces — buttons, ribbons, checkboxes, cursors — are comfortably
+ * under it. Every one of them then travelled as base64 inside the JS bundle, was pasted into a CSS
+ * `url()`, and landed in the document. `?no-inline` keeps them as emitted files: the bundle stays
+ * small, the theme stylesheet stays readable, and the browser can cache each sprite separately
+ * instead of re-downloading all of them inside whichever chunk carried them.
+ */
 const SOURCE_URLS = import.meta.glob<string>("../../catalog/assets/Tiny Swords*/**/*.png", {
   eager: true,
   import: "default",
-  query: "?url",
+  query: "?no-inline",
 });
 
 /** Resolve a catalogued source path through Vite. The glob is the only client import boundary for
@@ -38,9 +49,15 @@ function doubledCursorValue(
   return `image-set(url("${publicPath}") 2x) ${hotspot.x} ${hotspot.y}, ${fallback}`;
 }
 
-/** Installs the small set of semantic UI assets as CSS variables once, before React mounts. */
-export function applyTinySwordsTheme(root: HTMLElement = document.documentElement): void {
-  const set = (name: string, value: string): void => root.style.setProperty(name, value);
+/**
+ * The semantic UI assets, as `[custom property, value]` pairs — the one source of truth both
+ * appliers below read.
+ */
+function themeDeclarations(): Array<[string, string]> {
+  const declarations: Array<[string, string]> = [];
+  const set = (name: string, value: string): void => {
+    declarations.push([name, value]);
+  };
   set("--tiny-button-blue-normal", cssUrl(TINY_SWORDS_UI.button.blue.normal));
   set("--tiny-button-blue-hover", cssUrl(TINY_SWORDS_UI.button.blue.hover));
   set("--tiny-button-blue-pressed", cssUrl(TINY_SWORDS_UI.button.blue.pressed));
@@ -99,4 +116,41 @@ export function applyTinySwordsTheme(root: HTMLElement = document.documentElemen
   );
   set("--tiny-cursor-paint", cursorValue(TINY_SWORDS_UI.cursor.paint, "crosshair"));
   set("--tiny-cursor-unavailable", cursorValue(TINY_SWORDS_UI.cursor.unavailable, "not-allowed"));
+  return declarations;
+}
+
+/** Sets the theme as inline custom properties on one element. Element-scoped by nature — use
+ *  `installTinySwordsTheme` for the document, which must not carry these in an attribute. */
+export function applyTinySwordsTheme(root: HTMLElement = document.documentElement): void {
+  for (const [name, value] of themeDeclarations()) {
+    root.style.setProperty(name, value);
+  }
+}
+
+const THEME_STYLE_ID = "tiny-swords-theme";
+
+/**
+ * Installs the theme as a real stylesheet, once, before React mounts.
+ *
+ * These are ~40 declarations whose values are `url(...)`s, and this used to write them straight
+ * onto `document.documentElement.style`. That put the whole set in the `<html style="…">`
+ * ATTRIBUTE — a wall of text at the top of every inspected page, tens of kilobytes of it once the
+ * build inlined the smaller PNGs as `data:` URIs, in the one place a developer cannot avoid
+ * looking. Nothing was broken by it; it just made the document unreadable and every DevTools
+ * session worse.
+ *
+ * A `<style>` element is where document-wide theme tokens belong: same cascade entry point
+ * (`:root`), same precedence relative to `legacy.css`'s unlayered rules (both unlayered author
+ * styles, this one later in the document), and inspectable as a collapsed stylesheet rather than
+ * an attribute. Idempotent by id, because the browser entry can run twice under HMR.
+ */
+export function installTinySwordsTheme(doc: Document = document): void {
+  const body = themeDeclarations()
+    .map(([name, value]) => `  ${name}: ${value};`)
+    .join("\n");
+  const existing = doc.getElementById(THEME_STYLE_ID);
+  const style = existing ?? doc.createElement("style");
+  style.id = THEME_STYLE_ID;
+  style.textContent = `:root {\n${body}\n}\n`;
+  if (!existing) doc.head.append(style);
 }

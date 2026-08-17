@@ -6,6 +6,7 @@
  * the exact engine/renderer path used by a running room.
  */
 
+import { acquireStageCanvas, releaseStageCanvas } from "@lindocara/client/game/stage-canvas.js";
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { BuildingSettings } from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
@@ -215,8 +216,10 @@ export function openMapEditorStage(
 ): Promise<MapEditorStageHandle> {
   const opening = openQueue.then(async () => {
     activeStage?.dispose();
-    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
-    if (!canvas) throw new Error("The HD-2D editor requires the #stage canvas");
+    // The canvas belongs to whoever renders into it (`@lindocara/client`'s `stage-canvas`), so the
+    // painting stage takes a hold here and drops it in `dispose` below. Reference counted, because
+    // entering the playable preview builds ITS renderer while this one is still tearing down.
+    const canvas = acquireStageCanvas();
 
     const renderer = await Hd2dRenderer.create(canvas);
     renderer.setTiltShiftEnabled(false);
@@ -917,6 +920,7 @@ export function openMapEditorStage(
         window.removeEventListener("keyup", onKeyUp);
         onCursorCell?.(null, null);
         renderer.destroy();
+        releaseStageCanvas();
         if (activeStage === handle) activeStage = null;
       },
     };

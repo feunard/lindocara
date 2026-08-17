@@ -115,18 +115,16 @@ describe("AppRouter", () => {
     alepha = undefined;
   });
 
-  it("boots the canvas beside #root, then renders title -> menu through the router", async () => {
+  it("boots WITHOUT a canvas, then renders title -> menu through the router", async () => {
     const { bootClient } = await import("@lindocara/client/main.js");
     expect(bootClient()).toBe(true);
 
-    const stage = document.querySelector("#stage");
-    const root = document.querySelector("#root");
-    expect(stage).toBeTruthy();
-    expect(root).toBeTruthy();
-    // The canvas is not React's (see the repo AGENTS.md gotcha): a sibling of #root, placed
-    // BEFORE it, so #root's chrome paints on top of it.
-    const children = Array.from(document.body.children);
-    expect(children.indexOf(stage as Element)).toBeLessThan(children.indexOf(root as Element));
+    // The bootstrap no longer creates `#stage`. It used to, which left a full-viewport GPU surface
+    // on every page that never draws into it — the title and the menu below among them. The canvas
+    // belongs to whoever renders into it now (`game/stage-canvas.ts`), asserted directly in
+    // `stage-canvas.test.ts`; what matters HERE is that routing to a non-game screen creates none.
+    expect(document.querySelector("#stage")).toBeNull();
+    expect(document.querySelector("#root")).toBeTruthy();
 
     alepha = Alepha.create().with(AlephaReact).with(AppRouter);
     await alepha.start();
@@ -146,6 +144,7 @@ describe("AppRouter", () => {
       expect(document.querySelector(".main-menu")).toBeTruthy();
       expect(document.querySelector(".title-screen")).toBeNull();
     });
+    expect(document.querySelector("#stage")).toBeNull();
   });
 
   // The layout installs a `GameNavigation` (`state/navigation.ts`) on mount and clears it on
