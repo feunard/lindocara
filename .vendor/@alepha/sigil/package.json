@@ -2,7 +2,7 @@
   "name": "@alepha/sigil",
   "private": true,
   "description": "Reports page views, vitals and errors from an Alepha app to a Sigil instance.",
-  "author": "Feunard",
+  "author": "Nicolas Foures",
   "version": "0.20.1",
   "type": "module",
   "engines": {
@@ -40,7 +40,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "alepha": "0.25.1",
+    "alepha": "0.25.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tsdown": "^0.22.14",
@@ -48,7 +48,7 @@
     "vitest": "^4.1.10"
   },
   "peerDependencies": {
-    "alepha": "0.25.1",
+    "alepha": "^0.25.2",
     "react": "*",
     "react-dom": "*"
   },
@@ -58,7 +58,8 @@
     "test": "alepha test",
     "build": "tsdown"
   },
-  "homepage": "https://github.com/feunard/alepha",
+  "homepage": "https://alepha.dev",
+  "llms": "https://alepha.dev/llms.txt",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/feunard/alepha.git"
@@ -68,6 +69,7 @@
     "sigil",
     "analytics",
     "errors",
-    "observability"
+    "observability",
+    "typescript"
   ]
 }

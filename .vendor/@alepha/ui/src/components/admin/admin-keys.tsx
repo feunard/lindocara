@@ -4,10 +4,10 @@ void React;
 
 import { AdminKeysTokenDialog } from "@alepha/ui/components/admin/admin-keys-token-dialog";
 import { AdminPage } from "@alepha/ui/components/admin/admin-page";
+import { AdminUserCell } from "@alepha/ui/components/admin/admin-user-cell";
 import { useConfirmedAction } from "@alepha/ui/components/admin/use-confirmed-action";
 import { AlephaTable } from "@alepha/ui/components/alepha-table/alepha-table";
 import { Badge } from "@alepha/ui/components/ui/badge";
-import { Button } from "@alepha/ui/components/ui/button";
 import { useDialog } from "@alepha/ui/components/use-dialog/use-dialog";
 import { useToast } from "@alepha/ui/components/use-toast/use-toast";
 import type {
@@ -135,17 +135,14 @@ export function AdminKeys() {
         persistenceKey="admin.keys"
         fetch={fetcher}
         refreshSignal={refreshSignal}
-        toolbar={
-          <Button
-            type="button"
-            size="sm"
-            loading={createKey.loading}
-            onClick={() => createKey.run()}
-          >
-            <Plus className="size-4" />
-            {tr("admin.keys.create", { default: "Add API key" })}
-          </Button>
-        }
+        actions={[
+          {
+            icon: Plus,
+            label: tr("admin.keys.create", { default: "Add API key" }),
+            disabled: createKey.loading,
+            onClick: () => createKey.run(),
+          },
+        ]}
         bulkActions={[
           {
             label: tr("admin.keys.bulkRevoke", {
@@ -169,7 +166,7 @@ export function AdminKeys() {
           },
           owner: {
             label: tr("admin.keys.colOwner", { default: "Owner" }),
-            cell: (k) => <span className="text-sm">{k.userId ?? "—"}</span>,
+            cell: (k) => <AdminUserCell userId={k.userId} user={k.user} />,
           },
           roles: {
             label: tr("admin.keys.colScopes", { default: "Roles" }),

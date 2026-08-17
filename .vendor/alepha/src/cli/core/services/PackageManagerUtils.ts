@@ -385,7 +385,48 @@ export class PackageManagerUtils {
   }
 
   public async ensurePnpm(root: string): Promise<void> {
+    await this.ensurePnpmHoisting(root);
     await this.removeAllPmFilesExcept(root, "pnpm");
+  }
+
+  /**
+   * Opt a pnpm project into a hoisted `node_modules`.
+   *
+   * `alepha` carries the toolchain — vite, vitest, typescript, biome,
+   * drizzle-kit — in its own `dependencies`, and the scaffold's generated
+   * files import part of it directly: `vite.config.ts` imports
+   * `vitest/config`, and the dummy spec imports `vitest`. npm, bun and yarn
+   * all hoist those transitives into the project's top-level `node_modules`,
+   * so the imports resolve. pnpm's isolated linker does not, and the result
+   * is a project that installs cleanly, prints "Project ready!", and then
+   * fails `dev`, `build`, `test` and `typecheck` alike on
+   * `Cannot find module 'vitest'`.
+   *
+   * {@link AlephaCliUtils.resolveBin} already covers the other half of the
+   * same problem — a transitive's *bin* is not linked into `.bin` either —
+   * which is why `lint` was the one script that survived. Nothing can fix
+   * module resolution from the project's own source except the layout.
+   *
+   * Mirrors {@link ensureYarn} writing `nodeLinker: node-modules`: one
+   * layout across all four managers, so there is one bug surface instead of
+   * four. An `.npmrc` that already sets `node-linker` is left alone — that
+   * is a deliberate choice by whoever wrote it.
+   */
+  protected async ensurePnpmHoisting(root: string): Promise<void> {
+    const npmrcPath = this.fs.join(root, ".npmrc");
+    const current = (await this.fs.exists(npmrcPath))
+      ? (await this.fs.readFile(npmrcPath)).toString("utf-8")
+      : "";
+
+    if (/^\s*node-linker\s*=/m.test(current)) {
+      return;
+    }
+
+    const prefix = current.length > 0 && !current.endsWith("\n") ? "\n" : "";
+    await this.fs.writeFile(
+      npmrcPath,
+      `${current}${prefix}node-linker=hoisted\n`,
+    );
   }
 
   public async ensureNpm(root: string): Promise<void> {
@@ -437,13 +478,21 @@ export class PackageManagerUtils {
     return JSON.parse(content);
   }
 
+  /**
+   * Write `package.json`, newline-terminated.
+   *
+   * `JSON.stringify` does not end with one, and every other tool that touches
+   * this file does — npm, yarn and biome all rewrite it with a trailing
+   * newline. Without it, the scaffolder emitted the one file in a new project
+   * that its own `alepha lint` immediately had to fix.
+   */
   public async writePackageJson(
     root: string,
     content: Record<string, any>,
   ): Promise<void> {
     await this.fs.writeFile(
       this.fs.join(root, "package.json"),
-      JSON.stringify(content, null, 2),
+      `${JSON.stringify(content, null, 2)}\n`,
     );
   }
 
@@ -539,6 +588,15 @@ export class PackageManagerUtils {
       devDependencies["@alepha/devtools"] = `^${version}`;
     }
 
+    // One line, because `@alepha/ui` carries its own runtime deps
+    // (`lucide-react`, `@base-ui/react`, `recharts`, …) rather than listing
+    // them as peers. Same `version` as `alepha` and for a stronger reason
+    // than devtools: its `alepha` peer range is exact, so the two only ever
+    // resolve together.
+    if (modes.ui) {
+      dependencies["@alepha/ui"] = `^${version}`;
+    }
+
     return {
       type: "module",
       dependencies,
@@ -573,4 +631,9 @@ export interface DependencyModes {
    * default on for apps, always off for workspace packages.
    */
   devtools?: boolean;
+  /**
+   * Whether to depend on `@alepha/ui`. Set by the `saas` preset, which mounts
+   * its auth, account and admin routers.
+   */
+  ui?: boolean;
 }

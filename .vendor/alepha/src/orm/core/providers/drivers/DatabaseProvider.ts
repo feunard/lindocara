@@ -236,9 +236,13 @@ export abstract class DatabaseProvider {
       return fn();
     }
 
-    return this.alepha.context.nest(() =>
-      this.db.transaction(async (tx) => {
+    return this.alepha.context.nest(async () => {
+      const afterCommit: Array<() => void | Promise<void>> = [];
+      const result = await this.db.transaction(async (tx) => {
         this.alepha.store.set("alepha.orm.tx", tx as PgAsyncTransaction<any>, {
+          skipEvents: true,
+        });
+        this.alepha.store.set("alepha.orm.afterCommit", afterCommit, {
           skipEvents: true,
         });
         try {
@@ -247,9 +251,60 @@ export abstract class DatabaseProvider {
           this.alepha.store.set("alepha.orm.tx", undefined, {
             skipEvents: true,
           });
+          this.alepha.store.set("alepha.orm.afterCommit", undefined, {
+            skipEvents: true,
+          });
         }
-      }, config),
-    );
+      }, config);
+
+      await this.drainAfterCommit(afterCommit);
+      return result;
+    });
+  }
+
+  /**
+   * Run `callback` once the surrounding transaction has committed.
+   *
+   * Inside a `transactional()` block the callback is queued on the OUTERMOST
+   * transaction — nested blocks join it, so a callback registered three layers
+   * deep still waits for the single real COMMIT. Queued callbacks run in
+   * registration order, awaited one by one, and are discarded when the
+   * transaction rolls back. Outside any transaction (including drivers with
+   * `supportsTransactions === false`) the callback runs, awaited, in place.
+   *
+   * This is the safe way to emit a domain event from transactional code:
+   * emitting inside the transaction hands subscribers uncommitted rows and
+   * keeps row locks held for as long as they run — a subscriber that talks to
+   * an SMTP server extends the transaction by the length of that call.
+   *
+   * A callback that throws propagates to the `transactional()` caller, but by
+   * then the transaction has committed — it cannot unwind the work.
+   */
+  public async afterCommit(
+    callback: () => void | Promise<void>,
+  ): Promise<void> {
+    const queue = this.alepha.get("alepha.orm.afterCommit");
+    if (queue) {
+      queue.push(callback);
+      return;
+    }
+    await callback();
+  }
+
+  /**
+   * Run queued after-commit callbacks, in registration order.
+   *
+   * Called by the outermost transaction owner once its COMMIT has returned.
+   * By then the store keys are cleared, so a callback that itself calls
+   * {@link afterCommit} runs the new callback immediately instead of
+   * appending to the queue being drained.
+   */
+  protected async drainAfterCommit(
+    callbacks: Array<() => void | Promise<void>>,
+  ): Promise<void> {
+    for (const callback of callbacks) {
+      await callback();
+    }
   }
 
   /**
@@ -279,10 +334,14 @@ export abstract class DatabaseProvider {
     exec: (sql: string) => void,
     fn: () => Promise<R>,
   ): Promise<R> {
+    const afterCommit: Array<() => void | Promise<void>> = [];
     const run = async (): Promise<R> => {
       // Set the tx marker to the drizzle db itself — SQLite transactions are
       // connection-scoped, so all operations on this connection participate.
       this.alepha.store.set("alepha.orm.tx", this.db as any, {
+        skipEvents: true,
+      });
+      this.alepha.store.set("alepha.orm.afterCommit", afterCommit, {
         skipEvents: true,
       });
       exec("BEGIN");
@@ -297,6 +356,9 @@ export abstract class DatabaseProvider {
         this.alepha.store.set("alepha.orm.tx", undefined, {
           skipEvents: true,
         });
+        this.alepha.store.set("alepha.orm.afterCommit", undefined, {
+          skipEvents: true,
+        });
       }
     };
 
@@ -305,7 +367,13 @@ export abstract class DatabaseProvider {
       () => undefined,
       () => undefined,
     );
-    return result;
+    // Drained outside the mutex chain: a callback that opens a transaction of
+    // its own must be able to take the mutex, and the next queued transaction
+    // must not wait for callbacks that no longer hold the connection.
+    return result.then(async (value) => {
+      await this.drainAfterCommit(afterCommit);
+      return value;
+    });
   }
 
   public abstract execute(
@@ -356,6 +424,31 @@ export abstract class DatabaseProvider {
       const exists = await stat(migrationsFolder).catch(() => false);
 
       if (!exists) {
+        // Production is the one environment with no push-sync fallback — the
+        // `synchronize()` call below lives in the dev/test branch. So an
+        // absent migrations folder does not mean "push the schema for me"
+        // here, it means "create nothing", and an app that declares entities
+        // boots green with no tables and throws `DbTableNotFoundError` on its
+        // first query. This used to be a single `warn` and a successful boot,
+        // which put the only notice of a completely broken deploy in a
+        // startup log, at the moment nobody is reading one.
+        //
+        // Narrow on purpose. An app that mounts the ORM and declares nothing
+        // has no schema to create and still boots. And `DATABASE_SYNC=false`
+        // already means "I manage the schema myself" — someone applying DDL
+        // out of band has stated intent, which is exactly what an absent
+        // folder cannot do on its own.
+        const { DATABASE_SYNC } = this.alepha.parseEnv(databaseEnvSchema);
+        const declaresSchema =
+          this.entityPrimitives.length > 0 ||
+          this.sequencePrimitives.length > 0;
+
+        if (declaresSchema && DATABASE_SYNC !== false) {
+          throw new AlephaError(
+            `No migrations found in '${migrationsFolder}', but this app declares ${this.entityPrimitives.length} entit${this.entityPrimitives.length === 1 ? "y" : "ies"}. Production does not push the schema, so the tables would never be created and the first query would fail. Run 'alepha db migrations create' and redeploy, or set DATABASE_SYNC=false if the schema is managed outside the app.`,
+          );
+        }
+
         this.log.warn("Migration SKIPPED - no migrations found");
         return;
       }
@@ -411,6 +504,56 @@ export abstract class DatabaseProvider {
           error as Error,
         );
       }
+
+      await this.stampBaselineAfterSync();
+    }
+  }
+
+  /**
+   * After a development push, record a lone baseline migration as applied.
+   *
+   * The push creates the tables and leaves the migrations journal empty, so
+   * the same database read by a production boot looks like one where nothing
+   * has ever been applied — and production replays the baseline onto tables
+   * that already exist. A fresh scaffold hits this on its fourth command:
+   * `init --preset saas`, `dev`, `build`, `node dist/index.js`.
+   *
+   * Deliberately narrow. Drizzle's `init: true` records without executing, and
+   * refuses when the journal already has rows or when more than one local
+   * migration exists — which is exactly the state where "the push and the
+   * migration files describe the same schema" stops being a safe assumption.
+   * Both refusals are the normal steady state here (every boot after the
+   * first, and every project past its first migration), so they are logged at
+   * debug and nothing more.
+   *
+   * Best-effort by construction: a driver with no `runMigrator` throws, and a
+   * failure to stamp must never take down `alepha dev`. Production correctness
+   * does not rest on this — {@link NodeSqliteProvider} refusing to share the
+   * development database file is what closes that door.
+   */
+  protected async stampBaselineAfterSync(): Promise<void> {
+    const migrationsFolder = this.getMigrationsFolder();
+
+    const exists = await stat(migrationsFolder).catch(() => false);
+    if (!exists) {
+      return;
+    }
+
+    try {
+      const result = await this.runMigrator(migrationsFolder, { init: true });
+
+      if (result?.exitCode) {
+        this.log.debug(
+          `Baseline not stamped after sync (${result.exitCode}) — the journal is already populated, or more than one migration exists`,
+        );
+        return;
+      }
+
+      this.log.debug(
+        `Baseline recorded as applied for '${this.name}' after schema push`,
+      );
+    } catch (error) {
+      this.log.debug("Could not stamp the baseline after schema push", error);
     }
   }
 
@@ -466,6 +609,22 @@ export abstract class DatabaseProvider {
     }
     throw new AlephaError(
       `'baseline mark' does not yet support the '${this.driver}' driver`,
+    );
+  }
+
+  /**
+   * Whether this process was started to apply migrations and nothing else.
+   *
+   * The same condition `$mode({ env: "MIGRATE" })` activates on. Read here so a
+   * driver can tell "a deployed server is booting" from "someone ran
+   * `alepha db migrations apply`" — the CLI boots the app with
+   * `NODE_ENV=production` for that command so migrations run through the
+   * file-based path, which makes `isProduction()` alone unable to distinguish
+   * the two.
+   */
+  protected isMigrationRun(): boolean {
+    return (
+      this.alepha.isEnvEnabled("MIGRATE") || this.alepha.env.MODE === "MIGRATE"
     );
   }
 

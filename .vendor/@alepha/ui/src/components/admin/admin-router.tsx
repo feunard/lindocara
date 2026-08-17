@@ -1,5 +1,6 @@
 import { $pageNav } from "@alepha/ui/components/nav-shell/nav-page";
 import { $store, z } from "alepha";
+import type { AdminAnalyticsController } from "alepha/api/analytics";
 import type { AdminAuditController } from "alepha/api/audits";
 import type { FileController } from "alepha/api/files";
 import type { AdminJobController } from "alepha/api/jobs";
@@ -11,11 +12,13 @@ import type {
   AdminSessionController,
   AdminUserController,
 } from "alepha/api/users";
+import type { AdminWorkflowController } from "alepha/api/workflows";
 import { $page, Redirection } from "alepha/react/router";
 import { $secure } from "alepha/security";
 import { $client } from "alepha/server/links";
 import {
   Bell,
+  ChartLine,
   CreditCard,
   Files,
   KeyRound,
@@ -24,11 +27,25 @@ import {
   SlidersHorizontal,
   Timer,
   UsersIcon,
+  Workflow,
 } from "lucide-react";
+import { createElement } from "react";
 import { adminRouterOptionsAtom } from "./admin-router-options.tsx";
 
 /**
- * The whole `/admin` surface — ten pages and their shell — mounted and wired.
+ * The whole `/admin` surface — twelve pages and their shell — mounted and wired.
+ *
+ * ⚠️ **Nav icons are `createElement(Icon)`, never `<Icon />`. Do not "fix"
+ * them back to JSX.** This module is evaluated *eagerly* in the server graph:
+ * `main.server.ts` → `$module` → `alepha.inject(AdminRouter)` runs these class
+ * fields at import time, unlike every page below, which is behind `lazy()`.
+ * `alepha db migrations create` imports that graph in a child process under
+ * `tsx`, and `tsx` applies a single tsconfig resolved from the **cwd** — the
+ * app root. A file outside that tsconfig's `include` (which this one is, being
+ * in a sibling workspace) gets esbuild's defaults instead, and the default JSX
+ * transform is the *classic* one. The emitted `React.createElement` then fails
+ * with `ReferenceError: React is not defined`, breaking migration generation
+ * for the whole app — with a stack that points here and explains none of this.
  *
  * ```ts
  * import { AdminRouter } from "@alepha/ui/components/admin/admin-router";
@@ -98,24 +115,25 @@ import { adminRouterOptionsAtom } from "./admin-router-options.tsx";
  * ### Group order is a contract
  *
  * The built-in pages occupy `Identity` (orders 1-3) and `Operations`
- * (orders 4-9). An application's page should either join one of those with an
+ * (orders 4-11). An application's page should either join one of those with an
  * `order` of 100 or more, or declare a group of its own. `useNavEntries` sorts
  * groups by their smallest member, so a custom page at `order: 2` would
  * silently reshuffle the built-in sidebar.
  *
- * ### These ten route names are claimed globally
+ * ### These twelve route names are claimed globally
  *
  * `users`, `userDetail`, `sessions`, `keys`, `jobs`, `notifications`,
- * `audits`, `files`, `parameters` and `payments` each carry an explicit
- * `name:` so a future rename of the field itself (done for readability,
- * without touching the string) never silently changes the public route
- * name — the same reason `AuthRouter`'s pages all carry one too.
+ * `audits`, `files`, `parameters`, `payments`, `analytics` and `workflows`
+ * each carry an
+ * explicit `name:` so a future rename of the field itself (done for
+ * readability, without touching the string) never silently changes the public
+ * route name — the same reason `AuthRouter`'s pages all carry one too.
  *
  * Route names live in one process-wide namespace, and a duplicate does not
  * throw: `ReactPageProvider.page()` returns the first match. An adopter that
- * registers its own page named `files` (or any of the other nine) either
+ * registers its own page named `files` (or any of the other ten) either
  * shadows this one or is shadowed by it, silently, depending on mount order.
- * Treat these ten names as reserved when hanging pages off `layout`.
+ * Treat these eleven names as reserved when hanging pages off `layout`.
  */
 export class AdminRouter {
   protected readonly options = $store(adminRouterOptionsAtom);
@@ -129,6 +147,8 @@ export class AdminRouter {
   protected readonly fileApi = $client<FileController>();
   protected readonly parameterApi = $client<AdminParameterController>();
   protected readonly paymentApi = $client<AdminPaymentController>();
+  protected readonly analyticsApi = $client<AdminAnalyticsController>();
+  protected readonly workflowApi = $client<AdminWorkflowController>();
 
   /**
    * Anchors the shell and the first breadcrumb. Not itself a nav entry — a
@@ -158,7 +178,12 @@ export class AdminRouter {
     head: { title: "Users" },
     permission: "admin:user:read",
     can: () => this.userApi.findUsers.can(),
-    nav: { label: "Users", icon: <UsersIcon />, group: "Identity", order: 1 },
+    nav: {
+      label: "Users",
+      icon: createElement(UsersIcon),
+      group: "Identity",
+      order: 1,
+    },
     lazy: () => import("./admin-users.tsx"),
     props: () => this.options.pages?.users ?? {},
   });
@@ -192,7 +217,7 @@ export class AdminRouter {
     can: () => this.sessionApi.findSessions.can(),
     nav: {
       label: "Sessions",
-      icon: <ShieldCheck />,
+      icon: createElement(ShieldCheck),
       group: "Identity",
       order: 2,
     },
@@ -208,7 +233,7 @@ export class AdminRouter {
     can: () => this.apiKeyApi.findApiKeys.can(),
     nav: {
       label: "API keys",
-      icon: <KeyRound />,
+      icon: createElement(KeyRound),
       group: "Identity",
       order: 3,
       keywords: ["tokens", "credentials"],
@@ -223,7 +248,12 @@ export class AdminRouter {
     head: { title: "Jobs" },
     permission: "admin:job:read",
     can: () => this.jobApi.listJobs.can(),
-    nav: { label: "Jobs", icon: <Timer />, group: "Operations", order: 4 },
+    nav: {
+      label: "Jobs",
+      icon: createElement(Timer),
+      group: "Operations",
+      order: 4,
+    },
     lazy: () => import("./admin-jobs.tsx"),
   });
 
@@ -236,7 +266,7 @@ export class AdminRouter {
     can: () => this.notificationApi.findNotifications.can(),
     nav: {
       label: "Notifications",
-      icon: <Bell />,
+      icon: createElement(Bell),
       group: "Operations",
       order: 5,
     },
@@ -252,7 +282,7 @@ export class AdminRouter {
     can: () => this.auditApi.findAudits.can(),
     nav: {
       label: "Audit log",
-      icon: <ShieldAlert />,
+      icon: createElement(ShieldAlert),
       group: "Operations",
       order: 6,
     },
@@ -266,7 +296,12 @@ export class AdminRouter {
     head: { title: "Files" },
     permission: "admin:file:read",
     can: () => this.fileApi.findFiles.can(),
-    nav: { label: "Files", icon: <Files />, group: "Operations", order: 7 },
+    nav: {
+      label: "Files",
+      icon: createElement(Files),
+      group: "Operations",
+      order: 7,
+    },
     lazy: () => import("./admin-files.tsx"),
   });
 
@@ -279,7 +314,7 @@ export class AdminRouter {
     can: () => this.parameterApi.getParameterTree.can(),
     nav: {
       label: "Parameters",
-      icon: <SlidersHorizontal />,
+      icon: createElement(SlidersHorizontal),
       group: "Operations",
       order: 8,
       keywords: ["settings", "config", "configuration"],
@@ -302,10 +337,43 @@ export class AdminRouter {
     can: () => this.paymentApi.listIntents.can(),
     nav: {
       label: "Payments",
-      icon: <CreditCard />,
+      icon: createElement(CreditCard),
       group: "Operations",
       order: 9,
     },
     lazy: () => import("./admin-payments.tsx"),
+  });
+
+  analytics = $pageNav({
+    parent: this.layout,
+    path: "/analytics",
+    name: "analytics",
+    head: { title: "Analytics" },
+    permission: "admin:analytics:read",
+    can: () => this.analyticsApi.listDatasets.can(),
+    nav: {
+      label: "Analytics",
+      icon: createElement(ChartLine),
+      group: "Operations",
+      order: 10,
+    },
+    lazy: () => import("./admin-analytics.tsx"),
+  });
+
+  workflows = $pageNav({
+    parent: this.layout,
+    path: "/workflows",
+    name: "workflows",
+    head: { title: "Workflows" },
+    permission: "admin:workflow:read",
+    can: () => this.workflowApi.getWorkflowRegistry.can(),
+    nav: {
+      label: "Workflows",
+      icon: createElement(Workflow),
+      group: "Operations",
+      order: 11,
+      keywords: ["saga", "steps", "executions"],
+    },
+    lazy: () => import("./admin-workflows.tsx"),
   });
 }

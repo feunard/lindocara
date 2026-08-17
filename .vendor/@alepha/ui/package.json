@@ -7,26 +7,30 @@
     "shadcn",
     "base-ui",
     "react",
-    "tailwind"
+    "tailwind",
+    "typescript"
   ],
-  "author": "Feunard",
-  "version": "0.25.1",
+  "author": "Nicolas Foures",
+  "version": "0.25.2",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
   },
   "license": "MIT",
-  "homepage": "https://github.com/feunard/alepha",
+  "homepage": "https://alepha.dev",
+  "llms": "https://alepha.dev/llms.txt",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/feunard/alepha.git"
   },
   "files": [
+    "dist",
     "src",
     "components.json"
   ],
   "scripts": {
     "sync": "node scripts/sync.mjs",
+    "build": "tsdown && tsc -p tsconfig.build.json && node scripts/copy-css.mjs",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
@@ -36,7 +40,7 @@
     "./styles.css": "./src/styles.css"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.7.0",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "class-variance-authority": "^0.7.1",
@@ -44,9 +48,9 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
-    "highlight.js": "^11.11.1",
+    "highlight.js": "^11.12.0",
     "input-otp": "^1.4.2",
-    "lucide-react": "^1.28.0",
+    "lucide-react": "^1.31.0",
     "react-day-picker": "^10.0.1",
     "react-is": "^19.2.8",
     "react-markdown": "^10.1.0",
@@ -54,13 +58,13 @@
     "recharts": "3.10.1",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
-    "shadcn": "^4.16.1",
-    "sonner": "^2.0.7",
+    "shadcn": "^4.18.0",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0"
   },
   "peerDependencies": {
-    "alepha": "0.25.1",
+    "alepha": "^0.25.2",
     "react": "*",
     "react-dom": "*",
     "recharts": "^3",
@@ -72,13 +76,31 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.6",
+    "@biomejs/biome": "^2.5.8",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
-    "alepha": "0.25.1",
+    "alepha": "0.25.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tsdown": "^0.22.14",
     "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "exports": {
+      "./components/*": {
+        "types": "./dist/components/*.d.ts",
+        "default": "./dist/components/*.js"
+      },
+      "./hooks/*": {
+        "types": "./dist/hooks/*.d.ts",
+        "default": "./dist/hooks/*.js"
+      },
+      "./lib/*": {
+        "types": "./dist/lib/*.d.ts",
+        "default": "./dist/lib/*.js"
+      },
+      "./styles.css": "./src/styles.css"
+    }
   }
 }

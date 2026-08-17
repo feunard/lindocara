@@ -11,6 +11,20 @@ export interface MarkdownViewProps {
   content: string;
 }
 
+/**
+ * Renders markdown as formatted prose.
+ *
+ * No raw HTML is ever rendered as markup: react-markdown's default is to
+ * escape a raw node to text, and this component deliberately mounts no
+ * plugin that changes that. A narrow `rehypeSafeImg` plugin used to promote
+ * a lone `<img …>` — the one thing MDXEditor emitted for a *resized* image —
+ * and was deleted along with the editor that produced it, since nothing
+ * writes that markup anymore.
+ *
+ * Do not reach for `rehype-raw` to bring the capability back: this renders
+ * content authored by one user to another, so every raw tag becoming live
+ * markup turns every markdown surface in every app into an injection point.
+ */
 export const MarkdownView = (props: MarkdownViewProps) => {
   return (
     <div className="max-w-none text-sm leading-relaxed">

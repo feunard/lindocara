@@ -1,8 +1,13 @@
-import { $inject, Alepha } from "alepha";
+import { $inject, $store, Alepha } from "alepha";
 import { $job } from "alepha/api/jobs";
 import { DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
-import { $repository, DbEntityNotFoundError } from "alepha/orm";
+import {
+  $repository,
+  DbEntityNotFoundError,
+  type Page,
+  RepositoryProvider,
+} from "alepha/orm";
 import {
   type PaymentIntentEntity,
   paymentIntents,
@@ -14,23 +19,30 @@ import {
   PaymentProvider,
   type WebhookEvent,
 } from "../providers/PaymentProvider.ts";
+import { paymentsConfig } from "../schemas/paymentsConfigAtom.ts";
 
 export class PaymentService {
   protected readonly alepha = $inject(Alepha);
+  protected readonly config = $store(paymentsConfig);
   protected readonly log = $logger();
   protected readonly dateTime = $inject(DateTimeProvider);
   protected readonly provider = $inject(PaymentProvider);
   protected readonly intentRepo = $repository(paymentIntents);
+  protected readonly repositoryProvider = $inject(RepositoryProvider);
   protected readonly refundRepo = $repository(refunds);
 
   /**
    * Expires stale payment intents that have been in "processing" status
-   * for more than 30 minutes. Runs every 5 minutes — shares the CF wrangler
-   * trigger with the jobs sweep so no extra binding is consumed.
+   * for more than 30 minutes.
+   *
+   * Cadence comes from {@link paymentsConfig}, defaulting to the same
+   * expression as the jobs sweep so Cloudflare emits one shared cron trigger
+   * rather than a second one. The 30-minute cutoff is what bounds correctness
+   * here; the tick only decides how far past it an intent may drift.
    */
   protected readonly expireStaleIntents = $job({
     name: "api:payments:expireStaleIntents",
-    cron: "*/5 * * * *",
+    cron: this.config.expireStaleIntentsCron,
     handler: async () => {
       const cutoff = this.dateTime.now().subtract(30, "minutes").toISOString();
 
@@ -39,7 +51,14 @@ export class PaymentService {
       });
 
       for (const intent of stale) {
-        await this.expireIntent(intent);
+        // A missing webhook is not a missing payment: ask the PSP before
+        // declaring the intent dead. On providers that can be polled, a
+        // payment the buyer completed settles here instead of being
+        // stomped to "expired" — the Mollie-without-webhook case.
+        const status = await this.syncIntent(intent.id);
+        if (status === "processing") {
+          await this.expireIntent(intent);
+        }
       }
     },
   });
@@ -76,6 +95,55 @@ export class PaymentService {
     }
 
     this.log.info(`Expired stale intent ${intent.id}`);
+
+    // Tell the domain: an expiry is an outcome like any other. Without
+    // this, a buyer who closed the PSP tab left a `paying` checkout (and
+    // its pending order) stranded forever, invisible to every listener.
+    await this.alepha.events.emit(
+      "payments:expired",
+      {
+        intentId: intent.id,
+        amount: intent.amount,
+        currency: intent.currency,
+        metadata: intent.metadata,
+      },
+      { catch: true },
+    );
+  }
+
+  /**
+   * Reconcile an intent against the PSP's own record: ask the provider
+   * for the session's current status and, when it reports a transition
+   * we never saw, route it through {@link handleWebhookEvent} — the same
+   * guarded path a webhook takes, so ordering and idempotency rules hold.
+   *
+   * Returns the intent's status after the attempt. No-ops (returning the
+   * stored status) when the provider cannot be polled or reports nothing
+   * new.
+   */
+  public async syncIntent(intentId: string): Promise<string> {
+    const intent = await this.getIntent(intentId);
+
+    if (intent.status !== "processing" && intent.status !== "authorized") {
+      return intent.status;
+    }
+    if (!intent.providerRef) {
+      return intent.status;
+    }
+
+    const reported = await this.provider.retrieveSessionStatus(
+      intent.providerRef,
+    );
+    if (!reported || reported === intent.status) {
+      return intent.status;
+    }
+
+    this.log.info(
+      `Reconciling intent ${intent.id}: provider reports '${reported}'`,
+    );
+    await this.handleWebhookEvent(intent.id, reported);
+
+    return (await this.getIntent(intentId)).status;
   }
 
   /**
@@ -623,7 +691,40 @@ export class PaymentService {
   }
 
   /**
-   * Find payment intents with optional filters and pagination.
+   * Best-effort left join embedding the paying user on every admin listing
+   * row, so the UI can render `user.email` instead of the bare `userId`.
+   * Joins `payment_intents.userId` → `users.id`.
+   *
+   * The `users` entity is resolved from the repository registry at runtime
+   * rather than imported — same pattern and same reason as
+   * `FileService.resolveCreatorJoin`: the payments module stays usable
+   * standalone, without `alepha/api/users`. Only applied when the `users`
+   * table is actually registered.
+   */
+  protected resolveUserJoin() {
+    const usersEntity = this.repositoryProvider
+      .getRepositories()
+      .find((repo) => repo.entity.name === "users")?.entity;
+    if (!usersEntity) {
+      return undefined;
+    }
+    return {
+      user: {
+        join: usersEntity,
+        on: ["userId", usersEntity.cols.id] as ["userId", { name: string }],
+      },
+    };
+  }
+
+  /**
+   * Find payment intents with optional filters and pagination. Rows carry a
+   * paying-user summary under `user` when the users table is registered —
+   * see {@link resolveUserJoin}.
+   *
+   * Typed without `user` on purpose, like `FileService.findFiles`: the join
+   * attaches it at runtime and the response schema declares it, while the
+   * inferred type of a registry-resolved join is `Record<string, unknown>`,
+   * which would conflict with the schema's shaped optional.
    */
   public async findIntents(query: {
     status?: string;
@@ -631,12 +732,19 @@ export class PaymentService {
     sort?: string;
     size?: number;
     page?: number;
-  }) {
+  }): Promise<Page<PaymentIntentEntity>> {
     const where = this.intentRepo.createQueryWhere();
     if (query.status)
       where.status = { eq: query.status as PaymentIntentEntity["status"] };
     if (query.userId) where.userId = { eq: query.userId };
-    return await this.intentRepo.paginate(query, { where }, { count: true });
+
+    const withUser = this.resolveUserJoin();
+
+    return await this.intentRepo.paginate(
+      query,
+      { where, ...(withUser ? { with: withUser } : {}) },
+      { count: true },
+    );
   }
 
   protected assertStatus(

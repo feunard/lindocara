@@ -2,16 +2,19 @@ import { basename, dirname } from "node:path";
 import { $inject, AlephaError } from "alepha";
 import type { RunnerMethod } from "alepha/command";
 import { $logger, ConsoleColorProvider } from "alepha/logger";
-import { FileSystemProvider } from "alepha/system";
+import { FileSystemProvider, ShellProvider } from "alepha/system";
+import type { Preset } from "../schemas/presetSchema.ts";
 import { agentMd } from "../templates/agentMd.ts";
 import { alephaConfigTs } from "../templates/alephaConfigTs.ts";
 import { apiHelloControllerTs } from "../templates/apiHelloControllerTs.ts";
 import { apiHelloResponseSchemaTs } from "../templates/apiHelloResponseSchemaTs.ts";
 import { apiIndexTs } from "../templates/apiIndexTs.ts";
+import { apiRealmTs } from "../templates/apiRealmTs.ts";
 import { biomeJson } from "../templates/biomeJson.ts";
 import { dummySpecTs } from "../templates/dummySpecTs.ts";
 import { editorconfig } from "../templates/editorconfig.ts";
 import { envExample } from "../templates/envExample.ts";
+import { envLocal } from "../templates/envLocal.ts";
 import { gitignore } from "../templates/gitignore.ts";
 import { logoSvg } from "../templates/logoSvg.ts";
 import { mainBrowserTs } from "../templates/mainBrowserTs.ts";
@@ -45,8 +48,18 @@ export class ProjectScaffolder {
   protected readonly log = $logger();
   protected readonly colors = $inject(ConsoleColorProvider);
   protected readonly fs = $inject(FileSystemProvider);
+  protected readonly shell = $inject(ShellProvider);
   protected readonly pm = $inject(PackageManagerUtils);
   protected readonly utils = $inject(AlephaCliUtils);
+
+  /**
+   * Name given to the migration generated at init.
+   *
+   * Unnamed, drizzle-kit picks from a random word list and the first file in
+   * the project's history reads `20260815223535_youthful_swarm`. It is the
+   * migration most likely to be opened by someone who did not write it.
+   */
+  protected readonly initialMigrationName = "initial_schema";
 
   /**
    * Get the app name from the directory name.
@@ -79,13 +92,17 @@ export class ProjectScaffolder {
       editorconfig?: boolean;
       /**
        * Write `.env.example`, the committed template for `.env`.
+       *
+       * Pass `{ database: true }` to document `DATABASE_URL` alongside
+       * `APP_SECRET`.
        */
-      envExample?: boolean;
+      envExample?: boolean | { database?: boolean };
       /**
-       * `true` writes the file with no devtools section — pass
-       * `{ devtools: true }` to document the `/__devtools/api/` endpoints.
+       * `true` writes the file with no optional sections — pass
+       * `{ devtools: true }` to document the `/__devtools/api/` endpoints and
+       * `{ saas: true }` to document the identity surface.
        */
-      agentMd?: boolean | { devtools?: boolean };
+      agentMd?: boolean | { devtools?: boolean; saas?: boolean };
       /**
        * Write `.vscode/settings.json` pointing the editor's TypeScript
        * server at the `typescript` copy embedded in `alepha`.
@@ -117,14 +134,23 @@ export class ProjectScaffolder {
       tasks.push(this.ensureEditorConfig(root, { force, checkWorkspace }));
     }
     if (opts.envExample) {
-      tasks.push(this.ensureEnvExample(root, { force }));
+      tasks.push(
+        this.ensureEnvExample(root, {
+          force,
+          database:
+            typeof opts.envExample === "boolean"
+              ? false
+              : opts.envExample.database,
+        }),
+      );
     }
     if (opts.agentMd) {
+      const agentMdOpts = typeof opts.agentMd === "boolean" ? {} : opts.agentMd;
       tasks.push(
         this.ensureAgentMd(root, {
           force,
-          devtools:
-            typeof opts.agentMd === "boolean" ? false : opts.agentMd.devtools,
+          devtools: agentMdOpts.devtools,
+          saas: agentMdOpts.saas,
         }),
       );
     }
@@ -189,9 +215,62 @@ export class ProjectScaffolder {
    */
   public async ensureEnvExample(
     root: string,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; database?: boolean } = {},
   ): Promise<void> {
-    await this.ensureFile(root, ".env.example", envExample(), opts.force);
+    await this.ensureFile(
+      root,
+      ".env.example",
+      envExample({ database: opts.database }),
+      opts.force,
+    );
+  }
+
+  /**
+   * Write the gitignored `.env`, carrying the resolved `ADMIN_EMAIL`.
+   *
+   * Never forced. `--force` exists to re-scaffold the generated files, and a
+   * `.env` is the one file in the tree that is not generated in any meaningful
+   * sense — it is where the developer put their local secrets. Overwriting it
+   * on a re-run would be a data loss bug, so an existing `.env` is left alone
+   * even when everything else is rewritten.
+   */
+  public async ensureEnvLocal(
+    root: string,
+    opts: { adminEmail: string },
+  ): Promise<void> {
+    await this.ensureFile(
+      root,
+      ".env",
+      envLocal({ adminEmail: opts.adminEmail }),
+    );
+  }
+
+  /**
+   * The address the first registration is promoted to admin with.
+   *
+   * `git config user.email` is the one address already on the machine that is
+   * almost certainly the person running `alepha init`, and reading it costs a
+   * subprocess that has already been spawned for `git init`. It is only ever a
+   * local default — `Realm` reads `ADMIN_EMAIL` from the environment, so every
+   * deployed environment still sets its own.
+   *
+   * Falls back to a placeholder on a machine with no git identity. The
+   * fallback is deliberately not a real mailbox anyone can register: it is a
+   * value that makes the wiring visible and obviously needs replacing.
+   */
+  public async resolveAdminEmail(root: string): Promise<string> {
+    const fallback = "admin@alepha.dev";
+    try {
+      const result = await this.shell.capture("git config user.email", {
+        root,
+      });
+      const email = result.stdout.trim();
+      // A machine without a git identity exits non-zero with empty stdout.
+      return result.exitCode === 0 && email ? email : fallback;
+    } catch {
+      // git missing entirely — same outcome, no reason to fail init over it.
+      return fallback;
+    }
   }
 
   /**
@@ -265,13 +344,13 @@ export class ProjectScaffolder {
    */
   public async ensureAgentMd(
     root: string,
-    options: { force?: boolean; devtools?: boolean } = {},
+    options: { force?: boolean; devtools?: boolean; saas?: boolean } = {},
   ): Promise<void> {
     await Promise.all([
       this.ensureFile(
         root,
         "AGENTS.md",
-        agentMd({ devtools: options.devtools }),
+        agentMd({ devtools: options.devtools, saas: options.saas }),
         options.force,
       ),
       this.ensureFile(root, "CLAUDE.md", "@AGENTS.md\n", options.force),
@@ -324,10 +403,11 @@ export class ProjectScaffolder {
    * Creates:
    * - src/api/index.ts (API module)
    * - src/api/controllers/HelloController.ts (example controller)
+   * - src/api/Realm.ts (saas preset only)
    */
   public async ensureApiProject(
     root: string,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; saas?: boolean } = {},
   ): Promise<void> {
     const appName = this.getAppName(root);
 
@@ -343,9 +423,21 @@ export class ProjectScaffolder {
     await this.ensureFile(
       root,
       "src/api/index.ts",
-      apiIndexTs({ appName }),
+      apiIndexTs({ appName, saas: opts.saas }),
       opts.force,
     );
+
+    // Sits at the module root rather than under controllers/ or schemas/: a
+    // realm is neither, and it is the one file in the preset a new project is
+    // guaranteed to edit.
+    if (opts.saas) {
+      await this.ensureFile(
+        root,
+        "src/api/Realm.ts",
+        apiRealmTs({ appName }),
+        opts.force,
+      );
+    }
     await this.ensureFile(
       root,
       "src/api/controllers/HelloController.ts",
@@ -377,6 +469,7 @@ export class ProjectScaffolder {
     root: string,
     opts: {
       force?: boolean;
+      saas?: boolean;
     } = {},
   ): Promise<void> {
     const appName = this.getAppName(root);
@@ -391,7 +484,12 @@ export class ProjectScaffolder {
     await this.ensureFile(root, "public/favicon.svg", logoSvg, opts.force);
 
     // src/main.css
-    await this.ensureFile(root, "src/main.css", mainCss(), opts.force);
+    await this.ensureFile(
+      root,
+      "src/main.css",
+      mainCss({ ui: opts.saas }),
+      opts.force,
+    );
 
     // vite.config.ts (Tailwind CSS plugin)
     await this.ensureFile(root, "vite.config.ts", viteConfigTs(), opts.force);
@@ -400,7 +498,7 @@ export class ProjectScaffolder {
     await this.ensureFile(
       root,
       "src/web/index.ts",
-      webIndexTs({ appName }),
+      webIndexTs({ appName, saas: opts.saas }),
       opts.force,
     );
     await this.ensureFile(
@@ -468,6 +566,7 @@ export class ProjectScaffolder {
     run: RunnerMethod;
     root: string;
     flags: {
+      preset?: Preset;
       pm?: "yarn" | "npm" | "pnpm" | "bun";
       force?: boolean;
       "no-devtools"?: boolean;
@@ -548,6 +647,17 @@ export class ProjectScaffolder {
     const isExpo = await this.pm.hasExpo(root);
     const web = !isExpo;
 
+    // All three saas routers are React pages, so the preset has nothing to
+    // mount without the web module. Refusing beats scaffolding an api-only
+    // project that quietly ignored the flag — the difference would only
+    // surface as a missing /admin much later.
+    const saas = (flags.preset ?? "default") === "saas";
+    if (saas && !web) {
+      throw new AlephaError(
+        "The saas preset needs the web module, which is skipped for expo projects (expo owns its own client runtime). Use the default preset here.",
+      );
+    }
+
     // Devtools is on by default for apps and never for workspace packages —
     // a library has no Vite dev shell for the overlay to attach to.
     const devtools = !flags["no-devtools"] && !workspace.isPackage;
@@ -564,14 +674,15 @@ export class ProjectScaffolder {
             tailwind: web,
             isPackage: workspace.isPackage,
             devtools,
+            ui: saas,
           },
           tsconfigJson: !workspace.config.tsconfigJson,
           biomeJson: true,
           editorconfig: !workspace.config.editorconfig,
           // Same rule as the agent files: a project root owns its env, a
           // monorepo sub-package reads the workspace root's.
-          envExample: writeAgentMd,
-          agentMd: writeAgentMd && { devtools },
+          envExample: writeAgentMd && { database: saas },
+          agentMd: writeAgentMd && { devtools, saas },
           // Editor TS-server pointer at a project root only; monorepo
           // sub-packages inherit the workspace-root `.vscode/`.
           vscodeSettings: writeAgentMd,
@@ -580,11 +691,21 @@ export class ProjectScaffolder {
         // Create alepha.config.ts with documented options
         await this.ensureAlephaConfig(root, { force, devtools });
 
-        // Every project gets the same structure
+        // Only the saas preset has an identity surface to hand an admin to.
+        // Writing ADMIN_EMAIL into a default-preset project would document a
+        // variable nothing reads.
+        if (saas && writeAgentMd) {
+          await this.ensureEnvLocal(root, {
+            adminEmail: await this.resolveAdminEmail(root),
+          });
+        }
+
+        // Every project gets the same structure; the preset only decides
+        // what is mounted on top of it.
         await this.ensureMainServerTs(root, { react: web, force });
-        await this.ensureApiProject(root, { force });
+        await this.ensureApiProject(root, { force, saas });
         if (web) {
-          await this.ensureWebProject(root, { force });
+          await this.ensureWebProject(root, { force, saas });
         }
       },
     });
@@ -620,6 +741,51 @@ export class ProjectScaffolder {
     // `alepha test` works in every project. The dummy spec doubles as a
     // worked example for both humans and AI agents.
     await this.ensureTestDir(root);
+
+    // Freeze the schema the preset just mounted.
+    //
+    // `alepha verify` runs `db migrations check` unconditionally — gating it on
+    // a `migrations/` directory inverted the check, so that gate is gone. A
+    // preset that declares entities and ships no migration therefore fails the
+    // command its own `alepha.config.ts` recommends for CI, on commit zero.
+    //
+    // Deploying in that state is worse than the red build: production's
+    // `DatabaseProvider.migrate()` does not fall back to push-sync the way dev
+    // does. It logs "Migration SKIPPED - no migrations found" and returns, so
+    // the app boots green with no tables and 500s on its first query.
+    //
+    // Generating it here is safe in a way later migrations are not: a baseline
+    // diffs against an empty database, so it is pure CREATE TABLE — none of the
+    // DROP/ALTER statements that need a human reading them before they reach a
+    // CASCADE parent on D1. Only presets that mount an ORM get one; the diff is
+    // computed from the entity declarations against the snapshot on disk, so
+    // this needs no database connection and works offline.
+    //
+    // Ahead of the lint pass on purpose. biome reformats drizzle's
+    // `snapshot.json` — collapsing its arrays, semantically identical, and the
+    // migration check reads the reformatted file happily. But whoever formats
+    // it first wins, and if that is not init then it is the user's first
+    // `lint` or `verify`, which hands them a dirty tree on a project they have
+    // not edited. Formatting it here means the staged copy is the final one.
+    if (saas) {
+      try {
+        await run(
+          `alepha db migrations create --name=${this.initialMigrationName}`,
+          {
+            alias: "generating the initial migration",
+            root,
+          },
+        );
+      } catch (err) {
+        // Same contract as the lint pass below: every file is already on disk,
+        // and leaving a half-scaffolded project behind is worse than leaving a
+        // migration for the user to generate. `verify` will name the command.
+        this.log.warn(
+          "Could not generate the initial migration — continuing. Run `alepha db migrations create` before your first `alepha verify` or deploy.",
+          { error: err instanceof Error ? err.message : String(err) },
+        );
+      }
+    }
 
     // Best-effort lint pass — don't block init if it fails. The user can
     // fix or silence issues later.
