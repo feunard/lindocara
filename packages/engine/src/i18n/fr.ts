@@ -64,9 +64,6 @@ export const fr: Record<keyof typeof en, string> = {
   "auth.password": "Mot de passe",
   "auth.password_confirm": "Confirmez le mot de passe",
   "auth.submit.login": "Jouer",
-  "auth.guest": "Continuer en invité",
-  "auth.guest.hint":
-    "Crée un compte enregistré dans ce navigateur. Videz ses données et les héros partent avec.",
   "auth.switch.to_register": "Pas encore de compte ? Créez-en un",
   "auth.switch.to_login": "Vous avez déjà un compte ? Connectez-vous",
   "auth.submit.register": "Créer le compte",

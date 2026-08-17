@@ -6,7 +6,6 @@ import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import { authErrorText, errorCode, register } from "../api.js";
-import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
 import type { AppRouter } from "./AppRouter.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
@@ -22,24 +21,6 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null); // machine code, not text
   const [busy, setBusy] = useState(false);
 
-  async function guest() {
-    setError(null);
-    setBusy(true);
-    try {
-      // `continueAsGuest()` is the same plain-fetch two-phase register/login as before (`guest.ts`
-      // has no Alepha instance to reach) — it authenticates the session cookie but never touches
-      // `currentUserAtom` itself, so a re-`ping()` syncs it the same way `AppRouter.bootPing` (the
-      // `$hook({ on: "start" })`) does for its own automatic guest fallback.
-      await continueAsGuest();
-      await alepha.inject(ReactAuth).ping();
-      await router.push("menu");
-    } catch (caught) {
-      setError(errorCode(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -54,8 +35,9 @@ export function AuthScreen() {
       const password = String(data.get("password"));
       if (tab === "register") {
         // Two-phase intent creation stays on `api.ts` (`alepha/api/users`'s own registration
-        // flow), then the same re-`ping()` sync as the guest path above — `register()`'s own
-        // trailing plain-fetch login already authenticated the cookie.
+        // flow). `register()`'s trailing plain-fetch login already authenticated the cookie but
+        // never touches `currentUserAtom`, so the `ping()` below is what syncs it — unlike the
+        // `login` branch, where `ReactAuth.login()` does both in one round trip.
         await register(username, password);
         await alepha.inject(ReactAuth).ping();
       } else {
@@ -135,10 +117,6 @@ export function AuthScreen() {
           </form>
 
           <div className="auth-alternatives">
-            <button type="button" className="auth-link" onClick={guest} disabled={busy}>
-              {t("auth.guest")}
-            </button>
-            <p className="auth-hint">{t("auth.guest.hint")}</p>
             <button
               type="button"
               className="auth-link auth-link--switch"

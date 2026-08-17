@@ -50,9 +50,11 @@ describe("AppRouter", () => {
     // generateIndexHtml`); the client bootstrap under test below (`bootClient`) is what adds
     // `#stage` beside it.
     document.body.innerHTML = '<div id="root"></div>';
-    // `bootPing`'s guest fallback and its one-shot logout suppression both read persistent storage
-    // (`guest.ts`), and jsdom keeps both stores for the whole FILE — a credential saved by one test
-    // would silently change which branch the next one takes.
+    // jsdom keeps both stores for the whole FILE, so anything one test persists is still there for
+    // the next. Nothing in the boot path reads storage any more — the guest credential and the
+    // one-shot logout suppression that used to live here went with guest accounts — but the app
+    // does persist elsewhere (`quickItemsAtom`, the chat size), and leaking that between tests is
+    // the same silent cross-talk for a different key.
     localStorage.clear();
     sessionStorage.clear();
     stubFetch();
@@ -126,11 +128,20 @@ describe("AppRouter", () => {
   });
 
   // Task 3's 401 seam (`state/navigation.ts`'s `onUnauthorized` docblock): ONE recovery closure,
-  // reached from two different fetch mechanisms. Both tests below land on `/menu` first (the
-  // shared `stubFetch()` above answers `/_auth/userinfo` as already-authenticated, so
-  // `AppRouter.bootPing` never falls through to the guest flow and never races these tests' own
-  // actions).
+  // reached from two different fetch mechanisms. Both tests below land on `/menu` first, and the
+  // shared `stubFetch()` above answers `/_auth/userinfo` as already-authenticated so the guard on
+  // that page passes.
   describe("the 401 seam", () => {
+    // Each test here ENDS on `/auth` — that is what the seam does, and what they assert. jsdom
+    // carries the URL into the next test, and `bootPing` deliberately does nothing when the boot
+    // lands on `/auth` (see its docblock), so without this reset the second test boots with an
+    // empty `currentUserAtom` and `$secure({})` bounces its `/menu` push straight back to sign-in
+    // before the seam under test is ever exercised. Harmless while `/menu` was unguarded; a
+    // confusing failure the moment it was not.
+    beforeEach(() => {
+      history.pushState({}, "", "/");
+    });
+
     it("routes an alepha HttpClient 401 to /auth and clears the auth atom (the client:onError hook)", async () => {
       stubFetch();
       alepha = Alepha.create().with(AlephaReact).with(AppRouter);
@@ -226,10 +237,14 @@ describe("AppRouter", () => {
 
     /**
      * Answers `/_auth/userinfo` with `body`, after `delayMs`, and records every path the app
-     * fetched — a guest registration is then provable by the ABSENCE of `/api/users/register`
-     * and `/_auth/token` from that record, which asserting on rendered output cannot show.
-     * The guest chain's own endpoints answer plausibly rather than throwing, so a regression
-     * shows up as a recorded call rather than as a caught exception.
+     * fetched.
+     *
+     * The registration endpoints below are stubbed to answer PLAUSIBLY rather than to throw, and
+     * that is the whole design of this helper: `bootPing` used to end in an automatic guest
+     * registration, and the guarantee these tests now defend is that it never registers anything
+     * again. A regression therefore has to show up as a RECORDED CALL — visible in `paths`, and
+     * asserted by `guested()` — instead of as a caught exception that some `.catch()` upstream
+     * could swallow into a passing test. Rendered output cannot show this at all.
      */
     function stubUserinfo(body: unknown, delayMs = 0): string[] {
       const paths: string[] = [];
@@ -266,12 +281,18 @@ describe("AppRouter", () => {
       return paths;
     }
 
+    /** Did anything mint an account behind the visitor's back? It must never be true again. */
     const guested = (paths: readonly string[]): boolean =>
       paths.some(
         (path) => path.startsWith("/api/users/register") || path.startsWith("/_auth/token"),
       );
 
-    /** The beat the fire-and-forget guest chain would need to reach its first request. */
+    /**
+     * The beat a fire-and-forget registration chain would need to reach its first request.
+     *
+     * Asserting an absence needs somewhere to be absent FROM: without this wait, every test below
+     * would pass simply by checking before anything could have happened.
+     */
     const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
 
     beforeEach(() => {
@@ -279,7 +300,7 @@ describe("AppRouter", () => {
     });
 
     it(
-      "never replaces a real session with a guest when the ping resolves AFTER the timeout",
+      "honours a real session whose ping resolves AFTER the timeout",
       async () => {
         const paths = stubUserinfo(
           { user: { id: "acc-1", username: "nico" }, api: { actions: {} } },
@@ -296,8 +317,9 @@ describe("AppRouter", () => {
         // won, proving nothing about the branch under test.
         expect(alepha.store.get(currentUserAtom)).toBeUndefined();
 
-        // The late answer lands and is honoured: the atom fills from the ping the race abandoned
-        // waiting on, not from a guest account signed in over the top of it.
+        // The late answer lands and is honoured: the atom fills from the very ping the race
+        // abandoned WAITING on. The race bounds the mount; it never discards the request, and
+        // nothing signs in over the top of the session it is about to return.
         await act(async () => {
           await waitFor(() => expect(alepha?.store.get(currentUserAtom)).toBeTruthy(), {
             timeout: SETTLE_TIMEOUT_MS,
@@ -312,37 +334,66 @@ describe("AppRouter", () => {
     );
 
     it(
-      "still falls back to a guest when the ping resolves with NO user after the timeout",
+      "mints no account at all when the ping resolves with NO user",
       async () => {
-        // The other half of the same branch, and what keeps the fix above from being "never guest
-        // after a timeout": a legal userinfo response with no `user` is a real answer — nobody is
-        // signed in — and an anonymous visitor must still get their guest session, just decided by
-        // the ping instead of by the clock.
-        const paths = stubUserinfo({ api: { actions: {} } }, SLOW_PING_MS);
+        // The direct regression test for removing guest accounts, and the reason this suite still
+        // exists. This is the DEFINITIVE anonymous answer — a legal userinfo response carrying no
+        // `user`, resolved immediately, so nothing is merely late — and it is precisely the case
+        // that used to fire `continueAsGuest()`: register, log in, and hand a public visitor an
+        // account they never asked for. Nothing may reach the CA of accounts here now; the visitor
+        // stays anonymous and the page guards decide what they may see.
+        const paths = stubUserinfo({ api: { actions: {} } });
+
+        alepha = Alepha.create().with(AlephaReact).with(AppRouter);
+        await act(async () => {
+          await alepha?.start();
+        });
+        await waitFor(() => expect(paths.some((p) => p.startsWith("/_auth/userinfo"))).toBe(true));
+        await settle();
+
+        expect(guested(paths)).toBe(false);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      "sends an anonymous visitor from a guarded page to the sign-in screen",
+      async () => {
+        // The mechanism that REPLACED the guest fallback, asserted end to end rather than assumed
+        // from the presence of a `use:` entry. `$secure({})` on `/menu` resolves the route named
+        // `login` and returns a redirect to `/auth?redirect=/menu`, so what renders is the auth
+        // shell — not the menu, and not a latched "Authentication required" error, which is what
+        // a guard without a resolvable `login` route would produce.
+        stubUserinfo({ api: { actions: {} } });
+        history.pushState({}, "", "/menu");
 
         alepha = Alepha.create().with(AlephaReact).with(AppRouter);
         await act(async () => {
           await alepha?.start();
         });
 
-        await waitFor(() => expect(guested(paths)).toBe(true), { timeout: SETTLE_TIMEOUT_MS });
+        await waitFor(() => expect(document.querySelector(".auth-shell")).toBeTruthy(), {
+          timeout: SETTLE_TIMEOUT_MS,
+        });
       },
       TEST_TIMEOUT_MS,
     );
 
     it(
-      "leaves the boot after a QUIT anonymous instead of signing a guest straight back in",
+      "leaves the boot after a QUIT anonymous",
       async () => {
         // The navigation seam's `logout` (`AppRouter.tsx`) is what QUIT calls. `ReactAuth.logout()`
-        // revokes the session with a form POST whose redirect reloads the app, so without the two
-        // guards that seam now installs, signing out reloaded into `bootPing`, which found no user
-        // and immediately signed the browser back in — as the same guest account when a credential
-        // was stored, as a brand-new one when it was not.
+        // revokes the session with a form POST whose redirect reloads the app, and this asserts
+        // the reload lands anonymous.
+        //
+        // It used to take real machinery to make that true: the reload ran straight into
+        // `bootPing`, which found no user and signed the browser back in a second later — as the
+        // same guest account when a credential was stored, as a brand-new one when it was not — so
+        // `logout` had to drop the stored credential AND leave a one-shot marker telling the next
+        // boot not to re-guest. Both are gone with guest accounts, and this test is kept precisely
+        // because the PROPERTY is not: signing out must still leave the player signed out, however
+        // few moving parts that now takes.
         const { getGameNavigation } = await import("@lindocara/client/state/navigation.js");
-        const { readGuest, saveGuest } = await import("@lindocara/client/guest.js");
-        // A browser that already owns a guest account: the case where "log out" would otherwise be
-        // undone within the second, by the very same account.
-        saveGuest({ username: "guest-abc", password: "0123456789abcdef" });
         // jsdom has no navigation, so `form.submit()` would only raise its "not implemented"
         // console error. Stubbing the DOM method (not a module — no `vi.mock` here) both keeps the
         // output clean and lets the sign-out itself be asserted rather than assumed.
@@ -361,15 +412,13 @@ describe("AppRouter", () => {
             getGameNavigation()?.logout();
           });
           expect(submit).toHaveBeenCalledTimes(1);
-          expect(readGuest()).toBeNull();
         } finally {
           await signedIn.stop();
         }
 
         // The reload that logout's redirect causes: a fresh app on a document whose session is
-        // gone. `/_auth/userinfo` answers "nobody" IMMEDIATELY here — this is the definitive
-        // no-user answer, the very case the test above requires the guest chain to fire on, so the
-        // only thing that can keep it from firing is the one-shot suppression QUIT left behind.
+        // gone. `/_auth/userinfo` answers "nobody" IMMEDIATELY — the definitive no-user answer,
+        // and the exact case that used to mint an account.
         document.body.innerHTML = '<div id="root"></div>';
         const paths = stubUserinfo({ api: { actions: {} } });
         alepha = Alepha.create().with(AlephaReact).with(AppRouter);

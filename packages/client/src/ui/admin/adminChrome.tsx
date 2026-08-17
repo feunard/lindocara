@@ -1,10 +1,8 @@
 import type { AdminRouterOptions } from "@alepha/ui/components/admin/admin-router-options";
 import { ButtonLanguage } from "@alepha/ui/components/button-language/button-language";
 import { ButtonUser } from "@alepha/ui/components/button-user/button-user";
-import { DropdownMenuItem } from "@alepha/ui/components/ui/dropdown-menu";
 import { useRouter } from "alepha/react/router";
-import { ArrowLeft, LayoutDashboard, LogOut } from "lucide-react";
-import { getGameNavigation } from "../../state/navigation.js";
+import { ArrowLeft, LayoutDashboard } from "lucide-react";
 import type { AppRouter } from "../AppRouter.js";
 
 /**
@@ -51,13 +49,14 @@ const AdminBrand = () => {
  *   and an element-level declaration beats anything `html.dark` sets on an ancestor, so a dark-mode
  *   toggle here could flip the atom and still repaint nothing. Making it work would take a
  *   `.dark .admin-root` token block; that is a deliberate non-goal, not an oversight.
- * - Its own logout item, NOT the vendored default `ButtonUser.LogoutMenuItem`. The default calls
- *   `useAuth().logout()` directly, which skips both halves of the sign-out contract the main
- *   menu's QUIT honours: forgetting the stored guest credential and suppressing the auto-guest for
- *   one boot. Signing out through that path would revoke the named session and then have
- *   `bootPing` sign the browser straight back in as a guest, minting a junk account per press.
- *   The navigation seam is the one place that does it properly, so the console goes through it too.
- * - No `ButtonUser.AdminMenuItem` either: the account menu already lives inside `/admin`, and the
+ * - The vendored default `ButtonUser.LogoutMenuItem`. This used to be a hand-rolled item routed
+ *   through the navigation seam, because the default's plain `useAuth().logout()` skipped both
+ *   halves of a sign-out contract that mattered then: forgetting the stored guest credential, and
+ *   suppressing the automatic guest for one boot. Without those, signing out revoked the named
+ *   session and `bootPing` signed the browser straight back in as a guest — a junk account per
+ *   press. Guest accounts are gone and the seam's `logout` is now literally `ReactAuth.logout()`,
+ *   so the bespoke item guarded nothing and the default is the same call with less code.
+ * - No `ButtonUser.AdminMenuItem`: the account menu already lives inside `/admin`, and the
  *   brand's back-arrow above is the way out.
  * - `onSignIn` pushes the route NAME, `login` — the sign-in screen's URL `path` is still `/auth`;
  *   see `AppRouter.tsx`'s `login` field docblock for why the two deliberately differ.
@@ -70,10 +69,7 @@ const AdminTopbarActions = () => {
       <ButtonLanguage />
       <ButtonUser onSignIn={() => void router.push("login")}>
         <ButtonUser.Email />
-        <DropdownMenuItem onClick={() => getGameNavigation()?.logout()}>
-          <LogOut className="size-4" />
-          Logout
-        </DropdownMenuItem>
+        <ButtonUser.LogoutMenuItem />
       </ButtonUser>
     </>
   );

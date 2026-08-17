@@ -12,8 +12,8 @@
  *
  * The root `layout` carries the chrome the old `App.tsx` used to own directly: the launch-menu
  * music effect and the StatusBar immersive toggle, both now driven by the URL instead
- * of `screen`. The boot ping (`ReactAuth.ping()` -> guest fallback -> /auth, replacing the old
- * `fetchMe()`) is NOT part of this layout's render — it is `AppRouter`'s own `bootPing` `$hook({
+ * of `screen`. The boot ping (one `ReactAuth.ping()`, replacing the old `fetchMe()`) is NOT part
+ * of this layout's render — it is `AppRouter`'s own `bootPing` `$hook({
  * on: "start" })`, below, which must fully resolve before the router's first route transition
  * evaluates any `$secure` guard on the initial URL. See that field's own docblock for why a React
  * effect could not do this safely.
@@ -35,17 +35,11 @@ import { useAlepha } from "alepha/react";
 import { ReactAuth } from "alepha/react/auth";
 import { I18nProvider } from "alepha/react/i18n";
 import { $page, NestedView, Redirection, useRouter, useRouterState } from "alepha/react/router";
-import { currentUserAtom } from "alepha/security";
+import { $secure, currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
 import { useEffect } from "react";
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
-import {
-  consumeGuestSuppression,
-  continueAsGuest,
-  forgetGuest,
-  suppressGuestForNextBoot,
-} from "../guest.js";
 import { useLocale } from "../i18n.js";
 import { activePartyAtom, adventureTestSessionAtom, quickItemsAtom } from "../state/atoms.js";
 import type { GameNavigation } from "../state/navigation.js";
@@ -235,16 +229,13 @@ function AppLayout() {
       setAdventureTestSession: (session) => alepha.store.set(adventureTestSessionAtom, session),
       getAdventureTestSession: () => alepha.store.get(adventureTestSessionAtom),
       getQuickItems: () => alepha.store.get(quickItemsAtom),
-      // Signing out must LEAVE the player signed out. `ReactAuth.logout()` revokes the session and
-      // redirects to `/` — a fresh document, whose `bootPing` below finds no user and would sign
-      // the visitor straight back in as a guest (the same account with a stored credential, a
-      // brand-new junk account without one). So the two guards go on BEFORE the navigation, in the
-      // one place logout is implemented: drop the stored credential, and mark the next boot as
-      // "no automatic guest" (see `guest.ts`'s `suppressGuestForNextBoot` for why that marker has
-      // to live in storage rather than in memory). QUIT then lands on an anonymous title screen.
+      // `ReactAuth.logout()` revokes the session and redirects to `/` — a fresh document, so
+      // nothing held in memory survives it, and the boot that follows finds no user and leaves it
+      // that way. This used to need two extra guards either side of it (drop the stored guest
+      // credential, mark the next boot "no automatic guest"), because otherwise the reload signed
+      // the player straight back in as a guest and QUIT lasted about a second. Guest accounts are
+      // gone, so signing out is now just signing out.
       logout: () => {
-        forgetGuest();
-        suppressGuestForNextBoot();
         alepha.inject(ReactAuth).logout();
       },
     };
@@ -394,47 +385,34 @@ export class AppRouter {
    * thing that can close the race above — a route guard only needs to know "is there already a
    * returning, authenticated session," and that is exactly what one `ping()` answers.
    *
-   * **What it does NOT block on: the guest-registration fallback.** Fix round 1 awaited the whole
-   * chain — `ping()` → `continueAsGuest()` (a real register/login POST doing server-side password
-   * hashing) → `ping()` again — which was caught in review as a real regression, worse than the
-   * bug it fixed:
-   * - it made EVERY route pay for fixing ONE guarded route: `/` and `/menu` had no loader and no
-   *   network before first paint at all before this; guest registration used to happen underneath
-   *   an already-visible title screen, not in front of it;
-   * - a RETURNING user paid one blocking round trip, and a FIRST-TIME/anonymous visitor paid
-   *   THREE sequential ones, all before a single pixel;
-   * - worst of all, Alepha's `HttpClient` has no timeout or `AbortSignal` of its own — a hanging
-   *   (not merely failing) `/_auth/userinfo` blocked `alepha.start()` forever, and a `"start"`
-   *   hook that never resolves means the app never reaches `"ready"` at all: a permanently blank
-   *   page, strictly worse than the pre-fix behaviour (renders fine, only auth degrades).
+   * **What it does NOT do any more: mint an account.** This hook used to end in a
+   * guest-registration fallback — `ping()` → `continueAsGuest()` → `ping()` again — so that an
+   * anonymous visitor was silently signed in as `guest-<random>` and could play without ever
+   * seeing a form. That is gone: registration here is username + password with no email and no
+   * verification, which is little more friction than the fallback was hiding, and the fallback's
+   * cost was that a public URL handed an account to anyone who loaded it. Anonymous visitors are
+   * now turned away by the page guards (`use: [$secure({})]`) instead, which is the framework's
+   * own mechanism and gives the `?redirect=` round trip for free — see the guarded pages below.
    *
-   * So: the first `ping()` is raced against `BOOT_PING_TIMEOUT_MS`, and mount proceeds whichever
-   * side wins. The guest-registration fallback (`continueAsGuest()` + a second `ping()`) then runs
-   * COMPLETELY UNAWAITED, as a fire-and-forget background chain: if the visitor turns out to be
-   * anonymous, they see the app render first and the guest session attach a moment later (or, on
-   * total failure — both the real ping AND guest registration failing — get sent to the sign-in
-   * screen via a hard `window.location` assignment a moment later; still not `router.push`, since
-   * React has not mounted yet when this hook runs and there is no live SPA router to push through).
+   * What survives from that era, and must: the race. Alepha's `HttpClient` has no timeout or
+   * `AbortSignal` of its own, so a hanging (not merely failing) `/_auth/userinfo` would block
+   * `alepha.start()` forever, and a `"start"` hook that never resolves means the app never reaches
+   * `"ready"`: a permanently blank page, strictly worse than degraded auth. So the ping is raced
+   * against `BOOT_PING_TIMEOUT_MS` and mount proceeds whichever side wins.
    *
-   * **The timeout unblocks the MOUNT; it never answers the question.** That distinction is the
-   * whole shape of the race below, and collapsing it was a real regression (found by the final
-   * whole-branch review): a timeout used to count as "no user," exactly like a rejection, so the
-   * guest chain fired on a SLOW-but-real session too. `continueAsGuest()` logs in or REGISTERS, and
-   * either way the server sets a NEW session cookie — so a returning player on a slow network was
-   * silently replaced by a guest account (their saves gone from under them, a junk account minted,
-   * an admin's `admin` role lost). Nothing failed; nothing logged. So the winner of the race decides
-   * only whether to WAIT: timing out hands the decision to `ping`'s own eventual resolution, which
-   * is the only thing that can distinguish "nobody is signed in" from "the answer is late." The
-   * loser's timer is cleared rather than left to fire into an already-settled race.
+   * **The timeout unblocks the MOUNT, and now that is ALL it does.** The race used to have a
+   * loser's branch — a timeout counting as "no user" and minting a guest — and conflating "nobody
+   * is signed in" with "the answer is late" there was a real regression, caught in review, because
+   * it replaced a slow returning player's session with a junk account. With the fallback gone
+   * nothing reads the winner at all, so that class of bug is now structurally absent rather than
+   * carefully avoided: the hook waits, then returns, and `ping()` fills `currentUserAtom` whenever
+   * it actually resolves.
    *
-   * **The one-shot logout suppression.** `consumeGuestSuppression()` (`guest.ts`) is read — and
-   * cleared — on every boot, before anything else this hook does. QUIT sets it just before
-   * `ReactAuth.logout()` navigates (see the navigation seam's `logout` above), because otherwise
-   * signing out reloads straight into this hook and this hook signs the player back in as a guest
-   * a second later. When it is set, the ping still runs (a session that somehow survived logout
-   * should still be honoured) but the guest fallback does not, so QUIT lands on an anonymous title
-   * screen. It is consumed even on the `/auth` early return below, so a stale marker can never
-   * suppress the guest fallback on some later, unrelated boot.
+   * The cap still has a cost, it just moved. A slow-but-real session can reach the first route
+   * guard with the atom not yet filled, and be redirected to sign-in holding a perfectly good
+   * session. That is the documented-correct behaviour for "no confirmed session yet" (see fix
+   * round 3 below), it self-corrects on the next navigation, and it is the price of never hanging
+   * on a dead auth endpoint.
    *
    * **Fix round 3, for a `$secure`-guarded route specifically (e.g. `/admin`): a SLOW-but-real
    * session (`ping()` genuinely resolving, just after `BOOT_PING_TIMEOUT_MS`) reaches the guard's
@@ -458,10 +436,12 @@ export class AppRouter {
    * of a slow ping; it is the CORRECT behaviour for "no confirmed session yet," and it no longer
    * traps a slow-but-real session behind a permanent wall the way the pre-round-3 shape did.
    *
-   * Skipped entirely when the browser's OWN current location is `/auth`: landing there already
-   * means "let the human decide" (a 401 redirect, or a direct deep link), and silently signing the
-   * visitor in as a guest behind their back would both surprise them and race `AuthScreen`'s own
-   * login/register/guest actions, which drive the exact same `continueAsGuest()`/`ping()` calls.
+   * Skipped entirely when the browser's OWN current location is `/auth`: nothing on that page is
+   * guarded, so the atom it would populate is not read by anything there, and letting the ping run
+   * anyway would race `AuthScreen`'s own login/register actions for the same atom — a ping that
+   * started before a login and resolves after it would write `undefined` over the session that
+   * login just established. Kept rather than dropped along with the guest fallback it originally
+   * guarded, because that race is the reason that survives and it costs one line.
    * Reads `window.location.pathname` rather than router state: the router has not resolved
    * anything yet at `"start"` time, and `window.location` IS the value its first transition is
    * about to use. Checked against the literal `/auth` PATH (not the `login` route NAME) on
@@ -472,49 +452,26 @@ export class AppRouter {
     on: "start",
     handler: async () => {
       if (!this.alepha.isBrowser()) return;
-      // Read before the `/auth` return below, so the marker is consumed on EVERY boot it is set
-      // for and can never linger into a later one.
-      const guestSuppressed = consumeGuestSuppression();
       if (window.location.pathname === "/auth") return;
 
-      // Deliberately fire-and-forget — see this field's own docblock for why blocking mount on
-      // this chain is exactly the regression fix round 2 closed.
-      const fallbackToGuest = () => {
-        if (guestSuppressed) return;
-        void (async () => {
-          try {
-            await continueAsGuest();
-            await this.reactAuth.ping();
-          } catch {
-            window.location.href = "/auth";
-          }
-        })();
-      };
-
-      // ONE ping, kept as a live promise: the race below may abandon waiting on it, but never it.
+      // ONE ping, kept as a live promise: the race below may abandon WAITING on it, but never it.
+      // Filling `currentUserAtom` is `ping()`'s own side effect, so a late answer still lands — it
+      // just lands after first paint, and after whatever the first route guard already decided.
       const ping = this.reactAuth.ping().catch(() => undefined);
-      // A sentinel rather than `undefined`, because `undefined` is already a real answer here —
-      // "resolved, nobody is signed in" — and conflating the two is precisely the bug this shape
-      // exists to prevent (see this field's docblock).
-      const TIMED_OUT = Symbol("boot-ping-timed-out");
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const raced = await Promise.race([
+      // Nothing reads the winner. This race exists ONLY to bound how long `"ready"` waits, because
+      // Alepha's `HttpClient` has no timeout of its own and a hung `/_auth/userinfo` would
+      // otherwise leave the app permanently unmounted. It used to branch — the loser's answer
+      // chose whether to mint a guest account — and that branch is what the sentinel, the
+      // `TIMED_OUT` symbol and the two exit paths here were all for. With guest accounts gone
+      // there is no decision left to get wrong, only a deadline to respect.
+      await Promise.race([
         ping,
-        new Promise<typeof TIMED_OUT>((resolve) => {
-          timer = setTimeout(() => resolve(TIMED_OUT), BOOT_PING_TIMEOUT_MS);
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, BOOT_PING_TIMEOUT_MS);
         }),
       ]);
       clearTimeout(timer);
-
-      if (raced === TIMED_OUT) {
-        // Mount now, decide later: only the ping's own resolution can tell an anonymous visitor
-        // from a slow one, and guessing wrong replaces a real session with a guest account.
-        void ping.then((late) => {
-          if (!late) fallbackToGuest();
-        });
-        return;
-      }
-      if (!raced) fallbackToGuest();
     },
   });
 
@@ -546,8 +503,27 @@ export class AppRouter {
     ],
   });
 
+  /**
+   * The three pages that need no session, and the reason the list is exactly these three.
+   *
+   * Everything past the title requires an account: `$secure({})` on each guarded page below, whose
+   * anonymous branch resolves the route named `login` and RETURNS a redirect to
+   * `/auth?redirect=<original>` rather than throwing (see `bootPing`'s fix-round-3 note). That
+   * redirect IS the sign-in round trip — register, then land back on what you were reaching for —
+   * so this app writes none of it. It replaced the automatic guest registration that used to make
+   * every visitor an account holder before they had chosen to be one.
+   *
+   * The title stays public deliberately, and not merely for the branding. A guard evaluates
+   * `currentUserAtom` synchronously on the first route transition, and `bootPing`'s cap means a
+   * SLOW-but-real session can reach that first evaluation with the atom still empty — correct
+   * behaviour, but it shows a returning player a sign-in form they do not need. On `/menu` that is
+   * a rare annoyance; on `/`, the universal entry point, it would be the common case for anyone on
+   * a bad connection. Keeping the title unguarded puts one keypress between the cold boot and the
+   * first guard, which is comfortably longer than the ping. The outcome is unchanged — nothing is
+   * playable anonymously — it simply asks one screen later.
+   */
   title = $page({ path: "/", component: TitleScreen });
-  menu = $page({ path: "/menu", component: MainMenu });
+  menu = $page({ path: "/menu", component: MainMenu, use: [$secure({})] });
   credits = $page({ path: "/credits", component: CreditsScreen });
 
   /**
@@ -610,16 +586,19 @@ export class AppRouter {
   playContinue = $page({
     path: "/play/continue",
     component: ContinueScreen,
+    use: [$secure({})],
     loader: async () => ({ parties: await launchList(loadMyParties) }),
   });
   playNew = $page({
     path: "/play/new",
     component: NewGameScreen,
+    use: [$secure({})],
     loader: async () => ({ adventures: await launchList(loadPlayableAdventures) }),
   });
   playJoin = $page({
     path: "/play/join",
     component: JoinScreen,
+    use: [$secure({})],
     loader: async () => ({ parties: await launchList(loadOpenParties) }),
   });
 
@@ -643,6 +622,7 @@ export class AppRouter {
   game = $page({
     path: "/game",
     component: GameScreen,
+    use: [$secure({})],
     loader: async () => {
       const store = useUiStore.getState();
       if (!store.game && !store.heroLoading) {
@@ -680,6 +660,7 @@ export class AppRouter {
    */
   editor = $page({
     path: "/editor",
+    use: [$secure({})],
     lazy: async () => {
       const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
       return { default: module.AdventureEditorScreen };

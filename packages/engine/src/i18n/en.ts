@@ -68,9 +68,6 @@ export const en = {
   "auth.password": "Password",
   "auth.password_confirm": "Confirm password",
   "auth.submit.login": "Play",
-  "auth.guest": "Continue as guest",
-  "auth.guest.hint":
-    "Creates an account saved in this browser. Clear its data and the heroes go with it.",
   "auth.switch.to_register": "New here? Create an account",
   "auth.switch.to_login": "Already have an account? Log in",
   "auth.submit.register": "Create account",

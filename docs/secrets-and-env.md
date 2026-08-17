@@ -49,7 +49,9 @@ own cron jobs — verification cleanup, audit retention — run in this app), so
 shows a working Jobs page the hand-written router's five-page list had silently omitted. Everything app-specific rides `adminRouterOptionsAtom`, set on the browser entry from
 `packages/client/src/ui/admin/adminChrome.tsx` — the `.admin-root` fence class (vignette lift +
 light tokens, `legacy.css`), `colorScheme: false` (the game owns `<html class="dark">`), the
-back-to-menu brand, the seam logout (never `useAuth().logout()` directly — it would mint a junk
-guest account per press), and the hidden username-only user columns. To add an admin page, use
+back-to-menu brand and the hidden username-only user columns. Logout is the vendored
+`ButtonUser.LogoutMenuItem`; it was a hand-rolled item routed through the navigation seam until
+guest accounts were removed, because signing out any other way used to have the next boot mint a
+junk guest account. To add an admin page, use
 `$pageAdmin` (`@alepha/ui/components/admin/admin-router-page`) with `order: 100`+ or an own
 `nav.group`, gated by `can`.
