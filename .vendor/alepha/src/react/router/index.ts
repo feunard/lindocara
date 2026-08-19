@@ -8,11 +8,13 @@ import { AlephaServerLinks } from "alepha/server/links";
 import type { ReactNode } from "react";
 import { $page, type PageAnimation } from "./primitives/$page.ts";
 import type { ReactHydrationState } from "./providers/ReactBrowserProvider.ts";
+import { ReactDomServerProvider } from "./providers/ReactDomServerProvider.ts";
 import {
   ReactPageProvider,
   type ReactRouterState,
 } from "./providers/ReactPageProvider.ts";
 import { ReactPreloadProvider } from "./providers/ReactPreloadProvider.ts";
+import { ReactServerErrorProvider } from "./providers/ReactServerErrorProvider.ts";
 import { ReactServerProvider } from "./providers/ReactServerProvider.ts";
 import { ReactServerTemplateProvider } from "./providers/ReactServerTemplateProvider.ts";
 import { RouterLocaleProvider } from "./providers/RouterLocaleProvider.ts";
@@ -23,10 +25,13 @@ import { ReactRouter } from "./services/ReactRouter.ts";
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+export * from "./constants/PAGE_ROUTE.ts";
 export * from "./index.shared.ts";
 export * from "./providers/ReactBrowserProvider.ts";
+export * from "./providers/ReactDomServerProvider.ts";
 export * from "./providers/ReactPageProvider.ts";
 export * from "./providers/ReactPreloadProvider.ts";
+export * from "./providers/ReactServerErrorProvider.ts";
 export * from "./providers/ReactServerProvider.ts";
 export * from "./providers/ReactServerTemplateProvider.ts";
 export * from "./providers/RouterLocaleProvider.ts";
@@ -125,10 +130,12 @@ export const AlephaReactRouter = $module({
   name: "alepha.react.router",
   primitives: [$page],
   services: [
+    ReactDomServerProvider,
     ReactPageProvider,
     ReactPageService,
     ReactPreloadProvider,
     ReactRouter,
+    ReactServerErrorProvider,
     ReactServerProvider,
     ReactServerTemplateProvider,
     RouterLocaleProvider,
@@ -151,6 +158,7 @@ export const AlephaReactRouter = $module({
       .with(ReactServerTemplateProvider)
       .with(ReactPreloadProvider)
       .with(ReactServerProvider)
+      .with(ReactServerErrorProvider)
       .with(RouterLocaleProvider)
       .with(ReactPageProvider)
       .with(ReactRouter),

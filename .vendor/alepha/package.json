@@ -1,8 +1,8 @@
 {
   "name": "alepha",
-  "description": "Easy-to-use modern TypeScript framework for building many kind of applications.",
+  "description": "A full-stack TypeScript ecosystem. No glue.",
   "author": "Nicolas Foures",
-  "version": "0.25.2",
+  "version": "0.26.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0",
@@ -18,13 +18,14 @@
     "assets",
     "tsconfig.base.json",
     "AGENTS.md",
+    "CHANGELOG.md",
     "CLAUDE.md"
   ],
   "dependencies": {
     "@biomejs/biome": "^2.5.8",
     "@redis/client": "^6.2.1",
     "@vitejs/plugin-react": "^6.0.5",
-    "dayjs": "^1.11.21",
+    "dayjs": "^1.11.22",
     "drizzle-kit": "1.0.0-rc.4",
     "drizzle-orm": "1.0.0-rc.4",
     "postgres": "^3.4.9",
@@ -38,7 +39,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260814.1",
+    "@cloudflare/workers-types": "^5.20260817.1",
     "@electric-sql/pglite": "^0.5.5",
     "@faker-js/faker": "^10.6.0",
     "@tailwindcss/vite": "^4.3.3",
@@ -51,7 +52,7 @@
     "@types/react-dom": "^19.2.4",
     "@types/ws": "^8.18.1",
     "cron-schedule": "^6.0.0",
-    "jose": "^6.2.8",
+    "jose": "^6.2.9",
     "jsdom": "^30.0.1",
     "nodemailer": "^9.0.5",
     "openid-client": "^6.8.5",

@@ -18,13 +18,14 @@ import { type ServerHandler, ServerRouterProvider } from "alepha/server";
 import { ServerLinksProvider } from "alepha/server/links";
 import { ServerStaticProvider } from "alepha/server/static";
 import { FileSystemProvider } from "alepha/system";
-import { renderToReadableStream } from "react-dom/server";
+import { PAGE_ROUTE, type PageServerRoute } from "../constants/PAGE_ROUTE.ts";
 import { Redirection } from "../errors/Redirection.ts";
 import {
   $page,
   type PagePrimitiveRenderOptions,
   type PagePrimitiveRenderResult,
 } from "../primitives/$page.ts";
+import { ReactDomServerProvider } from "./ReactDomServerProvider.ts";
 import {
   type PageRoute,
   ReactPageProvider,
@@ -68,6 +69,7 @@ export class ReactServerProvider {
   protected readonly serverRouterProvider = $inject(ServerRouterProvider);
   protected readonly ssrManifestProvider = $inject(SSRManifestProvider);
   protected readonly localeProvider = $inject(RouterLocaleProvider);
+  protected readonly reactDomServer = $inject(ReactDomServerProvider);
 
   /**
    * Cached check for ServerLinksProvider - avoids has() lookup per request.
@@ -162,17 +164,22 @@ export class ReactServerProvider {
           : rawHandler;
 
         // Canonical (default-locale) route, served unprefixed.
-        this.serverRouterProvider.createRoute({
-          ...page,
-          schema: undefined, // schema is handled by the page primitive provider
-          // A page's `static` is page-shaped (`{ entries }`) and handled by the
-          // page prerender pass — it must not leak into the route's boolean
-          // `static` snapshot flag.
-          static: undefined,
-          method: "GET",
-          path: page.match,
-          handler,
-        });
+        this.serverRouterProvider.createRoute(
+          this.markAsPage(
+            {
+              ...page,
+              schema: undefined, // schema is handled by the page primitive provider
+              // A page's `static` is page-shaped (`{ entries }`) and handled by the
+              // page prerender pass — it must not leak into the route's boolean
+              // `static` snapshot flag.
+              static: undefined,
+              method: "GET",
+              path: page.match,
+              handler,
+            },
+            page,
+          ),
+        );
 
         // Locale-prefixed variants (`/fr/about`, …) point at the SAME handler.
         // The handler reads the active locale back out of the request URL, so
@@ -191,18 +198,36 @@ export class ReactServerProvider {
               locale,
             );
             this.log.debug(`+ ${prefixedPath} -> ${page.name} (${locale})`);
-            this.serverRouterProvider.createRoute({
-              ...page,
-              schema: undefined,
-              static: undefined,
-              method: "GET",
-              path: prefixedPath,
-              handler,
-            });
+            this.serverRouterProvider.createRoute(
+              this.markAsPage(
+                {
+                  ...page,
+                  schema: undefined,
+                  static: undefined,
+                  method: "GET",
+                  path: prefixedPath,
+                  handler,
+                },
+                page,
+              ),
+            );
           }
         }
       }
     }
+  }
+
+  /**
+   * Record which `$page` a server route came from.
+   *
+   * `ReactServerErrorProvider` needs it to reach the page's `errorHandler`
+   * when something around the render throws. The spread above already carries
+   * the page's fields onto the route, but reading those back would be sniffing;
+   * the symbol says it outright, and `createRoute` keeps the same object.
+   */
+  protected markAsPage<T extends object>(config: T, page: PageRoute): T {
+    (config as T & PageServerRoute)[PAGE_ROUTE] = page;
+    return config;
   }
 
   /**
@@ -222,6 +247,14 @@ export class ReactServerProvider {
         ? `${faviconTag}\n${manifest.devHead}\n`
         : `${manifest.devHead}\n`;
       this.templateProvider.setEarlyHeadContent(devContent, globalHead);
+      // Vite's dev head is the module graph — the client runtime and the entry,
+      // with the stylesheets reachable only through them. There is no subset to
+      // keep, so a dev error page carries the favicon alone and relies on the
+      // inline styles ErrorViewer already ships with.
+      this.templateProvider.setErrorHeadContent(
+        faviconTag ? `${faviconTag}\n` : "",
+        globalHead,
+      );
       this.log.debug("Early head content set (dev mode)");
       return;
     }
@@ -236,15 +269,24 @@ export class ReactServerProvider {
       for (const css of assets.css) {
         parts.push(`<link rel="stylesheet" href="${css}">`);
       }
-      if (assets.js) {
-        parts.push(
-          `<script type="module" crossorigin="" src="${assets.js}"></script>`,
-        );
-      }
+    }
+
+    // Everything above is safe on an error page; the entry script is not, so
+    // the two heads fork here. See ReactServerTemplateProvider.errorHeadContent.
+    const styleOnlyParts = [...parts];
+
+    if (assets?.js) {
+      parts.push(
+        `<script type="module" crossorigin="" src="${assets.js}"></script>`,
+      );
     }
 
     this.templateProvider.setEarlyHeadContent(
       parts.length > 0 ? `${parts.join("\n")}\n` : "",
+      globalHead,
+    );
+    this.templateProvider.setErrorHeadContent(
+      styleOnlyParts.length > 0 ? `${styleOnlyParts.join("\n")}\n` : "",
       globalHead,
     );
 
@@ -699,6 +741,12 @@ export class ReactServerProvider {
     const element = this.pageApi.root(state);
     this.alepha.store.set("alepha.react.router.state", state);
 
+    // Loaded here rather than imported at the top so the renderer stays off the
+    // cold-start path — and loaded BEFORE the stream opens, because the error
+    // paths inside it are synchronous controller callbacks that can only read
+    // an already-resolved module. See ReactDomServerProvider.
+    const { renderToReadableStream } = await this.reactDomServer.load();
+
     const reactStream = await renderToReadableStream(element, {
       onError: (error: unknown) => {
         if (error instanceof Redirection) {
@@ -865,6 +913,7 @@ const envSchema = z.object({
     .describe(
       "Enable or disable server-side rendering (SSR) for React pages. When set to false, pages are rendered client-side only.",
     )
+    .meta({ secret: false })
     .optional(),
 });
 

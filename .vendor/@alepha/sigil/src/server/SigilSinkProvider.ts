@@ -1,30 +1,24 @@
 import { $env, $hook, $inject, Alepha } from "alepha";
+import { BackgroundTaskProvider } from "alepha/background";
 import { DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
 import { HttpClient } from "alepha/server";
-import {
-  SIGIL_CONFIG_DEFAULTS,
-  type SigilConfig,
-} from "../shared/schemas/sigilConfig.ts";
+import type { SigilConfig } from "../shared/schemas/sigilConfig.ts";
 import type { SigilEnvelope } from "../shared/schemas/sigilEnvelope.ts";
-import { sigilClientAtom } from "../shared/sigilClientAtom.ts";
 import {
-  allTrackersEnabled,
-  type SigilTracker,
-} from "../shared/sigilFeatures.ts";
+  type SigilClientConfig,
+  sigilClientAtom,
+} from "../shared/sigilClientAtom.ts";
+import type { SigilTracker } from "../shared/sigilFeatures.ts";
 import { sigilFingerprintSource } from "../shared/sigilFingerprint.ts";
-import { sigilOptions } from "../shared/sigilOptionsAtom.ts";
-import { SIGIL_CONFIG_PATH, SIGIL_INGEST_PATH } from "../shared/sigilPaths.ts";
+import { SIGIL_INGEST_PATH } from "../shared/sigilPaths.ts";
 import { SIGIL_DEFAULT_SINK, sigilEnv } from "../sigilEnv.ts";
 
 /** How long a batch may sit before it is worth a round trip. */
 const FLUSH_WINDOW_MS = 10_000;
 
-/** How long a fetched config is trusted before asking again. */
-const CONFIG_TTL_MS = 60_000;
-
 /** Envelope caps, mirroring the schema so a flush never builds a 413. */
-const CAPS = { views: 50, errors: 20, vitals: 50 } as const;
+const CAPS = { views: 50, errors: 20, vitals: 50, engagements: 50 } as const;
 
 /**
  * One error, and how many times it happened since the last flush.
@@ -52,89 +46,142 @@ interface AggregatedError {
  * request on workerd, and an app that only flushes when it is already busy is
  * exactly the app whose last errors before a crash are the ones worth having.
  *
- * **Works with no sink at all.** `SIGIL_SINK` carries a default, but a key does
- * not: without `SIGIL_KEY` nothing leaves the machine. The same aggregation
- * happens and the result goes to the logger, so an app that must not phone home
- * still gets its crash loop collapsed into one warning — and gets it by doing
+ * **Works with no sink at all.** `sink` carries a default, but a key does not:
+ * without `SIGIL_KEY` nothing leaves the machine. The same aggregation happens
+ * and the result goes to the logger, so an app that must not phone home still
+ * gets its crash loop collapsed into one warning — and gets it by doing
  * nothing, which is the only default worth having here.
+ *
+ * **What to collect is read, not asked for.** This provider used to fetch its
+ * config from the sink and cache it for a minute. See {@link sigilConfig} for
+ * why that had to go; the short version is that the cache could not survive a
+ * serverless isolate and the fetch could not survive a prerender, and it was
+ * awaited in front of the first byte of every cold page.
  */
 export class SigilSinkProvider {
   protected readonly alepha = $inject(Alepha);
   protected readonly dateTime = $inject(DateTimeProvider);
   protected readonly http = $inject(HttpClient);
   protected readonly log = $logger();
+  protected readonly background = $inject(BackgroundTaskProvider);
   protected env = $env(sigilEnv);
 
   /** Errors waiting to be sent, keyed by fingerprint source. */
   protected readonly pendingErrors = new Map<string, AggregatedError>();
   protected pendingViews: NonNullable<SigilEnvelope["views"]> = [];
   protected pendingVitals: NonNullable<SigilEnvelope["vitals"]> = [];
+  protected pendingEngagements: NonNullable<SigilEnvelope["engagements"]> = [];
   /** Stamps of the batch being built. Last writer wins; they rarely differ. */
-  protected pendingStamp: { country?: string; visitor?: string } = {};
+  protected pendingStamp: {
+    country?: string;
+    visitor?: string;
+    device?: string;
+  } = {};
   protected oldestPendingAt?: number;
 
-  /** Last config the sink gave us, and when. */
-  protected config: SigilConfig = {};
-  protected configFetchedAt = 0;
-  protected configInFlight?: Promise<void>;
+  /**
+   * What this app collects, straight from `SIGIL_CONFIG`.
+   *
+   * `undefined` when the variable is unset, which leaves the module inert —
+   * `hasSink()` needs both this and a key.
+   */
+  public get config(): SigilConfig | undefined {
+    return this.env.SIGIL_CONFIG;
+  }
 
   protected readonly init = $hook({
     on: "start",
     handler: () => {
       if (this.alepha.isBrowser()) return;
 
+      // Reporting needs both halves: the credential, and the project it reports
+      // into. Either one missing means inert — captured locally, sent nowhere.
+      //
+      // Inert rather than fatal, deliberately. Half-configured is a real
+      // mistake and the log says so at `warn`, but telemetry is not worth an
+      // outage: an app whose observability is misconfigured should still serve
+      // its users. Throwing here would also make the variable's own rollout the
+      // riskiest kind of deploy, where the app that fails to boot is the one
+      // that was about to start reporting correctly.
       if (!this.hasSink()) {
-        this.log.info(
-          "No sink configured (SIGIL_KEY unset) — capturing locally, sending nothing.",
-        );
-      } else {
-        // `SIGIL_SINK` carries a default, and a default nobody can see is how
-        // an app ends up reporting somewhere its operator never chose. Naming
-        // the resolved origin AND where it came from is the whole mitigation:
-        // a self-hoster who forgot the variable reads one line instead of
-        // debugging why their own Lore stayed empty while the public instance
-        // answered 401 to a key it has never heard of.
-        this.log.info(
-          `Sigil sink: ${this.sinkOrigin()} (${
-            this.env.SIGIL_SINK === SIGIL_DEFAULT_SINK
-              ? "default — set SIGIL_SINK to self-host"
-              : "from SIGIL_SINK"
-          })`,
-        );
+        const key = !!this.env.SIGIL_KEY;
+        const config = !!this.config;
+
+        if (key !== config) {
+          this.log.warn(
+            key
+              ? "SIGIL_KEY is set but SIGIL_CONFIG is not — sigil is inert. Set " +
+                  'SIGIL_CONFIG to at least {"project":"<slug>"}, naming the project ' +
+                  "this app reports into."
+              : "SIGIL_CONFIG is set but SIGIL_KEY is not — sigil is inert. The key " +
+                  "is minted by the sink and is what authorises reporting.",
+          );
+        } else {
+          this.log.info(
+            "Sigil not configured — capturing locally, sending nothing.",
+          );
+        }
+        return;
       }
 
-      // Per request: publish the browser-relevant subset so `exportAtoms`
-      // serializes it into the page. The key never goes near this.
-      this.alepha.events.on("react:server:render:begin", async () => {
-        // Fetch the config if this process has never had one.
-        //
-        // `refreshConfig` is otherwise reached only from `ingest()`, which
-        // meant this hook published a config nothing had asked for: a process
-        // rendering before it had sent any telemetry set `feedbackUrl:
-        // undefined` and hid the feedback button. On a per-request runtime the
-        // isolate serving that first page may never be the one that later warms
-        // up, so the button could simply never appear.
-        //
-        // Deliberately here and not at `start`: a warm-up on boot stamps
-        // `configFetchedAt` and so eats the TTL window, leaving the app pinned
-        // to whatever it got — including the fail-open default — for the next
-        // minute, before the rest of the app (a database, a sigil row) is
-        // necessarily ready to answer. Guarding on `configFetchedAt` rather
-        // than on the config's contents keeps a failed fetch from turning this
-        // into a retry loop in front of a dead sink; `ingest()` picks it up on
-        // the next TTL window, exactly as before.
-        if (!this.configFetchedAt) await this.refreshConfig();
+      // The sink carries a default, and a default nobody can see is how an app
+      // ends up reporting somewhere its operator never chose. Naming the
+      // resolved origin AND where it came from is the whole mitigation: a
+      // self-hoster who forgot the field reads one line instead of debugging
+      // why their own Lore stayed empty while the public instance answered 401
+      // to a key it has never heard of.
+      const config = this.config!;
+      this.log.info(
+        `Sigil sink: ${this.sinkOrigin()} (${
+          config.sink === SIGIL_DEFAULT_SINK
+            ? "default — set SIGIL_CONFIG.sink to self-host"
+            : "from SIGIL_CONFIG.sink"
+        }), project ${config.project}`,
+      );
+    },
+  });
 
-        this.alepha.store.set(sigilClientAtom, {
-          enabled: this.enabledTrackers(),
-          sampling: this.config.sampling ?? SIGIL_CONFIG_DEFAULTS.sampling,
-          excludedPaths:
-            this.alepha.store.get(sigilOptions).excludedPaths ?? [],
-          feedbackUrl: this.config.feedbackUrl,
-        });
+  /**
+   * Publish the browser-relevant subset, stamped with now.
+   *
+   * On `react:server:render:begin` so `exportAtoms` serializes it into the
+   * page, and stamped there rather than at `start` because the stamp has to
+   * describe the render: a prerender writes a build-time stamp into a file that
+   * ships for weeks, and that is precisely what the browser needs to be able to
+   * notice. See {@link sigilClientAtom}.
+   *
+   * This hook used to `await` a fetch to the sink before it could publish
+   * anything, which put a round trip in front of the first byte of every cold
+   * page. Reading env costs nothing, so there is no longer a reason for it to
+   * be async.
+   */
+  protected readonly publish = $hook({
+    on: "start",
+    handler: () => {
+      if (this.alepha.isBrowser()) return;
+
+      this.alepha.events.on("react:server:render:begin", () => {
+        this.alepha.store.set(sigilClientAtom, this.clientConfig());
       });
     },
   });
+
+  /**
+   * The subset of the config the browser is allowed to see, stamped.
+   *
+   * Also what the ingest response hands back, so a page whose stamp has gone
+   * stale gets the current answer from the call it was going to make anyway.
+   */
+  public clientConfig(): SigilClientConfig {
+    return {
+      enabled: this.enabledTrackers(),
+      feedbackButtonExcludedPaths:
+        this.config?.feedbackButtonExcludedPaths ?? [],
+      feedbackUrl: this.feedbackUrl(),
+      feedbackButton: this.config?.feedbackButton,
+      configAt: this.dateTime.nowMillis(),
+    };
+  }
 
   /**
    * Flush what is left on the way out.
@@ -151,64 +198,47 @@ export class SigilSinkProvider {
   });
 
   public hasSink(): boolean {
-    return !!(this.env.SIGIL_SINK && this.env.SIGIL_KEY);
+    return !!(this.config?.sink && this.env.SIGIL_KEY);
   }
 
   public sinkOrigin(): string {
-    return (this.env.SIGIL_SINK ?? "").replace(/\/$/, "");
+    return (this.config?.sink ?? "").replace(/\/$/, "");
   }
 
   /**
-   * Which trackers are on right now, sink's opinion over the default.
+   * Which trackers are on, mapped from the config's names.
    *
-   * Defaults to everything on: before the sink has spoken, and forever if it
-   * never does, the app keeps collecting. Silence from the sink is not consent
-   * to stop observing.
+   * The config speaks the sink's language — `analytics`, `blights` — while the
+   * envelope and the browser gate speak in terms of what is collected:
+   * `views`, `errors`. Translating in one place is what lets either vocabulary
+   * change without the other following.
+   *
+   * Everything on when there is no config, which only happens when there is no
+   * key either: the module is inert then, and inert should still mean "captures
+   * locally", not "captures nothing".
    */
   public enabledTrackers(): Record<SigilTracker, boolean> {
-    return { ...allTrackersEnabled(), ...(this.config.enabled ?? {}) };
-  }
-
-  public feedbackUrl(): string | undefined {
-    return this.config.feedbackUrl;
+    const config = this.config;
+    return {
+      views: config?.analytics ?? true,
+      errors: config?.blights ?? true,
+      vitals: config?.vitals ?? true,
+    };
   }
 
   /**
-   * Refreshes the config if it has gone stale, and never lets that failure
-   * become the app's problem.
+   * Where a reader goes to file feedback, derived rather than fetched.
    *
-   * Fail-open on the last known config: a sink that is down must not silence an
-   * app's reporting, and must not make it emit more either. Concurrent callers
-   * share one in-flight request — a cold start behind a burst of traffic should
-   * not turn into a burst of config fetches.
+   * The sink used to hand this back, because the slug lived only there. Naming
+   * the project in `SIGIL_CONFIG` moved it to where the app can build it, which
+   * is what let the config round trip disappear entirely.
    */
-  public async refreshConfig(): Promise<void> {
-    if (!this.hasSink()) return;
-    if (this.dateTime.nowMillis() - this.configFetchedAt < CONFIG_TTL_MS)
-      return;
-    if (this.configInFlight) return await this.configInFlight;
-
-    this.configInFlight = (async () => {
-      try {
-        this.config = await this.fetchConfig();
-        this.configFetchedAt = this.dateTime.nowMillis();
-      } catch (error) {
-        // Deliberately not fatal, and deliberately not a reset: keeping the
-        // previous appetite is the only behaviour that is safe in both
-        // directions.
-        this.log.warn(
-          `Sigil config refresh failed for ${this.sinkOrigin()}; keeping the last known one`,
-          error,
-        );
-        // Back off as if it had succeeded, so a dead sink is asked once a
-        // minute rather than on every request.
-        this.configFetchedAt = this.dateTime.nowMillis();
-      } finally {
-        this.configInFlight = undefined;
-      }
-    })();
-
-    await this.configInFlight;
+  public feedbackUrl(): string | undefined {
+    const config = this.config;
+    if (!config?.feedback || !this.hasSink()) {
+      return undefined;
+    }
+    return `${this.sinkOrigin()}/${config.project}/request`;
   }
 
   /**
@@ -219,9 +249,8 @@ export class SigilSinkProvider {
    */
   public async ingest(
     envelope: SigilEnvelope,
-    stamp: { country?: string; visitor?: string } = {},
+    stamp: { country?: string; visitor?: string; device?: string } = {},
   ): Promise<void> {
-    await this.refreshConfig();
     const enabled = this.enabledTrackers();
     const now = this.dateTime.nowMillis();
 
@@ -231,12 +260,18 @@ export class SigilSinkProvider {
     if (envelope.vitals?.length && enabled.vitals) {
       this.pendingVitals.push(...envelope.vitals);
     }
+    // Behind the views gate, not one of its own: engagement is a fact about a
+    // view, and an `engaged` total that outlived the `count` it divides into
+    // would be worse than not collecting it.
+    if (envelope.engagements?.length && enabled.views) {
+      this.pendingEngagements.push(...envelope.engagements);
+    }
     if (envelope.errors?.length && enabled.errors) {
       for (const error of envelope.errors) {
         this.aggregate(error);
       }
     }
-    if (stamp.country || stamp.visitor) {
+    if (stamp.country || stamp.visitor || stamp.device) {
       this.pendingStamp = stamp;
     }
 
@@ -292,10 +327,25 @@ export class SigilSinkProvider {
    */
   protected readonly onResponse = $hook({
     on: "server:onResponse",
-    handler: async () => {
+    handler: () => {
       if (!this.alepha.isServerless()) return;
       if (!this.hasPending()) return;
-      await this.flush();
+
+      // Deferred, not awaited. The flush is a request to the sink, and awaiting
+      // it here put that round trip inside the browser's own call — measured at
+      // ~1.1 s cold against a live worker, for a response the visitor is
+      // waiting on. Two things paid for it: the `pagehide` batch, which carries
+      // the metrics finalised on the way out and is the one a browser tearing
+      // down a document is least likely to keep alive for a second; and the
+      // feedback button, which since the config started riding back on this
+      // response cannot render until the sink has answered something it was
+      // never asked.
+      //
+      // `defer` is not fire-and-forget on this runtime. The workerd variant
+      // wraps the task in `executionCtx.waitUntil`, so the isolate is kept
+      // alive until the flush settles rather than frozen at the response —
+      // which is the whole reason this hook exists here instead of a timer.
+      this.background.defer(() => this.flush());
     },
   });
 
@@ -303,7 +353,8 @@ export class SigilSinkProvider {
     return (
       this.pendingErrors.size > 0 ||
       this.pendingViews.length > 0 ||
-      this.pendingVitals.length > 0
+      this.pendingVitals.length > 0 ||
+      this.pendingEngagements.length > 0
     );
   }
 
@@ -316,6 +367,7 @@ export class SigilSinkProvider {
     if (this.pendingErrors.size >= CAPS.errors) return true;
     if (this.pendingViews.length >= CAPS.views) return true;
     if (this.pendingVitals.length >= CAPS.vitals) return true;
+    if (this.pendingEngagements.length >= CAPS.engagements) return true;
     return now - (this.oldestPendingAt ?? now) >= FLUSH_WINDOW_MS;
   }
 
@@ -345,6 +397,7 @@ export class SigilSinkProvider {
 
     const views = this.pendingViews.splice(0, CAPS.views);
     const vitals = this.pendingVitals.splice(0, CAPS.vitals);
+    const engagements = this.pendingEngagements.splice(0, CAPS.engagements);
     // Entries, so the surviving ones are deleted by the key they were stored
     // under rather than by a recomputed fingerprint.
     const errorEntries = [...this.pendingErrors.entries()].slice(
@@ -356,6 +409,7 @@ export class SigilSinkProvider {
     const envelope: SigilEnvelope = {
       ...(views.length ? { views } : {}),
       ...(vitals.length ? { vitals } : {}),
+      ...(engagements.length ? { engagements } : {}),
       ...(errorEntries.length
         ? { errors: errorEntries.map(([, error]) => error) }
         : {}),
@@ -379,37 +433,26 @@ export class SigilSinkProvider {
   }
 
   /**
-   * Asks the sink how much to send. The only GET this provider makes.
+   * Hands one batch to the sink. The only request this provider makes.
    *
-   * Its own method, alongside {@link deliver}, because an app can BE its own
-   * sink — Lore reports to itself — and on workerd a Worker cannot fetch its
-   * own hostname: the subrequest fails, and since both callers are fail-open
-   * it fails silently, leaving an app that looks enrolled and reports nothing.
-   * A host in that position substitutes this provider and answers both in
-   * process. Everything else — aggregation, the flush window, the caps, the
-   * fail-open handling around these two calls — is shared, so the in-process
-   * path cannot drift into behaving differently from the networked one.
+   * Its own method because an app can BE its own sink — Lore reports to itself
+   * — and on workerd a Worker cannot fetch its own hostname: the subrequest
+   * fails, and since the caller is fail-open it fails silently, leaving an app
+   * that looks enrolled and reports nothing. A host in that position
+   * substitutes this provider and answers in process. Everything else —
+   * aggregation, the flush window, the caps, the fail-open handling around this
+   * call — is shared, so the in-process path cannot drift into behaving
+   * differently from the networked one.
    *
-   * Throws on failure; the caller decides what that means.
-   */
-  protected async fetchConfig(): Promise<SigilConfig> {
-    const res = await this.http.fetch(
-      `${this.sinkOrigin()}${SIGIL_CONFIG_PATH}`,
-      {
-        method: "GET",
-        headers: { authorization: `Bearer ${this.env.SIGIL_KEY}` },
-      },
-    );
-    return (res.data ?? {}) as SigilConfig;
-  }
-
-  /**
-   * Hands one batch to the sink. The only POST this provider makes.
-   *
-   * @see {@link fetchConfig} for why it is separable.
+   * It used to have a sibling, `fetchConfig`, for the GET that asked the sink
+   * what to collect. There is no such GET any more.
    */
   protected async deliver(
-    payload: SigilEnvelope & { country?: string; visitor?: string },
+    payload: SigilEnvelope & {
+      country?: string;
+      visitor?: string;
+      device?: string;
+    },
   ): Promise<void> {
     await this.http.fetch(`${this.sinkOrigin()}${SIGIL_INGEST_PATH}`, {
       method: "POST",
@@ -442,6 +485,7 @@ export class SigilSinkProvider {
     this.pendingErrors.clear();
     this.pendingViews = [];
     this.pendingVitals = [];
+    this.pendingEngagements = [];
     this.pendingStamp = {};
     this.oldestPendingAt = undefined;
   }

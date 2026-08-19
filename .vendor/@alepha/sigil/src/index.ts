@@ -1,4 +1,5 @@
 import { $module } from "alepha";
+import { AlephaBackground } from "alepha/background";
 import { RootComponentsProvider } from "alepha/react/router";
 import { createElement } from "react";
 import { SigilRoot } from "./browser/components/SigilRoot.tsx";
@@ -7,12 +8,10 @@ import { SigilProxyController } from "./server/SigilProxyController.ts";
 import { SigilServerErrors } from "./server/SigilServerErrors.ts";
 import { SigilSinkProvider } from "./server/SigilSinkProvider.ts";
 import { sigilClientAtom } from "./shared/sigilClientAtom.ts";
-import { sigilOptions } from "./shared/sigilOptionsAtom.ts";
 
 export * from "./server/SigilSinkProvider.ts";
 export * from "./shared/sigilClientAtom.ts";
 export * from "./shared/sigilFeatures.ts";
-export * from "./shared/sigilOptionsAtom.ts";
 export * from "./shared/sigilPaths.ts";
 export * from "./sigilEnv.ts";
 
@@ -21,7 +20,8 @@ export * from "./sigilEnv.ts";
  * and server errors — pushed to a sink that the app names.
  *
  * Import this module in your WebModule and set `SIGIL_KEY` — the one variable
- * that matters. `SIGIL_SINK` defaults to the public Lore instance and is only
+ * that matters, alongside `SIGIL_CONFIG` which names the project and what to
+ * collect. Its `sink` field defaults to the public Lore instance and is only
  * needed to self-host; `SIGIL_SALT` falls back to `APP_SECRET`. Without a key
  * the module still captures, but nothing leaves the machine: errors go to the
  * logger instead, aggregated. Active in production only.
@@ -48,7 +48,15 @@ export * from "./sigilEnv.ts";
  */
 export const AlephaSigil = $module({
   name: "alepha.sigil",
-  atoms: [sigilOptions, sigilClientAtom],
+  // `AlephaBackground` is not optional here, and the failure without it is
+  // silent. `SigilSinkProvider` defers its end-of-request flush so the sink
+  // round trip is not inside the browser's own call; on workerd only the
+  // variant this module registers wraps that in `executionCtx.waitUntil`.
+  // Without it the base provider's `keepAlive` is a no-op, the isolate is
+  // frozen the moment the response is returned, and the flush never completes
+  // — an app that answers every beacon `{"ok":true}` and delivers nothing.
+  imports: [AlephaBackground],
+  atoms: [sigilClientAtom],
   services: [
     SigilSinkProvider,
     SigilProxyController,
