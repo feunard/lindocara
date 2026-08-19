@@ -24,10 +24,16 @@ import { Alepha, run } from "alepha";
 // `SpaController` deleted, nothing else answers `GET /`.
 const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi);
 
-// Reports page views, web vitals and errors to the sigil sink. Without
-// `SIGIL_SINK` and `SIGIL_KEY` the module still captures and sends nothing —
-// errors go to the logger instead — so it is safe to register unconditionally,
-// including in development and in tests.
+// Reports errors — and, were they switched on, page views and web vitals — to the sigil sink.
+// Without `SIGIL_KEY` the module still captures and sends nothing; errors go to the logger
+// instead, so it is safe to register unconditionally, including in development and in tests.
+//
+// `SIGIL_CONFIG` is the other half, and the newer one: it names the project and says what to
+// collect. Sigil used to ask the sink for that at render time; it reads the environment now, so
+// what production reports is a line in `.github/workflows/deploy.yml` rather than a state held on
+// the other side of a network call. A key present with no config is the one shape that reports
+// nothing while looking configured — `SigilSinkProvider` warns at boot and stays inert rather than
+// reporting into a project nobody named.
 alepha.with(AlephaSigil);
 
 // Drizzle executes this entry under plain Node to discover server entities. Importing the browser

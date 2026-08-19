@@ -99,6 +99,28 @@ jobs:
           # need their fallbacks because an empty string is neither a boolean nor an integer and
           # would stop Alepha booting; a text key has no such edge.
           SIGIL_KEY: ${{ secrets.SIGIL_KEY }}
+          # What that key is allowed to report, and into which project. Sigil used to FETCH this
+          # from the sink at render time; it now reads it here, because the fetch was a round trip
+          # in front of the first byte of every cold page and, on a prerendered build, an answer
+          # baked into the HTML that only a redeploy could change.
+          #
+          # A literal, not a secret: every field is public already — the project slug and the sink
+          # origin are both in the feedback URL the module renders into the page, and the switches
+          # only describe what the app collects, which it announces by collecting it. `SIGIL_KEY`
+          # is the thing that authorizes anything, and it stays above. Writing it inline is also
+          # what makes it greppable; a repository variable would hide the app's telemetry posture
+          # from the file that deploys it.
+          #
+          # `analytics` and `vitals` are off because the `main` sigil is enrolled for
+          # `feedback` and `blights` only — the sink drops the rest anyway (`gatesFor`), so
+          # sending them would be round trips for envelopes that die on arrival. This mirrors what
+          # the sink used to hand back: `{views: false, errors: true, vitals: false}`. `blights`,
+          # `feedback`, the button's bottom-right corner and the public `sink` all stay at their
+          # defaults, which is what production already served.
+          #
+          # Turning collection off in a hurry is editing this line and redeploying, or setting the
+          # variable on the Bay host directly — no CI run required for the second.
+          SIGIL_CONFIG: '{"project":"lindocara","analytics":false,"vitals":false}'
           # The accounts that hold the `admin` role, reconciled at boot by `AdminRoleProvider`.
           # Listed here for the same reason as `SIGIL_KEY`: the collection above prefers
           # `apps/main/.env.production`, which is gitignored and therefore absent on a runner, so a

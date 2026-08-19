@@ -55,3 +55,33 @@ guest accounts were removed, because signing out any other way used to have the 
 junk guest account. To add an admin page, use
 `$pageAdmin` (`@alepha/ui/components/admin/admin-router-page`) with `order: 100`+ or an own
 `nav.group`, gated by `can`.
+
+## Telemetry: `SIGIL_KEY` and `SIGIL_CONFIG`
+
+`@alepha/sigil` reports client and server errors to Alepha Lore, and takes exactly two variables.
+
+`SIGIL_KEY` is the secret, and the only one that authorizes anything: the enrolment key the sink
+issued for the `main` sigil of the Lindocara project. **Unset, the module is inert** — it still
+captures, but nothing leaves the machine and errors go to the app's own logger instead. That is
+the dev and test default, and it is why the module is registered unconditionally on both entries.
+
+`SIGIL_CONFIG` is a JSON object, is NOT a secret, and lives inline in `deploy.yml`:
+
+```
+SIGIL_CONFIG={"project":"lindocara","analytics":false,"vitals":false}
+```
+
+`project` is required — it is the sink-side slug, and it is what makes the feedback URL
+(`https://lore.alepha.dev/lindocara/request`) computable without asking the sink for it. Every
+other field is a default worth knowing: `analytics` and `vitals` are off because the `main` sigil
+is enrolled for `feedback` and `blights` only, so the sink would drop those envelopes on arrival;
+`blights`, `feedback`, the button's `bottom-right` corner and the public `sink` origin are all
+left alone, which is exactly what production served before.
+
+Sigil used to FETCH all of that from the sink at render time. It reads the environment as of the
+2026-08-19 vendor sync, because the fetch sat in front of the first byte of every cold page and,
+on a prerendered build, baked its answer into the HTML where only a redeploy could change it. The
+consequence for this repo is worth stating plainly: **a key with no config reports nothing.**
+`SigilSinkProvider` warns at boot and stays inert rather than reporting into a project nobody
+named, so the two variables now travel together — CI reads both from the deploy job's environment,
+a hand deploy reads both from the gitignored `apps/main/.env.production`.
