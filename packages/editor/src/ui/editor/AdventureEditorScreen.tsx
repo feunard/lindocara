@@ -39,9 +39,20 @@ import {
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import {
+  type BridgeDimensions,
+  bridgeDimensionsOrDefault,
+  bridgeOrientation,
+  MAX_BRIDGE_DIMENSION,
+  MIN_BRIDGE_DIMENSION,
+} from "@lindocara/engine/bridges.js";
+import {
+  BUILDING_DIMENSION_STEP,
   type BuildingSettings,
+  buildingDimensionsOrDefault,
   defaultBuildingSettings,
   destroyedBuildingAssetId,
+  MAX_BUILDING_DIMENSION,
+  MIN_BUILDING_DIMENSION,
 } from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
@@ -1979,6 +1990,9 @@ function AdventureEditorInner({
                     onSetOrientation={(orientation) =>
                       handleRef.current?.setSelectedElementOrientation(orientation)
                     }
+                    onSetBridgeDimensions={(dimensions) =>
+                      handleRef.current?.setSelectedBridgeDimensions(dimensions)
+                    }
                     onSetBuilding={(settings) =>
                       handleRef.current?.setSelectedBuildingSettings(settings)
                     }
@@ -2258,6 +2272,7 @@ function SelectionInspector({
   onMove,
   onSetOffset,
   onSetOrientation,
+  onSetBridgeDimensions,
   onSetBuilding,
   onOpenInterior,
   buildingInteriorBusy,
@@ -2270,6 +2285,7 @@ function SelectionInspector({
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
   onSetOrientation(orientation: ElementOrientation): void;
+  onSetBridgeDimensions(dimensions: BridgeDimensions): void;
   onSetBuilding(settings: BuildingSettings): void;
   onOpenInterior(element: MapElement): void;
   buildingInteriorBusy: boolean;
@@ -2288,6 +2304,14 @@ function SelectionInspector({
   const selectedBuilding = selectedElement
     ? (selectedElement.building ?? defaultBuildingSettings(selectedElement.assetId))
     : null;
+  const selectedBuildingDimensions =
+    selectedElement && selectedBuilding
+      ? buildingDimensionsOrDefault(selectedElement.assetId, selectedBuilding.dimensions)
+      : null;
+  const selectedBridge =
+    selectedElement && bridgeOrientation(selectedElement.assetId)
+      ? bridgeDimensionsOrDefault(selectedElement.bridge)
+      : null;
   const destroyedAsset = selectedElement
     ? editorAsset(destroyedBuildingAssetId(selectedElement.assetId) ?? "")
     : null;
@@ -2391,6 +2415,63 @@ function SelectionInspector({
               ))}
             </div>
           </div>
+          {selectedBuildingDimensions && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px] text-zinc-600">
+                {t("editor.inspector.building.size")}
+              </Label>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ["width", "editor.inspector.building.width"],
+                    ["depth", "editor.inspector.building.depth"],
+                  ] as const
+                ).map(([dimension, label]) => (
+                  <div key={dimension} className="flex flex-1 flex-col gap-1">
+                    <Label
+                      htmlFor={`inspector-building-${dimension}`}
+                      className="text-[11px] text-zinc-500"
+                    >
+                      {t(label)}
+                    </Label>
+                    <Input
+                      id={`inspector-building-${dimension}`}
+                      key={`building-${dimension}:${selectedBuildingDimensions[dimension]}`}
+                      type="number"
+                      className="h-7 text-xs"
+                      min={MIN_BUILDING_DIMENSION}
+                      max={MAX_BUILDING_DIMENSION}
+                      step={BUILDING_DIMENSION_STEP}
+                      defaultValue={selectedBuildingDimensions[dimension]}
+                      onBlur={(event) => {
+                        const value = Number(event.currentTarget.value);
+                        const normalized = Number.isFinite(value)
+                          ? Math.max(
+                              MIN_BUILDING_DIMENSION,
+                              Math.min(
+                                MAX_BUILDING_DIMENSION,
+                                Math.round(value / BUILDING_DIMENSION_STEP) *
+                                  BUILDING_DIMENSION_STEP,
+                              ),
+                            )
+                          : selectedBuildingDimensions[dimension];
+                        onSetBuilding({
+                          ...selectedBuilding,
+                          dimensions: {
+                            ...selectedBuildingDimensions,
+                            [dimension]: normalized,
+                          },
+                        });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10.5px] text-muted-foreground">
+                {t("editor.inspector.building.sizeHint")}
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="inspector-building-destructible" className="text-[11px] text-zinc-600">
               {t("editor.inspector.building.destructible")}
@@ -2446,6 +2527,71 @@ function SelectionInspector({
                 ? t("editor.inspector.building.interior.open")
                 : t("editor.inspector.building.interior.create")}
           </Button>
+        </div>
+      )}
+
+      {selectedElement && selectedBridge && (
+        <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+          <p className="text-[11px] font-medium text-zinc-600">
+            {t("editor.inspector.bridge.size")}
+          </p>
+          <div className="flex gap-2">
+            <div className="flex flex-1 flex-col gap-1">
+              <Label htmlFor="inspector-bridge-length" className="text-[11px] text-zinc-500">
+                {t("editor.inspector.bridge.length")}
+              </Label>
+              <Input
+                id="inspector-bridge-length"
+                key={`bridge-length:${selectedBridge.length}`}
+                type="number"
+                className="h-7 text-xs"
+                min={MIN_BRIDGE_DIMENSION}
+                max={MAX_BRIDGE_DIMENSION}
+                step={1}
+                defaultValue={selectedBridge.length}
+                onBlur={(event) => {
+                  const value = Number(event.currentTarget.value);
+                  onSetBridgeDimensions({
+                    ...selectedBridge,
+                    length: Number.isFinite(value)
+                      ? Math.max(
+                          MIN_BRIDGE_DIMENSION,
+                          Math.min(MAX_BRIDGE_DIMENSION, Math.trunc(value)),
+                        )
+                      : selectedBridge.length,
+                  });
+                }}
+              />
+            </div>
+            <div className="flex flex-1 flex-col gap-1">
+              <Label htmlFor="inspector-bridge-width" className="text-[11px] text-zinc-500">
+                {t("editor.inspector.bridge.width")}
+              </Label>
+              <Input
+                id="inspector-bridge-width"
+                key={`bridge-width:${selectedBridge.width}`}
+                type="number"
+                className="h-7 text-xs"
+                min={MIN_BRIDGE_DIMENSION}
+                max={MAX_BRIDGE_DIMENSION}
+                step={1}
+                defaultValue={selectedBridge.width}
+                onBlur={(event) => {
+                  const value = Number(event.currentTarget.value);
+                  onSetBridgeDimensions({
+                    ...selectedBridge,
+                    width: Number.isFinite(value)
+                      ? Math.max(
+                          MIN_BRIDGE_DIMENSION,
+                          Math.min(MAX_BRIDGE_DIMENSION, Math.trunc(value)),
+                        )
+                      : selectedBridge.width,
+                  });
+                }}
+              />
+            </div>
+          </div>
+          <p className="text-[10.5px] text-muted-foreground">{t("editor.inspector.bridge.hint")}</p>
         </div>
       )}
 

@@ -21,7 +21,9 @@ import {
   type MapAudioConfig,
   parseMapAudioConfig,
 } from "@lindocara/engine/audio-catalog.js";
+import { bridgeOrientation, decodeBridgeDimensions } from "@lindocara/engine/bridges.js";
 import {
+  decodeBuildingTransform,
   defaultBuildingSettings,
   isStandingBuildingAsset,
   parseBuildingSettings,
@@ -504,14 +506,43 @@ export function elementToWire(row: {
   buildingInteriorMapId?: string | null;
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
-    if (!isElementOrientation(row.variant)) return null;
-    const building = isStandingBuildingAsset(row.kind)
-      ? (parseBuildingSettings({
+    const bridgeAsset = bridgeOrientation(row.kind);
+    if (bridgeAsset) {
+      const bridge = decodeBridgeDimensions(row.variant);
+      if (bridge === null) return null;
+      return {
+        id: row.id,
+        col: row.col,
+        row: row.row,
+        offsetX: row.offsetX,
+        offsetY: row.offsetY,
+        assetId: row.kind,
+        ...(bridge ? { bridge } : {}),
+      };
+    }
+    if (isStandingBuildingAsset(row.kind)) {
+      const transform = decodeBuildingTransform(row.variant);
+      if (!transform) return null;
+      const building =
+        parseBuildingSettings({
           destructible: row.buildingDestructible,
           maxHp: row.buildingMaxHp,
           ...(row.buildingInteriorMapId ? { interiorMapId: row.buildingInteriorMapId } : {}),
-        }) ?? defaultBuildingSettings(row.kind))
-      : null;
+          ...(transform.dimensions ? { dimensions: transform.dimensions } : {}),
+        }) ?? defaultBuildingSettings(row.kind);
+      if (!building) return null;
+      return {
+        id: row.id,
+        col: row.col,
+        row: row.row,
+        offsetX: row.offsetX,
+        offsetY: row.offsetY,
+        assetId: row.kind,
+        ...(transform.orientation === 0 ? {} : { orientation: transform.orientation }),
+        building,
+      };
+    }
+    if (!isElementOrientation(row.variant)) return null;
     return {
       id: row.id,
       col: row.col,
@@ -520,7 +551,6 @@ export function elementToWire(row: {
       offsetY: row.offsetY,
       assetId: row.kind,
       ...(row.variant === 0 ? {} : { orientation: row.variant }),
-      ...(building ? { building } : {}),
     };
   }
   if (isElementKind(row.kind)) {

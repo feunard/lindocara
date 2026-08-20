@@ -7,6 +7,11 @@ export const EDITOR_HISTORY_LIMIT = 100;
 
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import {
+  type BridgeDimensions,
+  bridgeOrientation,
+  parseBridgeDimensions,
+} from "@lindocara/engine/bridges.js";
+import {
   type BuildingSettings,
   defaultBuildingSettings,
   isStandingBuildingAsset,
@@ -461,6 +466,7 @@ export function moveSelection(
                 ...(element.id ? { id: element.id } : {}),
                 ...(element.building ? { building: element.building } : {}),
                 ...(element.orientation ? { orientation: element.orientation } : {}),
+                ...(element.bridge ? { bridge: element.bridge } : {}),
               }
             : candidate,
         ),
@@ -514,7 +520,7 @@ export function updateSelectedElementAsset(
     selection.offsetY,
   );
   if (!updated) return null;
-  return {
+  const result: EditorMap = {
     ...updated,
     elements: updated.elements.map((candidate) =>
       sameElementSlot(candidate, selection)
@@ -524,10 +530,16 @@ export function updateSelectedElementAsset(
             ...(isStandingBuildingAsset(assetId) && existing.orientation
               ? { orientation: existing.orientation }
               : {}),
+            ...(isStandingBuildingAsset(assetId) && existing.building
+              ? { building: existing.building }
+              : {}),
+            ...(bridgeOrientation(assetId) && existing.bridge ? { bridge: existing.bridge } : {}),
           }
         : candidate,
     ),
   };
+  const changed = result.elements.find((candidate) => sameElementSlot(candidate, selection));
+  return changed && placementFitsMap(result, changed) && keepsSpawnClear(result) ? result : null;
 }
 
 /** Re-place the selected element at its cell with a new quarter-cell offset, clamped to
@@ -570,6 +582,7 @@ export function updateSelectedElementOffset(
             ...(element.id ? { id: element.id } : {}),
             ...(element.building ? { building: element.building } : {}),
             ...(element.orientation ? { orientation: element.orientation } : {}),
+            ...(element.bridge ? { bridge: element.bridge } : {}),
           }
         : candidate,
     ),
@@ -593,10 +606,32 @@ export function updateSelectedElementOrientation(
       return orientation === 0 ? withoutOrientation : { ...withoutOrientation, orientation };
     }),
   };
+  const rotated = next.elements.find((candidate) => sameElementSlot(candidate, selection));
+  return rotated && placementFitsMap(next, rotated) && keepsSpawnClear(next) ? next : null;
+}
+
+/** Resize one selected bridge in whole cells while preserving its authored anchor and identity. */
+export function updateSelectedBridgeDimensions(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  dimensions: BridgeDimensions,
+): EditorMap | null {
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!element || !bridgeOrientation(element.assetId)) return null;
+  const parsed = parseBridgeDimensions(dimensions);
+  if (!parsed) return null;
+  const resized = { ...element, bridge: parsed };
+  if (!placementFitsMap(map, resized)) return null;
+  const next: EditorMap = {
+    ...map,
+    elements: map.elements.map((candidate) =>
+      sameElementSlot(candidate, selection) ? resized : candidate,
+    ),
+  };
   return keepsSpawnClear(next) ? next : null;
 }
 
-/** Update one building's durability without changing its placement or catalogue appearance. */
+/** Update one building's durability and footprint without changing its anchor or appearance. */
 export function updateSelectedBuildingSettings(
   map: EditorMap,
   selection: Extract<EditorSelection, { kind: "element" }>,
@@ -606,12 +641,15 @@ export function updateSelectedBuildingSettings(
   if (!element || !isStandingBuildingAsset(element.assetId)) return null;
   const parsed = parseBuildingSettings(settings);
   if (!parsed) return null;
-  return {
+  const resized = { ...element, building: parsed };
+  if (!placementFitsMap(map, resized)) return null;
+  const next: EditorMap = {
     ...map,
     elements: map.elements.map((candidate) =>
-      sameElementSlot(candidate, selection) ? { ...candidate, building: parsed } : candidate,
+      sameElementSlot(candidate, selection) ? resized : candidate,
     ),
   };
+  return keepsSpawnClear(next) ? next : null;
 }
 
 export interface ElementEventBinding {
@@ -1432,6 +1470,9 @@ export function applyTool(
         assetId: tool.assetId,
         ...(replaced?.assetId === tool.assetId && replaced.orientation
           ? { orientation: replaced.orientation }
+          : {}),
+        ...(replaced?.assetId === tool.assetId && replaced.bridge
+          ? { bridge: replaced.bridge }
           : {}),
         ...(building
           ? {

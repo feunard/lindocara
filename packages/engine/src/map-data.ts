@@ -10,6 +10,12 @@
  */
 
 import {
+  type BridgeDimensions,
+  bridgeOrientation,
+  bridgePlacementLayout,
+  parseBridgeDimensions,
+} from "./bridges.js";
+import {
   type BuildingSettings,
   defaultBuildingSettings,
   isStandingBuildingAsset,
@@ -51,6 +57,8 @@ export interface MapElement {
   assetId: EditorAssetId;
   /** Optional quarter-turn: front (0/default), right side (1), rear (2), left side (3). */
   orientation?: ElementOrientation;
+  /** Present only on a resizable bridge. Absent preserves the historical 3x1 dimensions. */
+  bridge?: BridgeDimensions;
   /** Present only on standing building assets; legacy payloads receive catalogue-derived defaults. */
   building?: BuildingSettings;
 }
@@ -279,6 +287,19 @@ export function quarterCellAt(
 }
 
 export function elementCells(element: MapElement): { col: number; row: number }[] {
+  const bridge = bridgePlacementLayout(element);
+  if (bridge) {
+    return Array.from({ length: bridge.rows }, (_, row) =>
+      Array.from({ length: bridge.cols }, (_unused, col) => ({
+        col: bridge.startCol + col,
+        row: bridge.startRow + row,
+      })),
+    ).flat();
+  }
+  if (element.building?.dimensions) {
+    const collider = elementWorldCollider(element);
+    return collider ? rectCells(collider) : [];
+  }
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
   const orientation = element.orientation ?? 0;
@@ -299,7 +320,24 @@ export function elementCells(element: MapElement): { col: number; row: number }[
  * `createCatalogElementView` — that would push every collider a padding's worth south of its sprite.
  */
 export function elementWorldCollider(element: MapElement): Rect | null {
-  const collider = editorAsset(element.assetId)?.editor.collider;
+  const bridge = bridgePlacementLayout(element);
+  if (bridge) {
+    return {
+      x: bridge.startCol * TILE_SIZE + element.offsetX * ELEMENT_OFFSET_PX,
+      y: bridge.startRow * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX,
+      width: bridge.cols * TILE_SIZE,
+      height: bridge.rows * TILE_SIZE,
+    };
+  }
+  const dimensions = element.building?.dimensions;
+  const collider = dimensions
+    ? {
+        x: (-dimensions.width * TILE_SIZE) / 2,
+        y: -dimensions.depth * TILE_SIZE,
+        width: dimensions.width * TILE_SIZE,
+        height: dimensions.depth * TILE_SIZE,
+      }
+    : editorAsset(element.assetId)?.editor.collider;
   if (!collider) return null;
   const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
   const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
@@ -378,6 +416,27 @@ export function elementPlacementCells(element: MapElement): { col: number; row: 
 }
 
 export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {
+  const bridge = bridgePlacementLayout(element);
+  // Historical rows only guaranteed that their anchor was in bounds. Keep accepting them; once an
+  // author explicitly resizes a bridge, its complete footprint must fit inside the map.
+  if (bridge && element.bridge) {
+    return (
+      bridge.startCol >= 0 &&
+      bridge.startRow >= 0 &&
+      bridge.startCol + bridge.cols <= cols &&
+      bridge.startRow + bridge.rows <= rows
+    );
+  }
+  if (element.building?.dimensions) {
+    const collider = elementWorldCollider(element);
+    return Boolean(
+      collider &&
+        collider.x >= 0 &&
+        collider.y >= 0 &&
+        collider.x + collider.width <= cols * TILE_SIZE &&
+        collider.y + collider.height <= rows * TILE_SIZE,
+    );
+  }
   // The authored foot is the placement. Art may overhang any map edge: clouds, crowns and large
   // buildings must remain placeable on the first/last row without pretending their transparent
   // canvas is gameplay terrain.
@@ -517,6 +576,9 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     }
     const orientation = parseElementOrientation(item.orientation);
     if (orientation === null || (orientation !== 0 && !building)) return null;
+    const bridgeAsset = bridgeOrientation(assetId);
+    const bridge = item.bridge === undefined ? undefined : parseBridgeDimensions(item.bridge);
+    if (bridge === null || (!bridgeAsset && bridge !== undefined)) return null;
     parsed.push({
       ...(typeof id === "string" ? { id } : {}),
       col: col as number,
@@ -525,6 +587,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       offsetY,
       assetId,
       ...(orientation === 0 ? {} : { orientation }),
+      ...(bridge ? { bridge } : {}),
       ...(building ? { building } : {}),
     });
   }

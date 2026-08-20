@@ -1,5 +1,7 @@
+import { type BridgeDimensions, bridgeDimensionsOrDefault } from "@lindocara/engine/bridges.js";
 import {
   type BuildingArchetype,
+  type BuildingDimensions,
   type BuildingVolumeDimensions,
   buildingVolumeDimensions,
 } from "@lindocara/engine/buildings.js";
@@ -21,6 +23,8 @@ export interface BuildingVolumeArt {
   roofColor: number;
   /** Fixed authored quarter-turn. The model never follows the camera. */
   orientation?: ElementOrientation;
+  /** Optional author-resized footprint; vertical proportions stay native. */
+  dimensions?: BuildingDimensions;
 }
 
 export interface NativeStaticVisual {
@@ -596,29 +600,34 @@ function buildHouse(root: THREE.Group, size: BuildingVolumeDimensions, m: Materi
 }
 
 function buildTower(root: THREE.Group, size: BuildingVolumeDimensions, m: Materials): void {
-  const radius = size.width / 2;
+  const model = new THREE.Group();
+  model.name = "tower-footprint";
+  model.scale.set(size.width / 2, 1, size.depth / 2);
+  root.add(model);
+  const nativeSize = { ...size, width: 2, depth: 2 };
+  const radius = 1;
   cylinder(
-    root,
+    model,
     "stone-watchtower",
     [radius * 0.94, radius],
     size.wallHeight,
     [0, size.wallHeight / 2, 0],
     m.stone,
   );
-  addRoundStoneCourses(root, radius * 0.955, size.wallHeight, m.stoneShade);
+  addRoundStoneCourses(model, radius * 0.955, size.wallHeight, m.stoneShade);
   cylinder(
-    root,
+    model,
     "blue-parapet-band",
     [radius * 1.02, radius * 1.02],
     0.17,
     [0, size.wallHeight - 0.05, 0],
     m.stoneShade,
   );
-  addCircularCrenellations(root, radius, size.wallHeight, m.stone, m.deck);
-  addDoor(root, 0, radius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.92);
-  addWindow(root, "back", 0, 1.72, size, m.window, m.outline, 0.46);
-  addWindow(root, "left", 0.05, 2.05, size, m.window, m.outline, 0.38);
-  addWindow(root, "right", -0.12, 1.4, size, m.window, m.outline, 0.38);
+  addCircularCrenellations(model, radius, size.wallHeight, m.stone, m.deck);
+  addDoor(model, 0, radius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.92);
+  addWindow(model, "back", 0, 1.72, nativeSize, m.window, m.outline, 0.46);
+  addWindow(model, "left", 0.05, 2.05, nativeSize, m.window, m.outline, 0.38);
+  addWindow(model, "right", -0.12, 1.4, nativeSize, m.window, m.outline, 0.38);
 }
 
 function buildWindmill(
@@ -626,23 +635,27 @@ function buildWindmill(
   size: BuildingVolumeDimensions,
   m: Materials,
 ): THREE.Group {
+  const model = new THREE.Group();
+  model.name = "windmill-footprint";
+  model.scale.set(size.width / 2.75, 1, size.depth / 2);
+  root.add(model);
   const bodyRadius = 0.82;
   cylinder(
-    root,
+    model,
     "mill-body",
     [0.62, bodyRadius],
     size.wallHeight,
     [0, size.wallHeight / 2, 0],
     m.stone,
   );
-  addRoundStoneCourses(root, bodyRadius * 0.94, size.wallHeight, m.stoneShade);
+  addRoundStoneCourses(model, bodyRadius * 0.94, size.wallHeight, m.stoneShade);
   const roof = shadow(new THREE.Mesh(new THREE.ConeGeometry(1.02, size.roofHeight, 12), m.roof));
   roof.name = "windmill-cap";
   roof.position.y = size.wallHeight + size.roofHeight / 2;
-  root.add(roof);
-  addDoor(root, 0, bodyRadius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.82);
+  model.add(roof);
+  addDoor(model, 0, bodyRadius + 0.045, m.blue, m.outline, m.stoneShade, m.wood, m.metal, 0.82);
   addWindow(
-    root,
+    model,
     "left",
     0,
     1.45,
@@ -652,7 +665,7 @@ function buildWindmill(
     0.56,
   );
   addWindow(
-    root,
+    model,
     "right",
     -0.08,
     1.82,
@@ -673,7 +686,7 @@ function buildWindmill(
   const hub = cylinder(rotor, "windmill-hub", [0.23, 0.23], 0.34, [0, 0, 0], m.wood);
   hub.rotation.x = Math.PI / 2;
   rotor.position.set(0, size.wallHeight * 0.73, bodyRadius + 0.24);
-  root.add(rotor);
+  model.add(rotor);
   return rotor;
 }
 
@@ -771,17 +784,21 @@ function buildFortress(
   m: Materials,
   kind: "barracks" | "castle",
 ): void {
+  const model = new THREE.Group();
+  model.name = `${kind}-footprint`;
+  model.scale.set(size.width / 3, 1, size.depth / 2.375);
+  root.add(model);
   const bodyWidth = 2.32;
   const bodyDepth = 1.92;
   box(
-    root,
+    model,
     "fortified-hall",
     [bodyWidth, size.wallHeight, bodyDepth],
     [0, size.wallHeight / 2, 0],
     m.stone,
   );
   box(
-    root,
+    model,
     "blue-rampart-band",
     [bodyWidth + 0.12, 0.16, bodyDepth + 0.12],
     [0, size.wallHeight - 0.06, 0],
@@ -802,7 +819,7 @@ function buildFortress(
       : [];
   for (const [x, z] of towerPositions) {
     cylinder(
-      root,
+      model,
       "corner-tower",
       [towerRadius, towerRadius],
       towerHeight,
@@ -811,7 +828,7 @@ function buildFortress(
       12,
     );
     cylinder(
-      root,
+      model,
       "corner-tower-band",
       [towerRadius + 0.025, towerRadius + 0.025],
       0.13,
@@ -819,10 +836,10 @@ function buildFortress(
       m.stoneShade,
       12,
     );
-    addCircularCrenellationsAt(root, towerRadius, towerHeight, x, z, m.stone, m.deck);
+    addCircularCrenellationsAt(model, towerRadius, towerHeight, x, z, m.stone, m.deck);
   }
   const deck = box(
-    root,
+    model,
     "timber-roof-deck",
     [bodyWidth, 0.12, bodyDepth],
     [0, size.wallHeight + 0.03, 0],
@@ -832,16 +849,16 @@ function buildFortress(
   for (let index = 1; index < 7; index += 1) {
     const x = -bodyWidth / 2 + (index * bodyWidth) / 7;
     box(
-      root,
+      model,
       "roof-deck-seam",
       [0.025, 0.025, bodyDepth - 0.08],
       [x, size.wallHeight + 0.102, 0],
       m.outline,
     );
   }
-  addRectangularBattlements(root, bodyWidth, bodyDepth, size.wallHeight + 0.22, m.stoneShade);
+  addRectangularBattlements(model, bodyWidth, bodyDepth, size.wallHeight + 0.22, m.stoneShade);
   addDoor(
-    root,
+    model,
     0,
     bodyDepth / 2 + 0.05,
     m.blue,
@@ -852,7 +869,7 @@ function buildFortress(
     kind === "castle" ? 1.28 : 1.12,
   );
   addWindow(
-    root,
+    model,
     "back",
     0,
     size.wallHeight * 0.58,
@@ -920,7 +937,7 @@ export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `building-${art.archetype}-${art.state}`;
   group.rotation.y = -(art.orientation ?? 0) * (Math.PI / 2);
-  const size = buildingVolumeDimensions(art.archetype);
+  const size = buildingVolumeDimensions(art.archetype, art.dimensions);
   const materials = makeMaterials(art);
   const structure = new THREE.Group();
   structure.name = "native-architecture";
@@ -993,10 +1010,12 @@ function bridgePoint(horizontal: boolean, along: number, side: number, y: number
 export function makeBridgeVolume(
   deckTexture: THREE.Texture,
   orientation: "horizontal" | "vertical",
+  dimensions?: BridgeDimensions,
 ): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `bridge-${orientation}`;
   const horizontal = orientation === "horizontal";
+  const size = bridgeDimensionsOrDefault(dimensions);
   deckTexture.wrapS = THREE.RepeatWrapping;
   deckTexture.wrapT = THREE.RepeatWrapping;
   deckTexture.needsUpdate = true;
@@ -1011,11 +1030,11 @@ export function makeBridgeVolume(
   deck.name = "walkable-deck";
   group.add(deck);
 
-  const plankCount = 11;
+  const plankCount = Math.max(4, Math.round((size.length / BRIDGE_DECK_LENGTH) * 11));
   for (let index = 0; index < plankCount; index += 1) {
-    const along = -BRIDGE_DECK_LENGTH / 2 + ((index + 0.5) * BRIDGE_DECK_LENGTH) / plankCount;
-    const plankAlong = BRIDGE_DECK_LENGTH / plankCount - 0.018;
-    const plankAcross = 0.87 + ((index * 7) % 3) * 0.035;
+    const along = -size.length / 2 + ((index + 0.5) * size.length) / plankCount;
+    const plankAlong = size.length / plankCount - 0.018;
+    const plankAcross = Math.max(0.2, size.width - 0.13 + ((index * 7) % 3) * 0.035);
     const y = BRIDGE_VISUAL_LIFT - 0.055 + (index % 3) * 0.008;
     box(
       deck,
@@ -1027,18 +1046,23 @@ export function makeBridgeVolume(
     );
   }
 
-  for (const side of [-0.3, 0.3]) {
+  for (const side of [-size.width * 0.3, size.width * 0.3]) {
     box(
       group,
       "bridge-underbeam",
-      horizontal ? [BRIDGE_DECK_LENGTH, 0.13, 0.13] : [0.13, 0.13, BRIDGE_DECK_LENGTH],
+      horizontal ? [size.length, 0.13, 0.13] : [0.13, 0.13, size.length],
       horizontal ? [0, -0.13, side] : [side, -0.13, 0],
       darkWood,
     );
   }
 
-  const postAlong = [-1.42, 0, 1.42] as const;
-  for (const side of [-0.43, 0.43]) {
+  const postSegments = Math.max(1, Math.ceil(size.length / 1.5));
+  const postAlong = Array.from(
+    { length: postSegments + 1 },
+    (_, index) => -size.length / 2 + 0.08 + (index * (size.length - 0.16)) / postSegments,
+  );
+  const railSide = Math.max(0.12, size.width / 2 - 0.07);
+  for (const side of [-railSide, railSide]) {
     for (const along of postAlong) {
       const point = bridgePoint(horizontal, along, side, 0.32);
       box(group, "bridge-post", [0.13, 0.72, 0.13], [point.x, point.y, point.z], darkWood, [
@@ -1066,7 +1090,9 @@ export function makeBridgeVolume(
   return {
     mesh: group,
     placeAt(x, y, z) {
-      group.position.set(x, y, z - (horizontal ? 0.5 : 1.5));
+      // Explicit dimensions use the compiled deck centre. Their absence identifies an old
+      // heightfield whose coordinates still use the catalogue foot anchor.
+      group.position.set(x, y, dimensions ? z : z - (horizontal ? 0.5 : 1.5));
     },
     setFrame() {},
     update() {},

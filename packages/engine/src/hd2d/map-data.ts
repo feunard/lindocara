@@ -9,6 +9,12 @@
 // Stays PURE (no DOM, no `three`, no clock, no randomness): this file moved into
 // `@lindocara/engine` in Task 11, alongside `terrain-query.ts`, which got there first.
 
+import { type BridgeDimensions, bridgeOrientation, parseBridgeDimensions } from "../bridges.js";
+import {
+  type BuildingDimensions,
+  buildingArchetype,
+  parseBuildingDimensions,
+} from "../buildings.js";
 import { type ElementOrientation, parseElementOrientation } from "../element-orientation.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
@@ -89,6 +95,10 @@ export interface HeightfieldElement {
   x: number;
   z: number;
   orientation?: ElementOrientation;
+  /** Explicit dimensions also signal the centre-based bridge coordinate convention. */
+  bridge?: BridgeDimensions;
+  /** Custom native-building footprint; height remains archetype-authored. */
+  building?: BuildingDimensions;
 }
 
 /** An authored event's active page, appearance only. Mirrors `WorldInfo.events`. */
@@ -191,11 +201,19 @@ function toElement(value: unknown): HeightfieldElement | null {
     return null;
   const orientation = parseElementOrientation(value.orientation);
   if (orientation === null) return null;
+  const bridge = value.bridge === undefined ? undefined : parseBridgeDimensions(value.bridge);
+  if (bridge === null || (bridge !== undefined && !bridgeOrientation(value.assetId))) return null;
+  const building =
+    value.building === undefined ? undefined : parseBuildingDimensions(value.building);
+  if (building === null || (building !== undefined && !buildingArchetype(value.assetId)))
+    return null;
   return {
     assetId: value.assetId,
     x: value.x,
     z: value.z,
     ...(orientation === 0 ? {} : { orientation }),
+    ...(bridge ? { bridge } : {}),
+    ...(building ? { building } : {}),
   };
 }
 

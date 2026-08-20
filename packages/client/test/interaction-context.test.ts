@@ -112,10 +112,11 @@ describe("contextual controller interaction", () => {
       destructible: true,
       destroyed: false,
       interactive: true,
+      dimensions: { width: 5, depth: 3.125 },
       collider: { x: -1.375, z: -2.125, w: 2.75, h: 2.125 },
     };
     expect(
-      hasNearbyInteraction(context({ self: { ...self, x: 0.55, z: 0.4 }, buildings: [building] })),
+      hasNearbyInteraction(context({ self: { ...self, x: 1, z: 0.4 }, buildings: [building] })),
     ).toBe(true);
     expect(
       hasNearbyInteraction(context({ self: { ...self, x: -1.625, z: -1 }, buildings: [building] })),

@@ -1188,6 +1188,16 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.building.orientation.right": "Droite",
   "editor.inspector.building.orientation.back": "Dos",
   "editor.inspector.building.orientation.left": "Gauche",
+  "editor.inspector.building.size": "Dimensions du bâtiment",
+  "editor.inspector.building.width": "Largeur",
+  "editor.inspector.building.depth": "Profondeur",
+  "editor.inspector.building.sizeHint":
+    "Par huitième de cellule ; le modèle, le toit et la collision suivent.",
+  "editor.inspector.bridge.size": "Dimensions du pont",
+  "editor.inspector.bridge.length": "Longueur",
+  "editor.inspector.bridge.width": "Largeur",
+  "editor.inspector.bridge.hint":
+    "En cellules entières ; le tablier, les garde-corps et la collision suivent.",
   "editor.inspector.building.ruin": "Remplacé à sa destruction par",
   "editor.inspector.building.interior.create": "Créer l’intérieur",
   "editor.inspector.building.interior.open": "Ouvrir l’intérieur",

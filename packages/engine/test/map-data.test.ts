@@ -3,6 +3,8 @@ import {
   bakeCollision,
   canPlaceElement,
   EMPTY_MARKERS,
+  elementCells,
+  elementFitsMap,
   elementPlacementCells,
   elementWorldCollider,
   MARKER_LABEL_MAX,
@@ -155,6 +157,46 @@ describe("parsing a map off the wire", () => {
     expect(map?.elements[0]?.assetId).toBe(TREE_ALT);
     expect(map?.layers).toHaveLength(3);
     expect(map?.layers[0]?.ids).toEqual(layersFromBlocks(["..", "##"]).layers[0]?.ids);
+  });
+
+  it("parses explicit bridge dimensions and derives their resized footprint and collider", () => {
+    const bridge = {
+      col: 3,
+      row: 3,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal" as const,
+      bridge: { length: 5, width: 2 },
+    };
+    expect(elementCells(bridge)).toHaveLength(10);
+    expect(elementWorldCollider(bridge)).toEqual({ x: 64, y: 128, width: 320, height: 128 });
+    expect(elementFitsMap(bridge, 8, 8)).toBe(true);
+    expect(elementFitsMap({ ...bridge, col: 1 }, 8, 8)).toBe(false);
+    const { bridge: _dimensions, ...legacyBridge } = bridge;
+    expect(elementFitsMap({ ...legacyBridge, col: 1 }, 8, 8)).toBe(true);
+
+    const parsed = parseMapData(
+      wire({
+        cols: 8,
+        rows: 8,
+        layers: [
+          encodeTileLayer(emptyLayer(8, 8)),
+          encodeTileLayer(emptyLayer(8, 8)),
+          encodeTileLayer(emptyLayer(8, 8)),
+        ],
+        elements: [bridge],
+      }),
+    );
+    expect(parsed?.elements[0]?.bridge).toEqual({ length: 5, width: 2 });
+    expect(
+      parseMapData(
+        wire({
+          elements: [
+            { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH, bridge: bridge.bridge },
+          ],
+        }),
+      ),
+    ).toBeNull();
   });
 
   /**

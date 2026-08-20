@@ -113,6 +113,8 @@ const stageMock = vi.hoisted(() => ({
   moveSelected: vi.fn(),
   setSelectedElementAsset: vi.fn(),
   setSelectedElementOffset: vi.fn(),
+  setSelectedElementOrientation: vi.fn(),
+  setSelectedBridgeDimensions: vi.fn(),
   setSelectedBuildingSettings: vi.fn(),
   deleteSelected: vi.fn(),
   beginEventDraft: vi.fn(),
@@ -151,6 +153,8 @@ function stageHandle() {
     moveSelected: stageMock.moveSelected,
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
     setSelectedElementOffset: stageMock.setSelectedElementOffset,
+    setSelectedElementOrientation: stageMock.setSelectedElementOrientation,
+    setSelectedBridgeDimensions: stageMock.setSelectedBridgeDimensions,
     setSelectedBuildingSettings: stageMock.setSelectedBuildingSettings,
     deleteSelected: stageMock.deleteSelected,
     beginEventDraft: stageMock.beginEventDraft,
@@ -992,6 +996,78 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.clearSelection).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
+  });
+
+  it("resizes a selected bridge from length and width fields in the inspector", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+    const bridge = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal" as const,
+      bridge: { length: 5, width: 2 },
+    };
+    const editor = { ...blankMap("Crossing", 40, 30), elements: [bridge] };
+    stageMock.current.mockReturnValue(editor);
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(editor, {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 },
+      });
+    });
+
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    const length = within(inspector).getByRole("spinbutton", {
+      name: t("editor.inspector.bridge.length"),
+    });
+    fireEvent.change(length, { target: { value: "7" } });
+    fireEvent.blur(length);
+    expect(stageMock.setSelectedBridgeDimensions).toHaveBeenCalledWith({ length: 7, width: 2 });
+  });
+
+  it("resizes a selected building from width and depth fields in the inspector", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+    const house = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "building.buildings-blue-buildings.house1" as const,
+      building: {
+        destructible: true,
+        maxHp: 900,
+        dimensions: { width: 5, depth: 3.125 },
+      },
+    };
+    const editor = { ...blankMap("Village", 40, 30), elements: [house] };
+    stageMock.current.mockReturnValue(editor);
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(editor, {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 },
+      });
+    });
+
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    const width = within(inspector).getByRole("spinbutton", {
+      name: t("editor.inspector.building.width"),
+    });
+    fireEvent.change(width, { target: { value: "6.25" } });
+    fireEvent.blur(width);
+    expect(stageMock.setSelectedBuildingSettings).toHaveBeenCalledWith({
+      destructible: true,
+      maxHp: 900,
+      dimensions: { width: 6.25, depth: 3.125 },
+    });
   });
 
   it("creates and opens an editable interior from a selected building", async () => {

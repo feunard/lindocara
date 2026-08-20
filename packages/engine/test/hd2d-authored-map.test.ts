@@ -190,6 +190,40 @@ describe("compileAuthoredMap", () => {
     }
   });
 
+  it("compiles a resized building's model metadata and roof from one footprint", () => {
+    const size = 12;
+    const ground = emptyLayer(size, size);
+    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    const source: MapData = {
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [
+        {
+          col: 6,
+          row: 7,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: LINDOCARA_BUILDING_ASSET_IDS.house,
+          building: {
+            destructible: true,
+            maxHp: 900,
+            dimensions: { width: 5, depth: 3.125 },
+          },
+        },
+      ],
+    };
+
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.elements[0]).toMatchObject({
+      assetId: LINDOCARA_BUILDING_ASSET_IDS.house,
+      building: { width: 5, depth: 3.125 },
+    });
+    expect(compiled.colliders[0]).toMatchObject({ w: 5, h: 3.125, support: "center" });
+    expect(compiled.colliders[0]?.surface).toMatchObject({ shape: "gable", axis: "x" });
+  });
+
   it.each([
     {
       id: "terrain.bridge.wood.horizontal" as const,
@@ -252,5 +286,40 @@ describe("compileAuthoredMap", () => {
     expect(canStand(terrain, 0, 0, 0.25, 0)).toBe(true);
     expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.1, 0)).toBe(false);
     expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.05, 0.9)).toBe(true);
+  });
+
+  it("compiles a resized bridge's visual centre, deck and rails from the same dimensions", () => {
+    const size = 10;
+    const ground = emptyLayer(size, size);
+    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    const source: MapData = {
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [
+        {
+          col: 4,
+          row: 5,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "terrain.bridge.wood.horizontal",
+          bridge: { length: 5, width: 2 },
+        },
+      ],
+    };
+
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.elements).toEqual([
+      {
+        assetId: "terrain.bridge.wood.horizontal",
+        x: -0.5,
+        z: 0,
+        bridge: { length: 5, width: 2 },
+      },
+    ]);
+    expect(compiled.colliders[0]).toMatchObject({ x: -3, z: -1, w: 5, h: 2, top: 0 });
+    expect(compiled.colliders[1]).toMatchObject({ x: -3, z: -1, w: 5, h: 0.11 });
+    expect(compiled.colliders[2]).toMatchObject({ x: -3, z: 0.89, w: 5, h: 0.11 });
   });
 });

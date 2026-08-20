@@ -8,6 +8,7 @@
 
 import { acquireStageCanvas, releaseStageCanvas } from "@lindocara/client/game/stage-canvas.js";
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
 import type { BuildingSettings } from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import {
@@ -58,6 +59,7 @@ import {
   setActiveMode,
   toMapData,
   undoEditorHistory,
+  updateSelectedBridgeDimensions,
   updateSelectedBuildingSettings,
   updateSelectedElementAsset,
   updateSelectedElementOffset,
@@ -93,6 +95,7 @@ export interface MapEditorStageHandle {
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
   setSelectedElementOrientation(orientation: ElementOrientation): boolean;
+  setSelectedBridgeDimensions(dimensions: BridgeDimensions): boolean;
   setSelectedBuildingSettings(settings: BuildingSettings): boolean;
   deleteSelected(): boolean;
   beginEventDraft(id: string): MapEvent | null;
@@ -866,6 +869,10 @@ export function openMapEditorStage(
       setSelectedElementOrientation(orientation) {
         if (selected?.kind !== "element") return false;
         return commitInspectorChange(updateSelectedElementOrientation(map, selected, orientation));
+      },
+      setSelectedBridgeDimensions(dimensions) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedBridgeDimensions(map, selected, dimensions));
       },
       setSelectedBuildingSettings(settings) {
         if (selected?.kind !== "element") return false;

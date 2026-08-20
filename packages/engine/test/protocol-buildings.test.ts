@@ -24,6 +24,22 @@ describe("building state on the wire", () => {
     });
   });
 
+  it("carries an author-resized footprint and rejects off-grid dimensions", () => {
+    const resized = { ...building, dimensions: { width: 5, depth: 3.125 } };
+    expect(parseServerMessage(JSON.stringify({ t: "building.state", building: resized }))).toEqual({
+      t: "building.state",
+      building: resized,
+    });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "building.state",
+          building: { ...building, dimensions: { width: 5.1, depth: 3 } },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("rejects incoherent health, unknown art and extra outcome fields", () => {
     expect(
       parseServerMessage(

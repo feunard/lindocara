@@ -1,4 +1,4 @@
-import type { ElementOrientation } from "./element-orientation.js";
+import { type ElementOrientation, isElementOrientation } from "./element-orientation.js";
 import type { GroundVector } from "./ground.js";
 import { isUuid } from "./identifiers.js";
 import {
@@ -14,6 +14,15 @@ export interface BuildingSettings {
   maxHp: number;
   /** Ordinary authored map used as this building's editable interior. */
   interiorMapId?: string;
+  /** Optional authored footprint. Absent preserves the archetype's native dimensions. */
+  dimensions?: BuildingDimensions;
+}
+
+export interface BuildingDimensions {
+  /** Facade width in world tiles, before the authored quarter-turn is applied. */
+  width: number;
+  /** Distance from the front threshold to the back wall, in world tiles. */
+  depth: number;
 }
 
 /** One authored building projected into the heightfield room's centred, tile-unit space. */
@@ -43,6 +52,7 @@ export interface BuildingDoorPlacement {
   z: number;
   assetId: string;
   orientation?: ElementOrientation;
+  dimensions?: BuildingDimensions;
 }
 
 /** Shortest ground distance to a solid building base; zero while the point is inside the base. */
@@ -63,7 +73,7 @@ export function distanceToBuildingCollider(
  */
 export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): GroundVector {
   const archetype = buildingArchetype(placement.assetId);
-  const size = archetype ? buildingVolumeDimensions(archetype) : null;
+  const size = archetype ? buildingVolumeDimensions(archetype, placement.dimensions) : null;
   const localX =
     archetype === "house"
       ? (size?.width ?? 0) * 0.2
@@ -93,6 +103,13 @@ export function distanceToBuildingDoor(
 
 export const MIN_BUILDING_HP = 1;
 export const MAX_BUILDING_HP = 1_000_000;
+export const MIN_BUILDING_DIMENSION = 1;
+export const MAX_BUILDING_DIMENSION = 32;
+/** Native footprints already use eighth-cell measurements, so resizing keeps that exact grid. */
+export const BUILDING_DIMENSION_STEP = 1 / 8;
+const BUILDING_DIMENSION_UNITS = 1 / BUILDING_DIMENSION_STEP;
+const BUILDING_TRANSFORM_CODE_OFFSET = 4;
+const BUILDING_DIMENSION_CODE_BASE = MAX_BUILDING_DIMENSION * BUILDING_DIMENSION_UNITS + 1;
 
 export type BuildingArchetype =
   | "house"
@@ -116,35 +133,100 @@ export interface BuildingVolumeDimensions {
   roofShape: "gable" | "cone" | "crenellated";
 }
 
-export function buildingVolumeDimensions(archetype: BuildingArchetype): BuildingVolumeDimensions {
-  switch (archetype) {
-    case "tower":
-      return { width: 2, depth: 2, wallHeight: 3.1, roofHeight: 0.5, roofShape: "crenellated" };
-    case "windmill":
-      return { width: 2.75, depth: 2, wallHeight: 2.65, roofHeight: 0.92, roofShape: "cone" };
-    case "archery":
-      return { width: 3, depth: 2.25, wallHeight: 1.42, roofHeight: 1.18, roofShape: "gable" };
-    case "barracks":
-      return {
-        width: 3,
-        depth: 2.375,
-        wallHeight: 1.72,
-        roofHeight: 0.48,
-        roofShape: "crenellated",
-      };
-    case "monastery":
-      return { width: 3, depth: 2.25, wallHeight: 1.58, roofHeight: 1.28, roofShape: "gable" };
-    case "castle":
-      return {
-        width: 3,
-        depth: 2.375,
-        wallHeight: 2.02,
-        roofHeight: 0.55,
-        roofShape: "crenellated",
-      };
-    case "house":
-      return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
+export function buildingVolumeDimensions(
+  archetype: BuildingArchetype,
+  dimensions?: BuildingDimensions,
+): BuildingVolumeDimensions {
+  const native: BuildingVolumeDimensions = (() => {
+    switch (archetype) {
+      case "tower":
+        return { width: 2, depth: 2, wallHeight: 3.1, roofHeight: 0.5, roofShape: "crenellated" };
+      case "windmill":
+        return { width: 2.75, depth: 2, wallHeight: 2.65, roofHeight: 0.92, roofShape: "cone" };
+      case "archery":
+        return { width: 3, depth: 2.25, wallHeight: 1.42, roofHeight: 1.18, roofShape: "gable" };
+      case "barracks":
+        return {
+          width: 3,
+          depth: 2.375,
+          wallHeight: 1.72,
+          roofHeight: 0.48,
+          roofShape: "crenellated",
+        };
+      case "monastery":
+        return { width: 3, depth: 2.25, wallHeight: 1.58, roofHeight: 1.28, roofShape: "gable" };
+      case "castle":
+        return {
+          width: 3,
+          depth: 2.375,
+          wallHeight: 2.02,
+          roofHeight: 0.55,
+          roofShape: "crenellated",
+        };
+      case "house":
+        return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
+    }
+  })();
+  return dimensions ? { ...native, ...dimensions } : native;
+}
+
+export function parseBuildingDimensions(value: unknown): BuildingDimensions | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { width, depth } = value as Record<string, unknown>;
+  if (typeof width !== "number" || typeof depth !== "number") return null;
+  const widthUnits = width * BUILDING_DIMENSION_UNITS;
+  const depthUnits = depth * BUILDING_DIMENSION_UNITS;
+  if (!Number.isSafeInteger(widthUnits) || !Number.isSafeInteger(depthUnits)) return null;
+  if (
+    width < MIN_BUILDING_DIMENSION ||
+    width > MAX_BUILDING_DIMENSION ||
+    depth < MIN_BUILDING_DIMENSION ||
+    depth > MAX_BUILDING_DIMENSION
+  ) {
+    return null;
   }
+  return { width, depth };
+}
+
+export function buildingDimensionsOrDefault(
+  assetId: string,
+  dimensions?: BuildingDimensions,
+): BuildingDimensions | null {
+  const archetype = buildingArchetype(assetId);
+  if (!archetype) return null;
+  const size = buildingVolumeDimensions(archetype, dimensions);
+  return { width: size.width, depth: size.depth };
+}
+
+/** Compact orientation + optional footprint in the existing map-element transform integer. */
+export function encodeBuildingTransform(
+  orientation: ElementOrientation = 0,
+  dimensions?: BuildingDimensions,
+): number {
+  if (!dimensions) return orientation;
+  const widthUnits = Math.round(dimensions.width * BUILDING_DIMENSION_UNITS);
+  const depthUnits = Math.round(dimensions.depth * BUILDING_DIMENSION_UNITS);
+  return (
+    BUILDING_TRANSFORM_CODE_OFFSET +
+    (widthUnits * BUILDING_DIMENSION_CODE_BASE + depthUnits) * 4 +
+    orientation
+  );
+}
+
+export function decodeBuildingTransform(
+  code: number,
+): { orientation: ElementOrientation; dimensions?: BuildingDimensions } | null {
+  if (isElementOrientation(code)) return { orientation: code };
+  if (!Number.isSafeInteger(code) || code < BUILDING_TRANSFORM_CODE_OFFSET) return null;
+  const packed = code - BUILDING_TRANSFORM_CODE_OFFSET;
+  const orientation = packed % 4;
+  if (!isElementOrientation(orientation)) return null;
+  const dimensionsCode = Math.floor(packed / 4);
+  const dimensions = parseBuildingDimensions({
+    width: Math.floor(dimensionsCode / BUILDING_DIMENSION_CODE_BASE) / BUILDING_DIMENSION_UNITS,
+    depth: (dimensionsCode % BUILDING_DIMENSION_CODE_BASE) / BUILDING_DIMENSION_UNITS,
+  });
+  return dimensions ? { orientation, dimensions } : null;
 }
 
 const DESTROYED_HOUSE =
@@ -236,15 +318,24 @@ export function defaultBuildingSettings(assetId: string): BuildingSettings | nul
 /** Strict wire parser for an explicit building configuration. */
 export function parseBuildingSettings(value: unknown): BuildingSettings | null {
   if (typeof value !== "object" || value === null) return null;
-  const { destructible, maxHp, interiorMapId } = value as Record<string, unknown>;
+  const {
+    destructible,
+    maxHp,
+    interiorMapId,
+    dimensions: dimensionsValue,
+  } = value as Record<string, unknown>;
   if (typeof destructible !== "boolean") return null;
   if (!Number.isSafeInteger(maxHp)) return null;
   const hp = maxHp as number;
   if (hp < MIN_BUILDING_HP || hp > MAX_BUILDING_HP) return null;
   if (interiorMapId !== undefined && !isUuid(interiorMapId)) return null;
+  const dimensions =
+    dimensionsValue === undefined ? undefined : parseBuildingDimensions(dimensionsValue);
+  if (dimensions === null) return null;
   return {
     destructible,
     maxHp: hp,
     ...(typeof interiorMapId === "string" ? { interiorMapId } : {}),
+    ...(dimensions ? { dimensions } : {}),
   };
 }

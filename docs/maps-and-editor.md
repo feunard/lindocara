@@ -94,6 +94,17 @@ of decoration slots â€” up to 16 stacked decorations per cell â€” with
 catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no longer a whole-cell
 footprint. Scenery placement is terrain-independent: every known catalogue asset may be placed on
 grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
+Once either wooden bridge is placed, its selection inspector can resize its crossing length and
+deck width in whole cells (1..32). The renderer regenerates planks, rails and supports from those
+dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
+geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
+transform integer, keeping old 3x1 bridges valid and requiring no schema migration.
+Every supported native 3D building uses the same generic contract: its inspector can resize facade
+width and depth from 1 to 32 cells in eighth-cell increments. The model is regenerated from those
+dimensions rather than scaled, and the compiled roof, solid footprint and doorway use the same
+values. Newly registered native building archetypes inherit the controls automatically. Legacy
+buildings retain their native footprint, and explicit dimensions share the existing transform
+integer, so no schema migration is required.
 Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
 stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and column 3
 climbs left; those are the only supported orientations. Both halves run beside

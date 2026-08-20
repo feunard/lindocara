@@ -456,6 +456,28 @@ describe("staticAssetSpec", () => {
     expect(left?.rotation.y).toBeCloseTo((-3 * Math.PI) / 2);
   });
 
+  it("passes authored dimensions into every native building volume", () => {
+    const building = buildingArt("house");
+    const map = flatMap(12, {
+      elements: [
+        {
+          assetId: "building",
+          x: 0,
+          z: 1,
+          building: { width: 5, depth: 3.125 },
+        },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(createHd2dContext(), scene, map, resolverFor({ building }));
+    const visual = scene.root.getObjectByName("building-house-standing");
+    const architecture = visual?.getObjectByName("native-architecture");
+    if (!architecture) throw new Error("resized native building missing");
+    const bounds = new THREE.Box3().setFromObject(architecture);
+    expect(bounds.max.x - bounds.min.x).toBeGreaterThanOrEqual(4.9);
+    expect(bounds.max.z - bounds.min.z).toBeGreaterThanOrEqual(3.05);
+  });
+
   it("turns the native windmill rotor continuously without camera-facing art", () => {
     const windmill = buildingArt("windmill");
     const map = flatMap(4, {
@@ -479,6 +501,30 @@ describe("staticAssetSpec", () => {
     expect(staticAssetSpec("terrain.bridge.wood.vertical")).toMatchObject({
       bridgeOrientation: "vertical",
     });
+  });
+
+  it("passes compiled dimensions and centre coordinates into a resized native bridge", () => {
+    const bridge = art({ bridgeOrientation: "horizontal" });
+    const map = flatMap(12, {
+      elements: [
+        {
+          assetId: "bridge",
+          x: 1.5,
+          z: -0.5,
+          bridge: { length: 7, width: 2 },
+        },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(createHd2dContext(), scene, map, resolverFor({ bridge }));
+
+    const visual = scene.root.getObjectByName("bridge-horizontal");
+    expect(visual?.position).toMatchObject({ x: 1.5, z: -0.5 });
+    const deck = visual?.getObjectByName("walkable-deck");
+    if (!(deck instanceof THREE.Group)) throw new Error("resized bridge deck missing");
+    const bounds = new THREE.Box3().setFromObject(deck);
+    expect(bounds.max.x - bounds.min.x).toBeCloseTo(7, 1);
+    expect(bounds.max.z - bounds.min.z).toBeGreaterThan(1.85);
   });
 
   it("places cloud art as a fixed three-card volume above the map", () => {

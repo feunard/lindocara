@@ -47,6 +47,11 @@ export interface ColliderIndex {
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
   blocked(x: number, z: number, r: number, y?: number): boolean;
   /**
+   * Whether an already-overlapping disc may move to another overlapping point. Every obstacle at
+   * the destination must already block the origin, and the move may not deepen either overlap.
+   */
+  allowsEscape(fromX: number, fromZ: number, x: number, z: number, r: number, y?: number): boolean;
+  /**
    * Height a disc must clear at this point, `Infinity` for a wall, or `null` when nothing overlaps.
    * The movement rule uses it only for a rising jump over a one-level finite prop.
    */
@@ -150,6 +155,23 @@ function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefine
   return surface === null || y < surface - 1e-3;
 }
 
+/** A monotone overlap score: zero outside, increasing as a disc penetrates farther into a shape. */
+function overlapDepth(rect: ColliderRect, x: number, z: number, r: number): number {
+  if (!colliderOverlapsDisc(rect, x, z, r)) return 0;
+  if (rect.footprint === "ellipse") {
+    const rx = rect.w / 2 + r;
+    const rz = rect.h / 2 + r;
+    const dx = x - (rect.x + rect.w / 2);
+    const dz = z - (rect.z + rect.h / 2);
+    return 1 - Math.hypot(dx / rx, dz / rz);
+  }
+  const dx = Math.max(rect.x - x, 0, x - (rect.x + rect.w));
+  const dz = Math.max(rect.z - z, 0, z - (rect.z + rect.h));
+  if (dx > 0 || dz > 0) return r - Math.hypot(dx, dz);
+  const inside = Math.min(x - rect.x, rect.x + rect.w - x, z - rect.z, rect.z + rect.h - z);
+  return r + Math.max(0, inside);
+}
+
 export function createColliderIndex(): ColliderIndex {
   const grid = new Map<number, ColliderRect[]>();
   const all: ColliderRect[] = [];
@@ -190,6 +212,16 @@ export function createColliderIndex(): ColliderIndex {
       return candidates(x, z, r).some(
         (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
       );
+    },
+    allowsEscape(fromX, fromZ, x, z, r, y) {
+      const destinationBlockers = candidates(x, z, r).filter(
+        (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
+      );
+      return destinationBlockers.every((rect) => {
+        if (!blocksAt(rect, fromX, fromZ, y)) return false;
+        const before = overlapDepth(rect, fromX, fromZ, r);
+        return before > 0 && overlapDepth(rect, x, z, r) <= before + 1e-9;
+      });
     },
     heightToClear(x, z, r) {
       let height: number | null = null;

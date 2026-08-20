@@ -18,8 +18,9 @@ import {
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import { bridgeOrientation, encodeBridgeDimensions } from "@lindocara/engine/bridges.js";
 import { createBuildingInteriorInput } from "@lindocara/engine/building-interior.js";
-import { isStandingBuildingAsset } from "@lindocara/engine/buildings.js";
+import { encodeBuildingTransform, isStandingBuildingAsset } from "@lindocara/engine/buildings.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   defaultMonsterTuning,
@@ -779,9 +780,13 @@ export class MapService {
         offsetX: element.offsetX,
         offsetY: element.offsetY,
         kind: element.assetId,
-        // Modern rows reuse the historical integer slot for their quarter-turn. Legacy rows still
-        // decode `kind + variant`; no schema migration or destructive rewrite is needed.
-        variant: element.orientation ?? 0,
+        // Modern rows reuse the historical integer slot for a compact transform: building
+        // quarter-turn or bridge length+width. Legacy rows still decode `kind + variant`.
+        variant: bridgeOrientation(element.assetId)
+          ? encodeBridgeDimensions(element.bridge)
+          : isStandingBuildingAsset(element.assetId)
+            ? encodeBuildingTransform(element.orientation, element.building?.dimensions)
+            : (element.orientation ?? 0),
         buildingDestructible: element.building?.destructible,
         buildingMaxHp: element.building?.maxHp,
         buildingInteriorMapId: element.building?.interiorMapId,

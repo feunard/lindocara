@@ -335,7 +335,8 @@ export function canStandOrEscape(
   const reliefThere = terrain.query.maxHeightAround(x, z, radius);
   if (reliefThere > reliefHere + HEIGHT_EPSILON) return false;
   return (
-    !terrain.colliders.blocked(x, z, radius) || terrain.colliders.blocked(from.x, from.z, radius)
+    !terrain.colliders.blocked(x, z, radius) ||
+    terrain.colliders.allowsEscape(from.x, from.z, x, z, radius)
   );
 }
 

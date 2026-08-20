@@ -295,6 +295,7 @@ export async function handleInteract(
         z: candidate.z,
         assetId: candidate.standingAssetId,
         ...(candidate.orientation === undefined ? {} : { orientation: candidate.orientation }),
+        ...(candidate.dimensions ? { dimensions: candidate.dimensions } : {}),
       }),
     }))
     .filter((candidate) => candidate.distance <= BUILDING_DOOR_INTERACTION_RANGE)

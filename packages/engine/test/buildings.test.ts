@@ -1,15 +1,24 @@
 import {
   BUILDING_DOOR_INTERACTION_RANGE,
+  buildingDimensionsOrDefault,
   buildingDoorGroundPoint,
+  decodeBuildingTransform,
   defaultBuildingMaxHp,
   defaultBuildingSettings,
   destroyedBuildingAssetId,
   distanceToBuildingDoor,
+  encodeBuildingTransform,
   isDestroyedBuildingAsset,
   isStandingBuildingAsset,
+  parseBuildingDimensions,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
-import { elementWorldCollider, parseMapElements } from "@lindocara/engine/map-data.js";
+import {
+  elementCells,
+  elementFitsMap,
+  elementWorldCollider,
+  parseMapElements,
+} from "@lindocara/engine/map-data.js";
 import {
   editorAsset,
   LINDOCARA_BUILDING_ASSET_IDS,
@@ -35,6 +44,25 @@ describe("building authoring rules", () => {
     expect(distanceToBuildingDoor({ x: 2.6, z: -3 }, anchor)).toBeGreaterThan(
       BUILDING_DOOR_INTERACTION_RANGE,
     );
+  });
+
+  it("uses one generic eighth-cell footprint for resized doors, colliders and persistence", () => {
+    const dimensions = { width: 5, depth: 4 };
+    expect(buildingDimensionsOrDefault(HOUSE, dimensions)).toEqual(dimensions);
+    expect(buildingDoorGroundPoint({ x: 4, z: -3, assetId: HOUSE, dimensions })).toEqual({
+      x: 5,
+      z: -3,
+    });
+    expect(decodeBuildingTransform(encodeBuildingTransform(3, dimensions))).toEqual({
+      orientation: 3,
+      dimensions,
+    });
+    expect(decodeBuildingTransform(2)).toEqual({ orientation: 2 });
+    expect(parseBuildingDimensions({ width: 3.125, depth: 2.5 })).toEqual({
+      width: 3.125,
+      depth: 2.5,
+    });
+    expect(parseBuildingDimensions({ width: 3.1, depth: 2.5 })).toBeNull();
   });
 
   it.each([
@@ -99,6 +127,27 @@ describe("building authoring rules", () => {
         10,
       ),
     ).toBeNull();
+  });
+
+  it("derives resized building coverage and rotated collision from the same dimensions", () => {
+    const building = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE,
+      building: { destructible: true, maxHp: 900, dimensions: { width: 5, depth: 4 } },
+    } as const;
+    expect(elementWorldCollider(building)).toEqual({ x: 384, y: 320, width: 320, height: 256 });
+    expect(elementCells(building)).toHaveLength(20);
+    expect(elementFitsMap(building, 12, 12)).toBe(true);
+    expect(elementFitsMap({ ...building, col: 1 }, 12, 12)).toBe(false);
+    expect(elementWorldCollider({ ...building, orientation: 1 })).toEqual({
+      x: 544,
+      y: 416,
+      width: 256,
+      height: 320,
+    });
   });
 
   it("rejects malformed or misplaced building settings", () => {

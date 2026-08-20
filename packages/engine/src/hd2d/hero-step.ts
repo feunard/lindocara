@@ -136,8 +136,20 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const collisionY = platformHeight ?? state.y;
   if (!colliders.blocked(x, empreinte(z, hero), hero.radius, collisionY)) return true;
 
-  // Same escape hatch against props (an unlucky spawn, a prop added underneath).
-  return colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y);
+  // Same escape hatch against props (an unlucky spawn, a prop added underneath). The concrete
+  // index makes it monotone: a touching body may slide or move out, never walk farther inside and
+  // let the vertical resolver snap it onto a roof. Minimal test doubles keep the historical
+  // boolean fallback because they cannot measure overlap depth.
+  return (
+    colliders.allowsEscape?.(
+      state.x,
+      empreinte(state.z, hero),
+      x,
+      empreinte(z, hero),
+      hero.radius,
+      state.y,
+    ) ?? colliders.blocked(state.x, empreinte(state.z, hero), hero.radius, state.y)
+  );
 }
 
 /**

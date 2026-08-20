@@ -46,6 +46,7 @@ const TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree1";
 const OTHER_TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree2";
 const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
 const HOUSE_ASSET_ID = "building.buildings-blue-buildings.house1";
+const BRIDGE_ASSET_ID = "terrain.bridge.wood.horizontal";
 const HARVEST_PROFILE: HarvestProfile = {
   resource: "wood",
   tool: "axe",
@@ -107,6 +108,7 @@ function wirePage(overrides: Record<string, unknown> = {}): Record<string, unkno
 class SeedProbe {
   adventures = $repository(adventures);
   maps = $repository(maps);
+  mapElements = $repository(mapElements);
   mapEvents = $repository(mapEvents);
   parties = $repository(parties);
   heroes = $repository(heroes);
@@ -728,7 +730,7 @@ describe("list, get, update, delete", () => {
     expect(await editorSave.json()).toMatchObject({ revision: 3 });
   });
 
-  test("round-trips authored building durability and orientation", async () => {
+  test("round-trips authored building durability, orientation and dimensions", async () => {
     const { userId, token } = await registerAndLogin("mapbuilding");
     const id = await newMapId(await newAdventure(userId), token, "Village");
     const building = {
@@ -738,7 +740,11 @@ describe("list, get, update, delete", () => {
       offsetY: 0,
       assetId: HOUSE_ASSET_ID,
       orientation: 2,
-      building: { destructible: false, maxHp: 2_750 },
+      building: {
+        destructible: false,
+        maxHp: 2_750,
+        dimensions: { width: 5, depth: 3.125 },
+      },
     };
 
     expect((await putMap(id, token, mapBody({ elements: [building] }))).status).toBe(200);
@@ -746,6 +752,31 @@ describe("list, get, update, delete", () => {
     expect(fetched.status).toBe(200);
     const payload = (await fetched.json()) as { elements: unknown[] };
     expect(payload.elements).toEqual([expect.objectContaining(building)]);
+
+    const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    expect(rows[0]?.variant).toBeGreaterThan(3);
+  });
+
+  test("round-trips resized bridge dimensions through the existing transform column", async () => {
+    const { userId, token } = await registerAndLogin("mapbridge");
+    const id = await newMapId(await newAdventure(userId), token, "Crossing");
+    const bridge = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: BRIDGE_ASSET_ID,
+      bridge: { length: 7, width: 2 },
+    };
+
+    expect((await putMap(id, token, mapBody({ elements: [bridge] }))).status).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { elements: unknown[] };
+    expect(payload.elements).toEqual([expect.objectContaining(bridge)]);
+
+    const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    expect(rows[0]?.variant).toBeGreaterThan(3);
   });
 
   test("creates one editable interior per building and unlinks it when deleted", async () => {

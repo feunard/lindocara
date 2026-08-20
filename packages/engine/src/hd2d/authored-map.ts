@@ -8,6 +8,7 @@
  * about the retired Pixi/tile render path.
  */
 
+import { bridgeDimensionsOrDefault, bridgeOrientation, bridgePlacementLayout } from "../bridges.js";
 import { buildingArchetype, buildingVolumeDimensions } from "../buildings.js";
 import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
@@ -52,6 +53,25 @@ export function authoredElementGroundPoint(
   return {
     x: element.col + 0.5 + (element.offsetX * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
     z: element.row + 1 + (element.offsetY * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
+  };
+}
+
+/** Visual centre of a compiled element. New bridge documents carry their dimensions and use the
+ * centre of that whole deck; old heightfields omit dimensions and retain the legacy anchor path. */
+function authoredElementRenderPoint(element: MapElement, size: number): { x: number; z: number } {
+  const bridge = bridgePlacementLayout(element);
+  if (!bridge) return authoredElementGroundPoint(element, size);
+  return {
+    x:
+      bridge.startCol +
+      (element.offsetX * ELEMENT_OFFSET_PX) / TILE_SIZE +
+      bridge.cols / 2 -
+      size / 2,
+    z:
+      bridge.startRow +
+      (element.offsetY * ELEMENT_OFFSET_PX) / TILE_SIZE +
+      bridge.rows / 2 -
+      size / 2,
   };
 }
 
@@ -158,9 +178,10 @@ function bridgeTop(
 function bridgeRails(
   collider: { x: number; z: number; w: number; h: number },
   deckTop: number,
+  orientation: "horizontal" | "vertical",
 ): ColliderRect[] {
   const top = deckTop + AUTHORED_LEVEL_HEIGHT;
-  if (collider.w > collider.h) {
+  if (orientation === "horizontal") {
     return [
       { x: collider.x, z: collider.z, w: collider.w, h: BRIDGE_RAIL_THICKNESS, top },
       {
@@ -200,7 +221,7 @@ function buildingRoofCollider(
 ): ColliderRect | null {
   const archetype = buildingArchetype(element.assetId);
   if (!archetype) return null;
-  const volume = buildingVolumeDimensions(archetype);
+  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
   const eave = base + volume.wallHeight;
   const peak = eave + volume.roofHeight;
   if (volume.roofShape === "gable") {
@@ -258,7 +279,9 @@ export function authoredElementColliders(
   };
   if (asset?.editor.terrainOverride === "walkable") {
     const top = bridgeTop(authored, element, levels, size);
-    return [{ ...collider, top }, ...bridgeRails(collider, top)];
+    const orientation = bridgeOrientation(element.assetId);
+    if (!orientation) return [];
+    return [{ ...collider, top }, ...bridgeRails(collider, top, orientation)];
   }
   const roof = buildingRoofCollider(collider, element, elementBaseTop(element, levels, size));
   if (roof) return [roof];
@@ -300,8 +323,12 @@ export function compileAuthoredMap(
   );
   const elements = staticElements.map((element) => ({
     assetId: element.assetId,
-    ...authoredElementGroundPoint(element, size),
+    ...authoredElementRenderPoint(element, size),
     ...(element.orientation ? { orientation: element.orientation } : {}),
+    ...(bridgeOrientation(element.assetId)
+      ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
+      : {}),
+    ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
   }));
 
   const colliders = staticElements.flatMap((element) =>

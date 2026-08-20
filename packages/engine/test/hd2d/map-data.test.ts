@@ -43,6 +43,52 @@ describe("the map codec", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
   });
 
+  it("round-trips resized bridge appearance metadata and rejects it on another asset", () => {
+    const bridgeMap: MapData = {
+      ...map,
+      elements: [
+        {
+          assetId: "terrain.bridge.wood.horizontal",
+          x: 0,
+          z: 0,
+          bridge: { length: 7, width: 2 },
+        },
+      ],
+    };
+    expect(decodeMap(encodeMap(bridgeMap))).toEqual(bridgeMap);
+    expect(
+      decodeMap(
+        JSON.stringify({
+          ...bridgeMap,
+          elements: [{ assetId: "tree", x: 0, z: 0, bridge: { length: 7, width: 2 } }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("round-trips resized native-building metadata and rejects it on another asset", () => {
+    const buildingMap: MapData = {
+      ...map,
+      elements: [
+        {
+          assetId: "building.buildings-blue-buildings.house1",
+          x: 0,
+          z: 0,
+          building: { width: 5, depth: 3.125 },
+        },
+      ],
+    };
+    expect(decodeMap(encodeMap(buildingMap))).toEqual(buildingMap);
+    expect(
+      decodeMap(
+        JSON.stringify({
+          ...buildingMap,
+          elements: [{ assetId: "tree", x: 0, z: 0, building: { width: 5, depth: 3 } }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("round-trips native shaped roof collision without trusting malformed variants", () => {
     const shaped: MapData = {
       ...map,

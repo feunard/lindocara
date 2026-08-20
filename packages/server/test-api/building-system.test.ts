@@ -43,12 +43,18 @@ function required<T>(value: T | undefined): T {
 describe("building system", () => {
   it("owns HP and replaces a destroyed building with its ruin snapshot", () => {
     const building = required(
-      createBuildings([definition({ interiorMapId: "f2c15465-6f9d-4ef5-80dd-e508c3642112" })])[0],
+      createBuildings([
+        definition({
+          interiorMapId: "f2c15465-6f9d-4ef5-80dd-e508c3642112",
+          dimensions: { width: 5, depth: 3.125 },
+        }),
+      ])[0],
     );
     expect(buildingSnapshot(building)).toMatchObject({
       graphicAssetId: standing,
       interactive: true,
       collider: building.collider,
+      dimensions: { width: 5, depth: 3.125 },
     });
 
     expect(damageBuilding(building, 40)).toEqual({ actualDamage: 40, destroyed: false });

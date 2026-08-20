@@ -40,6 +40,7 @@ import {
   QUEST_TITLE_MAX,
 } from "./adventure-state.js";
 import { type AdventureAudioConfig, parseAdventureAudioConfig } from "./audio-catalog.js";
+import { parseBuildingDimensions } from "./buildings.js";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -778,6 +779,7 @@ export interface WorldBuildingSnapshot {
   /** Explicit ruin art advertised up front so destruction never starts a texture download. */
   destroyedAssetId: EditorAssetId;
   orientation?: import("./element-orientation.js").ElementOrientation;
+  dimensions?: import("./buildings.js").BuildingDimensions;
   hp: number;
   maxHp: number;
   destructible: boolean;
@@ -1973,6 +1975,7 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
       (Number.isSafeInteger(value.orientation) &&
         (value.orientation as number) >= 0 &&
         (value.orientation as number) <= 3)) &&
+    (value.dimensions === undefined || parseBuildingDimensions(value.dimensions) !== null) &&
     Number.isSafeInteger(value.hp) &&
     (value.hp as number) >= 0 &&
     Number.isSafeInteger(value.maxHp) &&
@@ -1998,6 +2001,7 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
       "graphicAssetId",
       "destroyedAssetId",
       "orientation",
+      "dimensions",
       "hp",
       "maxHp",
       "destructible",

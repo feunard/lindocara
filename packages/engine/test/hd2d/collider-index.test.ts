@@ -18,6 +18,15 @@ describe("createColliderIndex", () => {
     expect(idx.blocked(-0.49, 1, 0.5)).toBe(true);
   });
 
+  it("lets an overlapping body slide or leave, never penetrate farther", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 0, z: 0, w: 2, h: 2, top: 1.8 });
+    expect(idx.allowsEscape(-0.2, 1, -0.2, 1.1, 0.3, 0)).toBe(true);
+    expect(idx.allowsEscape(-0.2, 1, -0.25, 1, 0.3, 0)).toBe(true);
+    expect(idx.allowsEscape(-0.2, 1, -0.15, 1, 0.3, 0)).toBe(false);
+    expect(idx.allowsEscape(-0.2, 1, 0.05, 1, 0.3, 0)).toBe(false);
+  });
+
   it("finds a rectangle wider than the index's cell", () => {
     // A long wall is the case the circle could not model, so it's the one no existing test
     // covers. It must be found from any point along its length.

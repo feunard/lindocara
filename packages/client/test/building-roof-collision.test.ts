@@ -1,7 +1,7 @@
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import type { MapData as HeightfieldMap } from "@lindocara/engine/hd2d/map-data.js";
 import { EMPTY_MARKERS, type MapData } from "@lindocara/engine/map-data.js";
-import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { autotileId } from "@lindocara/engine/tileset.js";
 import {
@@ -111,5 +111,41 @@ describe("native building roof collision", () => {
     }
     expect(hero.state.y).toBeCloseTo(0);
     expect(hero.state.airborne).toBe(false);
+  });
+
+  it("cannot walk back onto a roof after falling beside its wall", () => {
+    const map = roofApproach(LINDOCARA_BUILDING_ASSET_IDS.house, 2);
+    const terrain = zoneTerrainFromHeightfield(map);
+    const collider = map.colliders[0];
+    if (!collider) throw new Error("building collider missing");
+    const x = collider.x + collider.w / 2;
+    const roofFootprintZ = collider.z + collider.h / 2;
+    const roof = terrain.query.surfaceAt?.(x, roofFootprintZ, Number.POSITIVE_INFINITY);
+    if (roof === null || roof === undefined) throw new Error("building roof missing");
+    const hero = createHeroController({
+      terrain,
+      spawn: { x, y: roof, z: roofFootprintZ + 0.15 },
+      speed: 4,
+    });
+
+    // Walk off the north edge, then release immediately: the body falls beside the wall while its
+    // collision disc is still touching it, which is the exact state that used to arm the generic
+    // overlap escape hatch in the wrong direction.
+    for (let frame = 0; frame < 60 && hero.state.z - 0.15 >= collider.z; frame += 1) {
+      hero.step({ x: 0, z: -1, jump: false }, FRAME);
+    }
+    for (let frame = 0; frame < 120 && hero.state.airborne; frame += 1) {
+      hero.step({ x: 0, z: 0, jump: false }, FRAME);
+    }
+    const fallenFootprintZ = hero.state.z - 0.15;
+    expect(hero.state.airborne, JSON.stringify(hero.state)).toBe(false);
+    expect(hero.state.y).toBeCloseTo(0);
+    expect(collider.z - fallenFootprintZ).toBeLessThan(BODY_RADIUS);
+
+    for (let frame = 0; frame < 90; frame += 1) {
+      hero.step({ x: 0, z: 1, jump: false }, FRAME);
+    }
+    expect(hero.state.y).toBeCloseTo(0);
+    expect(hero.state.z - 0.15).toBeLessThanOrEqual(collider.z);
   });
 });

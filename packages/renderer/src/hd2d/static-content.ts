@@ -26,6 +26,8 @@
  * actor sheets and the terrain atlases do. This file only ever sees the resolved `StaticSpriteArt`.
  */
 
+import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
+import type { BuildingDimensions } from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import type { HeightfieldEvent, MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { Billboard, CardVolume, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
@@ -109,6 +111,7 @@ export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContentEvent extends HeightfieldEvent {
   orientation?: ElementOrientation;
+  building?: BuildingDimensions;
   health?: { value: number; max: number; visible: boolean };
 }
 
@@ -236,6 +239,8 @@ export function placeStaticContent(
     z: number,
     contentKey: string | null,
     orientation: ElementOrientation = 0,
+    bridge?: BridgeDimensions,
+    building?: BuildingDimensions,
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
@@ -244,9 +249,10 @@ export function placeStaticContent(
           front: sprite.texture,
           ...sprite.buildingVolume,
           orientation,
+          ...(building ? { dimensions: building } : {}),
         })
       : sprite.bridgeOrientation
-        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation)
+        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge)
         : null;
     const volume =
       native === null &&
@@ -286,8 +292,9 @@ export function placeStaticContent(
             ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
             pitch: HD2D_CAMERA.pitch,
           }));
-    const bridgeSampleZ =
-      sprite.bridgeOrientation === "horizontal"
+    const bridgeSampleZ = bridge
+      ? z
+      : sprite.bridgeOrientation === "horizontal"
         ? z - 0.5
         : sprite.bridgeOrientation === "vertical"
           ? z - 1.5
@@ -411,6 +418,8 @@ export function placeStaticContent(
     contentKey: string | null,
     health?: StaticContentEvent["health"],
     orientation: ElementOrientation = 0,
+    bridge?: BridgeDimensions,
+    building?: BuildingDimensions,
   ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
@@ -421,7 +430,7 @@ export function placeStaticContent(
       isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
         ? resolved.coldVariant
         : resolved;
-    placeArt(assetId, sprite, x, z, contentKey, orientation);
+    placeArt(assetId, sprite, x, z, contentKey, orientation, bridge, building);
     if (contentKey && health) {
       const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
       placeHealthBar(
@@ -439,17 +448,36 @@ export function placeStaticContent(
   }
 
   for (const element of map.elements) {
-    place(element.assetId, element.x, element.z, null, undefined, element.orientation ?? 0);
+    place(
+      element.assetId,
+      element.x,
+      element.z,
+      null,
+      undefined,
+      element.orientation ?? 0,
+      element.bridge,
+      element.building,
+    );
   }
   for (const event of map.events) {
     // No graphic is an authored choice, not a missing asset: a bare trigger cell draws nothing and
     // says nothing. Warning here would fill the console on any map that uses invisible triggers.
-    const health = (event as StaticContentEvent).health;
-    const orientation = (event as StaticContentEvent).orientation ?? 0;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${health?.value ?? ""}:${health?.max ?? ""}`;
+    const staticEvent = event as StaticContentEvent;
+    const health = staticEvent.health;
+    const orientation = staticEvent.orientation ?? 0;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
-    place(event.graphicAssetId, event.x, event.z, `event:${event.id}`, health, orientation);
+    place(
+      event.graphicAssetId,
+      event.x,
+      event.z,
+      `event:${event.id}`,
+      health,
+      orientation,
+      undefined,
+      staticEvent.building,
+    );
   }
   function flushSkipped(): void {
     for (const [assetId, count] of skipped) {
@@ -521,7 +549,7 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
@@ -533,6 +561,8 @@ export function placeStaticContent(
             `event:${event.id}`,
             event.health,
             event.orientation ?? 0,
+            undefined,
+            event.building,
           );
         }
       }

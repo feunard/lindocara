@@ -13,9 +13,13 @@ function texture(): THREE.Texture {
   return new THREE.Texture();
 }
 
-function building(archetype: Parameters<typeof makeBuildingVolume>[0]["archetype"]) {
+function building(
+  archetype: Parameters<typeof makeBuildingVolume>[0]["archetype"],
+  dimensions?: Parameters<typeof makeBuildingVolume>[0]["dimensions"],
+) {
   return makeBuildingVolume({
     archetype,
+    ...(dimensions ? { dimensions } : {}),
     state: "standing",
     front: texture(),
     wall: texture(),
@@ -37,6 +41,28 @@ describe("native HD-2D building volumes", () => {
       expect(architecture?.position.z).toBeCloseTo(-size.depth / 2);
       expect(visual.mesh.getObjectByName("generated-front-elevation")).toBeUndefined();
       expect(visual.mesh.getObjectsByProperty("type", "Mesh").length).toBeGreaterThan(8);
+      visual.dispose();
+    },
+  );
+
+  it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
+    "regenerates resized %s architecture from the requested footprint",
+    (archetype) => {
+      const native = building(archetype);
+      const visual = building(archetype, { width: 5, depth: 3.125 });
+      const nativeArchitecture = native.mesh.getObjectByName("native-architecture");
+      const architecture = visual.mesh.getObjectByName("native-architecture");
+      if (!nativeArchitecture || !architecture) throw new Error("native architecture missing");
+      const nativeBounds = new THREE.Box3().setFromObject(nativeArchitecture);
+      const bounds = new THREE.Box3().setFromObject(architecture);
+      expect(bounds.max.x - bounds.min.x).toBeGreaterThan(
+        (nativeBounds.max.x - nativeBounds.min.x) * 1.35,
+      );
+      expect(bounds.max.z - bounds.min.z).toBeGreaterThan(
+        (nativeBounds.max.z - nativeBounds.min.z) * 1.2,
+      );
+      expect(architecture.position.z).toBeCloseTo(-3.125 / 2);
+      native.dispose();
       visual.dispose();
     },
   );
@@ -150,4 +176,18 @@ describe("native HD-2D building volumes", () => {
       visual.dispose();
     },
   );
+
+  it("regenerates a resized bridge instead of repeating fixed 3x1 geometry", () => {
+    const visual = makeBridgeVolume(texture(), "horizontal", { length: 7, width: 2 });
+    visual.placeAt(2, 0.9, 3);
+    expect(visual.mesh.position).toMatchObject({ x: 2, y: 0.9, z: 3 });
+    const deck = visual.mesh.getObjectByName("walkable-deck");
+    if (!(deck instanceof THREE.Group)) throw new Error("bridge deck missing");
+    expect(deck.getObjectsByProperty("name", "bridge-plank").length).toBeGreaterThan(20);
+    const bounds = new THREE.Box3().setFromObject(deck);
+    expect(bounds.max.x - bounds.min.x).toBeCloseTo(7, 1);
+    expect(bounds.max.z - bounds.min.z).toBeGreaterThan(1.85);
+    expect(visual.mesh.getObjectsByProperty("name", "bridge-post").length).toBeGreaterThan(6);
+    visual.dispose();
+  });
 });

@@ -30,6 +30,7 @@ import {
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
+  updateSelectedBridgeDimensions,
   updateSelectedBuildingSettings,
   updateSelectedElementOrientation,
 } from "@lindocara/editor/game/editor-state.js";
@@ -103,6 +104,7 @@ function place(
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
+const BRIDGE = "terrain.bridge.wood.horizontal" as const;
 const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 const SMALL_DECOR = "decoration.deco.01" as const;
 const SMALL_DECOR_ALT = "decoration.deco.02" as const;
@@ -1446,8 +1448,33 @@ describe("moveSelection: event", () => {
   });
 });
 
+describe("resizable bridge settings", () => {
+  it("resizes a selected bridge, preserves it through a move and refuses an out-of-map span", () => {
+    const placed = applyTool(
+      blankMap("crossing", 20, 20),
+      { kind: "element", assetId: BRIDGE },
+      8,
+      8,
+      true,
+      "element",
+    ) as EditorMap;
+    const selection = { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 } as const;
+    const resized = updateSelectedBridgeDimensions(placed, selection, { length: 9, width: 3 });
+    expect(resized?.elements[0]?.bridge).toEqual({ length: 9, width: 3 });
+    expect(placed.elements[0]?.bridge).toBeUndefined();
+
+    const moved = resized && moveSelection(resized, selection, 12, 12);
+    expect(moved?.elements[0]).toMatchObject({
+      col: 12,
+      row: 12,
+      bridge: { length: 9, width: 3 },
+    });
+    expect(updateSelectedBridgeDimensions(placed, selection, { length: 32, width: 1 })).toBeNull();
+  });
+});
+
 describe("building element settings", () => {
-  it("places buildings destructible by default and edits their HP as one pure mutation", () => {
+  it("edits a building's durability and footprint as one pure mutation", () => {
     const placed = applyTool(
       blankMap("village", 30, 30),
       { kind: "element", assetId: HOUSE },
@@ -1462,9 +1489,21 @@ describe("building element settings", () => {
     const edited = updateSelectedBuildingSettings(placed, selection, {
       destructible: false,
       maxHp: 2_750,
+      dimensions: { width: 5, depth: 3.125 },
     });
-    expect(edited?.elements[0]?.building).toEqual({ destructible: false, maxHp: 2_750 });
+    expect(edited?.elements[0]?.building).toEqual({
+      destructible: false,
+      maxHp: 2_750,
+      dimensions: { width: 5, depth: 3.125 },
+    });
     expect(placed.elements[0]?.building).toEqual({ destructible: true, maxHp: 900 });
+    expect(
+      updateSelectedBuildingSettings(placed, selection, {
+        destructible: true,
+        maxHp: 900,
+        dimensions: { width: 32, depth: 1 },
+      }),
+    ).toBeNull();
   });
 
   it("keeps durability and durable identity when a building moves", () => {
@@ -1484,7 +1523,11 @@ describe("building element settings", () => {
         {
           ...element,
           id: crypto.randomUUID(),
-          building: { destructible: true, maxHp: 777 },
+          building: {
+            destructible: true,
+            maxHp: 777,
+            dimensions: { width: 5, depth: 3.125 },
+          },
         },
       ],
     };
@@ -1502,7 +1545,11 @@ describe("building element settings", () => {
       row: 9,
       offsetX: 2,
       offsetY: 1,
-      building: { destructible: true, maxHp: 777 },
+      building: {
+        destructible: true,
+        maxHp: 777,
+        dimensions: { width: 5, depth: 3.125 },
+      },
     });
   });
 
