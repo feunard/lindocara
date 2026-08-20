@@ -404,6 +404,32 @@ describe("Select tool collection targeting and dragging", () => {
     });
   });
 
+  it("selects a shifted bridge across its visible deck instead of only its stored anchor", () => {
+    const map = {
+      ...blankMap("crossing", 20, 20),
+      elements: [
+        {
+          col: 8,
+          row: 8,
+          offsetX: 2,
+          offsetY: 2,
+          assetId: BRIDGE,
+          bridge: { length: 7, width: 1 },
+        },
+      ],
+    };
+
+    // The shifted collider reaches cell (12, 9); the old integer footprint stopped at (11, 8).
+    expect(selectionAtMode(map, 12, 9, "element", 0, 0)).toEqual({
+      kind: "element",
+      col: 8,
+      row: 8,
+      offsetX: 2,
+      offsetY: 2,
+    });
+    expect(selectionAtMode(map, 14, 9, "element", 3, 0)).toBeNull();
+  });
+
   it("moves a captured prop to the pointer's cell and quarter offset as one operation", () => {
     const placed = applyTool(
       blankMap("m", 20, 15),

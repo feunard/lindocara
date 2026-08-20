@@ -7,6 +7,7 @@ import {
 } from "@lindocara/editor/game/editor-state.js";
 import {
   bridgeDimensionsAtDelta,
+  bridgeResizeAtDelta,
   bridgeResizeGuide,
   buildingDimensionsAtPoint,
   buildingResizeGuide,
@@ -681,14 +682,15 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
-  it("draws and drags bridge length handles as one undoable edit", async () => {
-    const point = { x: 0.5, z: -5.5 };
+  it("selects the shifted deck and drags one bridge edge without moving its opposite", async () => {
+    // This point is on the bridge's shifted far end but outside its old integer-cell footprint.
+    const point = { x: 2.375, z: -4.625 };
     mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
     const bridge = {
       col: 10,
       row: 4,
-      offsetX: 0,
-      offsetY: 0,
+      offsetX: 2,
+      offsetY: 2,
       assetId: "terrain.bridge.wood.horizontal",
     } as const;
     const stage = await openMapEditorStage(
@@ -704,18 +706,30 @@ describe("HD-2D map editor stage", () => {
     window.dispatchEvent(new PointerEvent("pointerup"));
     const guide = mock.renderer.setEditorOverlay.mock.lastCall?.[0].bridgeResize;
     expect(guide).toMatchObject({
-      lengthHandle: expect.any(Object),
-      widthHandle: expect.any(Object),
+      handles: expect.arrayContaining([
+        expect.objectContaining({ side: "length-start" }),
+        expect.objectContaining({ side: "length-end" }),
+        expect.objectContaining({ side: "width-start" }),
+        expect.objectContaining({ side: "width-end" }),
+      ]),
       valid: true,
     });
 
-    Object.assign(point, guide.lengthHandle);
+    const lengthEnd = guide.handles.find(
+      (handle: { side: string }) => handle.side === "length-end",
+    );
+    if (!lengthEnd) throw new Error("length-end bridge handle missing");
+    Object.assign(point, lengthEnd.point);
     canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
     point.x += 3;
     canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 20 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
 
-    expect(stage.current().elements[0]?.bridge).toEqual({ length: 6, width: 1 });
+    expect(stage.current().elements[0]).toMatchObject({
+      col: 11,
+      offsetX: 2,
+      bridge: { length: 6, width: 1 },
+    });
     stage.undo();
     expect(stage.current().elements[0]?.bridge).toBeUndefined();
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
@@ -829,16 +843,40 @@ describe("bridge resize geometry", () => {
 
     expect(bridgeResizeGuide(horizontal, 20)).toMatchObject({
       anchor: { x: 0.5, z: 1 },
-      lengthHandle: { x: 2, z: 0.5 },
-      widthHandle: { x: 0.5, z: 0 },
+      handles: [
+        { side: "length-start", point: { x: -1, z: 0.5 }, outward: { x: -1, z: 0 } },
+        { side: "length-end", point: { x: 2, z: 0.5 }, outward: { x: 1, z: 0 } },
+        { side: "width-start", point: { x: 0.5, z: 0 }, outward: { x: 0, z: -1 } },
+        { side: "width-end", point: { x: 0.5, z: 1 }, outward: { x: 0, z: 1 } },
+      ],
     });
     expect(bridgeResizeGuide(vertical, 20)).toMatchObject({
       anchor: { x: 0.5, z: 1 },
-      lengthHandle: { x: 0.5, z: -2 },
-      widthHandle: { x: 1, z: -0.5 },
+      handles: [
+        { side: "length-start", point: { x: 0.5, z: -2 }, outward: { x: 0, z: -1 } },
+        { side: "length-end", point: { x: 0.5, z: 1 }, outward: { x: 0, z: 1 } },
+        { side: "width-start", point: { x: 0, z: -0.5 }, outward: { x: -1, z: 0 } },
+        { side: "width-end", point: { x: 1, z: -0.5 }, outward: { x: 1, z: 0 } },
+      ],
     });
     expect(bridgeDimensionsAtDelta(horizontal, "length", 3)).toEqual({ length: 6, width: 1 });
     expect(bridgeDimensionsAtDelta(vertical, "width", 2)).toEqual({ length: 3, width: 3 });
+    expect(bridgeResizeAtDelta(horizontal, 20, "length-start", 2)).toEqual({
+      dimensions: { length: 5, width: 1 },
+      placement: { col: 9, row: 10, offsetX: 0, offsetY: 0 },
+    });
+    expect(bridgeResizeAtDelta(horizontal, 20, "length-end", 2)).toEqual({
+      dimensions: { length: 5, width: 1 },
+      placement: { col: 11, row: 10, offsetX: 0, offsetY: 0 },
+    });
+    expect(bridgeResizeAtDelta(horizontal, 20, "width-start", 2)).toEqual({
+      dimensions: { length: 3, width: 3 },
+      placement: { col: 10, row: 10, offsetX: 0, offsetY: 0 },
+    });
+    expect(bridgeResizeAtDelta(horizontal, 20, "width-end", 2)).toEqual({
+      dimensions: { length: 3, width: 3 },
+      placement: { col: 10, row: 12, offsetX: 0, offsetY: 0 },
+    });
   });
 
   it("rotates a bridge's resize and rotation handles around the deck centre", () => {
@@ -851,10 +889,12 @@ describe("bridge resize geometry", () => {
       rotation: 90,
     };
     const resize = bridgeResizeGuide(bridge, 20);
-    expect(resize?.lengthHandle.x).toBeCloseTo(0.5);
-    expect(resize?.lengthHandle.z).toBeCloseTo(2);
-    expect(resize?.widthHandle.x).toBeCloseTo(1);
-    expect(resize?.widthHandle.z).toBeCloseTo(0.5);
+    const lengthEnd = resize?.handles.find((handle) => handle.side === "length-end");
+    const widthStart = resize?.handles.find((handle) => handle.side === "width-start");
+    expect(lengthEnd?.point.x).toBeCloseTo(0.5);
+    expect(lengthEnd?.point.z).toBeCloseTo(2);
+    expect(widthStart?.point.x).toBeCloseTo(1);
+    expect(widthStart?.point.z).toBeCloseTo(0.5);
     expect(elementRotationGuide(bridge, 20)).toMatchObject({ angle: 90 });
   });
 });

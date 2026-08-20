@@ -9,7 +9,15 @@
  */
 
 import { bridgeDimensionsOrDefault, bridgeOrientation, bridgePlacementLayout } from "../bridges.js";
-import { buildingArchetype, buildingVolumeDimensions } from "../buildings.js";
+import {
+  buildingArchetype,
+  buildingVolumeDimensions,
+  CASTLE_TOWER_POSITIONS,
+  CASTLE_TOWER_RADIUS,
+  FORTRESS_BODY_DEPTH,
+  FORTRESS_BODY_WIDTH,
+  WINDMILL_ROOF_RADIUS,
+} from "../buildings.js";
 import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
@@ -268,10 +276,19 @@ function elementBaseTop(
   return level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
 }
 
+interface BuildingRoofPart {
+  roof: ColliderRect;
+  edge: "rectangular" | "round" | null;
+  edgeTop: number;
+  edgeWidth: number;
+  edgeDepth: number;
+}
+
 function buildingRoofCollider(
-  collider: Pick<ColliderRect, "x" | "z" | "w" | "h">,
+  collider: ColliderRect,
   element: MapElement,
   base: number,
+  kind: "main" | "castle-tower" = "main",
 ): ColliderRect | null {
   const archetype = buildingArchetype(element.assetId);
   if (!archetype) return null;
@@ -306,42 +323,120 @@ function buildingRoofCollider(
     support: "center",
     // CircleGeometry is placed directly on the tower wall; fortress decks are 0.12 high and
     // centred 0.03 above it, hence their visible walking face is wallHeight + 0.09.
-    top: eave + (archetype === "tower" ? 0.02 : 0.09),
-    ...(archetype === "tower" ? { footprint: "ellipse" as const } : {}),
+    top: eave + (kind === "castle-tower" ? 0.28 : archetype === "tower" ? 0.02 : 0.09),
+    ...(kind === "castle-tower" || archetype === "tower" ? { footprint: "ellipse" as const } : {}),
   };
+}
+
+function centredBuildingSubCollider(
+  collider: ColliderRect,
+  width: number,
+  depth: number,
+): ColliderRect {
+  return orientedSubCollider(
+    collider,
+    (collider.w - width) / 2,
+    (collider.h - depth) / 2,
+    width,
+    depth,
+  );
+}
+
+/**
+ * Decompose a building's authored envelope into the architecture that is actually solid. The
+ * renderer deliberately keeps space around mills and fortified halls; treating their full resize
+ * envelope as one slab made those empty margins increasingly impassable as the model grew.
+ */
+function buildingRoofParts(
+  collider: ColliderRect,
+  element: MapElement,
+  base: number,
+): BuildingRoofPart[] {
+  const archetype = buildingArchetype(element.assetId);
+  if (!archetype) return [];
+  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
+  const legacyQuarterTurn = element.rotation === undefined && (element.orientation ?? 0) % 2 === 1;
+  const nativeWidth = legacyQuarterTurn ? 2.375 : 3;
+  const nativeDepth = legacyQuarterTurn ? 3 : 2.375;
+  const scaleX = collider.w / nativeWidth;
+  const scaleZ = collider.h / nativeDepth;
+  let main = collider;
+
+  if (archetype === "windmill") {
+    const native = buildingVolumeDimensions(archetype);
+    const widthRatio = (WINDMILL_ROOF_RADIUS * 2) / native.width;
+    const depthRatio = (WINDMILL_ROOF_RADIUS * 2) / native.depth;
+    main = centredBuildingSubCollider(
+      collider,
+      collider.w * (legacyQuarterTurn ? depthRatio : widthRatio),
+      collider.h * (legacyQuarterTurn ? widthRatio : depthRatio),
+    );
+  } else if (archetype === "barracks" || archetype === "castle") {
+    main = centredBuildingSubCollider(
+      collider,
+      collider.w * (legacyQuarterTurn ? FORTRESS_BODY_DEPTH / 2.375 : FORTRESS_BODY_WIDTH / 3),
+      collider.h * (legacyQuarterTurn ? FORTRESS_BODY_WIDTH / 3 : FORTRESS_BODY_DEPTH / 2.375),
+    );
+  }
+
+  const mainRoof = buildingRoofCollider(main, element, base);
+  if (!mainRoof) return [];
+  const crenellated = volume.roofShape === "crenellated";
+  const parts: BuildingRoofPart[] = [
+    {
+      roof: mainRoof,
+      edge: crenellated ? (archetype === "tower" ? "round" : "rectangular") : null,
+      edgeTop: base + volume.wallHeight + BUILDING_PARAPET_TOP,
+      edgeWidth: archetype === "tower" ? collider.w * 0.16 : RECTANGULAR_PARAPET_THICKNESS * scaleX,
+      edgeDepth: archetype === "tower" ? collider.h * 0.14 : RECTANGULAR_PARAPET_THICKNESS * scaleZ,
+    },
+  ];
+
+  if (archetype !== "castle") return parts;
+  const towerWidth = CASTLE_TOWER_RADIUS * 2 * scaleX;
+  const towerDepth = CASTLE_TOWER_RADIUS * 2 * scaleZ;
+  const offsetX = (legacyQuarterTurn ? 0.79 : 1.12) * scaleX;
+  const offsetZ = (legacyQuarterTurn ? 1.12 : 0.79) * scaleZ;
+  const centreX = collider.w / 2;
+  const centreZ = collider.h / 2;
+  for (const [sourceX, sourceZ] of CASTLE_TOWER_POSITIONS) {
+    const signedX = Math.sign(legacyQuarterTurn ? sourceZ : sourceX);
+    const signedZ = Math.sign(legacyQuarterTurn ? sourceX : sourceZ);
+    const tower = orientedSubCollider(
+      collider,
+      centreX + signedX * offsetX - towerWidth / 2,
+      centreZ + signedZ * offsetZ - towerDepth / 2,
+      towerWidth,
+      towerDepth,
+    );
+    const roof = buildingRoofCollider(tower, element, base, "castle-tower");
+    if (!roof) continue;
+    parts.push({
+      roof,
+      edge: "round",
+      edgeTop: base + volume.wallHeight + 0.26 + BUILDING_PARAPET_TOP,
+      edgeWidth: 0.32 * scaleX,
+      edgeDepth: 0.28 * scaleZ,
+    });
+  }
+  return parts;
 }
 
 /** Solid roof-edge volumes generated from the same crenellated archetype and resized footprint as
  * the rendered battlements. Rectangular roofs use four continuous parapets; round towers use the
  * renderer's twelve crenellation positions so their open deck stays circular. */
-function buildingRoofEdgeColliders(
-  collider: ColliderRect,
-  element: MapElement,
-  base: number,
-): ColliderRect[] {
-  const archetype = buildingArchetype(element.assetId);
-  if (!archetype) return [];
+function buildingRoofEdgeColliders(part: BuildingRoofPart, element: MapElement): ColliderRect[] {
   const asset = editorAsset(element.assetId);
   if (asset?.tags.some((tag) => tag === "construction" || tag.includes("inconstruction"))) {
     return [];
   }
-  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
-  if (volume.roofShape !== "crenellated") return [];
-  const top = base + volume.wallHeight + BUILDING_PARAPET_TOP;
+  if (!part.edge) return [];
+  const collider = part.roof;
+  const top = part.edgeTop;
 
-  if (archetype !== "tower") {
-    const legacyQuarterTurn =
-      element.rotation === undefined && (element.orientation ?? 0) % 2 === 1;
-    const thicknessX =
-      collider.w *
-      (legacyQuarterTurn
-        ? RECTANGULAR_PARAPET_THICKNESS / 2.375
-        : RECTANGULAR_PARAPET_THICKNESS / 3);
-    const thicknessZ =
-      collider.h *
-      (legacyQuarterTurn
-        ? RECTANGULAR_PARAPET_THICKNESS / 3
-        : RECTANGULAR_PARAPET_THICKNESS / 2.375);
+  if (part.edge === "rectangular") {
+    const thicknessX = Math.min(collider.w, part.edgeWidth);
+    const thicknessZ = Math.min(collider.h, part.edgeDepth);
     return [
       orientedSubCollider(collider, 0, 0, collider.w, thicknessZ, { top, support: "center" }),
       orientedSubCollider(collider, 0, collider.h - thicknessZ, collider.w, thicknessZ, {
@@ -360,8 +455,8 @@ function buildingRoofEdgeColliders(
   const centreZ = collider.z + collider.h / 2;
   const radiusX = collider.w / 2;
   const radiusZ = collider.h / 2;
-  const battlementWidth = 0.32 * radiusX;
-  const battlementDepth = 0.28 * radiusZ;
+  const battlementWidth = part.edgeWidth;
+  const battlementDepth = part.edgeDepth;
   return Array.from({ length: ROUND_PARAPET_SEGMENTS }, (_, index) => {
     const angle = (index / ROUND_PARAPET_SEGMENTS) * Math.PI * 2;
     if (element.rotation !== undefined) {
@@ -430,13 +525,9 @@ export function authoredElementColliders(
     if (!orientation) return [];
     return [{ ...collider, top }, ...bridgeRails(collider, top, orientation)];
   }
-  const roof = buildingRoofCollider(collider, element, elementBaseTop(element, levels, size));
-  if (roof) {
-    return [
-      roof,
-      ...buildingRoofEdgeColliders(collider, element, elementBaseTop(element, levels, size)),
-    ];
-  }
+  const roofs = buildingRoofParts(collider, element, elementBaseTop(element, levels, size));
+  if (roofs.length > 0)
+    return roofs.flatMap((part) => [part.roof, ...buildingRoofEdgeColliders(part, element)]);
   const elevation = asset ? editorAssetCollisionElevation(asset) : null;
   return elevation === null
     ? [collider]
