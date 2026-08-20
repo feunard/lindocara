@@ -501,7 +501,7 @@ describe("HD-2D map editor stage", () => {
 
     expect(stage.current().elements[0]?.building?.dimensions).toEqual({
       width: 5,
-      depth: 2.125,
+      depth: 3.875,
     });
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
@@ -642,10 +642,10 @@ describe("building resize geometry", () => {
     });
     expect(buildingDimensionsAtPoint(building, 20, "width", { x: 0.5, z: 4 })).toEqual({
       width: 6,
-      depth: 3,
+      depth: 4.625,
     });
     expect(buildingDimensionsAtPoint(building, 20, "depth", { x: 4.5, z: 1 })).toEqual({
-      width: 4,
+      width: 5.125,
       depth: 4,
     });
   });

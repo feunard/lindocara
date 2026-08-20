@@ -1100,7 +1100,7 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setSelectedBuildingSettings).toHaveBeenCalledWith({
       destructible: true,
       maxHp: 900,
-      dimensions: { width: 6.25, depth: 3.125 },
+      dimensions: { width: 6.25, depth: 4.875 },
     });
   });
 

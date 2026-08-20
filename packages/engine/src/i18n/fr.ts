@@ -1201,7 +1201,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.building.width": "Largeur",
   "editor.inspector.building.depth": "Profondeur",
   "editor.inspector.building.sizeHint":
-    "Par huitième de cellule ; le modèle, le toit et la collision suivent.",
+    "Proportions liées ; le modèle, sa hauteur, le toit et la collision suivent.",
   "editor.inspector.bridge.size": "Dimensions du pont",
   "editor.inspector.bridge.length": "Longueur",
   "editor.inspector.bridge.width": "Largeur",

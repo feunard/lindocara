@@ -1186,7 +1186,7 @@ export const en = {
   "editor.inspector.building.width": "Width",
   "editor.inspector.building.depth": "Depth",
   "editor.inspector.building.sizeHint":
-    "Eighth-cell increments; model, roof and collision resize together.",
+    "Linked proportions; model height, roof and collision resize together.",
   "editor.inspector.bridge.size": "Bridge size",
   "editor.inspector.bridge.length": "Length",
   "editor.inspector.bridge.width": "Width",

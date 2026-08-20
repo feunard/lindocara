@@ -55,6 +55,7 @@ import {
   destroyedBuildingAssetId,
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
+  proportionalBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
@@ -2499,13 +2500,12 @@ function SelectionInspector({
                               ),
                             )
                           : selectedBuildingDimensions[dimension];
-                        onSetBuilding({
-                          ...selectedBuilding,
-                          dimensions: {
-                            ...selectedBuildingDimensions,
-                            [dimension]: normalized,
-                          },
-                        });
+                        const dimensions = proportionalBuildingDimensions(
+                          selectedElement.assetId,
+                          dimension,
+                          normalized,
+                        );
+                        if (dimensions) onSetBuilding({ ...selectedBuilding, dimensions });
                       }}
                     />
                   </div>

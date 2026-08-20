@@ -101,14 +101,15 @@ the gesture as one undoable edit. The renderer regenerates planks, rails and sup
 dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
 geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
 transform integer, keeping old 3x1 bridges valid and requiring no schema migration.
-Every supported native 3D building uses the same generic contract: its inspector can resize facade
-width and depth from 1 to 32 cells in eighth-cell increments. The model is regenerated from those
-dimensions rather than scaled, and the compiled roof, solid footprint and doorway use the same
-values. Selecting one on the map also draws its footprint plus two width handles and one rear depth
-handle; dragging them previews the snapped size immediately and commits the whole gesture as one
-undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
-buildings retain their native footprint, and explicit dimensions share the existing transform
-integer, so no schema migration is required.
+Every supported native 3D building uses the same generic contract: its inspector and map handles
+resize the whole archetype while preserving its native width/depth ratio. Width, depth and vertical
+architecture grow together, so a larger house, tower or mill reads as a larger model rather than a
+facade stretched along one axis. Values still snap to eighth-cell footprints; model modules, roof,
+solid footprint and doorway consume the same result. Selecting one on the map draws its footprint
+plus two side handles and one rear handle; dragging any of them previews the linked size immediately
+and commits the whole gesture as one undoable edit. Newly registered native building archetypes
+inherit the controls automatically. Legacy buildings retain their stored footprint, and explicit
+dimensions share the existing transform integer, so no schema migration is required.
 Native 3D scenery (all current and future native buildings plus both bridges) also supports an
 absolute 0..359-degree rotation. The inspector exposes the exact degree value, while selection on
 the map draws a purple rotation arm that can be dragged continuously; either interaction commits as

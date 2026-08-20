@@ -4,6 +4,7 @@ import {
   buildingColorVariants,
   buildingDimensionsOrDefault,
   buildingDoorGroundPoint,
+  buildingVolumeDimensions,
   decodeBuildingTransform,
   defaultBuildingMaxHp,
   defaultBuildingSettings,
@@ -14,6 +15,7 @@ import {
   isStandingBuildingAsset,
   parseBuildingDimensions,
   parseBuildingSettings,
+  proportionalBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import {
   decodeElementTransform,
@@ -70,6 +72,20 @@ describe("building authoring rules", () => {
       depth: 2.5,
     });
     expect(parseBuildingDimensions({ width: 3.1, depth: 2.5 })).toBeNull();
+  });
+
+  it("preserves native proportions and scales vertical architecture with the footprint", () => {
+    expect(proportionalBuildingDimensions(HOUSE, "width", 5.5)).toEqual({
+      width: 5.5,
+      depth: 4.25,
+    });
+    expect(buildingVolumeDimensions("house", { width: 5.5, depth: 4.25 })).toEqual({
+      width: 5.5,
+      depth: 4.25,
+      wallHeight: 2.6,
+      roofHeight: 2.76,
+      roofShape: "gable",
+    });
   });
 
   it("packs free rotation around existing building transforms without changing legacy values", () => {

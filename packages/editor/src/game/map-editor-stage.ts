@@ -23,6 +23,7 @@ import {
   buildingDimensionsOrDefault,
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
+  proportionalBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import {
   type ElementOrientation,
@@ -271,7 +272,7 @@ export function buildingDimensionsAtPoint(
       Math.round(raw / BUILDING_DIMENSION_STEP) * BUILDING_DIMENSION_STEP,
     ),
   );
-  return { ...current, [axis]: snapped };
+  return proportionalBuildingDimensions(element.assetId, axis, snapped);
 }
 
 /** Exact compiled bridge footprint plus one positive-growth handle per authored dimension. */

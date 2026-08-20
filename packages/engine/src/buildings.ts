@@ -169,7 +169,50 @@ export function buildingVolumeDimensions(
         return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
     }
   })();
-  return dimensions ? { ...native, ...dimensions } : native;
+  if (!dimensions) return native;
+  // New editor gestures preserve the native footprint ratio. The geometric mean also gives old
+  // independently-authored width/depth pairs a balanced vertical size instead of letting one
+  // stretched axis alone make the building implausibly tall.
+  const verticalScale = Math.sqrt(
+    (dimensions.width / native.width) * (dimensions.depth / native.depth),
+  );
+  return {
+    ...native,
+    ...dimensions,
+    wallHeight: native.wallHeight * verticalScale,
+    roofHeight: native.roofHeight * verticalScale,
+  };
+}
+
+export type BuildingDimensionAxis = keyof BuildingDimensions;
+
+/** Resize one footprint axis while preserving the archetype's native proportions on every axis. */
+export function proportionalBuildingDimensions(
+  assetId: string,
+  axis: BuildingDimensionAxis,
+  value: number,
+): BuildingDimensions | null {
+  const archetype = buildingArchetype(assetId);
+  if (!archetype || !Number.isFinite(value)) return null;
+  const native = buildingVolumeDimensions(archetype);
+  const minimumScale = Math.max(
+    MIN_BUILDING_DIMENSION / native.width,
+    MIN_BUILDING_DIMENSION / native.depth,
+  );
+  const maximumScale = Math.min(
+    MAX_BUILDING_DIMENSION / native.width,
+    MAX_BUILDING_DIMENSION / native.depth,
+  );
+  const scale = Math.max(minimumScale, Math.min(maximumScale, value / native[axis]));
+  const snap = (dimension: number): number =>
+    Math.max(
+      MIN_BUILDING_DIMENSION,
+      Math.min(
+        MAX_BUILDING_DIMENSION,
+        Math.round((dimension * scale) / BUILDING_DIMENSION_STEP) * BUILDING_DIMENSION_STEP,
+      ),
+    );
+  return { width: snap(native.width), depth: snap(native.depth) };
 }
 
 export function parseBuildingDimensions(value: unknown): BuildingDimensions | null {
