@@ -96,11 +96,13 @@ footprint. Scenery placement is terrain-independent: every known catalogue asset
 grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
 Once either wooden bridge is placed, its selection inspector can resize its crossing length and
 deck width in whole cells (1..32). Selecting it on the map also draws its exact deck footprint plus
-one length and one width handle; dragging either previews the snapped bridge immediately and commits
-the gesture as one undoable edit. The renderer regenerates planks, rails and supports from those
-dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
-geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
-transform integer, keeping old 3x1 bridges valid and requiring no schema migration.
+four independent edge handles. Dragging one end or side holds its opposite edge fixed, previews the
+snapped bridge immediately and commits the gesture as one undoable edit. The bridge's exact rotated,
+quarter-cell-shifted deck plus a small halo is selectable, rather than only its historical anchor.
+The renderer regenerates planks, rails and supports from those dimensions; the heightfield compiler
+bakes the identical footprint, deck and side rails, so visual geometry and movement collision cannot
+drift apart. Dimensions reuse the element row's existing transform integer, keeping old 3x1 bridges
+valid and requiring no schema migration.
 Bridge elevation is resolved from both the end-cap cells and terrain immediately beyond the two
 crossing ends, including for freely rotated bridges. Side terrain below a cliff no longer outvotes
 the actual support: the highest elevation touched by either end anchors the whole deck, even when

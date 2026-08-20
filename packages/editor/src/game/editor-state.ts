@@ -46,6 +46,7 @@ import {
   EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
+  elementWorldColliderGeometry,
   isRotatable3dElementAsset,
   MAP_LAYERS,
   MAX_MAP_ELEMENTS,
@@ -92,7 +93,7 @@ import {
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
+import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { autotileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
@@ -393,7 +394,32 @@ export function selectionAtMode(
         candidate.offsetX === offsetX &&
         candidate.offsetY === offsetY,
     );
-    const covering = exact ?? topFirst.find((candidate) => elementCoversCell(candidate, col, row));
+    const pointerX = (col + (offsetX + 0.5) / ELEMENT_OFFSET_STEPS) * TILE_SIZE;
+    const pointerY = (row + (offsetY + 0.5) / ELEMENT_OFFSET_STEPS) * TILE_SIZE;
+    const bridgeAtPointer = topFirst.find((candidate) => {
+      if (!bridgeOrientation(candidate.assetId)) return false;
+      const collider = elementWorldColliderGeometry(candidate);
+      if (!collider) return false;
+      const centreX = collider.x + collider.width / 2;
+      const centreY = collider.y + collider.height / 2;
+      const dx = pointerX - centreX;
+      const dy = pointerY - centreY;
+      const cos = Math.cos(collider.rotation);
+      const sin = Math.sin(collider.rotation);
+      const localX = dx * cos + dy * sin;
+      const localY = -dx * sin + dy * cos;
+      // A quarter-cell halo makes thin/rotated decks forgiving to click without stealing distant
+      // scenery. The exact quarter-cell anchor above still wins for deliberately stacked props.
+      const padding = TILE_SIZE / ELEMENT_OFFSET_STEPS;
+      return (
+        Math.abs(localX) <= collider.width / 2 + padding &&
+        Math.abs(localY) <= collider.height / 2 + padding
+      );
+    });
+    const covering =
+      exact ??
+      bridgeAtPointer ??
+      topFirst.find((candidate) => elementCoversCell(candidate, col, row));
     return covering
       ? {
           kind: "element",
@@ -657,12 +683,19 @@ export function updateSelectedBridgeDimensions(
   map: EditorMap,
   selection: Extract<EditorSelection, { kind: "element" }>,
   dimensions: BridgeDimensions,
+  placement?: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">,
 ): EditorMap | null {
   const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
   if (!element || !bridgeOrientation(element.assetId)) return null;
   const parsed = parseBridgeDimensions(dimensions);
   if (!parsed) return null;
-  const resized = { ...element, bridge: parsed };
+  const resized = { ...element, ...placement, bridge: parsed };
+  if (
+    map.elements.some(
+      (candidate) => !sameElementSlot(candidate, selection) && sameElementSlot(candidate, resized),
+    )
+  )
+    return null;
   if (!placementFitsMap(map, resized)) return null;
   const next: EditorMap = {
     ...map,

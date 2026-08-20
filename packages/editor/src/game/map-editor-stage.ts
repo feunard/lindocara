@@ -42,6 +42,7 @@ import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import {
   ELEMENT_OFFSET_STEPS,
   element3dRotationDegrees,
+  elementWorldColliderGeometry,
   isRotatable3dElementAsset,
   type MapElement,
   sameElementSlot,
@@ -50,6 +51,7 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type EditorAssetId,
   editorAsset,
@@ -187,6 +189,7 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
 
 export type BuildingResizeAxis = "width" | "depth";
 export type BridgeResizeAxis = "length" | "width";
+export type BridgeResizeSide = "length-start" | "length-end" | "width-start" | "width-end";
 
 export interface BuildingResizeGuide {
   anchor: { x: number; z: number };
@@ -198,8 +201,24 @@ export interface BuildingResizeGuide {
 export interface BridgeResizeGuide {
   anchor: { x: number; z: number };
   outline: readonly { x: number; z: number }[];
-  lengthHandle: { x: number; z: number };
-  widthHandle: { x: number; z: number };
+  handles: readonly [
+    BridgeResizeHandle,
+    BridgeResizeHandle,
+    BridgeResizeHandle,
+    BridgeResizeHandle,
+  ];
+}
+
+export interface BridgeResizeHandle {
+  side: BridgeResizeSide;
+  axis: BridgeResizeAxis;
+  point: { x: number; z: number };
+  outward: { x: number; z: number };
+}
+
+export interface BridgeResizeResult {
+  dimensions: BridgeDimensions;
+  placement: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">;
 }
 
 export interface ElementRotationGuide {
@@ -276,7 +295,7 @@ export function buildingDimensionsAtPoint(
   return proportionalBuildingDimensions(element.assetId, axis, snapped);
 }
 
-/** Exact compiled bridge footprint plus one positive-growth handle per authored dimension. */
+/** Exact compiled bridge footprint plus one independent handle on each of its four edges. */
 export function bridgeResizeGuide(
   element: MapElement,
   mapSize: number,
@@ -312,15 +331,35 @@ export function bridgeResizeGuide(
     const sin = Math.sin(deltaRadians);
     return { x: centreX + dx * cos - dz * sin, z: centreZ + dx * sin + dz * cos };
   };
+  const rotateVector = (vector: { x: number; z: number }): { x: number; z: number } => {
+    const cos = Math.cos(deltaRadians);
+    const sin = Math.sin(deltaRadians);
+    return { x: vector.x * cos - vector.z * sin, z: vector.x * sin + vector.z * cos };
+  };
+  const handle = (
+    side: BridgeResizeSide,
+    axis: BridgeResizeAxis,
+    point: { x: number; z: number },
+    outward: { x: number; z: number },
+  ): BridgeResizeHandle => ({ side, axis, point: rotate(point), outward: rotateVector(outward) });
+  const handles: BridgeResizeGuide["handles"] =
+    orientation === "horizontal"
+      ? [
+          handle("length-start", "length", { x: left, z: centreZ }, { x: -1, z: 0 }),
+          handle("length-end", "length", { x: right, z: centreZ }, { x: 1, z: 0 }),
+          handle("width-start", "width", { x: centreX, z: top }, { x: 0, z: -1 }),
+          handle("width-end", "width", { x: centreX, z: bottom }, { x: 0, z: 1 }),
+        ]
+      : [
+          handle("length-start", "length", { x: centreX, z: top }, { x: 0, z: -1 }),
+          handle("length-end", "length", { x: centreX, z: bottom }, { x: 0, z: 1 }),
+          handle("width-start", "width", { x: left, z: centreZ }, { x: -1, z: 0 }),
+          handle("width-end", "width", { x: right, z: centreZ }, { x: 1, z: 0 }),
+        ];
   return {
     anchor: authoredElementGroundPoint(element, mapSize),
     outline: outline.map(rotate),
-    lengthHandle: rotate(
-      orientation === "horizontal" ? { x: right, z: centreZ } : { x: centreX, z: top },
-    ),
-    widthHandle: rotate(
-      orientation === "horizontal" ? { x: centreX, z: top } : { x: right, z: centreZ },
-    ),
+    handles,
   };
 }
 
@@ -377,6 +416,60 @@ export function bridgeDimensionsAtDelta(
     Math.min(MAX_BRIDGE_DIMENSION, Math.round(current[axis] + delta)),
   );
   return { ...current, [axis]: value };
+}
+
+function placementAtGroundPoint(
+  point: { x: number; z: number },
+  mapSize: number,
+): Pick<MapElement, "col" | "row" | "offsetX" | "offsetY"> {
+  const quantizedX = Math.round((point.x + mapSize / 2 - 0.5) * ELEMENT_OFFSET_STEPS);
+  const quantizedZ = Math.round((point.z + mapSize / 2 - 1) * ELEMENT_OFFSET_STEPS);
+  const col = Math.floor(quantizedX / ELEMENT_OFFSET_STEPS);
+  const row = Math.floor(quantizedZ / ELEMENT_OFFSET_STEPS);
+  return {
+    col,
+    row,
+    offsetX: quantizedX - col * ELEMENT_OFFSET_STEPS,
+    offsetY: quantizedZ - row * ELEMENT_OFFSET_STEPS,
+  };
+}
+
+/** Resize one bridge edge while holding its opposite edge fixed, including after free rotation. */
+export function bridgeResizeAtDelta(
+  element: MapElement,
+  mapSize: number,
+  side: BridgeResizeSide,
+  delta: number,
+): BridgeResizeResult | null {
+  const guide = bridgeResizeGuide(element, mapSize);
+  const dragged = guide?.handles.find((candidate) => candidate.side === side);
+  if (!dragged) return null;
+  const current = bridgeDimensionsOrDefault(element.bridge);
+  const dimensions = bridgeDimensionsAtDelta(element, dragged.axis, delta);
+  if (!dimensions) return null;
+  const change = dimensions[dragged.axis] - current[dragged.axis];
+  const before = elementWorldColliderGeometry({ ...element, bridge: current });
+  const resizedAtSameAnchor = elementWorldColliderGeometry({ ...element, bridge: dimensions });
+  if (!before || !resizedAtSameAnchor) return null;
+  const desiredCentre = {
+    x: before.x + before.width / 2 + dragged.outward.x * change * TILE_SIZE * 0.5,
+    z: before.y + before.height / 2 + dragged.outward.z * change * TILE_SIZE * 0.5,
+  };
+  const resizedCentre = {
+    x: resizedAtSameAnchor.x + resizedAtSameAnchor.width / 2,
+    z: resizedAtSameAnchor.y + resizedAtSameAnchor.height / 2,
+  };
+  const ground = authoredElementGroundPoint(element, mapSize);
+  return {
+    dimensions,
+    placement: placementAtGroundPoint(
+      {
+        x: ground.x + (desiredCentre.x - resizedCentre.x) / TILE_SIZE,
+        z: ground.z + (desiredCentre.z - resizedCentre.z) / TILE_SIZE,
+      },
+      mapSize,
+    ),
+  };
 }
 
 /** Every blocked cell inside `rect` — deliberately NOT the whole canvas: a 256×256 document is
@@ -481,9 +574,11 @@ export function openMapEditorStage(
       | {
           kind: "bridge";
           axis: BridgeResizeAxis;
+          side: BridgeResizeSide;
           selection: Extract<EditorSelection, { kind: "element" }>;
           dimensions: BridgeDimensions;
           startPoint: { x: number; z: number };
+          outward: { x: number; z: number };
         }
       | null = null;
     let resizePreview:
@@ -498,7 +593,7 @@ export function openMapEditorStage(
     let hoverRotation = false;
     let hoverResize:
       | { kind: "building"; axis: BuildingResizeAxis }
-      | { kind: "bridge"; axis: BridgeResizeAxis }
+      | { kind: "bridge"; axis: BridgeResizeAxis; side: BridgeResizeSide }
       | null = null;
     let lastPaintedKey = "";
     // Terrain spray still remeshes the ground (12-45ms measured on a light canvas), so a fast drag
@@ -576,7 +671,12 @@ export function openMapEditorStage(
       z: number;
     }):
       | { kind: "building"; axis: BuildingResizeAxis }
-      | { kind: "bridge"; axis: BridgeResizeAxis }
+      | {
+          kind: "bridge";
+          axis: BridgeResizeAxis;
+          side: BridgeResizeSide;
+          outward: { x: number; z: number };
+        }
       | null => {
       const distance = (handle: { x: number; z: number }): number =>
         Math.hypot(point.x - handle.x, point.z - handle.z);
@@ -591,11 +691,16 @@ export function openMapEditorStage(
       }
       const bridge = selectedBridgeGuide();
       if (!bridge) return null;
-      if (distance(bridge.lengthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS) {
-        return { kind: "bridge", axis: "length" };
-      }
-      return distance(bridge.widthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
-        ? { kind: "bridge", axis: "width" }
+      const closest = [...bridge.handles].sort(
+        (left, right) => distance(left.point) - distance(right.point),
+      )[0];
+      return closest && distance(closest.point) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
+        ? {
+            kind: "bridge",
+            axis: closest.axis,
+            side: closest.side,
+            outward: closest.outward,
+          }
         : null;
     };
     const refreshCursor = (): void => {
@@ -708,8 +813,8 @@ export function openMapEditorStage(
         bridgeResize: bridgeResize
           ? {
               ...bridgeResize,
-              hoverAxis: hoverResize?.kind === "bridge" ? hoverResize.axis : null,
-              activeAxis: resizeDrag?.kind === "bridge" ? resizeDrag.axis : null,
+              hoverSide: hoverResize?.kind === "bridge" ? hoverResize.side : null,
+              activeSide: resizeDrag?.kind === "bridge" ? resizeDrag.side : null,
               valid: resizePreview?.kind === "bridge" ? resizePreview.valid : true,
             }
           : null,
@@ -1002,25 +1107,14 @@ export function openMapEditorStage(
           valid: next !== null,
         };
       } else {
-        const orientation = bridgeOrientation(sourceElement.assetId);
-        if (!orientation) return;
-        const baseAngle = orientation === "horizontal" ? 0 : 90;
-        const radians = (((sourceElement.rotation ?? baseAngle) - baseAngle) * Math.PI) / 180;
         const worldDx = point.x - drag.startPoint.x;
         const worldDz = point.z - drag.startPoint.z;
-        const localDx = worldDx * Math.cos(radians) + worldDz * Math.sin(radians);
-        const localDz = -worldDx * Math.sin(radians) + worldDz * Math.cos(radians);
-        const delta =
-          drag.axis === "length"
-            ? orientation === "horizontal"
-              ? localDx
-              : -localDz
-            : orientation === "horizontal"
-              ? -localDz
-              : localDx;
+        const delta = worldDx * drag.outward.x + worldDz * drag.outward.z;
         const source = { ...sourceElement, bridge: drag.dimensions };
-        const nextDimensions = bridgeDimensionsAtDelta(source, drag.axis, delta);
-        if (!nextDimensions) return;
+        const { cols, rows } = dimensions();
+        const result = bridgeResizeAtDelta(source, Math.max(cols, rows), drag.side, delta);
+        if (!result) return;
+        const nextDimensions = result.dimensions;
         const previousPreview = resizePreview?.kind === "bridge" ? resizePreview.dimensions : null;
         if (
           previousPreview?.length === nextDimensions.length &&
@@ -1028,8 +1122,14 @@ export function openMapEditorStage(
         ) {
           return;
         }
-        next = updateSelectedBridgeDimensions(map, drag.selection, nextDimensions);
+        next = updateSelectedBridgeDimensions(
+          strokeStart,
+          drag.selection,
+          nextDimensions,
+          result.placement,
+        );
         resizePreview = { kind: "bridge", dimensions: nextDimensions, valid: next !== null };
+        if (next) selected = { kind: "element", ...result.placement };
       }
       if (!next || next === map) {
         drawOverlay();
@@ -1129,9 +1229,11 @@ export function openMapEditorStage(
         resizeDrag = {
           kind: "bridge",
           axis: resize.axis,
+          side: resize.side,
           selection: selected,
           dimensions: bridgeDimensions,
           startPoint: point,
+          outward: resize.outward,
         };
         resizePreview = { kind: "bridge", dimensions: bridgeDimensions, valid: true };
         hoverResize = resize;

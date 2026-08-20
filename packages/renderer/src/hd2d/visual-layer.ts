@@ -150,10 +150,13 @@ export interface Hd2dEditorOverlay {
   bridgeResize?: {
     anchor: GroundVector;
     outline: readonly GroundVector[];
-    lengthHandle: GroundVector;
-    widthHandle: GroundVector;
-    hoverAxis?: "length" | "width" | null;
-    activeAxis?: "length" | "width" | null;
+    handles: readonly {
+      side: "length-start" | "length-end" | "width-start" | "width-end";
+      axis: "length" | "width";
+      point: GroundVector;
+    }[];
+    hoverSide?: "length-start" | "length-end" | "width-start" | "width-end" | null;
+    activeSide?: "length-start" | "length-end" | "width-start" | "width-end" | null;
     valid: boolean;
   } | null;
   /** Direct-manipulation rotation arm for selected native 3D scenery. */
@@ -1755,22 +1758,22 @@ export class Hd2dVisualLayer {
       outline.renderOrder = 42;
       group.add(outline);
 
-      const addHandle = (point: GroundVector, axis: "length" | "width"): void => {
-        const highlighted = resize.activeAxis === axis || resize.hoverAxis === axis;
+      const addHandle = (handle: (typeof resize.handles)[number]): void => {
+        const { point, axis, side } = handle;
+        const highlighted = resize.activeSide === side || resize.hoverSide === side;
         const color = resize.valid ? (axis === "length" ? 0xffb84d : 0x57d6ff) : 0xef5350;
-        const handle = new THREE.Mesh(
+        const mesh = new THREE.Mesh(
           new THREE.CircleGeometry(highlighted ? 0.27 : 0.22, 24),
           transparentMaterial(color, highlighted ? 1 : 0.9),
         );
-        handle.name = `editor-bridge-resize-${axis}`;
-        handle.rotation.x = -Math.PI / 2;
-        handle.position.set(point.x, this.#groundY(point.x, point.z, 0.205), point.z);
-        handle.renderOrder = 43;
-        (handle.material as THREE.MeshBasicMaterial).depthTest = false;
-        group.add(handle);
+        mesh.name = `editor-bridge-resize-${side}`;
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(point.x, this.#groundY(point.x, point.z, 0.205), point.z);
+        mesh.renderOrder = 43;
+        (mesh.material as THREE.MeshBasicMaterial).depthTest = false;
+        group.add(mesh);
       };
-      addHandle(resize.lengthHandle, "length");
-      addHandle(resize.widthHandle, "width");
+      for (const handle of resize.handles) addHandle(handle);
 
       const anchor = new THREE.Mesh(
         new THREE.RingGeometry(0.08, 0.14, 4),
