@@ -61,4 +61,36 @@ describe("stepHero — the vertical axis", () => {
     expect(s.airborne).toBe(false);
     expect(s.y).toBeCloseTo(top, 6);
   });
+  it("walks under a raised deck instead of being lifted onto it", () => {
+    // A bridge two levels up over a gorge: `blocksAt` lets a body pass beneath it (quest #12), so
+    // the vertical resolution is now the only thing standing between the bank and the deck. With
+    // an unbounded ceiling it read the planking as the ground under the hero's feet and TELEPORTED
+    // it up there on the first frame.
+    const deck = 1.8;
+    const deps = depsPlates({
+      surface: (x, _z, ceilingY) => (Math.abs(x) <= 1 && ceilingY >= deck ? deck : 0),
+    });
+    const s = createHeroState(-1.5, 0, 0, 10, 2.2);
+    for (let i = 0; i < 20; i++) stepHero(s, { ...immobile, x: 1 }, 1 / 60, deps);
+
+    expect(Math.abs(s.x)).toBeLessThanOrEqual(1); // actually under the planking
+    expect(s.y).toBeCloseTo(0, 6);
+    expect(s.groundY).toBeCloseTo(0, 6);
+    expect(s.airborne).toBe(false);
+  });
+
+  it("still stands on a deck it is already walking along", () => {
+    // The other half of the same rule: bounding the ceiling must not drop a hero THROUGH the deck
+    // it is on. Its own surface is at its feet, so it stays within one step of its ground.
+    const deck = 1.8;
+    const deps = depsPlates({
+      surface: (x, _z, ceilingY) => (Math.abs(x) <= 1 && ceilingY >= deck ? deck : 0),
+    });
+    const s = createHeroState(-0.5, 0, deck, 10, 2.2);
+    s.groundY = deck;
+    for (let i = 0; i < 20; i++) stepHero(s, { ...immobile, x: 1 }, 1 / 60, deps);
+
+    expect(s.y).toBeCloseTo(deck, 6);
+    expect(s.airborne).toBe(false);
+  });
 });

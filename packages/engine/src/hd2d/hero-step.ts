@@ -227,7 +227,7 @@ export function stepHero(
   deps: StepDeps,
 ): HeroEvent[] {
   const events: HeroEvent[] = [];
-  const { query, hero } = deps;
+  const { query, hero, world } = deps;
 
   // The jump input is a LEVEL. Read the rising edge ONCE, here, before any branch: the latch has
   // to advance on every step — indoors, swimming, anywhere — or a key held across a doorway would
@@ -309,7 +309,26 @@ export function stepHero(
     state.vy = 0;
   }
   const footprintZ = empreinteZ(state.z);
-  const surfaceCeiling = state.airborne ? state.y + 0.02 : Number.POSITIVE_INFINITY;
+  // How high a surface may be and still count as the one under the hero's FEET.
+  //
+  // Unbounded (`Infinity`) is what this was for every grounded hero, and a deck with an underside
+  // made that wrong. While every raised surface was a solid column nothing could pass beneath,
+  // "the highest surface at this point" and "the surface under the feet" were the same sentence;
+  // once a bridge two levels up let the bank below it be walked (`blocksAt`'s span test) they
+  // stopped being, and a hero stepping under the planking was lifted onto it on the next frame.
+  //
+  // `suitSurface` is what keeps a slope working, and it is the honest discriminator rather than a
+  // tolerance: it says the hero SPENT this frame on one continuous surface — a ramp, or a platform
+  // whose height under its previous position was already its ground. A gable roof climbed toward
+  // its peak answers yes however steep it is; the bank under a bridge answers no, because the
+  // planking overhead was never what the hero was standing on.
+  const surfaceCeiling = state.swimming
+    ? state.y + world.levelHeight * hero.swim.climb
+    : state.airborne
+      ? state.y + 0.02
+      : suitSurface
+        ? Number.POSITIVE_INFINITY
+        : state.groundY + world.maxStep * world.levelHeight + 1e-3;
   const centreSurface = state.room
     ? state.room.y
     : (query.surfaceAt?.(state.x, footprintZ, surfaceCeiling) ??
