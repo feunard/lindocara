@@ -295,6 +295,7 @@ export async function handleInteract(
         z: candidate.z,
         assetId: candidate.standingAssetId,
         ...(candidate.orientation === undefined ? {} : { orientation: candidate.orientation }),
+        ...(candidate.rotation === undefined ? {} : { rotation: candidate.rotation }),
         ...(candidate.dimensions ? { dimensions: candidate.dimensions } : {}),
       }),
     }))

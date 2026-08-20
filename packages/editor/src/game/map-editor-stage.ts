@@ -24,7 +24,10 @@ import {
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
 } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
+import {
+  type ElementOrientation,
+  elementRotationDegrees,
+} from "@lindocara/engine/element-orientation.js";
 import {
   authoredElementGroundPoint,
   authoredStairsRamp,
@@ -36,6 +39,8 @@ import type { MapData as CompiledMapData } from "@lindocara/engine/hd2d/map-data
 import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import {
   ELEMENT_OFFSET_STEPS,
+  element3dRotationDegrees,
+  isRotatable3dElementAsset,
   type MapElement,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
@@ -83,6 +88,7 @@ import {
   updateSelectedElementAsset,
   updateSelectedElementOffset,
   updateSelectedElementOrientation,
+  updateSelectedElementRotation,
 } from "./editor-state.js";
 import {
   authoredEventPreviewSnapshots,
@@ -114,6 +120,7 @@ export interface MapEditorStageHandle {
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
   setSelectedElementOrientation(orientation: ElementOrientation): boolean;
+  setSelectedElementRotation(rotation: number): boolean;
   setSelectedBridgeDimensions(dimensions: BridgeDimensions): boolean;
   setSelectedBuildingSettings(settings: BuildingSettings): boolean;
   deleteSelected(): boolean;
@@ -193,6 +200,12 @@ export interface BridgeResizeGuide {
   widthHandle: { x: number; z: number };
 }
 
+export interface ElementRotationGuide {
+  anchor: { x: number; z: number };
+  handle: { x: number; z: number };
+  angle: number;
+}
+
 /** World-space footprint and handles for one native building. The front threshold remains fixed:
  * width grows symmetrically from it, while depth grows only behind it. */
 export function buildingResizeGuide(
@@ -206,12 +219,16 @@ export function buildingResizeGuide(
   );
   if (!dimensions) return null;
   const anchor = authoredElementGroundPoint(element, mapSize);
-  const orientation = element.orientation ?? 0;
+  const radians = (elementRotationDegrees(element) * Math.PI) / 180;
   const point = (localX: number, localZ: number): { x: number; z: number } => {
-    let x = localX;
-    let z = localZ;
-    for (let turn = 0; turn < orientation; turn += 1) [x, z] = [-z, x];
-    return { x: anchor.x + x, z: anchor.z + z };
+    const rawCos = Math.cos(radians);
+    const rawSin = Math.sin(radians);
+    const cos = Math.abs(rawCos) < 1e-12 ? 0 : rawCos;
+    const sin = Math.abs(rawSin) < 1e-12 ? 0 : rawSin;
+    return {
+      x: anchor.x + localX * cos - localZ * sin,
+      z: anchor.z + localX * sin + localZ * cos,
+    };
   };
   return {
     anchor,
@@ -242,7 +259,10 @@ export function buildingDimensionsAtPoint(
   const anchor = authoredElementGroundPoint(element, mapSize);
   let x = world.x - anchor.x;
   let z = world.z - anchor.z;
-  for (let turn = 0; turn < (element.orientation ?? 0); turn += 1) [x, z] = [z, -x];
+  const radians = (elementRotationDegrees(element) * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  [x, z] = [x * cos + z * sin, -x * sin + z * cos];
   const raw = axis === "width" ? Math.abs(x) * 2 : -z;
   const snapped = Math.max(
     MIN_BUILDING_DIMENSION,
@@ -275,17 +295,70 @@ export function bridgeResizeGuide(
   const bottom = top + layout.rows;
   const centreX = (left + right) / 2;
   const centreZ = (top + bottom) / 2;
+  const outline = [
+    { x: left, z: top },
+    { x: right, z: top },
+    { x: right, z: bottom },
+    { x: left, z: bottom },
+  ];
+  const baseAngle = orientation === "horizontal" ? 0 : 90;
+  const deltaRadians = (((element.rotation ?? baseAngle) - baseAngle) * Math.PI) / 180;
+  const rotate = (point: { x: number; z: number }): { x: number; z: number } => {
+    const dx = point.x - centreX;
+    const dz = point.z - centreZ;
+    const cos = Math.cos(deltaRadians);
+    const sin = Math.sin(deltaRadians);
+    return { x: centreX + dx * cos - dz * sin, z: centreZ + dx * sin + dz * cos };
+  };
   return {
     anchor: authoredElementGroundPoint(element, mapSize),
-    outline: [
-      { x: left, z: top },
-      { x: right, z: top },
-      { x: right, z: bottom },
-      { x: left, z: bottom },
-    ],
-    lengthHandle: orientation === "horizontal" ? { x: right, z: centreZ } : { x: centreX, z: top },
-    widthHandle: orientation === "horizontal" ? { x: centreX, z: top } : { x: right, z: centreZ },
+    outline: outline.map(rotate),
+    lengthHandle: rotate(
+      orientation === "horizontal" ? { x: right, z: centreZ } : { x: centreX, z: top },
+    ),
+    widthHandle: rotate(
+      orientation === "horizontal" ? { x: centreX, z: top } : { x: right, z: centreZ },
+    ),
   };
+}
+
+export function elementRotationGuide(
+  element: MapElement,
+  mapSize: number,
+): ElementRotationGuide | null {
+  if (!isRotatable3dElementAsset(element.assetId)) return null;
+  const building = buildingResizeGuide(element, mapSize);
+  const bridge = building ? null : bridgeResizeGuide(element, mapSize);
+  const outline = building?.outline ?? bridge?.outline;
+  const anchor =
+    building?.anchor ??
+    (bridge
+      ? {
+          x: bridge.outline.reduce((sum, point) => sum + point.x, 0) / bridge.outline.length,
+          z: bridge.outline.reduce((sum, point) => sum + point.z, 0) / bridge.outline.length,
+        }
+      : undefined);
+  if (!outline || !anchor) return null;
+  const radius =
+    Math.max(...outline.map((point) => Math.hypot(point.x - anchor.x, point.z - anchor.z))) + 0.7;
+  const angle = element3dRotationDegrees(element);
+  const radians = (angle * Math.PI) / 180;
+  return {
+    anchor,
+    handle: {
+      x: anchor.x - Math.sin(radians) * radius,
+      z: anchor.z + Math.cos(radians) * radius,
+    },
+    angle,
+  };
+}
+
+export function elementRotationAtPoint(
+  anchor: { x: number; z: number },
+  point: { x: number; z: number },
+): number {
+  const degrees = (Math.atan2(-(point.x - anchor.x), point.z - anchor.z) * 180) / Math.PI;
+  return ((Math.round(degrees) % 360) + 360) % 360;
 }
 
 /** Bridges snap to whole cells. Delta is measured from the pointer-down handle, which avoids the
@@ -415,6 +488,12 @@ export function openMapEditorStage(
       | { kind: "building"; dimensions: BuildingDimensions; valid: boolean }
       | { kind: "bridge"; dimensions: BridgeDimensions; valid: boolean }
       | null = null;
+    let rotationDrag: {
+      selection: Extract<EditorSelection, { kind: "element" }>;
+      anchor: { x: number; z: number };
+    } | null = null;
+    let rotationPreview: { angle: number; valid: boolean } | null = null;
+    let hoverRotation = false;
     let hoverResize:
       | { kind: "building"; axis: BuildingResizeAxis }
       | { kind: "bridge"; axis: BridgeResizeAxis }
@@ -476,6 +555,20 @@ export function openMapEditorStage(
         resizePreview?.kind === "bridge" ? resizePreview.dimensions : undefined,
       );
     };
+    const selectedRotationGuide = (): ElementRotationGuide | null => {
+      const element = selectedElement();
+      if (!element) return null;
+      const { cols, rows } = dimensions();
+      return elementRotationGuide(element, Math.max(cols, rows));
+    };
+    const rotationAt = (point: { x: number; z: number }): boolean => {
+      const guide = selectedRotationGuide();
+      return Boolean(
+        guide &&
+          Math.hypot(point.x - guide.handle.x, point.z - guide.handle.z) <=
+            BUILDING_RESIZE_HANDLE_HIT_RADIUS,
+      );
+    };
     const resizeAt = (point: {
       x: number;
       z: number;
@@ -504,15 +597,18 @@ export function openMapEditorStage(
         : null;
     };
     const refreshCursor = (): void => {
-      canvas.dataset.cursor = resizeDrag
-        ? "grabbing"
-        : hoverResize
-          ? `resize-${hoverResize.axis}`
-          : tool.kind === "pan"
-            ? "move"
-            : tool.kind === "select"
-              ? "select"
-              : "paint";
+      canvas.dataset.cursor =
+        resizeDrag || rotationDrag
+          ? "grabbing"
+          : hoverRotation
+            ? "rotate"
+            : hoverResize
+              ? `resize-${hoverResize.axis}`
+              : tool.kind === "pan"
+                ? "move"
+                : tool.kind === "select"
+                  ? "select"
+                  : "paint";
     };
     // The rect a save would store, memoized per document identity: the map is immutable per edit
     // (every mutator returns a fresh object), so recomputing `derivedMapRect` — a full scan of every
@@ -564,6 +660,7 @@ export function openMapEditorStage(
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
+      const rotation = selectedRotationGuide();
       const rect = derivedRect();
       renderer.setEditorOverlay({
         cols,
@@ -603,6 +700,14 @@ export function openMapEditorStage(
               hoverAxis: hoverResize?.kind === "bridge" ? hoverResize.axis : null,
               activeAxis: resizeDrag?.kind === "bridge" ? resizeDrag.axis : null,
               valid: resizePreview?.kind === "bridge" ? resizePreview.valid : true,
+            }
+          : null,
+        elementRotation: rotation
+          ? {
+              ...rotation,
+              hovered: hoverRotation,
+              active: rotationDrag !== null,
+              valid: rotationPreview?.valid ?? true,
             }
           : null,
         // The cursor outlines the unit the active mode actually places on: a whole cell for field
@@ -769,6 +874,7 @@ export function openMapEditorStage(
           dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
           selected = dragSelection;
           hoverResize = null;
+          hoverRotation = false;
           refreshCursor();
           drawOverlay();
           notify();
@@ -800,6 +906,7 @@ export function openMapEditorStage(
         if (exists) {
           selected = { kind: "element", col, row, offsetX, offsetY };
           hoverResize = null;
+          hoverRotation = false;
           refreshCursor();
           drawOverlay();
           notify();
@@ -811,6 +918,7 @@ export function openMapEditorStage(
         if (exists) {
           selected = { kind: "event", id: exists.id };
           hoverResize = null;
+          hoverRotation = false;
           refreshCursor();
           drawOverlay();
           notify();
@@ -884,14 +992,20 @@ export function openMapEditorStage(
       } else {
         const orientation = bridgeOrientation(sourceElement.assetId);
         if (!orientation) return;
+        const baseAngle = orientation === "horizontal" ? 0 : 90;
+        const radians = (((sourceElement.rotation ?? baseAngle) - baseAngle) * Math.PI) / 180;
+        const worldDx = point.x - drag.startPoint.x;
+        const worldDz = point.z - drag.startPoint.z;
+        const localDx = worldDx * Math.cos(radians) + worldDz * Math.sin(radians);
+        const localDz = -worldDx * Math.sin(radians) + worldDz * Math.cos(radians);
         const delta =
           drag.axis === "length"
             ? orientation === "horizontal"
-              ? point.x - drag.startPoint.x
-              : drag.startPoint.z - point.z
+              ? localDx
+              : -localDz
             : orientation === "horizontal"
-              ? drag.startPoint.z - point.z
-              : point.x - drag.startPoint.x;
+              ? -localDz
+              : localDx;
         const source = { ...sourceElement, bridge: drag.dimensions };
         const nextDimensions = bridgeDimensionsAtDelta(source, drag.axis, delta);
         if (!nextDimensions) return;
@@ -905,6 +1019,24 @@ export function openMapEditorStage(
         next = updateSelectedBridgeDimensions(map, drag.selection, nextDimensions);
         resizePreview = { kind: "bridge", dimensions: nextDimensions, valid: next !== null };
       }
+      if (!next || next === map) {
+        drawOverlay();
+        return;
+      }
+      const previous = map;
+      map = next;
+      strokeRedraw(previous);
+      notify();
+    };
+
+    const rotateSelectedAt = (clientX: number, clientY: number): void => {
+      if (!rotationDrag || !strokeStart) return;
+      const point = renderer.screenToWorld(clientX, clientY);
+      if (!point) return;
+      const angle = elementRotationAtPoint(rotationDrag.anchor, point);
+      if (rotationPreview?.angle === angle) return;
+      const next = updateSelectedElementRotation(map, rotationDrag.selection, angle);
+      rotationPreview = { angle, valid: next !== null };
       if (!next || next === map) {
         drawOverlay();
         return;
@@ -940,12 +1072,23 @@ export function openMapEditorStage(
       }
       if (event.button !== 0) return;
       const point = renderer.screenToWorld(event.clientX, event.clientY);
+      const rotation = point ? rotationAt(point) : false;
       const resize = point ? resizeAt(point) : null;
       const building = selectedBuildingElement();
       const bridge = selectedBridgeElement();
       const currentDimensions = building?.building
         ? buildingDimensionsOrDefault(building.assetId, building.building.dimensions)
         : null;
+      const rotationGuide = selectedRotationGuide();
+      if (rotation && selected?.kind === "element" && rotationGuide) {
+        rotationDrag = { selection: selected, anchor: rotationGuide.anchor };
+        rotationPreview = { angle: rotationGuide.angle, valid: true };
+        hoverRotation = true;
+        strokeStart = map;
+        refreshCursor();
+        drawOverlay();
+        return;
+      }
       if (
         resize?.kind === "building" &&
         selected?.kind === "element" &&
@@ -1020,7 +1163,12 @@ export function openMapEditorStage(
         resizeSelectedAt(event.clientX, event.clientY);
         return;
       }
+      if (rotationDrag) {
+        rotateSelectedAt(event.clientX, event.clientY);
+        return;
+      }
       const world = renderer.screenToWorld(event.clientX, event.clientY);
+      hoverRotation = !painting && world ? rotationAt(world) : false;
       hoverResize = !painting && world ? resizeAt(world) : null;
       refreshCursor();
       const placement = placementAt(event.clientX, event.clientY);
@@ -1031,9 +1179,12 @@ export function openMapEditorStage(
     };
 
     const stopStroke = (): void => {
-      const stoppedResize = resizeDrag !== null;
+      const stoppedResize = resizeDrag !== null || rotationDrag !== null;
       resizeDrag = null;
       resizePreview = null;
+      rotationDrag = null;
+      rotationPreview = null;
+      hoverRotation = false;
       hoverResize = null;
       if (strokeRebuildPending) {
         strokeRebuildPending = false;
@@ -1059,6 +1210,7 @@ export function openMapEditorStage(
     const onPointerLeave = (): void => {
       hover = null;
       hoverResize = null;
+      hoverRotation = false;
       refreshCursor();
       reportCursor(null, null);
       drawOverlay();
@@ -1112,6 +1264,7 @@ export function openMapEditorStage(
       if (!nextSelection) return;
       selected = nextSelection;
       hoverResize = null;
+      hoverRotation = false;
       refreshCursor();
       drawOverlay();
       notify();
@@ -1161,7 +1314,10 @@ export function openMapEditorStage(
           (mode === "element" && selected?.kind === "element") ||
           (mode === "event" && selected?.kind === "event");
         if (selected && !matches) selected = null;
-        if (!selected) hoverResize = null;
+        if (!selected) {
+          hoverResize = null;
+          hoverRotation = false;
+        }
         refreshCursor();
         drawOverlay();
         notify();
@@ -1198,6 +1354,7 @@ export function openMapEditorStage(
         highlightedEventId = null;
         hover = null;
         hoverResize = null;
+        hoverRotation = false;
         refreshCursor();
         reportCursor(null, null);
         // A whole generated map is a new composition even though both documents use the same
@@ -1244,6 +1401,7 @@ export function openMapEditorStage(
         history = { ...history, present: map };
         selected = null;
         hoverResize = null;
+        hoverRotation = false;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redrawMapChange(previous);
@@ -1260,6 +1418,7 @@ export function openMapEditorStage(
         history = { ...history, present: map };
         selected = null;
         hoverResize = null;
+        hoverRotation = false;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redrawMapChange(previous);
@@ -1274,6 +1433,7 @@ export function openMapEditorStage(
         if (!selected) return;
         selected = null;
         hoverResize = null;
+        hoverRotation = false;
         refreshCursor();
         drawOverlay();
         notify();
@@ -1306,6 +1466,10 @@ export function openMapEditorStage(
       setSelectedElementOrientation(orientation) {
         if (selected?.kind !== "element") return false;
         return commitInspectorChange(updateSelectedElementOrientation(map, selected, orientation));
+      },
+      setSelectedElementRotation(rotation) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedElementRotation(map, selected, rotation));
       },
       setSelectedBridgeDimensions(dimensions) {
         if (selected?.kind !== "element") return false;

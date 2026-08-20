@@ -779,6 +779,49 @@ describe("list, get, update, delete", () => {
     expect(rows[0]?.variant).toBeGreaterThan(3);
   });
 
+  test("round-trips free 3D rotation through the existing transform column", async () => {
+    const { userId, token } = await registerAndLogin("maprotation");
+    const id = await newMapId(await newAdventure(userId), token, "Rotated village");
+    const elements = [
+      {
+        col: 8,
+        row: 8,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: HOUSE_ASSET_ID,
+        rotation: 37,
+        building: { destructible: true, maxHp: 900 },
+      },
+      {
+        col: 14,
+        row: 8,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: BRIDGE_ASSET_ID,
+        rotation: 123,
+        bridge: { length: 7, width: 2 },
+      },
+      {
+        col: 18,
+        row: 13,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: "terrain.bridge.wood.vertical",
+        rotation: 0,
+      },
+    ];
+
+    expect((await putMap(id, token, mapBody({ elements }))).status).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { elements: unknown[] };
+    expect(payload.elements).toEqual(elements.map((element) => expect.objectContaining(element)));
+
+    const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    expect(rows).toHaveLength(3);
+    expect(rows.every((row) => row.variant >= 1_000_000)).toBe(true);
+  });
+
   test("creates one editable interior per building and unlinks it when deleted", async () => {
     const { userId, token } = await registerAndLogin("mapinterior");
     const adventureId = await newAdventure(userId);

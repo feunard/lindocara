@@ -1173,6 +1173,9 @@ export const en = {
   "editor.inspector.building.orientation.right": "Right",
   "editor.inspector.building.orientation.back": "Back",
   "editor.inspector.building.orientation.left": "Left",
+  "editor.inspector.element.rotation": "3D rotation",
+  "editor.inspector.element.rotation.hint":
+    "Free angle in degrees. You can also drag the purple handle directly on the map.",
   "editor.inspector.building.color": "Colour",
   "editor.inspector.building.color.blue": "Blue",
   "editor.inspector.building.color.red": "Red",

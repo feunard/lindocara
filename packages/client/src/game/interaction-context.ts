@@ -43,6 +43,7 @@ function doorPlacement(building: WorldBuildingSnapshot): BuildingDoorPlacement {
     z: building.z,
     assetId: building.graphicAssetId,
     ...(building.orientation === undefined ? {} : { orientation: building.orientation }),
+    ...(building.rotation === undefined ? {} : { rotation: building.rotation }),
     ...(building.dimensions ? { dimensions: building.dimensions } : {}),
   };
 }

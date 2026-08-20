@@ -8,6 +8,7 @@ export const EDITOR_HISTORY_LIMIT = 100;
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import {
   type BridgeDimensions,
+  bridgeBaseRotationDegrees,
   bridgeOrientation,
   parseBridgeDimensions,
 } from "@lindocara/engine/bridges.js";
@@ -17,7 +18,10 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
+import {
+  type ElementOrientation,
+  parseElementRotation,
+} from "@lindocara/engine/element-orientation.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
@@ -42,6 +46,7 @@ import {
   EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
+  isRotatable3dElementAsset,
   MAP_LAYERS,
   MAX_MAP_ELEMENTS,
   MAX_PATROL_RADIUS,
@@ -466,6 +471,7 @@ export function moveSelection(
                 ...(element.id ? { id: element.id } : {}),
                 ...(element.building ? { building: element.building } : {}),
                 ...(element.orientation ? { orientation: element.orientation } : {}),
+                ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
                 ...(element.bridge ? { bridge: element.bridge } : {}),
               }
             : candidate,
@@ -530,6 +536,9 @@ export function updateSelectedElementAsset(
             ...(isStandingBuildingAsset(assetId) && existing.orientation
               ? { orientation: existing.orientation }
               : {}),
+            ...(isRotatable3dElementAsset(assetId) && existing.rotation
+              ? { rotation: existing.rotation }
+              : {}),
             ...(isStandingBuildingAsset(assetId) && existing.building
               ? { building: existing.building }
               : {}),
@@ -582,6 +591,7 @@ export function updateSelectedElementOffset(
             ...(element.id ? { id: element.id } : {}),
             ...(element.building ? { building: element.building } : {}),
             ...(element.orientation ? { orientation: element.orientation } : {}),
+            ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
             ...(element.bridge ? { bridge: element.bridge } : {}),
           }
         : candidate,
@@ -602,8 +612,40 @@ export function updateSelectedElementOrientation(
     ...map,
     elements: map.elements.map((candidate) => {
       if (!sameElementSlot(candidate, selection)) return candidate;
-      const { orientation: _previousOrientation, ...withoutOrientation } = candidate;
+      const {
+        orientation: _previousOrientation,
+        rotation: _previousRotation,
+        ...withoutOrientation
+      } = candidate;
       return orientation === 0 ? withoutOrientation : { ...withoutOrientation, orientation };
+    }),
+  };
+  const rotated = next.elements.find((candidate) => sameElementSlot(candidate, selection));
+  return rotated && placementFitsMap(next, rotated) && keepsSpawnClear(next) ? next : null;
+}
+
+/** Freely rotate selected native 3D scenery around its authored anchor. */
+export function updateSelectedElementRotation(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  rotation: number,
+): EditorMap | null {
+  const parsed = parseElementRotation(rotation);
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (parsed === null || !element || !isRotatable3dElementAsset(element.assetId)) return null;
+  const next: EditorMap = {
+    ...map,
+    elements: map.elements.map((candidate) => {
+      if (!sameElementSlot(candidate, selection)) return candidate;
+      const {
+        orientation: _previousOrientation,
+        rotation: _previousRotation,
+        ...withoutRotation
+      } = candidate;
+      const defaultRotation = bridgeBaseRotationDegrees(candidate.assetId) ?? 0;
+      return parsed === defaultRotation
+        ? withoutRotation
+        : { ...withoutRotation, rotation: parsed };
     }),
   };
   const rotated = next.elements.find((candidate) => sameElementSlot(candidate, selection));
@@ -1470,6 +1512,9 @@ export function applyTool(
         assetId: tool.assetId,
         ...(replaced?.assetId === tool.assetId && replaced.orientation
           ? { orientation: replaced.orientation }
+          : {}),
+        ...(replaced?.assetId === tool.assetId && replaced.rotation
+          ? { rotation: replaced.rotation }
           : {}),
         ...(replaced?.assetId === tool.assetId && replaced.bridge
           ? { bridge: replaced.bridge }

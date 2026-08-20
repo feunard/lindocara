@@ -152,6 +152,15 @@ export interface Hd2dEditorOverlay {
     activeAxis?: "length" | "width" | null;
     valid: boolean;
   } | null;
+  /** Direct-manipulation rotation arm for selected native 3D scenery. */
+  elementRotation?: {
+    anchor: GroundVector;
+    handle: GroundVector;
+    angle: number;
+    hovered: boolean;
+    active: boolean;
+    valid: boolean;
+  } | null;
   /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
    *  element mode places at quarter cells and marks one of those. Defaults to 1. */
   cursorCells?: number;
@@ -1524,6 +1533,7 @@ export class Hd2dVisualLayer {
         mesh.name = platform ? "editor-walkable-platform" : "editor-solid-collision";
         mesh.renderOrder = platform ? 31 : 30;
         mesh.rotation.x = -Math.PI / 2;
+        mesh.rotation.z = -(collider.rotation ?? 0);
         mesh.position.set(
           x,
           platformTop !== undefined ? platformTop + 0.1 : this.#groundY(x, z, 0.1),
@@ -1588,6 +1598,54 @@ export class Hd2dVisualLayer {
     // above the hover rather than by being oversized.
     if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 0.13);
     if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 0.135);
+    if (overlay.elementRotation) {
+      const rotation = overlay.elementRotation;
+      const group = new THREE.Group();
+      group.name = "editor-element-rotation";
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(
+          rotation.anchor.x,
+          this.#groundY(rotation.anchor.x, rotation.anchor.z, 0.23),
+          rotation.anchor.z,
+        ),
+        new THREE.Vector3(
+          rotation.handle.x,
+          this.#groundY(rotation.handle.x, rotation.handle.z, 0.23),
+          rotation.handle.z,
+        ),
+      ]);
+      const color = rotation.valid ? 0xd46cff : 0xef5350;
+      const line = new THREE.Line(
+        lineGeometry,
+        new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.95,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      line.name = "editor-element-rotation-arm";
+      line.renderOrder = 44;
+      group.add(line);
+      const highlighted = rotation.hovered || rotation.active;
+      const handle = new THREE.Mesh(
+        new THREE.RingGeometry(highlighted ? 0.12 : 0.1, highlighted ? 0.28 : 0.23, 28),
+        transparentMaterial(color, highlighted ? 1 : 0.92),
+      );
+      handle.name = "editor-element-rotation-handle";
+      handle.rotation.x = -Math.PI / 2;
+      handle.position.set(
+        rotation.handle.x,
+        this.#groundY(rotation.handle.x, rotation.handle.z, 0.235),
+        rotation.handle.z,
+      );
+      handle.renderOrder = 45;
+      (handle.material as THREE.MeshBasicMaterial).depthTest = false;
+      group.add(handle);
+      this.#editorRoot.add(group);
+    }
     if (overlay.buildingResize) {
       const resize = overlay.buildingResize;
       const group = new THREE.Group();

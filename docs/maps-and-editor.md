@@ -109,10 +109,19 @@ handle; dragging them previews the snapped size immediately and commits the whol
 undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
 buildings retain their native footprint, and explicit dimensions share the existing transform
 integer, so no schema migration is required.
+Native 3D scenery (all current and future native buildings plus both bridges) also supports an
+absolute 0..359-degree rotation. The inspector exposes the exact degree value, while selection on
+the map draws a purple rotation arm that can be dragged continuously; either interaction commits as
+one undoable edit. Rendering, doors, resize handles, bridge decks/rails and the authoritative
+heightfield all consume the same angle. Collision uses oriented rectangles rather than the larger
+axis-aligned bounds used only for editor coverage checks, so diagonal structures do not create
+invisible blocked corners. Existing quarter-turn buildings and vertical/horizontal bridges retain
+their old direction. Free angles are version-packed into the existing transform integer alongside
+building or bridge dimensions, requiring neither a database migration nor a new dependency.
 The Buildings palette exposes one card for each native 3D archetype (house, tower, archery guild,
 barracks, monastery, castle and windmill), rather than hiding supported models or repeating dozens
 of recoloured cards. After placement, the inspector offers the five shipped roof colours for each
-family that owns them; changing colour preserves the element identity, footprint, orientation,
+family that owns them; changing colour preserves the element identity, footprint, rotation,
 durability and interior. The windmill has no synthetic colour choice because the source catalogue
 does not ship one.
 Flat crenellated roofs compile their visible edges as separate finite collision volumes. Barracks

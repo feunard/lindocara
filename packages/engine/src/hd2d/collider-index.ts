@@ -1,4 +1,4 @@
-// Axis-aligned-rectangle collision, tested from a disc: the hero KEEPS its round footprint
+// Oriented-rectangle collision, tested from a disc: the hero KEEPS its round footprint
 // (Task 8, a risk-reducing plan decision) — sliding along an obstacle comes from the
 // AXIS-BY-AXIS test in `hero-step.ts`, not from the obstacle's shape, so turning a circle into a
 // rectangle only changes the corner you slide along, never how you slide along it.
@@ -21,6 +21,8 @@ export interface ColliderRect {
   z: number;
   w: number;
   h: number;
+  /** Clockwise rotation around the rectangle centre, in radians. Absent keeps legacy axis alignment. */
+  rotation?: number;
   /** Walkable flat top surface. Kept as the backward-compatible form for props and old maps. */
   top?: number;
   /** Round towers and mills collide as their visible footprint instead of an invisible square. */
@@ -29,6 +31,57 @@ export interface ColliderRect {
   surface?: ColliderRoofSurface;
   /** Buildings support a landing only once the body's centre is over the roof, never from a wall graze. */
   support?: "center";
+}
+
+export function colliderLocalPoint(
+  rect: ColliderRect,
+  x: number,
+  z: number,
+): { x: number; z: number } {
+  const rotation = rect.rotation ?? 0;
+  if (rotation === 0) return { x, z };
+  const cx = rect.x + rect.w / 2;
+  const cz = rect.z + rect.h / 2;
+  const dx = x - cx;
+  const dz = z - cz;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return { x: cx + dx * cos + dz * sin, z: cz - dx * sin + dz * cos };
+}
+
+function worldPoint(rect: ColliderRect, x: number, z: number): { x: number; z: number } {
+  const rotation = rect.rotation ?? 0;
+  if (rotation === 0) return { x, z };
+  const cx = rect.x + rect.w / 2;
+  const cz = rect.z + rect.h / 2;
+  const dx = x - cx;
+  const dz = z - cz;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return { x: cx + dx * cos - dz * sin, z: cz + dx * sin + dz * cos };
+}
+
+export function colliderBounds(rect: ColliderRect): {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+} {
+  if (!rect.rotation) {
+    return { minX: rect.x, minZ: rect.z, maxX: rect.x + rect.w, maxZ: rect.z + rect.h };
+  }
+  const corners = [
+    worldPoint(rect, rect.x, rect.z),
+    worldPoint(rect, rect.x + rect.w, rect.z),
+    worldPoint(rect, rect.x, rect.z + rect.h),
+    worldPoint(rect, rect.x + rect.w, rect.z + rect.h),
+  ];
+  return {
+    minX: Math.min(...corners.map((point) => point.x)),
+    minZ: Math.min(...corners.map((point) => point.z)),
+    maxX: Math.max(...corners.map((point) => point.x)),
+    maxZ: Math.max(...corners.map((point) => point.z)),
+  };
 }
 
 export type ColliderRoofSurface =
@@ -75,55 +128,58 @@ export function colliderContainsPoint(
   z: number,
   inset = 0,
 ): boolean {
+  const local = colliderLocalPoint(rect, x, z);
   if (rect.footprint === "ellipse") {
     const rx = rect.w / 2 - inset;
     const rz = rect.h / 2 - inset;
     if (rx <= 0 || rz <= 0) return false;
-    const dx = x - (rect.x + rect.w / 2);
-    const dz = z - (rect.z + rect.h / 2);
+    const dx = local.x - (rect.x + rect.w / 2);
+    const dz = local.z - (rect.z + rect.h / 2);
     return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) <= 1 + 1e-9;
   }
   return (
-    x >= rect.x + inset &&
-    x <= rect.x + rect.w - inset &&
-    z >= rect.z + inset &&
-    z <= rect.z + rect.h - inset
+    local.x >= rect.x + inset &&
+    local.x <= rect.x + rect.w - inset &&
+    local.z >= rect.z + inset &&
+    local.z <= rect.z + rect.h - inset
   );
 }
 
 /** Disc/footprint overlap. Ellipses use a conservative radius expansion for the broad body. */
 export function colliderOverlapsDisc(rect: ColliderRect, x: number, z: number, r: number): boolean {
+  const local = colliderLocalPoint(rect, x, z);
   if (rect.footprint === "ellipse") {
     const rx = rect.w / 2 + r;
     const rz = rect.h / 2 + r;
-    const dx = x - (rect.x + rect.w / 2);
-    const dz = z - (rect.z + rect.h / 2);
+    const dx = local.x - (rect.x + rect.w / 2);
+    const dz = local.z - (rect.z + rect.h / 2);
     return (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz) < 1;
   }
-  const px = Math.min(Math.max(x, rect.x), rect.x + rect.w);
-  const pz = Math.min(Math.max(z, rect.z), rect.z + rect.h);
-  const dx = x - px;
-  const dz = z - pz;
+  const px = Math.min(Math.max(local.x, rect.x), rect.x + rect.w);
+  const pz = Math.min(Math.max(local.z, rect.z), rect.z + rect.h);
+  const dx = local.x - px;
+  const dz = local.z - pz;
   return dx * dx + dz * dz < r * r;
 }
 
 /** Exact walkable surface under a point, or `null` outside it / for an infinite wall. */
 export function colliderSurfaceHeightAt(rect: ColliderRect, x: number, z: number): number | null {
   if (!colliderContainsPoint(rect, x, z)) return null;
+  const local = colliderLocalPoint(rect, x, z);
   const surface = rect.surface;
   if (!surface) return rect.top ?? null;
   if (surface.shape === "gable") {
     const start = surface.axis === "x" ? rect.x : rect.z;
     const span = surface.axis === "x" ? rect.w : rect.h;
-    const coordinate = surface.axis === "x" ? x : z;
+    const coordinate = surface.axis === "x" ? local.x : local.z;
     const normalized = Math.min(1, Math.max(0, (coordinate - start) / span));
     const rise = 1 - Math.abs(normalized * 2 - 1);
     return surface.eave + (surface.peak - surface.eave) * rise;
   }
   const rx = rect.w / 2;
   const rz = rect.h / 2;
-  const dx = (x - (rect.x + rx)) / rx;
-  const dz = (z - (rect.z + rz)) / rz;
+  const dx = (local.x - (rect.x + rx)) / rx;
+  const dz = (local.z - (rect.z + rz)) / rz;
   const radial = Math.min(1, Math.hypot(dx, dz));
   return surface.eave + (surface.peak - surface.eave) * (1 - radial);
 }
@@ -131,22 +187,25 @@ export function colliderSurfaceHeightAt(rect: ColliderRect, x: number, z: number
 /** Surface at the footprint point nearest a disc centre, including just outside an edge. */
 export function colliderSurfaceHeightNear(rect: ColliderRect, x: number, z: number): number | null {
   if (colliderContainsPoint(rect, x, z)) return colliderSurfaceHeightAt(rect, x, z);
+  const local = colliderLocalPoint(rect, x, z);
   if (rect.footprint === "ellipse") {
     const rx = rect.w / 2;
     const rz = rect.h / 2;
     const cx = rect.x + rx;
     const cz = rect.z + rz;
-    const dx = x - cx;
-    const dz = z - cz;
+    const dx = local.x - cx;
+    const dz = local.z - cz;
     const norm = Math.sqrt((dx * dx) / (rx * rx) + (dz * dz) / (rz * rz));
     if (!Number.isFinite(norm) || norm <= 0) return colliderSurfaceHeightAt(rect, cx, cz);
-    return colliderSurfaceHeightAt(rect, cx + dx / norm, cz + dz / norm);
+    const nearest = worldPoint(rect, cx + dx / norm, cz + dz / norm);
+    return colliderSurfaceHeightAt(rect, nearest.x, nearest.z);
   }
-  return colliderSurfaceHeightAt(
+  const nearest = worldPoint(
     rect,
-    Math.min(Math.max(x, rect.x), rect.x + rect.w),
-    Math.min(Math.max(z, rect.z), rect.z + rect.h),
+    Math.min(Math.max(local.x, rect.x), rect.x + rect.w),
+    Math.min(Math.max(local.z, rect.z), rect.z + rect.h),
   );
+  return colliderSurfaceHeightAt(rect, nearest.x, nearest.z);
 }
 
 function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefined): boolean {
@@ -158,17 +217,23 @@ function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefine
 /** A monotone overlap score: zero outside, increasing as a disc penetrates farther into a shape. */
 function overlapDepth(rect: ColliderRect, x: number, z: number, r: number): number {
   if (!colliderOverlapsDisc(rect, x, z, r)) return 0;
+  const local = colliderLocalPoint(rect, x, z);
   if (rect.footprint === "ellipse") {
     const rx = rect.w / 2 + r;
     const rz = rect.h / 2 + r;
-    const dx = x - (rect.x + rect.w / 2);
-    const dz = z - (rect.z + rect.h / 2);
+    const dx = local.x - (rect.x + rect.w / 2);
+    const dz = local.z - (rect.z + rect.h / 2);
     return 1 - Math.hypot(dx / rx, dz / rz);
   }
-  const dx = Math.max(rect.x - x, 0, x - (rect.x + rect.w));
-  const dz = Math.max(rect.z - z, 0, z - (rect.z + rect.h));
+  const dx = Math.max(rect.x - local.x, 0, local.x - (rect.x + rect.w));
+  const dz = Math.max(rect.z - local.z, 0, local.z - (rect.z + rect.h));
   if (dx > 0 || dz > 0) return r - Math.hypot(dx, dz);
-  const inside = Math.min(x - rect.x, rect.x + rect.w - x, z - rect.z, rect.z + rect.h - z);
+  const inside = Math.min(
+    local.x - rect.x,
+    rect.x + rect.w - local.x,
+    local.z - rect.z,
+    rect.z + rect.h - local.z,
+  );
   return r + Math.max(0, inside);
 }
 
@@ -195,10 +260,11 @@ export function createColliderIndex(): ColliderIndex {
     all,
     add(rect) {
       all.push(rect);
-      const i0 = Math.floor((rect.x - QUERY_PAD) / CELL);
-      const i1 = Math.floor((rect.x + rect.w + QUERY_PAD) / CELL);
-      const j0 = Math.floor((rect.z - QUERY_PAD) / CELL);
-      const j1 = Math.floor((rect.z + rect.h + QUERY_PAD) / CELL);
+      const bounds = colliderBounds(rect);
+      const i0 = Math.floor((bounds.minX - QUERY_PAD) / CELL);
+      const i1 = Math.floor((bounds.maxX + QUERY_PAD) / CELL);
+      const j0 = Math.floor((bounds.minZ - QUERY_PAD) / CELL);
+      const j1 = Math.floor((bounds.maxZ + QUERY_PAD) / CELL);
       for (let i = i0; i <= i1; i++) {
         for (let j = j0; j <= j1; j++) {
           const k = key(i, j);

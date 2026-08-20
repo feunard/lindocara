@@ -477,6 +477,28 @@ describe("Hd2dVisualLayer spawn marker", () => {
     layer.dispose();
   });
 
+  it("draws the selected 3D element's rotation arm and highlighted map handle", () => {
+    const { layer, root } = harness();
+    layer.setEditorOverlay({
+      ...base,
+      elementRotation: {
+        anchor: { x: 1, z: 2 },
+        handle: { x: -1, z: 2 },
+        angle: 90,
+        hovered: true,
+        active: false,
+        valid: true,
+      },
+    });
+
+    expect(root.getObjectByName("editor-element-rotation-arm")).toBeDefined();
+    expect(root.getObjectByName("editor-element-rotation-handle")?.position).toMatchObject({
+      x: -1,
+      z: 2,
+    });
+    layer.dispose();
+  });
+
   it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });

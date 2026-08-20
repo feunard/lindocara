@@ -16,9 +16,14 @@ import {
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
 import {
+  decodeElementTransform,
+  encodeElementTransform,
+} from "@lindocara/engine/element-orientation.js";
+import {
   elementCells,
   elementFitsMap,
   elementWorldCollider,
+  elementWorldColliderGeometry,
   parseMapElements,
 } from "@lindocara/engine/map-data.js";
 import {
@@ -65,6 +70,18 @@ describe("building authoring rules", () => {
       depth: 2.5,
     });
     expect(parseBuildingDimensions({ width: 3.1, depth: 2.5 })).toBeNull();
+  });
+
+  it("packs free rotation around existing building transforms without changing legacy values", () => {
+    const legacy = encodeBuildingTransform(0, { width: 5, depth: 3.125 });
+    const packed = encodeElementTransform(legacy, 37);
+    expect(packed).toBeGreaterThan(1_000_000);
+    expect(decodeElementTransform(packed)).toEqual({ baseCode: legacy, rotation: 37 });
+    expect(decodeElementTransform(encodeElementTransform(legacy, 0))).toEqual({
+      baseCode: legacy,
+      rotation: 0,
+    });
+    expect(decodeElementTransform(legacy)).toEqual({ baseCode: legacy });
   });
 
   it.each([
@@ -147,6 +164,33 @@ describe("building authoring rules", () => {
         10,
       ),
     ).toBeNull();
+  });
+
+  it("accepts free rotation only for native 3D scenery and rotates doors and exact colliders", () => {
+    const building = parseMapElements(
+      [{ col: 5, row: 5, assetId: HOUSE, rotation: 37 }],
+      20,
+      20,
+    )?.[0];
+    expect(building?.rotation).toBe(37);
+    expect(building && elementWorldColliderGeometry(building)?.rotation).toBeCloseTo(
+      (37 * Math.PI) / 180,
+    );
+    const door = buildingDoorGroundPoint({ x: 4, z: -3, assetId: HOUSE, rotation: 45 });
+    expect(door.x).toBeCloseTo(4 + 0.55 / Math.sqrt(2));
+    expect(door.z).toBeCloseTo(-3 + 0.55 / Math.sqrt(2));
+
+    expect(parseMapElements([{ col: 5, row: 5, assetId: TREE, rotation: 37 }], 20, 20)).toBeNull();
+    expect(
+      parseMapElements([{ col: 5, row: 5, assetId: HOUSE, orientation: 1, rotation: 37 }], 20, 20),
+    ).toBeNull();
+    expect(
+      parseMapElements(
+        [{ col: 5, row: 5, assetId: "terrain.bridge.wood.vertical", rotation: 0 }],
+        20,
+        20,
+      )?.[0]?.rotation,
+    ).toBe(0);
   });
 
   it("derives resized building coverage and rotated collision from the same dimensions", () => {

@@ -28,7 +28,7 @@
 
 import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
 import type { BuildingDimensions } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
+import type { ElementOrientation, ElementRotation } from "@lindocara/engine/element-orientation.js";
 import type {
   HeightfieldElement,
   HeightfieldEvent,
@@ -115,6 +115,7 @@ export type StaticArtResolver = (assetId: string) => StaticSpriteArt | null;
 
 export interface StaticContentEvent extends HeightfieldEvent {
   orientation?: ElementOrientation;
+  rotation?: ElementRotation;
   building?: BuildingDimensions;
   health?: { value: number; max: number; visible: boolean };
 }
@@ -246,6 +247,7 @@ export function placeStaticContent(
     z: number,
     contentKey: string | null,
     orientation: ElementOrientation = 0,
+    rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
   ): void {
@@ -256,10 +258,11 @@ export function placeStaticContent(
           front: sprite.texture,
           ...sprite.buildingVolume,
           orientation,
+          ...(rotation === undefined ? {} : { rotation }),
           ...(building ? { dimensions: building } : {}),
         })
       : sprite.bridgeOrientation
-        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge)
+        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge, rotation)
         : null;
     const volume =
       native === null &&
@@ -383,7 +386,7 @@ export function placeStaticContent(
       });
     }
     for (const companion of sprite.companions ?? []) {
-      placeArt(assetId, companion, x, z, contentKey, orientation);
+      placeArt(assetId, companion, x, z, contentKey, orientation, rotation);
     }
   }
 
@@ -425,6 +428,7 @@ export function placeStaticContent(
     contentKey: string | null,
     health?: StaticContentEvent["health"],
     orientation: ElementOrientation = 0,
+    rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
   ): void {
@@ -437,7 +441,7 @@ export function placeStaticContent(
       isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
         ? resolved.coldVariant
         : resolved;
-    placeArt(assetId, sprite, x, z, contentKey, orientation, bridge, building);
+    placeArt(assetId, sprite, x, z, contentKey, orientation, rotation, bridge, building);
     if (contentKey && health) {
       const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
       placeHealthBar(
@@ -456,7 +460,7 @@ export function placeStaticContent(
 
   const elementKey = (index: number): string => `element:${index}`;
   const elementVisual = (element: HeightfieldElement): string =>
-    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}`;
+    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}`;
 
   for (const [index, element] of map.elements.entries()) {
     const key = elementKey(index);
@@ -468,6 +472,7 @@ export function placeStaticContent(
       key,
       undefined,
       element.orientation ?? 0,
+      element.rotation,
       element.bridge,
       element.building,
     );
@@ -478,7 +483,7 @@ export function placeStaticContent(
     const staticEvent = event as StaticContentEvent;
     const health = staticEvent.health;
     const orientation = staticEvent.orientation ?? 0;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}`;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
     place(
@@ -488,6 +493,7 @@ export function placeStaticContent(
       `event:${event.id}`,
       health,
       orientation,
+      staticEvent.rotation,
       undefined,
       staticEvent.building,
     );
@@ -575,6 +581,7 @@ export function placeStaticContent(
           key,
           undefined,
           element.orientation ?? 0,
+          element.rotation,
           element.bridge,
           element.building,
         );
@@ -589,7 +596,7 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
@@ -601,6 +608,7 @@ export function placeStaticContent(
             `event:${event.id}`,
             event.health,
             event.orientation ?? 0,
+            event.rotation,
             undefined,
             event.building,
           );

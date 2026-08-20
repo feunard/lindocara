@@ -11,6 +11,7 @@
 
 import {
   type BridgeDimensions,
+  bridgeBaseRotationDegrees,
   bridgeOrientation,
   bridgePlacementLayout,
   parseBridgeDimensions,
@@ -22,7 +23,13 @@ import {
   parseBuildingSettings,
 } from "./buildings.js";
 import { colliderIndexFrom } from "./collider.js";
-import { type ElementOrientation, parseElementOrientation } from "./element-orientation.js";
+import {
+  type ElementOrientation,
+  type ElementRotation,
+  elementRotationDegrees,
+  parseElementOrientation,
+  parseElementRotation,
+} from "./element-orientation.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
@@ -57,6 +64,8 @@ export interface MapElement {
   assetId: EditorAssetId;
   /** Optional quarter-turn: front (0/default), right side (1), rear (2), left side (3). */
   orientation?: ElementOrientation;
+  /** Optional whole-degree rotation for native 3D scenery. Supersedes `orientation`. */
+  rotation?: ElementRotation;
   /** Present only on a resizable bridge. Absent preserves the historical 3x1 dimensions. */
   bridge?: BridgeDimensions;
   /** Present only on standing building assets; legacy payloads receive catalogue-derived defaults. */
@@ -116,6 +125,19 @@ export const MARKER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 export const MARKER_LABEL_MAX = 48;
 
 export const MAP_LAYERS = 3;
+
+/** Native world geometry that may be freely rotated without turning a billboard sideways. */
+export function isRotatable3dElementAsset(assetId: string): boolean {
+  return isStandingBuildingAsset(assetId) || bridgeOrientation(assetId) !== null;
+}
+
+export function element3dRotationDegrees(
+  element: Pick<MapElement, "assetId" | "orientation" | "rotation">,
+): number {
+  if (element.rotation !== undefined) return element.rotation;
+  const bridgeBase = bridgeBaseRotationDegrees(element.assetId);
+  return bridgeBase ?? elementRotationDegrees(element);
+}
 
 export interface MapData {
   /** Exterior maps end in water; interior maps end in an unlit void. */
@@ -289,6 +311,10 @@ export function quarterCellAt(
 export function elementCells(element: MapElement): { col: number; row: number }[] {
   const bridge = bridgePlacementLayout(element);
   if (bridge) {
+    if (element.rotation !== undefined) {
+      const collider = elementWorldCollider(element);
+      return collider ? rectCells(collider) : [];
+    }
     return Array.from({ length: bridge.rows }, (_, row) =>
       Array.from({ length: bridge.cols }, (_unused, col) => ({
         col: bridge.startCol + col,
@@ -296,7 +322,7 @@ export function elementCells(element: MapElement): { col: number; row: number }[
       })),
     ).flat();
   }
-  if (element.building?.dimensions) {
+  if (element.building?.dimensions || element.rotation !== undefined) {
     const collider = elementWorldCollider(element);
     return collider ? rectCells(collider) : [];
   }
@@ -311,22 +337,25 @@ export function elementCells(element: MapElement): { col: number; row: number }[
   });
 }
 
-/**
- * An element's collider in world pixels, or null when the asset does not collide.
- *
- * The catalogue authors the rect in foot space, so this translation needs no `footOffset`: the
- * art's visible foot always lands on the cell's bottom edge, because the renderer's `footOffset`
- * cancels against the frame's own bottom padding. Do NOT reintroduce `footOffset` here to "match"
- * `createCatalogElementView` — that would push every collider a padding's worth south of its sprite.
- */
-export function elementWorldCollider(element: MapElement): Rect | null {
+export interface ElementWorldColliderGeometry extends Rect {
+  /** Clockwise rotation around this rectangle's centre, in radians. */
+  rotation: number;
+}
+
+/** Exact local rectangle used by the heightfield compiler before taking an editor-facing AABB. */
+export function elementWorldColliderGeometry(
+  element: MapElement,
+): ElementWorldColliderGeometry | null {
   const bridge = bridgePlacementLayout(element);
   if (bridge) {
+    const baseRotation = bridgeBaseRotationDegrees(element.assetId) ?? 0;
+    const rotation = element.rotation === undefined ? 0 : element.rotation - baseRotation;
     return {
       x: bridge.startCol * TILE_SIZE + element.offsetX * ELEMENT_OFFSET_PX,
       y: bridge.startRow * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX,
       width: bridge.cols * TILE_SIZE,
       height: bridge.rows * TILE_SIZE,
+      rotation: (rotation * Math.PI) / 180,
     };
   }
   const dimensions = element.building?.dimensions;
@@ -341,31 +370,55 @@ export function elementWorldCollider(element: MapElement): Rect | null {
   if (!collider) return null;
   const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
   const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
-  const orientation = element.orientation ?? 0;
-  if (orientation === 0) {
-    return {
-      x: footX + collider.x,
-      y: footY + collider.y,
-      width: collider.width,
-      height: collider.height,
-    };
+  const rotation = (elementRotationDegrees(element) * Math.PI) / 180;
+  const localCentreX = collider.x + collider.width / 2;
+  const localCentreY = collider.y + collider.height / 2;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const centreX = footX + localCentreX * cos - localCentreY * sin;
+  const centreY = footY + localCentreX * sin + localCentreY * cos;
+  return {
+    x: centreX - collider.width / 2,
+    y: centreY - collider.height / 2,
+    width: collider.width,
+    height: collider.height,
+    rotation,
+  };
+}
+
+/**
+ * An element's collider in world pixels, or null when the asset does not collide.
+ *
+ * The catalogue authors the rect in foot space, so this translation needs no `footOffset`: the
+ * art's visible foot always lands on the cell's bottom edge, because the renderer's `footOffset`
+ * cancels against the frame's own bottom padding. Do NOT reintroduce `footOffset` here to "match"
+ * `createCatalogElementView` — that would push every collider a padding's worth south of its sprite.
+ */
+export function elementWorldCollider(element: MapElement): Rect | null {
+  const collider = elementWorldColliderGeometry(element);
+  if (!collider) return null;
+  if (collider.rotation === 0) {
+    return { x: collider.x, y: collider.y, width: collider.width, height: collider.height };
   }
+  const centreX = collider.x + collider.width / 2;
+  const centreY = collider.y + collider.height / 2;
+  const cos = Math.cos(collider.rotation);
+  const sin = Math.sin(collider.rotation);
   const corners = [
-    [collider.x, collider.y],
-    [collider.x + collider.width, collider.y],
-    [collider.x, collider.y + collider.height],
-    [collider.x + collider.width, collider.y + collider.height],
+    [-collider.width / 2, -collider.height / 2],
+    [collider.width / 2, -collider.height / 2],
+    [-collider.width / 2, collider.height / 2],
+    [collider.width / 2, collider.height / 2],
   ].map(([sourceX, sourceY]) => {
-    let x = sourceX ?? 0;
-    let y = sourceY ?? 0;
-    for (let turn = 0; turn < orientation; turn += 1) [x, y] = [-y, x];
-    return { x, y };
+    const x = sourceX ?? 0;
+    const y = sourceY ?? 0;
+    return { x: centreX + x * cos - y * sin, y: centreY + x * sin + y * cos };
   });
   const minX = Math.min(...corners.map((point) => point.x));
   const maxX = Math.max(...corners.map((point) => point.x));
   const minY = Math.min(...corners.map((point) => point.y));
   const maxY = Math.max(...corners.map((point) => point.y));
-  return { x: footX + minX, y: footY + minY, width: maxX - minX, height: maxY - minY };
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 export function elementColliders(elements: readonly MapElement[]): Rect[] {
@@ -418,8 +471,18 @@ export function elementPlacementCells(element: MapElement): { col: number; row: 
 export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {
   const bridge = bridgePlacementLayout(element);
   // Historical rows only guaranteed that their anchor was in bounds. Keep accepting them; once an
-  // author explicitly resizes a bridge, its complete footprint must fit inside the map.
-  if (bridge && element.bridge) {
+  // author explicitly resizes or rotates a bridge, its complete footprint must fit inside the map.
+  if (bridge && (element.bridge || element.rotation !== undefined)) {
+    if (element.rotation !== undefined) {
+      const collider = elementWorldCollider(element);
+      return Boolean(
+        collider &&
+          collider.x >= 0 &&
+          collider.y >= 0 &&
+          collider.x + collider.width <= cols * TILE_SIZE &&
+          collider.y + collider.height <= rows * TILE_SIZE,
+      );
+    }
     return (
       bridge.startCol >= 0 &&
       bridge.startRow >= 0 &&
@@ -574,9 +637,18 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     } else if (item.building !== undefined) {
       return null;
     }
-    const orientation = parseElementOrientation(item.orientation);
-    if (orientation === null || (orientation !== 0 && !building)) return null;
     const bridgeAsset = bridgeOrientation(assetId);
+    const orientation = parseElementOrientation(item.orientation);
+    const rotation = parseElementRotation(item.rotation);
+    const hasRotation = item.rotation !== undefined && item.rotation !== null;
+    if (
+      orientation === null ||
+      rotation === null ||
+      (orientation !== 0 && !building) ||
+      (rotation !== 0 && !building && !bridgeAsset) ||
+      (orientation !== 0 && hasRotation)
+    )
+      return null;
     const bridge = item.bridge === undefined ? undefined : parseBridgeDimensions(item.bridge);
     if (bridge === null || (!bridgeAsset && bridge !== undefined)) return null;
     parsed.push({
@@ -587,6 +659,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       offsetY,
       assetId,
       ...(orientation === 0 ? {} : { orientation }),
+      ...(hasRotation ? { rotation } : {}),
       ...(bridge ? { bridge } : {}),
       ...(building ? { building } : {}),
     });

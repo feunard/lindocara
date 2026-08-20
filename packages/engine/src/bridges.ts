@@ -25,6 +25,11 @@ export function bridgeOrientation(assetId: string): BridgeOrientation | null {
   return null;
 }
 
+export function bridgeBaseRotationDegrees(assetId: string): 0 | 90 | null {
+  const orientation = bridgeOrientation(assetId);
+  return orientation === "horizontal" ? 0 : orientation === "vertical" ? 90 : null;
+}
+
 export function parseBridgeDimensions(value: unknown): BridgeDimensions | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const { length, width } = value as Record<string, unknown>;

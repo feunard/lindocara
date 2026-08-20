@@ -15,7 +15,12 @@ import {
   buildingArchetype,
   parseBuildingDimensions,
 } from "../buildings.js";
-import { type ElementOrientation, parseElementOrientation } from "../element-orientation.js";
+import {
+  type ElementOrientation,
+  type ElementRotation,
+  parseElementOrientation,
+  parseElementRotation,
+} from "../element-orientation.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
   type MapEnvironment,
@@ -95,6 +100,7 @@ export interface HeightfieldElement {
   x: number;
   z: number;
   orientation?: ElementOrientation;
+  rotation?: ElementRotation;
   /** Explicit dimensions also signal the centre-based bridge coordinate convention. */
   bridge?: BridgeDimensions;
   /** Custom native-building footprint; height remains archetype-authored. */
@@ -164,6 +170,7 @@ function toCollider(value: unknown): ColliderRect | null {
   )
     return null;
   if (value.top !== undefined && !isFiniteNumber(value.top)) return null;
+  if (value.rotation !== undefined && !isFiniteNumber(value.rotation)) return null;
   if (value.footprint !== undefined && value.footprint !== "ellipse") return null;
   if (value.support !== undefined && value.support !== "center") return null;
   const surface = value.surface === undefined ? undefined : toColliderSurface(value.surface);
@@ -173,6 +180,7 @@ function toCollider(value: unknown): ColliderRect | null {
     z: value.z,
     w: value.w,
     h: value.h,
+    ...(value.rotation === undefined ? {} : { rotation: value.rotation }),
     ...(value.top === undefined ? {} : { top: value.top }),
     ...(value.footprint === undefined ? {} : { footprint: value.footprint }),
     ...(value.support === undefined ? {} : { support: value.support }),
@@ -200,7 +208,9 @@ function toElement(value: unknown): HeightfieldElement | null {
   )
     return null;
   const orientation = parseElementOrientation(value.orientation);
-  if (orientation === null) return null;
+  const rotation = parseElementRotation(value.rotation);
+  const hasRotation = value.rotation !== undefined && value.rotation !== null;
+  if (orientation === null || rotation === null || (orientation !== 0 && hasRotation)) return null;
   const bridge = value.bridge === undefined ? undefined : parseBridgeDimensions(value.bridge);
   if (bridge === null || (bridge !== undefined && !bridgeOrientation(value.assetId))) return null;
   const building =
@@ -212,6 +222,7 @@ function toElement(value: unknown): HeightfieldElement | null {
     x: value.x,
     z: value.z,
     ...(orientation === 0 ? {} : { orientation }),
+    ...(hasRotation ? { rotation } : {}),
     ...(bridge ? { bridge } : {}),
     ...(building ? { building } : {}),
   };

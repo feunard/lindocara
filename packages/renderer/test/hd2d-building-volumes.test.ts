@@ -191,6 +191,23 @@ describe("native HD-2D building volumes", () => {
     visual.dispose();
   });
 
+  it("applies a native building's free authored angle without quarter-turn snapping", () => {
+    const visual = makeBuildingVolume({
+      archetype: "house",
+      state: "standing",
+      front: texture(),
+      wall: texture(),
+      roof: texture(),
+      stone: texture(),
+      blueStone: texture(),
+      wood: texture(),
+      roofColor: 0x4da9c7,
+      rotation: 37,
+    });
+    expect(visual.mesh.rotation.y).toBeCloseTo((-37 * Math.PI) / 180);
+    visual.dispose();
+  });
+
   it.each(["horizontal", "vertical"] as const)(
     "aligns the %s bridge deck and rails to its authored three-cell footprint",
     (orientation) => {
@@ -231,5 +248,14 @@ describe("native HD-2D building volumes", () => {
     expect(bounds.max.z - bounds.min.z).toBeGreaterThan(1.85);
     expect(visual.mesh.getObjectsByProperty("name", "bridge-post").length).toBeGreaterThan(6);
     visual.dispose();
+  });
+
+  it("applies absolute free angles to either bridge source orientation", () => {
+    const horizontal = makeBridgeVolume(texture(), "horizontal", undefined, 37);
+    const vertical = makeBridgeVolume(texture(), "vertical", undefined, 37);
+    expect(horizontal.mesh.rotation.y).toBeCloseTo((-37 * Math.PI) / 180);
+    expect(vertical.mesh.rotation.y).toBeCloseTo((53 * Math.PI) / 180);
+    horizontal.dispose();
+    vertical.dispose();
   });
 });

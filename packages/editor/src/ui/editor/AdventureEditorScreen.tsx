@@ -56,12 +56,13 @@ import {
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
 } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
 import {
   EMPTY_MARKERS,
+  element3dRotationDegrees,
+  isRotatable3dElementAsset,
   type MapData,
   type MapElement,
   sameElementSlot,
@@ -1989,8 +1990,8 @@ function AdventureEditorInner({
                     onSetOffset={(offsetX, offsetY) =>
                       handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
                     }
-                    onSetOrientation={(orientation) =>
-                      handleRef.current?.setSelectedElementOrientation(orientation)
+                    onSetRotation={(rotation) =>
+                      handleRef.current?.setSelectedElementRotation(rotation)
                     }
                     onSetElementAsset={(assetId) =>
                       handleRef.current?.setSelectedElementAsset(assetId)
@@ -2276,7 +2277,7 @@ function SelectionInspector({
   map,
   onMove,
   onSetOffset,
-  onSetOrientation,
+  onSetRotation,
   onSetElementAsset,
   onSetBridgeDimensions,
   onSetBuilding,
@@ -2290,7 +2291,7 @@ function SelectionInspector({
   map: EditorMap;
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
-  onSetOrientation(orientation: ElementOrientation): void;
+  onSetRotation(rotation: number): void;
   onSetElementAsset(assetId: EditorAssetId): void;
   onSetBridgeDimensions(dimensions: BridgeDimensions): void;
   onSetBuilding(settings: BuildingSettings): void;
@@ -2395,6 +2396,39 @@ function SelectionInspector({
         </>
       )}
 
+      {selectedElement && isRotatable3dElementAsset(selectedElement.assetId) && (
+        <div className="flex flex-col gap-1 rounded-md border border-zinc-200 p-2">
+          <Label htmlFor="inspector-element-rotation" className="text-[11px] text-zinc-600">
+            {t("editor.inspector.element.rotation")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="inspector-element-rotation"
+              key={`rotation:${element3dRotationDegrees(selectedElement)}`}
+              type="number"
+              className="h-7 flex-1 text-xs"
+              min={0}
+              max={359}
+              step={1}
+              defaultValue={element3dRotationDegrees(selectedElement)}
+              onBlur={(event) => {
+                const value = Number(event.currentTarget.value);
+                if (Number.isSafeInteger(value) && value >= 0 && value <= 359) {
+                  onSetRotation(value);
+                } else {
+                  event.currentTarget.value = String(element3dRotationDegrees(selectedElement));
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+            />
+            <span className="text-xs text-zinc-500">°</span>
+          </div>
+          <p className="text-[10px] text-zinc-500">{t("editor.inspector.element.rotation.hint")}</p>
+        </div>
+      )}
+
       {selectedElement && selectedBuilding && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
           {selectedBuildingColor && selectedBuildingColorVariants.length > 1 && (
@@ -2425,35 +2459,6 @@ function SelectionInspector({
               </select>
             </div>
           )}
-          <div className="flex flex-col gap-1">
-            <Label className="text-[11px] text-zinc-600">
-              {t("editor.inspector.building.orientation")}
-            </Label>
-            <div className="grid grid-cols-4 gap-1">
-              {(
-                [
-                  [0, "editor.inspector.building.orientation.front"],
-                  [1, "editor.inspector.building.orientation.right"],
-                  [2, "editor.inspector.building.orientation.back"],
-                  [3, "editor.inspector.building.orientation.left"],
-                ] as const
-              ).map(([orientation, label]) => (
-                <Button
-                  key={orientation}
-                  type="button"
-                  variant={
-                    (selectedElement.orientation ?? 0) === orientation ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="h-7 px-1 text-[10px]"
-                  aria-pressed={(selectedElement.orientation ?? 0) === orientation}
-                  onClick={() => onSetOrientation(orientation)}
-                >
-                  {t(label)}
-                </Button>
-              ))}
-            </div>
-          </div>
           {selectedBuildingDimensions && (
             <div className="flex flex-col gap-1">
               <Label className="text-[11px] text-zinc-600">

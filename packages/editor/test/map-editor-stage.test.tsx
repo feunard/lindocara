@@ -6,6 +6,8 @@ import {
   buildingResizeGuide,
   defaultDimForMode,
   editorToolPreviewAssetId,
+  elementRotationAtPoint,
+  elementRotationGuide,
   openMapEditorStage,
 } from "@lindocara/editor/game/map-editor-stage.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
@@ -554,6 +556,64 @@ describe("HD-2D map editor stage", () => {
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
     stage.dispose();
   });
+
+  it("rotates a selected 3D element from its map handle as one undoable edit", async () => {
+    const point = { x: 5.5, z: 2.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const building = {
+      col: 15,
+      row: 12,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE,
+      building: { destructible: true, maxHp: 900 },
+    } as const;
+    const stage = await openMapEditorStage(
+      { ...blankMap("Village", 20, 15), elements: [building] },
+      vi.fn(),
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "select" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const guide = mock.renderer.setEditorOverlay.mock.lastCall?.[0].elementRotation;
+    expect(guide).toMatchObject({ handle: expect.any(Object), angle: 0, valid: true });
+
+    Object.assign(point, guide.handle);
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    point.x = guide.anchor.x - 2;
+    point.z = guide.anchor.z;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().elements[0]?.rotation).toBe(90);
+    stage.undo();
+    expect(stage.current().elements[0]?.rotation).toBeUndefined();
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
+});
+
+describe("free 3D rotation geometry", () => {
+  it("places the handle on the authored angle and converts pointer direction to whole degrees", () => {
+    const element = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE,
+      rotation: 37,
+      building: { destructible: true, maxHp: 900 },
+    } as const;
+    const guide = elementRotationGuide(element, 20);
+    expect(guide?.angle).toBe(37);
+    expect(guide && elementRotationAtPoint(guide.anchor, guide.handle)).toBe(37);
+    expect(elementRotationAtPoint({ x: 0, z: 0 }, { x: -1, z: 0 })).toBe(90);
+    expect(elementRotationAtPoint({ x: 0, z: 0 }, { x: 1, z: 0 })).toBe(270);
+  });
 });
 
 describe("building resize geometry", () => {
@@ -614,6 +674,23 @@ describe("bridge resize geometry", () => {
     });
     expect(bridgeDimensionsAtDelta(horizontal, "length", 3)).toEqual({ length: 6, width: 1 });
     expect(bridgeDimensionsAtDelta(vertical, "width", 2)).toEqual({ length: 3, width: 3 });
+  });
+
+  it("rotates a bridge's resize and rotation handles around the deck centre", () => {
+    const bridge = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal" as const,
+      rotation: 90,
+    };
+    const resize = bridgeResizeGuide(bridge, 20);
+    expect(resize?.lengthHandle.x).toBeCloseTo(0.5);
+    expect(resize?.lengthHandle.z).toBeCloseTo(2);
+    expect(resize?.widthHandle.x).toBeCloseTo(1);
+    expect(resize?.widthHandle.z).toBeCloseTo(0.5);
+    expect(elementRotationGuide(bridge, 20)).toMatchObject({ angle: 90 });
   });
 });
 

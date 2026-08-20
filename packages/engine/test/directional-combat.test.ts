@@ -113,6 +113,12 @@ describe("directional combat geometry", () => {
     expect(segmentIntersectsRect({ x: Number.NaN, z: 0 }, { x: 80, z: 0 }, rect)).toBe(false);
   });
 
+  it("sweeps projectiles against a rotated collider in its local space", () => {
+    const rect = { x: -2, z: -0.5, w: 4, h: 1, rotation: Math.PI / 4 };
+    expect(segmentIntersectsRect({ x: 0.8, z: 1.1 }, { x: 1.4, z: 1.1 }, rect)).toBe(true);
+    expect(segmentIntersectsRect({ x: 1.4, z: -1.6 }, { x: 1.8, z: -1.6 }, rect)).toBe(false);
+  });
+
   it("chooses the first impact deterministically and lets terrain win exact ties", () => {
     const result = firstSegmentImpact([
       { fraction: 0.4, point: { x: 40, z: 0 }, kind: "entity", id: "z" },

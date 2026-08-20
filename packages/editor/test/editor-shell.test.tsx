@@ -114,6 +114,7 @@ const stageMock = vi.hoisted(() => ({
   setSelectedElementAsset: vi.fn(),
   setSelectedElementOffset: vi.fn(),
   setSelectedElementOrientation: vi.fn(),
+  setSelectedElementRotation: vi.fn(),
   setSelectedBridgeDimensions: vi.fn(),
   setSelectedBuildingSettings: vi.fn(),
   deleteSelected: vi.fn(),
@@ -154,6 +155,7 @@ function stageHandle() {
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
     setSelectedElementOffset: stageMock.setSelectedElementOffset,
     setSelectedElementOrientation: stageMock.setSelectedElementOrientation,
+    setSelectedElementRotation: stageMock.setSelectedElementRotation,
     setSelectedBridgeDimensions: stageMock.setSelectedBridgeDimensions,
     setSelectedBuildingSettings: stageMock.setSelectedBuildingSettings,
     deleteSelected: stageMock.deleteSelected,
@@ -1028,6 +1030,38 @@ describe("AdventureEditorScreen shell", () => {
     fireEvent.change(length, { target: { value: "7" } });
     fireEvent.blur(length);
     expect(stageMock.setSelectedBridgeDimensions).toHaveBeenCalledWith({ length: 7, width: 2 });
+  });
+
+  it("sets an exact 3D angle from the selected element inspector", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+    const bridge = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.vertical" as const,
+    };
+    const editor = { ...blankMap("Crossing", 40, 30), elements: [bridge] };
+    stageMock.current.mockReturnValue(editor);
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(editor, {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 },
+      });
+    });
+
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    const rotation = within(inspector).getByRole("spinbutton", {
+      name: t("editor.inspector.element.rotation"),
+    });
+    expect(rotation).toHaveValue(90);
+    fireEvent.change(rotation, { target: { value: "37" } });
+    fireEvent.blur(rotation);
+    expect(stageMock.setSelectedElementRotation).toHaveBeenCalledWith(37);
   });
 
   it("resizes a selected building from width and depth fields in the inspector", async () => {

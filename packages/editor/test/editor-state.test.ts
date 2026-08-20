@@ -33,6 +33,7 @@ import {
   updateSelectedBridgeDimensions,
   updateSelectedBuildingSettings,
   updateSelectedElementOrientation,
+  updateSelectedElementRotation,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -1569,6 +1570,63 @@ describe("building element settings", () => {
 
     const moved = rotated && moveSelection(rotated, selection, 10, 11);
     expect(moved?.elements[0]).toMatchObject({ col: 10, row: 11, orientation: 2 });
+  });
+
+  it("freely rotates buildings and bridges, clears legacy turns and rejects 2D scenery", () => {
+    const placed: EditorMap = {
+      ...blankMap("village", 30, 30),
+      elements: [
+        {
+          col: 10,
+          row: 10,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: HOUSE,
+          building: { destructible: true, maxHp: 900 },
+        },
+        { col: 24, row: 24, offsetX: 0, offsetY: 0, assetId: BRIDGE },
+        {
+          col: 5,
+          row: 25,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "terrain.bridge.wood.vertical",
+        },
+      ],
+    };
+    const buildingSelection = {
+      kind: "element",
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+    } as const;
+    const bridgeSelection = {
+      kind: "element",
+      col: 24,
+      row: 24,
+      offsetX: 0,
+      offsetY: 0,
+    } as const;
+    const turned: EditorMap = {
+      ...placed,
+      elements: placed.elements.map((element, index) =>
+        index === 0 ? { ...element, orientation: 1 as const } : element,
+      ),
+    };
+
+    const building = updateSelectedElementRotation(turned, buildingSelection, 37);
+    expect(building?.elements[0]).toMatchObject({ rotation: 37 });
+    expect(building?.elements[0]?.orientation).toBeUndefined();
+    const bridge = updateSelectedElementRotation(building ?? turned, bridgeSelection, 123);
+    expect(bridge?.elements[1]).toMatchObject({ rotation: 123 });
+    const vertical = updateSelectedElementRotation(
+      bridge ?? turned,
+      { kind: "element", col: 5, row: 25, offsetX: 0, offsetY: 0 },
+      0,
+    );
+    expect(vertical?.elements[2]?.rotation).toBe(0);
+    expect(updateSelectedElementRotation(turned, buildingSelection, 360)).toBeNull();
   });
 });
 

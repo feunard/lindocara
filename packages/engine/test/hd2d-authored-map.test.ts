@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileAuthoredMap, compileAuthoredMapContent } from "../src/hd2d/authored-map.js";
+import { colliderContainsPoint } from "../src/hd2d/collider-index.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
@@ -238,6 +239,32 @@ describe("compileAuthoredMap", () => {
     },
   );
 
+  it("rotates a tower's individual battlement collisions with its resized ellipse", () => {
+    const source = authored();
+    source.elements = [
+      {
+        col: 1,
+        row: 1,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: LINDOCARA_BUILDING_ASSET_IDS.stoneTower,
+        rotation: 37,
+        building: {
+          destructible: true,
+          maxHp: 1_500,
+          dimensions: { width: 3, depth: 2 },
+        },
+      },
+    ];
+    const compiled = compileAuthoredMap(source);
+    const roof = compiled.colliders[0];
+    const edges = compiled.colliders.slice(1);
+    expect(roof?.rotation).toBeCloseTo((37 * Math.PI) / 180);
+    expect(edges).toHaveLength(12);
+    expect(edges[0]?.rotation).toBeCloseTo((37 * Math.PI) / 180);
+    expect(edges[3]?.rotation).toBeCloseTo((-53 * Math.PI) / 180);
+  });
+
   it("compiles a resized building's model metadata and roof from one footprint", () => {
     const size = 12;
     const ground = emptyLayer(size, size);
@@ -270,6 +297,37 @@ describe("compileAuthoredMap", () => {
     });
     expect(compiled.colliders[0]).toMatchObject({ w: 5, h: 3.125, support: "center" });
     expect(compiled.colliders[0]?.surface).toMatchObject({ shape: "gable", axis: "x" });
+  });
+
+  it("compiles a building's free angle into its model, roof and exact oriented collision", () => {
+    const size = 12;
+    const ground = emptyLayer(size, size);
+    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    const source: MapData = {
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [
+        {
+          col: 6,
+          row: 7,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: LINDOCARA_BUILDING_ASSET_IDS.house,
+          rotation: 37,
+          building: { destructible: true, maxHp: 900 },
+        },
+      ],
+    };
+
+    const compiled = compileAuthoredMap(source);
+    const roof = compiled.colliders[0];
+    if (!roof) throw new Error("rotated roof collision missing");
+    expect(compiled.elements[0]).toMatchObject({ rotation: 37 });
+    expect(roof.rotation).toBeCloseTo((37 * Math.PI) / 180);
+    expect(colliderContainsPoint(roof, roof.x + roof.w / 2, roof.z + roof.h / 2)).toBe(true);
+    expect(colliderContainsPoint(roof, roof.x, roof.z)).toBe(false);
   });
 
   it.each([
@@ -369,5 +427,35 @@ describe("compileAuthoredMap", () => {
     expect(compiled.colliders[0]).toMatchObject({ x: -3, z: -1, w: 5, h: 2, top: 0 });
     expect(compiled.colliders[1]).toMatchObject({ x: -3, z: -1, w: 5, h: 0.11 });
     expect(compiled.colliders[2]).toMatchObject({ x: -3, z: 0.89, w: 5, h: 0.11 });
+  });
+
+  it("keeps a freely rotated bridge's deck, rails and visual on the same angle", () => {
+    const size = 10;
+    const ground = emptyLayer(size, size);
+    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    const source: MapData = {
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [
+        {
+          col: 4,
+          row: 5,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "terrain.bridge.wood.horizontal",
+          rotation: 37,
+          bridge: { length: 5, width: 2 },
+        },
+      ],
+    };
+
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.elements[0]).toMatchObject({ rotation: 37, bridge: { length: 5, width: 2 } });
+    expect(compiled.colliders).toHaveLength(3);
+    for (const collider of compiled.colliders) {
+      expect(collider.rotation).toBeCloseTo((37 * Math.PI) / 180);
+    }
   });
 });

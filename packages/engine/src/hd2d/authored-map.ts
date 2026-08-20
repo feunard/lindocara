@@ -16,6 +16,7 @@ import {
   ELEMENT_OFFSET_PX,
   elementCells,
   elementWorldCollider,
+  elementWorldColliderGeometry,
   type MapElement,
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
@@ -179,33 +180,61 @@ function bridgeTop(
 }
 
 function bridgeRails(
-  collider: { x: number; z: number; w: number; h: number },
+  collider: ColliderRect,
   deckTop: number,
   orientation: "horizontal" | "vertical",
 ): ColliderRect[] {
   const top = deckTop + AUTHORED_LEVEL_HEIGHT;
   if (orientation === "horizontal") {
     return [
-      { x: collider.x, z: collider.z, w: collider.w, h: BRIDGE_RAIL_THICKNESS, top },
-      {
-        x: collider.x,
-        z: collider.z + collider.h - BRIDGE_RAIL_THICKNESS,
-        w: collider.w,
-        h: BRIDGE_RAIL_THICKNESS,
-        top,
-      },
+      orientedSubCollider(collider, 0, 0, collider.w, BRIDGE_RAIL_THICKNESS, { top }),
+      orientedSubCollider(
+        collider,
+        0,
+        collider.h - BRIDGE_RAIL_THICKNESS,
+        collider.w,
+        BRIDGE_RAIL_THICKNESS,
+        { top },
+      ),
     ];
   }
   return [
-    { x: collider.x, z: collider.z, w: BRIDGE_RAIL_THICKNESS, h: collider.h, top },
-    {
-      x: collider.x + collider.w - BRIDGE_RAIL_THICKNESS,
-      z: collider.z,
-      w: BRIDGE_RAIL_THICKNESS,
-      h: collider.h,
-      top,
-    },
+    orientedSubCollider(collider, 0, 0, BRIDGE_RAIL_THICKNESS, collider.h, { top }),
+    orientedSubCollider(
+      collider,
+      collider.w - BRIDGE_RAIL_THICKNESS,
+      0,
+      BRIDGE_RAIL_THICKNESS,
+      collider.h,
+      { top },
+    ),
   ];
+}
+
+function orientedSubCollider(
+  parent: ColliderRect,
+  offsetX: number,
+  offsetZ: number,
+  w: number,
+  h: number,
+  extra: Pick<ColliderRect, "top" | "support"> = {},
+): ColliderRect {
+  const rotation = parent.rotation ?? 0;
+  if (rotation === 0) {
+    const precise = (value: number): number => Math.round(value * 1e12) / 1e12;
+    return { x: precise(parent.x + offsetX), z: precise(parent.z + offsetZ), w, h, ...extra };
+  }
+  const parentCx = parent.x + parent.w / 2;
+  const parentCz = parent.z + parent.h / 2;
+  const localCx = parent.x + offsetX + w / 2;
+  const localCz = parent.z + offsetZ + h / 2;
+  const dx = localCx - parentCx;
+  const dz = localCz - parentCz;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const cx = parentCx + dx * cos - dz * sin;
+  const cz = parentCz + dx * sin + dz * cos;
+  return { x: cx - w / 2, z: cz - h / 2, w, h, ...(rotation ? { rotation } : {}), ...extra };
 }
 
 function elementBaseTop(
@@ -237,7 +266,7 @@ function buildingRoofCollider(
         shape: "gable",
         eave,
         peak,
-        axis: (element.orientation ?? 0) % 2 === 0 ? "x" : "z",
+        axis: element.rotation === undefined && (element.orientation ?? 0) % 2 === 1 ? "z" : "x",
       },
     };
   }
@@ -264,7 +293,7 @@ function buildingRoofCollider(
  * the rendered battlements. Rectangular roofs use four continuous parapets; round towers use the
  * renderer's twelve crenellation positions so their open deck stays circular. */
 function buildingRoofEdgeColliders(
-  collider: Pick<ColliderRect, "x" | "z" | "w" | "h">,
+  collider: ColliderRect,
   element: MapElement,
   base: number,
 ): ColliderRect[] {
@@ -279,32 +308,29 @@ function buildingRoofEdgeColliders(
   const top = base + volume.wallHeight + BUILDING_PARAPET_TOP;
 
   if (archetype !== "tower") {
-    const rotated = (element.orientation ?? 0) % 2 === 1;
+    const legacyQuarterTurn =
+      element.rotation === undefined && (element.orientation ?? 0) % 2 === 1;
     const thicknessX =
       collider.w *
-      (rotated ? RECTANGULAR_PARAPET_THICKNESS / 2.375 : RECTANGULAR_PARAPET_THICKNESS / 3);
+      (legacyQuarterTurn
+        ? RECTANGULAR_PARAPET_THICKNESS / 2.375
+        : RECTANGULAR_PARAPET_THICKNESS / 3);
     const thicknessZ =
       collider.h *
-      (rotated ? RECTANGULAR_PARAPET_THICKNESS / 3 : RECTANGULAR_PARAPET_THICKNESS / 2.375);
+      (legacyQuarterTurn
+        ? RECTANGULAR_PARAPET_THICKNESS / 3
+        : RECTANGULAR_PARAPET_THICKNESS / 2.375);
     return [
-      { x: collider.x, z: collider.z, w: collider.w, h: thicknessZ, top, support: "center" },
-      {
-        x: collider.x,
-        z: collider.z + collider.h - thicknessZ,
-        w: collider.w,
-        h: thicknessZ,
+      orientedSubCollider(collider, 0, 0, collider.w, thicknessZ, { top, support: "center" }),
+      orientedSubCollider(collider, 0, collider.h - thicknessZ, collider.w, thicknessZ, {
         top,
         support: "center",
-      },
-      { x: collider.x, z: collider.z, w: thicknessX, h: collider.h, top, support: "center" },
-      {
-        x: collider.x + collider.w - thicknessX,
-        z: collider.z,
-        w: thicknessX,
-        h: collider.h,
+      }),
+      orientedSubCollider(collider, 0, 0, thicknessX, collider.h, { top, support: "center" }),
+      orientedSubCollider(collider, collider.w - thicknessX, 0, thicknessX, collider.h, {
         top,
         support: "center",
-      },
+      }),
     ];
   }
 
@@ -316,6 +342,24 @@ function buildingRoofEdgeColliders(
   const battlementDepth = 0.28 * radiusZ;
   return Array.from({ length: ROUND_PARAPET_SEGMENTS }, (_, index) => {
     const angle = (index / ROUND_PARAPET_SEGMENTS) * Math.PI * 2;
+    if (element.rotation !== undefined) {
+      const parentRotation = collider.rotation ?? 0;
+      const localX = Math.sin(angle) * radiusX * 0.93;
+      const localZ = Math.cos(angle) * radiusZ * 0.93;
+      const cos = Math.cos(parentRotation);
+      const sin = Math.sin(parentRotation);
+      const x = centreX + localX * cos - localZ * sin;
+      const z = centreZ + localX * sin + localZ * cos;
+      return {
+        x: x - battlementWidth / 2,
+        z: z - battlementDepth / 2,
+        w: battlementWidth,
+        h: battlementDepth,
+        rotation: parentRotation - angle,
+        top,
+        support: "center" as const,
+      };
+    }
     const halfWidth =
       (Math.abs(Math.cos(angle)) * battlementWidth + Math.abs(Math.sin(angle)) * battlementDepth) /
       2;
@@ -346,7 +390,9 @@ export function authoredElementColliders(
   levels: readonly (number | null)[],
   size: number,
 ): ColliderRect[] {
-  const rect = elementWorldCollider(element);
+  const exact = elementWorldColliderGeometry(element);
+  const legacy = element.rotation === undefined ? elementWorldCollider(element) : null;
+  const rect = legacy ? { ...legacy, rotation: 0 } : exact;
   const asset = editorAsset(element.assetId);
   if (!rect) return [];
   const collider = {
@@ -354,6 +400,7 @@ export function authoredElementColliders(
     z: groundCoordinate(rect.y, size),
     w: rect.width / TILE_SIZE,
     h: rect.height / TILE_SIZE,
+    ...(rect.rotation ? { rotation: rect.rotation } : {}),
   };
   if (asset?.editor.terrainOverride === "walkable") {
     const top = bridgeTop(authored, element, levels, size);
@@ -405,6 +452,7 @@ function authoredContent(
       assetId: element.assetId,
       ...authoredElementRenderPoint(element, size),
       ...(element.orientation ? { orientation: element.orientation } : {}),
+      ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
       ...(bridgeOrientation(element.assetId)
         ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
         : {}),

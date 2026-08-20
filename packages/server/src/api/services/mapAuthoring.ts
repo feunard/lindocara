@@ -28,7 +28,10 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
-import { isElementOrientation } from "@lindocara/engine/element-orientation.js";
+import {
+  decodeElementTransform,
+  isElementOrientation,
+} from "@lindocara/engine/element-orientation.js";
 import { isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -506,9 +509,11 @@ export function elementToWire(row: {
   buildingInteriorMapId?: string | null;
 }): MapElement | null {
   if (isEditorAssetId(row.kind)) {
+    const stored = decodeElementTransform(row.variant);
+    if (!stored) return null;
     const bridgeAsset = bridgeOrientation(row.kind);
     if (bridgeAsset) {
-      const bridge = decodeBridgeDimensions(row.variant);
+      const bridge = decodeBridgeDimensions(stored.baseCode);
       if (bridge === null) return null;
       return {
         id: row.id,
@@ -517,11 +522,12 @@ export function elementToWire(row: {
         offsetX: row.offsetX,
         offsetY: row.offsetY,
         assetId: row.kind,
+        ...(stored.rotation === undefined ? {} : { rotation: stored.rotation }),
         ...(bridge ? { bridge } : {}),
       };
     }
     if (isStandingBuildingAsset(row.kind)) {
-      const transform = decodeBuildingTransform(row.variant);
+      const transform = decodeBuildingTransform(stored.baseCode);
       if (!transform) return null;
       const building =
         parseBuildingSettings({
@@ -539,10 +545,11 @@ export function elementToWire(row: {
         offsetY: row.offsetY,
         assetId: row.kind,
         ...(transform.orientation === 0 ? {} : { orientation: transform.orientation }),
+        ...(stored.rotation === undefined ? {} : { rotation: stored.rotation }),
         building,
       };
     }
-    if (!isElementOrientation(row.variant)) return null;
+    if (!isElementOrientation(stored.baseCode) || stored.rotation !== undefined) return null;
     return {
       id: row.id,
       col: row.col,
@@ -550,7 +557,7 @@ export function elementToWire(row: {
       offsetX: row.offsetX,
       offsetY: row.offsetY,
       assetId: row.kind,
-      ...(row.variant === 0 ? {} : { orientation: row.variant }),
+      ...(stored.baseCode === 0 ? {} : { orientation: stored.baseCode }),
     };
   }
   if (isElementKind(row.kind)) {

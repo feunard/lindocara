@@ -245,6 +245,7 @@ function authoredBuildings(payload: MapPayload, size: number): ZoneBuildingDefin
         standingAssetId: element.assetId,
         destroyedAssetId,
         ...(element.orientation ? { orientation: element.orientation } : {}),
+        ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
         ...(element.building.dimensions ? { dimensions: element.building.dimensions } : {}),
         destructible: element.building.destructible,
         maxHp: element.building.maxHp,

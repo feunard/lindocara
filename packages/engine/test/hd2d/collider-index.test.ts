@@ -1,4 +1,8 @@
-import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
+import {
+  colliderContainsPoint,
+  colliderSurfaceHeightAt,
+  createColliderIndex,
+} from "@lindocara/engine/hd2d/collider-index.js";
 import { describe, expect, it } from "vitest";
 
 describe("createColliderIndex", () => {
@@ -16,6 +20,18 @@ describe("createColliderIndex", () => {
     idx.add({ x: 0, z: 0, w: 2, h: 2 });
     expect(idx.blocked(-0.51, 1, 0.5)).toBe(false);
     expect(idx.blocked(-0.49, 1, 0.5)).toBe(true);
+  });
+
+  it("tests a freely rotated rectangle exactly instead of blocking its empty AABB corners", () => {
+    const rect = { x: -2, z: -0.5, w: 4, h: 1, rotation: Math.PI / 4, top: 1.2 };
+    const idx = createColliderIndex();
+    idx.add(rect);
+
+    expect(colliderContainsPoint(rect, 1.1, 1.1)).toBe(true);
+    expect(colliderContainsPoint(rect, 1.6, -1.6)).toBe(false);
+    expect(idx.blocked(1.1, 1.1, 0.1, 0)).toBe(true);
+    expect(idx.blocked(1.6, -1.6, 0.1, 0)).toBe(false);
+    expect(colliderSurfaceHeightAt(rect, 1.1, 1.1)).toBe(1.2);
   });
 
   it("lets an overlapping body slide or leave, never penetrate farther", () => {

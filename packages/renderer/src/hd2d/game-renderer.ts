@@ -1214,7 +1214,7 @@ export class Hd2dRenderer implements RendererLike {
       }),
       ...buildings.map(
         (building) =>
-          `building:${building.id}:${building.x}:${building.z}:${building.orientation ?? 0}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
+          `building:${building.id}:${building.x}:${building.z}:${building.orientation ?? 0}:${building.rotation ?? ""}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
       ),
     ].join("|");
     const assetIds = [
@@ -1322,6 +1322,7 @@ export class Hd2dRenderer implements RendererLike {
         z: building.z,
         graphicAssetId: building.graphicAssetId,
         ...(building.orientation ? { orientation: building.orientation } : {}),
+        ...(building.rotation === undefined ? {} : { rotation: building.rotation }),
         ...(building.dimensions ? { building: building.dimensions } : {}),
         health: {
           value: building.hp,

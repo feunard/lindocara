@@ -1188,6 +1188,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.building.orientation.right": "Droite",
   "editor.inspector.building.orientation.back": "Dos",
   "editor.inspector.building.orientation.left": "Gauche",
+  "editor.inspector.element.rotation": "Rotation 3D",
+  "editor.inspector.element.rotation.hint":
+    "Angle libre en degrés. Vous pouvez aussi tirer la poignée violette directement sur la carte.",
   "editor.inspector.building.color": "Coloris",
   "editor.inspector.building.color.blue": "Bleu",
   "editor.inspector.building.color.red": "Rouge",

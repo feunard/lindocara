@@ -1,4 +1,9 @@
-import { type ElementOrientation, isElementOrientation } from "./element-orientation.js";
+import {
+  type ElementOrientation,
+  type ElementRotation,
+  elementRotationDegrees,
+  isElementOrientation,
+} from "./element-orientation.js";
 import type { GroundVector } from "./ground.js";
 import { isUuid } from "./identifiers.js";
 import {
@@ -34,6 +39,7 @@ export interface ZoneBuildingDefinition extends BuildingSettings {
   standingAssetId: EditorAssetId;
   destroyedAssetId: EditorAssetId;
   orientation?: ElementOrientation;
+  rotation?: ElementRotation;
   /** The original solid footprint remains authoritative after destruction: a ruin is still solid. */
   collider: BuildingCollider;
 }
@@ -53,6 +59,7 @@ export interface BuildingDoorPlacement {
   z: number;
   assetId: string;
   orientation?: ElementOrientation;
+  rotation?: ElementRotation;
   dimensions?: BuildingDimensions;
 }
 
@@ -69,7 +76,7 @@ export function distanceToBuildingCollider(
 /**
  * Ground point at the centre of the visible front door. The authored building anchor already is
  * the front threshold; only buildings with an asymmetric facade need a lateral offset. Rotating
- * this local point by the authored quarter-turn keeps the door fixed to the model instead of
+ * this local point by the authored angle keeps the door fixed to the model instead of
  * making the interaction follow an unrotated collider side.
  */
 export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): GroundVector {
@@ -81,17 +88,11 @@ export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): Groun
       : archetype === "archery"
         ? (size?.width ?? 0) * 0.31
         : 0;
-  const orientation = placement.orientation ?? 0;
-  switch (orientation) {
-    case 1:
-      return { x: placement.x, z: placement.z + localX };
-    case 2:
-      return { x: placement.x - localX, z: placement.z };
-    case 3:
-      return { x: placement.x, z: placement.z - localX };
-    default:
-      return { x: placement.x + localX, z: placement.z };
-  }
+  const radians = (elementRotationDegrees(placement) * Math.PI) / 180;
+  return {
+    x: placement.x + localX * Math.cos(radians),
+    z: placement.z + localX * Math.sin(radians),
+  };
 }
 
 export function distanceToBuildingDoor(

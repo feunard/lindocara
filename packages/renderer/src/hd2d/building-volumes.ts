@@ -5,7 +5,11 @@ import {
   type BuildingVolumeDimensions,
   buildingVolumeDimensions,
 } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
+import {
+  type ElementOrientation,
+  type ElementRotation,
+  elementRotationDegrees,
+} from "@lindocara/engine/element-orientation.js";
 import * as THREE from "three";
 
 export type BuildingVolumeState = "standing" | "construction" | "destroyed";
@@ -23,6 +27,8 @@ export interface BuildingVolumeArt {
   roofColor: number;
   /** Fixed authored quarter-turn. The model never follows the camera. */
   orientation?: ElementOrientation;
+  /** Whole-degree authored rotation, superseding the legacy quarter-turn. */
+  rotation?: ElementRotation;
   /** Optional author-resized footprint; vertical proportions stay native. */
   dimensions?: BuildingDimensions;
 }
@@ -1051,7 +1057,7 @@ function addRubble(root: THREE.Group, size: BuildingVolumeDimensions, m: Materia
 export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `building-${art.archetype}-${art.state}`;
-  group.rotation.y = -(art.orientation ?? 0) * (Math.PI / 2);
+  group.rotation.y = THREE.MathUtils.degToRad(-elementRotationDegrees(art));
   const size = buildingVolumeDimensions(art.archetype, art.dimensions);
   const materials = makeMaterials(art);
   const structure = new THREE.Group();
@@ -1127,9 +1133,14 @@ export function makeBridgeVolume(
   deckTexture: THREE.Texture,
   orientation: "horizontal" | "vertical",
   dimensions?: BridgeDimensions,
+  rotation?: ElementRotation,
 ): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `bridge-${orientation}`;
+  const baseRotation = orientation === "horizontal" ? 0 : 90;
+  group.rotation.y = THREE.MathUtils.degToRad(
+    -(rotation === undefined ? 0 : rotation - baseRotation),
+  );
   const horizontal = orientation === "horizontal";
   const size = bridgeDimensionsOrDefault(dimensions);
   deckTexture.wrapS = THREE.RepeatWrapping;

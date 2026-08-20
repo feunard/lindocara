@@ -18,7 +18,7 @@
 
 import { type ColliderIndex, collidersOnSegment } from "./collider.js";
 import { type GroundVector, groundOf, planarOf } from "./ground.js";
-import type { ColliderRect } from "./hd2d/collider-index.js";
+import { type ColliderRect, colliderLocalPoint } from "./hd2d/collider-index.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "./tilemap.js";
 
@@ -458,11 +458,13 @@ export function sweptRectEntry(
   ) {
     return null;
   }
+  const localStart = colliderLocalPoint(rect, start.x, start.z);
+  const localEnd = colliderLocalPoint(rect, end.x, end.z);
   return segmentBoxEntry(
-    start.x,
-    start.z,
-    end.x - start.x,
-    end.z - start.z,
+    localStart.x,
+    localStart.z,
+    localEnd.x - localStart.x,
+    localEnd.z - localStart.z,
     rect.x - radius,
     rect.z - radius,
     rect.x + rect.w + radius,
