@@ -18,7 +18,14 @@
 // teleport, which stayed in `hero.ts` — see `drown`'s docstring below).
 
 import type { HeroEvent, HeroInput, HeroSettings, HeroState, StepDeps } from "./hero-state.js";
-import { derapage, frictionPour, pasAmorti, sePropulse, vitesseMaxPour } from "./locomotion.js";
+import {
+  derapage,
+  entreeBornee,
+  frictionPour,
+  pasAmorti,
+  sePropulse,
+  vitesseMaxPour,
+} from "./locomotion.js";
 
 /** Center of the collision footprint, offset under the sprite's body — MOVED from the lab's
  *  `hero.ts`, where an identical local helper used to live before this rule was extracted;
@@ -242,8 +249,13 @@ export function stepHero(
   const vmax = state.swimming ? hero.speed * hero.swim.speed : vitesseMaxPour(matiere, hero);
   const accel = vmax * friction;
 
-  state.vx = pasAmorti(state.vx, input.x, accel, friction, dt);
-  state.vz = pasAmorti(state.vz, input.z, accel, friction, dt);
+  // The input is a VECTOR, and `pasAmorti` below reads it one axis at a time: without this the two
+  // axes each converge to the full speed and a diagonal is √2 times too fast. Bounded once, here,
+  // so the skid and the footstep signals below read the same numbers the velocity does.
+  const entree = entreeBornee(input.x, input.z);
+
+  state.vx = pasAmorti(state.vx, entree.x, accel, friction, dt);
+  state.vz = pasAmorti(state.vz, entree.z, accel, friction, dt);
 
   // Skid (a held sound): `derapage` never looks at the material — cut here only in the air and
   // while swimming, where a ground skid means nothing. Emitted every FRAME, never only on
@@ -253,11 +265,11 @@ export function stepHero(
     intensite:
       state.airborne || state.swimming
         ? 0
-        : derapage(state.vx, state.vz, input.x, input.z, hero.speed),
+        : derapage(state.vx, state.vz, entree.x, entree.z, hero.speed),
   });
   // Same signal, thresholded into a boolean: only count a footstep if the hero is actually
   // propelling, not if carried by momentum (ice) — see the footstep cadence below.
-  const propulsion = sePropulse(state.vx, state.vz, input.x, input.z);
+  const propulsion = sePropulse(state.vx, state.vz, entree.x, entree.z);
 
   // One axis at a time: hitting an obstacle diagonally slides along it. On the refused axis, speed
   // drops to zero, otherwise the hero would stay stuck to the wall at full speed and shoot off the

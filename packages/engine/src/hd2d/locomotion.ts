@@ -50,6 +50,27 @@ export function pasAmorti(
   return cible + (v - cible) * Math.exp(-friction * dt);
 }
 
+/**
+ * The movement input, never longer than 1.
+ *
+ * `pasAmorti` integrates each axis independently and converges it to `accel / friction`, which IS
+ * the hero's full speed. Two axes held at once therefore reached that speed on both, and the
+ * resulting velocity had magnitude `speed · √2`: a hero moving about 41% faster on the diagonal
+ * than in any cardinal direction, for free, by holding two keys.
+ *
+ * CLAMPED, not normalised, and the difference is the whole reason this is a function. Normalising
+ * to length 1 would push a gentle analog stick to full speed, which is the same bug pointing the
+ * other way. A short vector already states its own magnitude and is returned untouched; only an
+ * over-long one is scaled back onto the unit circle.
+ */
+export function entreeBornee(x: number, z: number): { x: number; z: number } {
+  const longueur = Math.hypot(x, z);
+  // Written as `!(longueur > 1)` rather than `longueur <= 1` so a NaN axis falls through unchanged
+  // instead of being divided by NaN: this module never silently invents a direction.
+  if (!(longueur > 1)) return { x, z };
+  return { x: x / longueur, z: z / longueur };
+}
+
 /** `null` = off the map or in the water: swimming there, ground friction does not apply, but the
  *  function must still return something finite rather than force every caller to test for it.
  *  `"sable"` (sand) has no rule of its own yet: it falls back to `"herbe"` (grass).

@@ -20,6 +20,36 @@ describe("stepHero — horizontal movement", () => {
     expect(s.vz).toBeCloseTo(0, 6);
   });
 
+  it("covers the same ground on the diagonal as on either axis", () => {
+    const entree = (x: number, z: number) =>
+      ({ x, z, jump: false, attack: false, souffleTaux: 1, haleineVisible: false }) as const;
+    const parcours = (x: number, z: number): number => {
+      const deps = depsPlates();
+      const s = createHeroState(0, 0, 0, 10, 2.2);
+      for (let i = 0; i < 300; i++) stepHero(s, entree(x, z), 1 / 60, deps);
+      return Math.hypot(s.x, s.z);
+    };
+
+    // Each axis converges to `accel / friction`, so two axes held at once used to reach the full
+    // speed on BOTH and travel √2 times as far. The input is a vector; its length is the throttle.
+    expect(parcours(1, 1)).toBeCloseTo(parcours(1, 0), 3);
+    expect(parcours(-1, 1)).toBeCloseTo(parcours(0, 1), 3);
+  });
+
+  it("leaves a short analog vector at its own magnitude", () => {
+    // Clamped, not normalised: a gentle stick push must stay gentle. Half input, half the distance.
+    const entree = (x: number, z: number) =>
+      ({ x, z, jump: false, attack: false, souffleTaux: 1, haleineVisible: false }) as const;
+    const parcours = (x: number, z: number): number => {
+      const deps = depsPlates();
+      const s = createHeroState(0, 0, 0, 10, 2.2);
+      for (let i = 0; i < 300; i++) stepHero(s, entree(x, z), 1 / 60, deps);
+      return Math.hypot(s.x, s.z);
+    };
+    expect(parcours(0.5, 0)).toBeLessThan(parcours(1, 0));
+    expect(parcours(0.3, 0.4)).toBeCloseTo(parcours(0.5, 0), 3);
+  });
+
   it("cancels speed on the refused axis, not on the other", () => {
     // A wall on x: sliding along it must continue, in z. That's what the axis-by-axis test buys,
     // and it's exactly what switching colliders from circles to rectangles must not break.
