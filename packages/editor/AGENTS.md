@@ -30,6 +30,12 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   produced, and the first save creates the adventure and that map in one `POST /api/adventures`
   carrying the map. This replaced a `POST` on entry that left one untitled row per visit behind,
   never cleaned up; the trade is that a sandbox is memory-only, so closing the tab loses it.
+- **The first save KEEPS the sandbox's map id**: it rides along as the create body's `map.id` and
+  the server stores the row under it (`MapService.createMap`'s `requestedId`). The sandbox authors
+  against that id (the Teleporter preset bakes it into a `teleport` command's `mapId`, the
+  door-link tool mints two), so minting a fresh one server-side would silently turn every reference
+  placed before the first save into a map that never existed. Nothing fails when this breaks: the
+  save succeeds, the map looks right, and the teleporter simply does nothing forever after.
 - **`adventureId === null` means "sandbox"**, and every server-backed surface must read it rather
   than assume a row exists: Test routes through the first-save popup and continues into the launch,
   the settings dialog saves through `onSaveDraft` (the create seam) and hides Delete, New map is

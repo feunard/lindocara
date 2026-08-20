@@ -20,7 +20,12 @@ import {
 } from "../bodySizeCap.ts";
 import { AdventureService } from "../services/AdventureService.ts";
 import { rethrowAsAdventureError } from "../services/adventureAuthoring.ts";
-import { type MapInput, parseMapBody, rethrowAsMapError } from "../services/mapAuthoring.ts";
+import {
+  type MapInput,
+  parseCarriedMapId,
+  parseMapBody,
+  rethrowAsMapError,
+} from "../services/mapAuthoring.ts";
 
 const adventureSummarySchema = z.object({
   id: z.string(),
@@ -90,18 +95,28 @@ export class AdventureController {
         throw new HttpError({ status: 400, error: "adventure_invalid", message: "invalid body" });
       }
       let firstMap: MapInput | undefined;
+      // The sandbox's own map id, kept as the stored row's id so a `teleport` the author placed
+      // before this first save still names its map. `parseMapBody` does not read it: that shape is
+      // shared with `PUT /api/maps/:id`, where the URL owns identity.
+      let firstMapId: string | undefined;
       if (rawMap !== undefined) {
         const parsed = parseMapBody(rawMap);
         if (!parsed) {
           throw new HttpError({ status: 400, error: "map_invalid", message: "invalid map body" });
         }
+        const carriedId = parseCarriedMapId(rawMap);
+        if (carriedId === null) {
+          throw new HttpError({ status: 400, error: "map_invalid", message: "invalid map id" });
+        }
         firstMap = parsed;
+        firstMapId = carriedId;
       }
       try {
         const { adventure, map } = await this.adventureService.createAdventureWithDefaultMap(
           user.id,
           input,
           firstMap,
+          firstMapId,
         );
         reply.setStatus(201);
         return { ...adventure, defaultMap: map };

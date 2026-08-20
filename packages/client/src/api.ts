@@ -265,10 +265,17 @@ export const fetchPlayableAdventures = () => api<AdventureSummary[]>("/api/adven
 /** Every adventure on the server, drafts included — the collaborative editor's picker. */
 export const fetchAllAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=all");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
+/** The first map a create carries: a save body PLUS the id the editor authored against. A sandbox
+ *  mints a local uuid, bakes it into every same-map `teleport` it places (the Teleporter preset, the
+ *  door-link tool), and the server keeps it as the stored row's id, so those references still name
+ *  their map after the save. Only this route reads it: `PUT /api/maps/:id` takes identity from the
+ *  URL and ignores a body id. */
+export type FirstMapSaveInput = MapSaveInput & { id: string };
+
 /** Creates the adventure and its first map in ONE request. `map` is the editor's unsaved sandbox
  *  reaching its first save: it becomes the adventure's map instead of the blank template, in the
  *  same transaction, so a named adventure can never be persisted without the work it was named for. */
-export const createAdventureApi = (input: CreateAdventureInput & { map?: MapSaveInput }) =>
+export const createAdventureApi = (input: CreateAdventureInput & { map?: FirstMapSaveInput }) =>
   api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
 export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });

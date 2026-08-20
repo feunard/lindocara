@@ -2026,7 +2026,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
   "editor.event.preset.doorLink": "Liaison de portes",
   "editor.event.preset.doorLink.disabled":
-    "Enregistrez d’abord la carte pour relier deux de ses portes.",
+    "Ouvrez d’abord une carte pour relier deux de ses portes.",
   "editor.event.preset.doorLink.step1": "Cliquez sur la première porte.",
   "editor.event.preset.doorLink.step2":
     "Cliquez maintenant sur la seconde porte. Recliquez la première pour recommencer.",

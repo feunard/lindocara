@@ -142,11 +142,15 @@ export class AdventureService {
    * the author's first save arrives here carrying the map they have been drawing. It REPLACES the
    * blank template rather than being written beside it — the adventure still owns exactly one map —
    * and it rides this same call so a named adventure can never be persisted without it.
+   *
+   * `firstMapId` is that sandbox's own uuid, kept as the stored row's id (see `MapService.createMap`)
+   * so a `teleport` the author placed before this save still names its map.
    */
   async createAdventureWithDefaultMap(
     userId: string,
     input: CreateAdventureInput,
     firstMap?: MapInput,
+    firstMapId?: string,
   ): Promise<{ adventure: StoredAdventure; map: MapPayload }> {
     const title = input.title.trim();
     if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
@@ -171,6 +175,7 @@ export class AdventureService {
       undefined,
       undefined,
       firstMap,
+      firstMapId,
     );
     const stored = await this.loadAdventureById(id);
     if (!stored) throw new Error("not_found: adventure vanished mid-create");

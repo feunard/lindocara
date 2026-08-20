@@ -364,6 +364,27 @@ export function parseHeightfieldBody(body: unknown): HeightfieldBodyResult {
   return { ok: true, heightfield };
 }
 
+/**
+ * The optional `id` the map carried by a create body may name: the editor's SANDBOX map id.
+ *
+ * An unsaved sandbox authors against its own local uuid (the Teleporter preset bakes it into a
+ * `teleport` command's `mapId`, the door-link tool mints two of them), so the first save has to
+ * keep that id rather than mint a new one, or every reference authored before it names a map that
+ * never existed.
+ *
+ * Three answers, not two: `undefined` is "no id carried" (mint one), `null` is "carried, but not a
+ * uuid" (400 `map_invalid`). Collapsing the second into the first would silently mint an id for a
+ * client that asked for a specific one, which is the very failure this exists to stop.
+ *
+ * Deliberately NOT part of `parseMapBody`: that shape is shared with `PUT /api/maps/:id`, where the
+ * URL owns identity and a body id must stay ignored.
+ */
+export function parseCarriedMapId(body: unknown): string | null | undefined {
+  const id = (body as { id?: unknown } | null)?.id;
+  if (id === undefined) return undefined;
+  return isUuid(id) ? id : null;
+}
+
 /** The `{ adventureId, name, cols, rows }` body of a new-map request. Ported from
  *  `parseCreateMapBody` in `packages/server/src/index.ts`. */
 export function parseCreateMapBody(

@@ -2548,6 +2548,29 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     expect(session?.titleUntouched).toBe(false);
   });
 
+  it("sends the sandbox's own map id, so a teleporter placed before it keeps its target", async () => {
+    seedSandbox();
+    const sandboxId = alepha.store.get(adventureEditorSessionAtom)?.sandboxMap?.id;
+    expect(sandboxId).toBeTruthy();
+    const mock = sandboxBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady(alepha);
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText(t("adventure.name")), "!");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
+    );
+
+    await waitFor(() => expect(adventurePosts(mock)).toHaveLength(1));
+    const [, post] = adventurePosts(mock)[0] as [string, RequestInit];
+    const body = JSON.parse(String(post.body)) as { map?: { id?: string } };
+    // The Teleporter preset bakes this id into its `teleport` command and the door-link tool mints
+    // two of them, so the id the author authored against has to be the id the row is stored under.
+    expect(body.map?.id).toBe(sandboxId);
+  });
+
   it("shows the derived size, not the stored 20 × 15, for a fresh sandbox", async () => {
     seedSandbox();
     // The default beforeEach stubs `handle.current()` to a fixed 40×30 fixture shared by every

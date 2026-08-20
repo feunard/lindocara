@@ -91,6 +91,27 @@ function wirePage(): Record<string, unknown> {
   };
 }
 
+/** A scripted event carrying the Teleporter preset's own program: one `player-touch` teleport aimed
+ *  at `mapId`. The editor bakes the CURRENT map's id there, which on a sandbox is the id the first
+ *  save has to keep. */
+function teleporterEvent(mapId: string): MapEvent {
+  return {
+    id: "cccccccc-0000-4000-8000-000000000001",
+    col: 3,
+    row: 3,
+    name: "Teleporter",
+    ordinal: 0,
+    kind: "normal",
+    pages: [
+      {
+        ...wirePage(),
+        trigger: "player-touch",
+        commands: [{ t: "teleport", mapId, col: 1, row: 1, category: "geographic" }],
+      },
+    ],
+  } as unknown as MapEvent;
+}
+
 /** `count` distinct `normal`-kind events on distinct cells, own uuids captured for later assertion.
  *  `normal` events carry no walkable-ground requirement, so any distinct in-bounds cell works. */
 function manyEvents(count: number): { events: MapEvent[]; ids: string[] } {
@@ -307,6 +328,74 @@ describe("create: atomic with a default map", () => {
     // Exactly one map: the carried map REPLACES the blank template, it is not created beside it.
     const list = await authedFetch(`/api/maps?adventure=${created.id}`, token);
     expect((await list.json()) as unknown[]).toHaveLength(1);
+  });
+
+  /**
+   * The sandbox authors AGAINST its own map id: the Teleporter preset bakes it into a `teleport`
+   * command's `mapId`, and the door-link tool mints two of them. That id used to die at the first
+   * save (the row was minted here), so a teleporter placed before the first save named a map that
+   * never existed. The create path honours the id the author authored against instead.
+   */
+  test("honours the carried map's id, so a teleport authored on the sandbox still names its map", async () => {
+    const { token } = await registerAndLogin("advsandboxid");
+    const sandboxId = crypto.randomUUID();
+    const response = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: { ...mapBody("Atelier", [teleporterEvent(sandboxId)]), id: sandboxId },
+    });
+    expect(response.status).toBe(201);
+    const created = (await response.json()) as {
+      id: string;
+      mapIds: string[];
+      defaultMap: { id: string; events: { pages: { commands: { mapId?: string }[] }[] }[] };
+    };
+    expect(created.defaultMap.id).toBe(sandboxId);
+    expect(created.mapIds).toEqual([sandboxId]);
+    // The authored destination names the stored row, not a map that was never created.
+    const stored = (await (await authedFetch(`/api/maps/${sandboxId}`, token)).json()) as {
+      id: string;
+      events: { pages: { commands: { t: string; mapId?: string }[] }[] }[];
+    };
+    expect(stored.events[0]?.pages[0]?.commands[0]).toMatchObject({
+      t: "teleport",
+      mapId: sandboxId,
+    });
+  });
+
+  test("400s map_invalid when the carried map's id is not a uuid, writing nothing", async () => {
+    const { token } = await registerAndLogin("advsandboxbadid");
+    const response = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: { ...mapBody("Atelier"), id: "not-a-uuid" },
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "map_invalid" });
+    const list = await authedFetch("/api/adventures", token);
+    expect(await list.json()).toEqual([]);
+  });
+
+  test("409s map_conflict when the carried map's id is already taken", async () => {
+    const { token } = await registerAndLogin("advsandboxdupid");
+    const sandboxId = crypto.randomUUID();
+    // No events: a `map_event` id is a global primary key, so replaying the same authored events
+    // would conflict on those instead and prove nothing about the map id.
+    const first = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: { ...mapBody("Atelier", []), id: sandboxId },
+    });
+    expect(first.status).toBe(201);
+    // A replayed first save (the response was lost, the client retried) must not mint a second
+    // adventure around a map id that already exists.
+    const replay = await createAdventure(token, {
+      title: "Sandbox",
+      maxPlayers: 4,
+      map: { ...mapBody("Atelier", []), id: sandboxId },
+    });
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toMatchObject({ error: "map_conflict" });
   });
 
   test("400s map_invalid when the create body carries a malformed map, writing nothing", async () => {

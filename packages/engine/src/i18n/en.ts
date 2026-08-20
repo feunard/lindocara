@@ -2003,7 +2003,7 @@ export const en = {
   "editor.event.preset.chest": "Chest (gold)",
   "editor.event.preset.endgame": "Adventure goal (ending)",
   "editor.event.preset.doorLink": "Door link",
-  "editor.event.preset.doorLink.disabled": "Save the map first to link two of its doors.",
+  "editor.event.preset.doorLink.disabled": "Open a map first to link two of its doors.",
   "editor.event.preset.doorLink.step1": "Click the first door.",
   "editor.event.preset.doorLink.step2":
     "Now click the second door. Click the first one again to start over.",

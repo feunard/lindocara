@@ -225,6 +225,13 @@ export class MapService {
    * `AdventureService.createAdventureWithDefaultMap`). Client-authored terrain is not TRUSTED here
    * any more than it is on a `PUT`: it goes through the same `validateMapInput` gate, and the stored
    * heightfield is compiled from it by this server, never taken from the wire.
+   *
+   * `requestedId` is that sandbox's OWN uuid, and honouring it is the point: an unsaved sandbox
+   * authors against its map id (the Teleporter preset bakes it into a `teleport` command, the
+   * door-link tool mints two), so minting a fresh one here would leave every such reference naming
+   * a map that never existed. It is a uuid the caller has already validated, used only as this new
+   * row's primary key and owned by the requesting account exactly like a server-minted one: the
+   * same trust the authored EVENT and ELEMENT uuids in `content` already get (`writeEvents`).
    */
   async createMap(
     adventureId: string,
@@ -232,9 +239,16 @@ export class MapService {
     cols?: number,
     rows?: number,
     content?: MapInput,
+    requestedId?: string,
   ): Promise<MapPayload> {
     const owner = await this.adventures.findById(adventureId);
     if (!owner) throw new Error("not_found: no such adventure");
+    // A taken id answers 409 `map_conflict` rather than the raw primary-key violation: the case
+    // that actually reaches this is a replayed first save (the response was lost), and a create
+    // that mints a second adventure around a map that already exists is the worse answer.
+    if (requestedId !== undefined && (await this.maps.findById(requestedId))) {
+      throw new Error("conflict: a map with that id already exists");
+    }
     const input = content ?? defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
     const memberMaps = await this.maps.findMany({ where: { adventureId: { eq: adventureId } } });
@@ -265,7 +279,7 @@ export class MapService {
     // non-racing, overwhelmingly common case (an account's very first map), not a correctness
     // mechanism.
     const firstCountForAccount = await this.maps.count({ userId: { eq: owner.userId } });
-    const id = crypto.randomUUID();
+    const id = requestedId ?? crypto.randomUUID();
     const row = await this.maps.create({
       id,
       userId: owner.userId,

@@ -52,9 +52,15 @@ export async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
  * The blank map a sandbox opens on, as a `MapPayload` the stage can mount directly.
  *
  * Minted from the engine's `defaultMapInput` — the SAME template `MapService.createMap` uses — so
- * an unsaved sandbox is born on exactly the terrain the server would have produced for it. Its id
- * is a local uuid and its `revision` is 0: nothing with this id exists server-side, and the first
- * save mints the real row (and a real id) rather than updating anything.
+ * an unsaved sandbox is born on exactly the terrain the server would have produced for it. Its
+ * `revision` is 0: nothing with this id exists server-side yet, and the first save CREATES the row
+ * rather than updating anything.
+ *
+ * Its id is local but not throwaway: the first save carries it and the server stores the row under
+ * it (`createAdventureApi`'s `map.id` -> `MapService.createMap`). The sandbox authors AGAINST this
+ * id: the Teleporter preset bakes it into a `teleport` command's `mapId` and the door-link tool
+ * mints two, so a fresh server id would turn every one of those references into a map that never
+ * existed, at the exact moment the author first saved.
  */
 function sandboxMapPayload(): MapPayload {
   const input = defaultMapInput(DEFAULT_FIRST_MAP_NAME);

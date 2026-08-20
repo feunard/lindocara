@@ -1296,11 +1296,16 @@ function AdventureEditorInner({
         if (!adventureInput || !baseDraft) return null;
         const created = await createAdventureApi({
           ...adventureInput,
-          map: toSaveInput(savedSnapshot, map.id),
+          // The sandbox's own id rides along and the server stores the row under it. It is not
+          // decoration: the Teleporter preset bakes this map's id into its `teleport` command and
+          // the door-link tool mints two, so a server-minted id here would leave every reference
+          // authored before this save naming a map that never existed.
+          map: { ...toSaveInput(savedSnapshot, map.id), id: map.id },
         });
         if (mapLoadGenerationRef.current === savedMapGeneration) handle.markSaved(savedSnapshot);
-        // The stored map is a new row with a server-minted id, so the stage reopens — from
-        // `editedRef`, i.e. the exact edits just saved, the same way it does after a preview.
+        // The sandbox map is a stored row now (same id, a real revision and a compiled heightfield),
+        // so the stage reopens from `editedRef`, i.e. the exact edits just saved, the same way it
+        // does after a preview.
         setMap(created.defaultMap);
         setMapsRefreshNonce((n) => n + 1);
         const member = Array.isArray(savedSnapshot.events)
