@@ -36,8 +36,64 @@ const RAISED_1_TINT = 0xdbdbdb;
 const RAISED_2_TINT = 0xb8b8b8;
 const RAISED_3_TINT = 0x969696;
 
-/** Autotile slots, in declaration order. The indices are the contract; the array below matches. */
-export const GRASS_SLOTS: readonly [number, number, number, number] = [0, 1, 2, 19];
+/**
+ * The tint of any raised level, as a grey multiply.
+ *
+ * Three named constants were enough while the range stopped at three plateaus. A range that goes on
+ * needs a RULE rather than a table, and this is the one the three constants already describe: each
+ * level is about 88% as bright as the one below it. Levels 1 to 3 keep their exact historical
+ * values so nothing already authored changes shade, and the floor keeps a deep level from going
+ * black, which reads as a hole rather than as high ground.
+ */
+const RAISED_TINT_FLOOR = 0x4a;
+function raisedTint(level: number): number | undefined {
+  if (level <= 0) return undefined;
+  if (level === 1) return RAISED_1_TINT;
+  if (level === 2) return RAISED_2_TINT;
+  if (level === 3) return RAISED_3_TINT;
+  const channel = Math.max(RAISED_TINT_FLOOR, Math.round(0x96 * 0.88 ** (level - 3)));
+  return channel * 0x010101;
+}
+
+/**
+ * The highest authored elevation. Eleven levels: the ground plus ten plateaus.
+ *
+ * Reachable WITHOUT a migration, and that is why it stops here rather than lower or higher. A
+ * cell's level is its index into `TERRAIN_MATERIAL_SLOTS`, whose entries are slots in the tileset's
+ * `autotiles` array, and the id space reserves `AUTOTILE_SLOTS` (64) of those. Eleven levels across
+ * four materials plus the four cliff-wall slots comes to 52; a twelfth level would not fit, and
+ * raising the reservation moves `FIXED_BASE`, which renumbers every stored fixed tile in every
+ * saved map.
+ *
+ * Below zero is the same wall from the other side: four sunken levels need sixteen more slots than
+ * exist, so ground beneath the sea is a format change rather than an extension.
+ */
+export const TERRAIN_LEVELS = 11;
+
+/**
+ * One slot per level, as a TUPLE rather than an array, and that is not a formality: every reader
+ * indexes it by a level, and a plain array under `noUncheckedIndexedAccess` would make each of
+ * those reads optional and push a `?? 0` fallback into a dozen call sites that have no business
+ * inventing a slot. The length is `TERRAIN_LEVELS`, which a test pins.
+ */
+export type TerrainLevelSlots = readonly [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
+
+/** Autotile slots, in declaration order. The indices are the contract; the array below matches.
+ *  Levels 0-3 keep their historical slots exactly (0, 1, 2 and 19 for grass); 4 and up are appended
+ *  after every other declared slot, so no stored id changed meaning. */
+export const GRASS_SLOTS: TerrainLevelSlots = [0, 1, 2, 19, 24, 28, 32, 36, 40, 44, 48];
 export const AUTHORED_TERRAIN_MATERIALS = [
   "herbe",
   "sable",
@@ -47,10 +103,10 @@ export const AUTHORED_TERRAIN_MATERIALS = [
 const EXTRA_TERRAIN_MATERIALS = AUTHORED_TERRAIN_MATERIALS.slice(1);
 export const TERRAIN_MATERIAL_SLOTS = {
   herbe: GRASS_SLOTS,
-  sable: [7, 8, 9, 20],
-  neige: [10, 11, 12, 21],
-  glace: [13, 14, 15, 22],
-} as const satisfies Readonly<Record<TerrainMaterial, readonly [number, number, number, number]>>;
+  sable: [7, 8, 9, 20, 25, 29, 33, 37, 41, 45, 49],
+  neige: [10, 11, 12, 21, 26, 30, 34, 38, 42, 46, 50],
+  glace: [13, 14, 15, 22, 27, 31, 35, 39, 43, 47, 51],
+} as const satisfies Readonly<Record<TerrainMaterial, TerrainLevelSlots>>;
 
 /**
  * The slots the retired thin-ice brush painted, still readable as ordinary ice.
@@ -103,7 +159,11 @@ export const RAMP_LEVEL_3_FIXED_BASE = 16;
  * silently changed shape under an author's feet would be worse than the limitation it removes.
  */
 export const RAMP_ONE_CELL_DIRECTIONS = ["east", "west", "south", "north"] as const;
-export const RAMP_ONE_CELL_LEVELS = [0, 1, 2] as const;
+/** Every transition a one-cell ramp may join: 0↔1 up to (`TERRAIN_LEVELS` - 2)↔(last). */
+export const RAMP_ONE_CELL_LEVELS: readonly number[] = Array.from(
+  { length: TERRAIN_LEVELS - 1 },
+  (_unused, level) => level,
+);
 export const RAMP_ONE_CELL_FIXED_BASE = 20;
 export const RAMP_ONE_CELL_FIXED_COUNT =
   RAMP_ONE_CELL_DIRECTIONS.length * RAMP_ONE_CELL_LEVELS.length;
@@ -258,8 +318,33 @@ export const TINY_SWORDS_TILESET: Tileset = {
         tint: RAISED_2_TINT,
       },
     ]),
+    // The RETIRED thin-ice material's three base slots (16, 17, 18), declared as ordinary ice.
+    //
+    // They are not decoration and they are not dead weight: a slot is an INDEX into this array, so
+    // the blocks below start wherever this one ends. Thin ice was retired by removing its material
+    // from `AUTHORED_TERRAIN_MATERIALS` (af434a16, 2026-08-11), which shortened every generated
+    // block and slid the level-3 block from 19..23 down to 16..19, while
+    // `TERRAIN_MATERIAL_SLOTS`, and therefore every map ever saved, went on naming 19, 20, 21, 22.
+    // Sand, snow and ice at level 3 have referenced undeclared slots ever since. Nothing failed
+    // loudly because the terrain is a mesh built from the heightfield's levels and materials, not
+    // from tile art.
+    //
+    // Restoring the three entries puts every later slot back where the tables say it is, and it
+    // costs nothing: a stored thin-ice tile draws as the ice it always looked like, which is the
+    // same reading `RETIRED_THIN_ICE_SLOTS` gives it in `materialOfSlot`.
+    ...([0, 1, 2] as const).map((level) => ({
+      atlas: ATLAS,
+      origin: { col: level === 0 ? 0 : 5, row: 0 },
+      kind: "edge16" as const,
+      passable: true,
+      priority: "below" as const,
+      renderLevel: level,
+      ...(level === 0 ? {} : { tint: level === 1 ? RAISED_1_TINT : RAISED_2_TINT }),
+    })),
     // Appended after every existing slot so persisted authored tile ids remain stable. The order
-    // mirrors AUTHORED_TERRAIN_MATERIALS and therefore yields the declared slots 19 through 23.
+    // mirrors AUTHORED_TERRAIN_MATERIALS and therefore yields the declared slots 19 through 22,
+    // with 23 the retired thin ice's own level 3: the five-material shape this band was written
+    // for, and the one the tables have always described.
     ...AUTHORED_TERRAIN_MATERIALS.map(() => ({
       atlas: ATLAS,
       origin: { col: 5, row: 0 },
@@ -269,6 +354,34 @@ export const TINY_SWORDS_TILESET: Tileset = {
       renderLevel: 3 as const,
       tint: RAISED_3_TINT,
     })),
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 0 },
+      kind: "edge16" as const,
+      passable: true,
+      priority: "below" as const,
+      renderLevel: 3 as const,
+      tint: RAISED_3_TINT,
+    },
+    // Levels 4 and up, one block of four materials per level, appended for the same reason: a
+    // stored id must never change meaning. They reuse the raised sheet and the level-3 render layer
+    // and differ only by tint, which is the honest answer to a range this tall: the renderer's own
+    // atlas lookup clamps at its four palettes, so bespoke art per level would be four sheets the
+    // sheet-picker cannot reach. `TERRAIN_MATERIAL_SLOTS` lists the slots this yields.
+    ...Array.from({ length: TERRAIN_LEVELS - 4 }, (_unused, index) => index + 4).flatMap(
+      (level) => {
+        const tint = raisedTint(level) ?? RAISED_3_TINT;
+        return AUTHORED_TERRAIN_MATERIALS.map(() => ({
+          atlas: ATLAS,
+          origin: { col: 5, row: 0 },
+          kind: "edge16" as const,
+          passable: true,
+          priority: "below" as const,
+          renderLevel: 3 as const,
+          tint,
+        }));
+      },
+    ),
   ],
   // Pixel Frog's two native stairs are atlas (0,4)+(0,5), climbing right, and
   // (3,4)+(3,5), climbing left. West keeps its dedicated source instead of mirroring pixels.
@@ -362,21 +475,19 @@ export function materialOfSlot(slot: number): TerrainMaterial {
 }
 
 export function terrainSlot(material: TerrainMaterial, level: number): number | null {
-  return TERRAIN_MATERIAL_SLOTS[material][level as 0 | 1 | 2 | 3] ?? null;
+  return TERRAIN_MATERIAL_SLOTS[material][level] ?? null;
 }
 
 /**
- * The highest authored elevation: ground plus three plateaus.
+ * The highest authored elevation: the ground plus ten plateaus.
  *
- * This is not a preference, it is where the model runs out. A cell's level IS its index into
- * `TERRAIN_MATERIAL_SLOTS`, which holds exactly four slots per material, and three more tables are
- * per-level in the same way: the raised tints above, the cliff faces (`CLIFF_WALL_SLOT` /
- * `CLIFF_WALL_HIGH_2_SLOT`) and the ramp art `tile-brush.ts` indexes by `StairsLowLevel` (`0 | 1 |
- * 2`). Raising this number alone would return `null` from `terrainSlot` and paint nothing.
+ * Derived, never typed by hand: it IS the length of a material's slot table, so the day a level is
+ * added or removed there, this follows. `TERRAIN_LEVELS` above records why the table stops where it
+ * does, and what a taller or a sunken range would cost.
  *
- * A taller range therefore costs four things, none of them here: ground art per new level, a tint
- * per new level, cliff faces for the new drops, and ramps for the new transitions. The relative
- * brushes are what make a taller range USABLE once that art exists, and they are worth having on
- * this range meanwhile.
+ * What the range does NOT cost, contrary to an earlier reading of this file: new ground art per
+ * level. The renderer's `terrainAtlasKey` clamps to its four palettes and the cliff-face picker
+ * clamps at level 2, so everything above three repeats the level-3 look. Repetition is a fair price
+ * for a range an author can actually use; eleven bespoke tints and cliff sheets are not.
  */
 export const MAX_TERRAIN_LEVEL = GRASS_SLOTS.length - 1;

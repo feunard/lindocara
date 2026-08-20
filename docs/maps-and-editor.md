@@ -157,10 +157,24 @@ The elevation brushes are RELATIVE: ground, +1 and -1, resolved against whatever
 cell already stands at (`elevationStepTarget`, `tile-brush.ts`). Picking a material alone carries
 `keep`, so choosing ice does not flatten the plateau it lands on. A step with nowhere to go returns
 null and the stage flashes its refusal hint rather than repainting the same slot: there is nothing
-below the ground, and `MAX_TERRAIN_LEVEL` is the top. That ceiling is the tile encoding, not a
-preference - a cell's level IS its index into `TERRAIN_MATERIAL_SLOTS`, and the raised tints, the
-cliff faces and the ramp art are all per-level in the same way, so a taller range costs four sets of
-new art before the number can move.
+below the ground, and `MAX_TERRAIN_LEVEL` is the top: **ten plateaus above the ground**, eleven
+levels in all. That ceiling is the tile encoding rather than a preference. A cell's level IS its
+index into `TERRAIN_MATERIAL_SLOTS`, whose entries are slots in the tileset's `autotiles` array, and
+the id space reserves 64 of those: eleven levels across four materials plus the cliff walls and the
+retired thin-ice band comes to 52. A twelfth level would not fit, and raising the reservation moves
+`FIXED_BASE`, which renumbers every stored fixed tile in every saved map. Ground BELOW zero is the
+same wall from the other side, which is why it is a separate piece of work rather than an extension.
+
+What a taller range does not cost is art. `terrainAtlasKey` clamps to its four palettes and
+`wantedCliffDirection` clamps its faces at level 2, so everything above three repeats the level-3
+look with a darker tint, and `raisedTint` derives that tint rather than naming one per level.
+
+Levels 0 to 3 keep the exact slots every saved map already holds. Restoring that correspondence was
+its own fix: retiring the thin-ice material (`af434a16`) removed it from the generator, which
+shortened every generated block and slid the level-3 band from 19..23 down to 16..19 while the
+tables, and every stored map, went on naming the old slots. Sand, snow and ice at level 3 referenced
+undeclared slots from then until the band was restored; nothing failed loudly because the terrain is
+a mesh built from the heightfield rather than from tile art.
 
 The stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and
 column 3 climbs left; those are the only supported orientations, so a bank whose high side is north
