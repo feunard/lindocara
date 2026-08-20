@@ -406,6 +406,22 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("sends the compiled bank elevation with a bridge placement preview", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "element", assetId: "terrain.bridge.wood.horizontal" });
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        assetPreview: expect.objectContaining({ elevation: 0 }),
+      }),
+    );
+    stage.dispose();
+  });
+
   it("keeps the decor preview on the exact compiled position after placement", async () => {
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compileAuthoredMap, compileAuthoredMapContent } from "../src/hd2d/authored-map.js";
+import {
+  authoredBridgeTop,
+  compileAuthoredMap,
+  compileAuthoredMapContent,
+} from "../src/hd2d/authored-map.js";
 import { colliderContainsPoint } from "../src/hd2d/collider-index.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
@@ -392,6 +396,24 @@ describe("compileAuthoredMap", () => {
     expect(canStand(terrain, 0, 0, 0.25, 0)).toBe(true);
     expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.1, 0)).toBe(false);
     expect(canStand(terrain, fixture.rail.x, fixture.rail.z, 0.05, 0.9)).toBe(true);
+  });
+
+  it("selects raised bridge banks instead of the larger level-zero area beside a cliff", () => {
+    const size = 7;
+    const levels = Array<number | null>(size * size).fill(0);
+    levels[3 * size + 1] = 2;
+    levels[3 * size + 5] = 2;
+    const bridge = {
+      col: 3,
+      row: 3,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal" as const,
+    };
+
+    expect(authoredBridgeTop({ cols: size, rows: size }, bridge, levels, size)).toBe(1.8);
+    levels[3 * size + 5] = 1;
+    expect(authoredBridgeTop({ cols: size, rows: size }, bridge, levels, size)).toBe(1.8);
   });
 
   it("compiles a resized bridge's visual centre, deck and rails from the same dimensions", () => {

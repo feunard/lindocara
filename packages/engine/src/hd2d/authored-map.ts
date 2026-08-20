@@ -14,7 +14,6 @@ import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
-  elementCells,
   elementWorldCollider,
   elementWorldColliderGeometry,
   type MapElement,
@@ -151,31 +150,47 @@ function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
   return ramps;
 }
 
-function bridgeTop(
+/** Select a bridge deck's bank elevation from its two ends, never from unrelated terrain beside it. */
+export function authoredBridgeTop(
   authored: Pick<AuthoredMapData, "cols" | "rows">,
   element: MapElement,
   levels: readonly (number | null)[],
   size: number,
 ): number {
-  const footprint = elementCells(element);
-  const occupied = new Set(footprint.map((cell) => `${cell.col}:${cell.row}`));
-  const counts = new Map<number, number>();
-  for (const cell of footprint) {
-    for (const [dc, dr] of [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-    ] as const) {
-      const col = cell.col + dc;
-      const row = cell.row + dr;
+  const orientation = bridgeOrientation(element.assetId);
+  const collider = elementWorldColliderGeometry(element);
+  if (!orientation || !collider) return 0;
+  const centreX = collider.x + collider.width / 2;
+  const centreY = collider.y + collider.height / 2;
+  const rotation = collider.rotation;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const length = orientation === "horizontal" ? collider.width : collider.height;
+  const width = orientation === "horizontal" ? collider.height : collider.width;
+  const samples = Math.max(1, Math.ceil(width / TILE_SIZE));
+  const bankLevels: [Set<number>, Set<number>] = [new Set(), new Set()];
+  for (const [bankIndex, direction] of [-1, 1].entries()) {
+    const bank = bankLevels[bankIndex];
+    if (!bank) continue;
+    for (let sample = 0; sample < samples; sample += 1) {
+      const across = -width / 2 + ((sample + 0.5) * width) / samples;
+      const along = direction * (length / 2 + TILE_SIZE * 0.25);
+      const localX = orientation === "horizontal" ? along : across;
+      const localY = orientation === "horizontal" ? across : along;
+      const worldX = centreX + localX * cos - localY * sin;
+      const worldY = centreY + localX * sin + localY * cos;
+      const col = Math.floor(worldX / TILE_SIZE);
+      const row = Math.floor(worldY / TILE_SIZE);
       if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) continue;
-      if (occupied.has(`${col}:${row}`)) continue;
       const level = levels[row * size + col] ?? null;
-      if (level !== null) counts.set(level, (counts.get(level) ?? 0) + 1);
+      if (level !== null) bank.add(level);
     }
   }
-  const level = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? 0;
+  const shared = [...bankLevels[0]].filter((level) => bankLevels[1].has(level));
+  const candidates = shared.length > 0 ? shared : [...bankLevels[0], ...bankLevels[1]];
+  // A bridge between equal raised banks selects that shared level. With incomplete banks, preferring
+  // the highest endpoint avoids the former pull toward the much larger level-0 area below a cliff.
+  const level = candidates.length > 0 ? Math.max(...candidates) : 0;
   return level * AUTHORED_LEVEL_HEIGHT;
 }
 
@@ -403,7 +418,7 @@ export function authoredElementColliders(
     ...(rect.rotation ? { rotation: rect.rotation } : {}),
   };
   if (asset?.editor.terrainOverride === "walkable") {
-    const top = bridgeTop(authored, element, levels, size);
+    const top = authoredBridgeTop(authored, element, levels, size);
     const orientation = bridgeOrientation(element.assetId);
     if (!orientation) return [];
     return [{ ...collider, top }, ...bridgeRails(collider, top, orientation)];

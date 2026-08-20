@@ -101,6 +101,10 @@ the gesture as one undoable edit. The renderer regenerates planks, rails and sup
 dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
 geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
 transform integer, keeping old 3x1 bridges valid and requiring no schema migration.
+Bridge elevation is resolved from terrain immediately beyond the two crossing ends, including for
+freely rotated bridges. Side terrain below a cliff no longer outvotes the actual banks: equal raised
+banks win, and an incomplete pair falls back to the highest detected endpoint. The placement ghost
+uses this same compiled elevation, so its preview no longer drops to level 0 before placement.
 Every supported native 3D building uses the same generic contract: its inspector and map handles
 resize the whole archetype while preserving its native width/depth ratio. Width, depth and vertical
 architecture grow together, so a larger house, tower or mill reads as a larger model rather than a

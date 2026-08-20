@@ -29,7 +29,11 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS } from "../feedback.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
-import { makeBuildingVolume, type NativeStaticVisual } from "./building-volumes.js";
+import {
+  makeBridgeVolume,
+  makeBuildingVolume,
+  type NativeStaticVisual,
+} from "./building-volumes.js";
 import { HD2D_CAMERA, type Hd2dScene, terrainAtlases, terrainAtlasKey } from "./scene.js";
 import {
   isColdBiomeMaterial,
@@ -169,6 +173,8 @@ export interface Hd2dEditorOverlay {
     point: GroundVector;
     footprint: readonly GroundVector[];
     valid: boolean;
+    /** Compiled bridge-bank elevation; absent scenery follows terrain under its anchor. */
+    elevation?: number;
     skyAltitude?: number;
   } | null;
   /** World-coordinate outline of the rect a save would store — origin corner + size in cells.
@@ -1837,27 +1843,29 @@ export class Hd2dVisualLayer {
       const flat = sky || layer.renderMode === "flat";
       const preview: Billboard | Sprite | NativeStaticVisual = layer.buildingVolume
         ? makeBuildingVolume({ front: layer.texture, ...layer.buildingVolume })
-        : flat
-          ? makeFlatSprite(this.#scene.ctx, {
-              texture: layer.texture,
-              cols: layer.cols ?? 1,
-              rows: layer.rows ?? 1,
-              size: layer.flatSize ?? layer.height * (layer.aspect ?? 1),
-              aspect: 1 / (layer.aspect ?? 1),
-              alphaTest: 0.5,
-              graftCloudShadow: () => undefined,
-            })
-          : makeBillboard(this.#scene.ctx, {
-              texture: layer.texture,
-              cols: layer.cols ?? 1,
-              rows: layer.rows ?? 1,
-              height: layer.height,
-              aspect: layer.aspect ?? 1,
-              foot: layer.foot ?? 0,
-              ...(layer.uvRect ? { uvRect: layer.uvRect } : {}),
-              ...(layer.lit === undefined ? {} : { lit: layer.lit }),
-              pitch: HD2D_CAMERA.pitch,
-            });
+        : layer.bridgeOrientation
+          ? makeBridgeVolume(layer.texture, layer.bridgeOrientation)
+          : flat
+            ? makeFlatSprite(this.#scene.ctx, {
+                texture: layer.texture,
+                cols: layer.cols ?? 1,
+                rows: layer.rows ?? 1,
+                size: layer.flatSize ?? layer.height * (layer.aspect ?? 1),
+                aspect: 1 / (layer.aspect ?? 1),
+                alphaTest: 0.5,
+                graftCloudShadow: () => undefined,
+              })
+            : makeBillboard(this.#scene.ctx, {
+                texture: layer.texture,
+                cols: layer.cols ?? 1,
+                rows: layer.rows ?? 1,
+                height: layer.height,
+                aspect: layer.aspect ?? 1,
+                foot: layer.foot ?? 0,
+                ...(layer.uvRect ? { uvRect: layer.uvRect } : {}),
+                ...(layer.lit === undefined ? {} : { lit: layer.lit }),
+                pitch: HD2D_CAMERA.pitch,
+              });
       materialOpacity(preview.mesh, 0.62);
       preview.mesh.traverse((child) => {
         if (!(child instanceof THREE.Mesh)) return;
@@ -1895,10 +1903,12 @@ export class Hd2dVisualLayer {
           this.#groundY(placement.point.x, placement.point.z, 0.055),
           placement.point.z,
         );
-      } else if (preview.art.buildingVolume) {
+      } else if (preview.art.buildingVolume || preview.art.bridgeOrientation) {
         (preview.sprite as NativeStaticVisual).placeAt(
           placement.point.x,
-          this.#groundY(placement.point.x, placement.point.z, 0.025),
+          preview.art.bridgeOrientation && placement.elevation !== undefined
+            ? placement.elevation
+            : this.#groundY(placement.point.x, placement.point.z, 0.025),
           placement.point.z,
         );
       } else {

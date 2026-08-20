@@ -51,6 +51,21 @@ at raw framework source, so an open file can be assigned the wrong tsconfig prog
 diagnostics that no CI check reproduces. `yarn typecheck` is the truth, not the editor
 squiggles.
 
+**Vitest worker-start timeouts on Windows are usually resource saturation, not failing tests.**
+When a full run reports `[vitest-pool]: Failed to start forks worker` followed by unrelated hook or
+test timeouts across several projects, first let every previous Vitest process finish, then rerun
+the suite with bounded parallelism:
+
+```powershell
+corepack yarn vitest run --maxWorkers=4
+```
+
+Do not raise `testTimeout` or edit individual tests for that failure shape: they never received a
+healthy worker. Targeted tests can still be used to diagnose a real failure, but this bounded full
+run is the reliable verification fallback on a busy 16 GB Windows workstation. Once it is green,
+continue the remaining verification stages (migrations/content checks, build and smoke) instead of
+repeating the saturated default test run.
+
 **Empty rooms reset.** Room state is memory-only: the tick stops when a room empties and Node
 sweeps idle rooms after 5 minutes â€” temporary
 monsters/loot reset and state is recreated on the next join. Durable truth (hero saves, adventure

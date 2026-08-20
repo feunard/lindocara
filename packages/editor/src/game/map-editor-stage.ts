@@ -30,6 +30,7 @@ import {
   elementRotationDegrees,
 } from "@lindocara/engine/element-orientation.js";
 import {
+  authoredBridgeTop,
   authoredElementGroundPoint,
   authoredStairsRamp,
   compileAuthoredMap,
@@ -659,6 +660,15 @@ export function openMapEditorStage(
         : null;
       const previewAssetId = editorToolPreviewAssetId(tool);
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
+      const previewBridgeTop =
+        hover && tool.kind === "element" && bridgeOrientation(tool.assetId)
+          ? authoredBridgeTop(
+              { cols, rows },
+              { ...hover, assetId: tool.assetId },
+              heightfield.levels,
+              size,
+            )
+          : undefined;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
       const rotation = selectedRotationGuide();
@@ -732,6 +742,7 @@ export function openMapEditorStage(
                   z: hoverPoint.z + cell.row,
                 })),
                 valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
+                ...(previewBridgeTop === undefined ? {} : { elevation: previewBridgeTop }),
                 ...(previewAsset.editor.renderLayer === "sky"
                   ? { skyAltitude: authoredSkyAltitude(heightfield) }
                   : {}),

@@ -499,6 +499,32 @@ describe("Hd2dVisualLayer spawn marker", () => {
     layer.dispose();
   });
 
+  it("renders a bridge placement ghost at the compiler-selected bank elevation", () => {
+    const { layer, root } = harness();
+    layer.setEditorPreviewArt({
+      texture: new THREE.Texture(),
+      height: 1,
+      aspect: 1,
+      bridgeOrientation: "horizontal",
+    });
+    layer.setEditorOverlay({
+      ...base,
+      assetPreview: {
+        point: { x: 2, z: 3 },
+        footprint: [],
+        valid: true,
+        elevation: 1.8,
+      },
+    });
+
+    expect(root.getObjectByName("bridge-horizontal")?.position).toMatchObject({
+      x: 2,
+      y: 1.8,
+      z: 2.5,
+    });
+    layer.dispose();
+  });
+
   it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });
