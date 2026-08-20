@@ -9,7 +9,7 @@ export interface StairRampGeometry {
   z: number;
   width: number;
   depth: number;
-  direction: "east" | "west";
+  direction: "east" | "west" | "north" | "south";
   lowLevel: number;
 }
 
@@ -119,13 +119,21 @@ export function meshStairs(
     const atlas = options.atlasFor(ramp.lowLevel + 1);
     const lowY = ramp.lowLevel * options.levelHeight + lift;
     const highY = (ramp.lowLevel + 1) * options.levelHeight + lift;
-    // Le bas de la pente est à l'ouest quand elle monte vers l'est, et inversement.
-    const westY = ramp.direction === "east" ? lowY : highY;
-    const eastY = ramp.direction === "east" ? highY : lowY;
+    // The slope runs along ONE axis and is flat across the other. `alongX` says which, so the
+    // geometry below is written once in "along/across" terms instead of twice in x and z. The foot
+    // of the slope is at the axis's negative end when the ramp climbs positive, and the reverse
+    // otherwise: `east` and `south` climb toward +x and +z, `west` and `north` back down them.
+    const alongX = ramp.direction === "east" || ramp.direction === "west";
+    const climbsPositive = ramp.direction === "east" || ramp.direction === "south";
+    const startY = climbsPositive ? lowY : highY;
+    const endY = climbsPositive ? highY : lowY;
     const x0 = ramp.x;
     const x1 = ramp.x + ramp.width;
     const z0 = ramp.z;
     const z1 = ramp.z + ramp.depth;
+    const alongSpan = alongX ? ramp.width : ramp.depth;
+    const alongOrigin = alongX ? x0 : z0;
+    const acrossSpan = alongX ? ramp.depth : ramp.width;
 
     // Assombrissement de pied, identique à celui des parois : maximal au ras de la berge basse,
     // dissipé `AO_WALL_HEIGHT` plus haut. C'est ce qui « pose » la rampe au lieu de la faire
@@ -142,24 +150,28 @@ export function meshStairs(
     // ClampToEdge (voir `textures.ts`), donc une seule cellule d'UV étirée sur deux cases dessine
     // une herbe deux fois trop grande — la rampe se lit alors comme une surface étrangère posée sur
     // un sol dont elle ne partage plus la densité.
-    const slope = new THREE.Vector3(-(eastY - westY), ramp.width, 0).normalize();
-    const yAt = (x: number): number =>
-      westY + ((eastY - westY) * (x - x0)) / Math.max(ramp.width, 1e-9);
-    for (let cz = 0; cz < Math.max(1, Math.round(ramp.depth)); cz += 1) {
-      for (let cx = 0; cx < Math.max(1, Math.round(ramp.width)); cx += 1) {
-        const a0 = x0 + cx;
-        const a1 = Math.min(a0 + 1, x1);
-        const b0 = z0 + cz;
-        const b1 = Math.min(b0 + 1, z1);
+    const rise = endY - startY;
+    const slope = alongX
+      ? new THREE.Vector3(-rise, alongSpan, 0).normalize()
+      : new THREE.Vector3(0, alongSpan, -rise).normalize();
+    const yAt = (alongValue: number): number =>
+      startY + (rise * (alongValue - alongOrigin)) / Math.max(alongSpan, 1e-9);
+    for (let across = 0; across < Math.max(1, Math.round(acrossSpan)); across += 1) {
+      for (let along = 0; along < Math.max(1, Math.round(alongSpan)); along += 1) {
+        const a0 = alongOrigin + along;
+        const a1 = Math.min(a0 + 1, alongOrigin + alongSpan);
+        const b0 = (alongX ? z0 : x0) + across;
+        const b1 = Math.min(b0 + 1, alongX ? z1 : x1);
         const yA = yAt(a0);
         const yB = yAt(a1);
+        // Written in along/across and projected back to world x/z at the last moment, so the two
+        // orientations share one piece of arithmetic instead of two that can drift apart.
+        const at = (alongValue: number, acrossValue: number): Vec3 =>
+          alongX
+            ? [alongValue, yAt(alongValue), acrossValue]
+            : [acrossValue, yAt(alongValue), alongValue];
         builder.quad(
-          [
-            [a0, yA, b0],
-            [a0, yA, b1],
-            [a1, yB, b1],
-            [a1, yB, b0],
-          ],
+          [at(a0, b0), at(a0, b1), at(a1, b1), at(a1, b0)],
           [slope.x, slope.y, slope.z],
           [
             [top.u0, top.v1],
@@ -175,25 +187,34 @@ export function meshStairs(
     // --- les flancs : deux triangles, dégénérés du côté bas --------------------------------------
     // Émis comme des quads dont deux sommets coïncident : le même accumulateur sert, et une arête
     // de longueur nulle ne dessine rien.
-    for (const [z, normal] of [
-      [z0, [0, 0, -1]],
-      [z1, [0, 0, 1]],
-    ] as const) {
+    const alongStart = alongOrigin;
+    const alongEnd = alongOrigin + alongSpan;
+    const acrossOrigin = alongX ? z0 : x0;
+    const cheekSides = [
+      { across: acrossOrigin, normal: alongX ? ([0, 0, -1] as const) : ([-1, 0, 0] as const) },
+      {
+        across: acrossOrigin + acrossSpan,
+        normal: alongX ? ([0, 0, 1] as const) : ([1, 0, 0] as const),
+      },
+    ];
+    for (const side of cheekSides) {
+      const corner = (alongValue: number, y: number): Vec3 =>
+        alongX ? [alongValue, y, side.across] : [side.across, y, alongValue];
       builder.quad(
         [
-          [x0, lowY, z],
-          [x1, lowY, z],
-          [x1, eastY, z],
-          [x0, westY, z],
+          corner(alongStart, lowY),
+          corner(alongEnd, lowY),
+          corner(alongEnd, endY),
+          corner(alongStart, startY),
         ],
-        [normal[0], normal[1], normal[2]],
+        [side.normal[0], side.normal[1], side.normal[2]],
         [
           [cheek.u0, cheek.v0],
           [cheek.u1, cheek.v0],
           [cheek.u1, cheek.v1],
           [cheek.u0, cheek.v1],
         ],
-        [pied(lowY), pied(lowY), pied(eastY), pied(westY)],
+        [pied(lowY), pied(lowY), pied(endY), pied(startY)],
       );
     }
 

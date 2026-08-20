@@ -28,6 +28,7 @@ import {
 } from "../map-data.js";
 import type { MapEvent } from "../map-events.js";
 import {
+  type RampDirection,
   type StairsDirection,
   type StairsLowLevel,
   stairsDescriptor,
@@ -35,7 +36,7 @@ import {
 } from "../tile-brush.js";
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
-import { elevationOfSlot, materialOfSlot } from "../tilesets/tiny-swords.js";
+import { elevationOfSlot, materialOfSlot, oneCellRampDescriptor } from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
@@ -118,7 +119,31 @@ export function isAuthoredWaterCell(
   return authoredLevel(ground?.ids[row * authored.cols + col] ?? 0) === null;
 }
 
-/** The world-space ramp both committed stairs and the editor's pointer ghost use. */
+/**
+ * The world-space ramp both a committed staircase and the editor's pointer ghost use.
+ *
+ * ONE cell, in any of four directions: that is what the stamp writes now. The two-cell east/west
+ * shape below survives only to read maps stored before a ramp was geometry rather than a 64x128
+ * sprite, and `authoredRamps` is the only caller that still asks for it.
+ */
+export function authoredOneCellRamp(
+  col: number,
+  row: number,
+  size: number,
+  direction: RampDirection,
+  lowLevel: number,
+): TerrainRamp {
+  return {
+    x: col - size / 2,
+    z: row - size / 2,
+    width: 1,
+    depth: 1,
+    direction,
+    lowLevel,
+  };
+}
+
+/** The world-space ramp a STORED two-cell staircase compiles to. */
 export function authoredStairsRamp(
   col: number,
   row: number,
@@ -149,6 +174,13 @@ function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
     for (let col = 0; col < authored.cols; col += 1) {
       const ref = decodeTileId(walls.ids[row * authored.cols + col] ?? 0);
       if (ref.kind !== "fixed") continue;
+      // The one-cell band first: it is what the stamp writes today, and it needs no completeness
+      // check because there is no second half to be missing.
+      const oneCell = oneCellRampDescriptor(ref.index);
+      if (oneCell) {
+        ramps.push(authoredOneCellRamp(col, row, size, oneCell.direction, oneCell.lowLevel));
+        continue;
+      }
       const descriptor = stairsDescriptor(ref.index);
       if (descriptor?.part !== "low") continue;
       const complete = stairsTilePlacements(descriptor.direction, descriptor.lowLevel).every(

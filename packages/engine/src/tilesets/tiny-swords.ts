@@ -89,12 +89,60 @@ const RAMP_LEVELS = [0, 1] as const;
 export const RAMP_FIXED_TILE_COUNT = RAMP_PARTS.length * RAMP_LEVELS.length * RAMP_GROUPS.length;
 export const RAMP_LEVEL_3_FIXED_BASE = 16;
 
-/** Stored fixed ids in this stable leading band are passable staircase cells. */
+/**
+ * The ONE-CELL ramp band: four directions by three transitions, twelve stable ids from 20.
+ *
+ * The two bands above describe the official 64x128 side asset, which is two cells tall and exists
+ * only for a cliff facing east or west. That shape was the AUTHORING model as well as the art, so a
+ * bank running east to west had no staircase at all and every ramp cost two cells. Since the terrain
+ * became a mesh, a ramp is geometry the renderer builds from a rectangle (`meshStairs`), so neither
+ * limit is about art any more: one cell in any of four directions is the same slope, described
+ * honestly.
+ *
+ * The older bands stay exactly where they are. Every stored map holds their ids, and a ramp that
+ * silently changed shape under an author's feet would be worse than the limitation it removes.
+ */
+export const RAMP_ONE_CELL_DIRECTIONS = ["east", "west", "south", "north"] as const;
+export const RAMP_ONE_CELL_LEVELS = [0, 1, 2] as const;
+export const RAMP_ONE_CELL_FIXED_BASE = 20;
+export const RAMP_ONE_CELL_FIXED_COUNT =
+  RAMP_ONE_CELL_DIRECTIONS.length * RAMP_ONE_CELL_LEVELS.length;
+
+/** The stable id of a one-cell ramp, or -1 for a direction/level pair outside the band. */
+export function oneCellRampFixedIndex(
+  direction: (typeof RAMP_ONE_CELL_DIRECTIONS)[number],
+  lowLevel: number,
+): number {
+  const facing = RAMP_ONE_CELL_DIRECTIONS.indexOf(direction);
+  const level = (RAMP_ONE_CELL_LEVELS as readonly number[]).indexOf(lowLevel);
+  if (facing < 0 || level < 0) return -1;
+  return RAMP_ONE_CELL_FIXED_BASE + facing * RAMP_ONE_CELL_LEVELS.length + level;
+}
+
+/** The direction and transition a one-cell ramp id encodes, or null for any other id. */
+export function oneCellRampDescriptor(
+  index: number,
+): { direction: (typeof RAMP_ONE_CELL_DIRECTIONS)[number]; lowLevel: number } | null {
+  if (
+    !Number.isSafeInteger(index) ||
+    index < RAMP_ONE_CELL_FIXED_BASE ||
+    index >= RAMP_ONE_CELL_FIXED_BASE + RAMP_ONE_CELL_FIXED_COUNT
+  ) {
+    return null;
+  }
+  const offset = index - RAMP_ONE_CELL_FIXED_BASE;
+  const direction = RAMP_ONE_CELL_DIRECTIONS[Math.floor(offset / RAMP_ONE_CELL_LEVELS.length)];
+  const lowLevel = RAMP_ONE_CELL_LEVELS[offset % RAMP_ONE_CELL_LEVELS.length];
+  return direction === undefined || lowLevel === undefined ? null : { direction, lowLevel };
+}
+
+/** Stored fixed ids in these stable bands are passable staircase cells. */
 export function isRampFixedIndex(index: number): boolean {
   return (
     Number.isSafeInteger(index) &&
     ((index >= 0 && index < RAMP_FIXED_TILE_COUNT) ||
-      (index >= RAMP_LEVEL_3_FIXED_BASE && index < RAMP_LEVEL_3_FIXED_BASE + 4))
+      (index >= RAMP_LEVEL_3_FIXED_BASE && index < RAMP_LEVEL_3_FIXED_BASE + 4) ||
+      oneCellRampDescriptor(index) !== null)
   );
 }
 
@@ -263,6 +311,26 @@ export const TINY_SWORDS_TILESET: Tileset = {
         renderLevel: 3 as const,
         tint: RAISED_2_TINT,
         rotationQuarterTurns: group.rotationQuarterTurns,
+      })),
+    ),
+    // The one-cell band, ids 20..31. The SLOPE is geometry `meshStairs` builds from the compiled
+    // ramp rectangle, so these entries exist to make the cell passable and to give the editor
+    // something to draw in its palette; the source cell is the official ramp's upper half, rotated
+    // to face the right way.
+    ...RAMP_ONE_CELL_DIRECTIONS.flatMap((direction) =>
+      RAMP_ONE_CELL_LEVELS.map((lowLevel) => ({
+        atlas: ATLAS,
+        col: direction === "west" || direction === "north" ? 3 : 0,
+        row: 4,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: Math.min(3, lowLevel + 1) as 1 | 2 | 3,
+        ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
+        ...(lowLevel === 2 ? { tint: RAISED_2_TINT } : {}),
+        rotationQuarterTurns: (direction === "south" ? 1 : direction === "north" ? 3 : 0) as
+          | 0
+          | 1
+          | 3,
       })),
     ),
   ],

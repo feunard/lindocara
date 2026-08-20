@@ -24,8 +24,11 @@ import {
   CLIFF_WATER_SLOT,
   elevationOfSlot,
   MAX_TERRAIN_LEVEL,
+  oneCellRampFixedIndex,
   RAMP_FIXED_TILE_COUNT,
   RAMP_LEVEL_3_FIXED_BASE,
+  RAMP_ONE_CELL_DIRECTIONS,
+  RAMP_ONE_CELL_LEVELS,
   terrainSlot,
 } from "./tilesets/tiny-swords.js";
 
@@ -690,9 +693,69 @@ function syncWall(
   return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
 }
 
+/** Every direction a ramp may climb toward. The stored two-cell bands only ever knew east and west,
+ *  because that is what the official side asset draws; a meshed ramp has no such limit. */
+export const RAMP_DIRECTIONS = RAMP_ONE_CELL_DIRECTIONS;
+export type RampDirection = (typeof RAMP_DIRECTIONS)[number];
+
+/** The neighbour a ramp climbs INTO: one level up, on the side the ramp faces. */
+const RAMP_HIGH_SIDE: Readonly<Record<RampDirection, { col: number; row: number }>> = {
+  east: { col: 1, row: 0 },
+  west: { col: -1, row: 0 },
+  south: { col: 0, row: 1 },
+  north: { col: 0, row: -1 },
+};
+
 export interface StairsPlacement {
-  direction: StairsDirection;
-  lowLevel: StairsLowLevel;
+  direction: RampDirection;
+  lowLevel: number;
+}
+
+/**
+ * Whether ONE cell can be a ramp climbing `direction` from `lowLevel`.
+ *
+ * Two conditions, and they are the whole rule: the cell itself stands on the low bank, and the
+ * neighbour it faces stands exactly one level higher. The two-cell predicate (`stairsFits`, still
+ * used to decode stored maps) asked the same question of a pair of cells because the ART was two
+ * cells tall; the slope is geometry now, so one cell is enough to describe it.
+ */
+export function oneCellRampFits(
+  ground: TileLayer,
+  col: number,
+  row: number,
+  direction: RampDirection,
+  lowLevel: number,
+): boolean {
+  if (!inBounds(ground, col, row)) return false;
+  if (elevationAt(ground, col, row) !== lowLevel) return false;
+  const side = RAMP_HIGH_SIDE[direction];
+  return elevationAt(ground, col + side.col, row + side.row) === lowLevel + 1;
+}
+
+/**
+ * Stamp a one-cell ramp on the wall layer, or return the layers unchanged when it does not fit.
+ *
+ * Same refusal discipline as `paintStairs`: identity means "nothing was written", and the caller
+ * turns that into a visible refusal rather than a silent no-op.
+ */
+export function paintOneCellRamp(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  col: number,
+  row: number,
+  direction: RampDirection,
+  lowLevel: number,
+): TileLayer[] {
+  const ground = layers[0];
+  const walls = layers[1];
+  if (!ground || !walls) return layers as TileLayer[];
+  if (!oneCellRampFits(ground, col, row, direction, lowLevel)) return layers as TileLayer[];
+  const index = oneCellRampFixedIndex(direction, lowLevel);
+  if (index < 0) return layers as TileLayer[];
+  const ids = [...walls.ids];
+  ids[indexOf(walls, col, row)] = fixedId(index);
+  const painted = withNeighboursResolved({ ...walls, ids }, tileset, col, row);
+  return [ground, painted, ...layers.slice(2)];
 }
 
 /**
@@ -716,12 +779,13 @@ export function inferStairsPlacement(
   ground: TileLayer,
   col: number,
   row: number,
-  prefer?: StairsDirection,
+  prefer?: RampDirection,
 ): StairsPlacement | null {
   const fits: StairsPlacement[] = [];
-  for (const direction of STAIRS_DIRECTIONS) {
-    for (const lowLevel of [0, 1, 2] as const) {
-      if (stairsFits(ground, col, row, direction, lowLevel)) fits.push({ direction, lowLevel });
+  for (const direction of RAMP_DIRECTIONS) {
+    for (const lowLevel of RAMP_ONE_CELL_LEVELS) {
+      if (oneCellRampFits(ground, col, row, direction, lowLevel))
+        fits.push({ direction, lowLevel });
     }
   }
   return fits.find((placement) => placement.direction === prefer) ?? fits[0] ?? null;

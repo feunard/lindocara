@@ -32,7 +32,7 @@ import {
 import {
   authoredBridgeTop,
   authoredElementGroundPoint,
-  authoredStairsRamp,
+  authoredOneCellRamp,
   compileAuthoredMap,
   compileAuthoredMapContent,
 } from "@lindocara/engine/hd2d/authored-map.js";
@@ -51,7 +51,7 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
-import { inferStairsPlacement, type StairsDirection } from "@lindocara/engine/tile-brush.js";
+import { inferStairsPlacement, type RampDirection } from "@lindocara/engine/tile-brush.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type CellOffset,
@@ -654,12 +654,36 @@ export function openMapEditorStage(
      * Which ramp direction currently reads as "toward the right of the screen".
      *
      * The pan handler below IS the definition of that mapping: it rotates a screen drag into world
-     * space with the yaw's cosine and sine, so world +x is the screen's right exactly while
-     * `cos(yaw)` is positive. A cell where both ramps genuinely fit (higher ground on both sides)
-     * therefore climbs toward the author's right whichever way they have turned the camera, instead
-     * of snapping to a world axis that is off-screen.
+     * space with the yaw's cosine and sine, so the screen's right is the world vector
+     * `(cos yaw, -sin yaw)`. With four directions to choose from, the preference is simply the one
+     * whose own vector points most that way, which keeps the two-direction rule this replaced and
+     * extends it honestly. A cell where several ramps genuinely fit (a trench, a pit) therefore
+     * climbs toward the author's right whichever way they have turned the camera, instead of
+     * snapping to a world axis that is off-screen.
      */
-    const stairsPreference = (): StairsDirection => (Math.cos(yaw) >= 0 ? "east" : "west");
+    const RAMP_VECTORS: Readonly<Record<RampDirection, { x: number; z: number }>> = {
+      east: { x: 1, z: 0 },
+      west: { x: -1, z: 0 },
+      south: { x: 0, z: 1 },
+      north: { x: 0, z: -1 },
+    };
+    const stairsPreference = (): RampDirection => {
+      const rightX = Math.cos(yaw);
+      const rightZ = -Math.sin(yaw);
+      let best: RampDirection = "east";
+      let bestDot = Number.NEGATIVE_INFINITY;
+      for (const [direction, vector] of Object.entries(RAMP_VECTORS) as [
+        RampDirection,
+        { x: number; z: number },
+      ][]) {
+        const dot = vector.x * rightX + vector.z * rightZ;
+        if (dot > bestDot) {
+          bestDot = dot;
+          best = direction;
+        }
+      }
+      return best;
+    };
     /** What a click would actually apply: the palette's tool plus the state only the stage holds
      *  (the first door of a pending link, the camera-derived ramp preference). */
     const activeTool = (): EditorTool => {
@@ -910,7 +934,7 @@ export function openMapEditorStage(
         stairsPreview:
           hover && tool.kind === "stairs"
             ? {
-                ramp: authoredStairsRamp(
+                ramp: authoredOneCellRamp(
                   hover.col,
                   hover.row,
                   size,

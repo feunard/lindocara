@@ -1373,7 +1373,7 @@ export const en = {
   "editor.shell.fill.water_disabled": "Fill cannot paint water — pick another tool for water.",
   "editor.shell.tool.stairs": "Stairs",
   "editor.stairs.hint":
-    "Click the low cell against a cliff: the ramp works out its own direction and the two levels it joins, and heroes climb it both ways. The preview turns red where none fits, including a cliff whose high side is north or south: there is no ramp art for those.",
+    "Click the low cell against a cliff: the ramp works out its own direction and the two levels it joins, and heroes climb it both ways. One cell, any of the four sides. The preview turns red where none fits.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",

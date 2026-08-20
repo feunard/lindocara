@@ -20,8 +20,8 @@ import {
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
-import { stairsFixedIndex } from "@lindocara/engine/tile-brush.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
+import { oneCellRampFixedIndex } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -331,10 +331,10 @@ describe("HD-2D map editor stage", () => {
     const rampAt = (col: number, row: number): number =>
       stage.current().layers[1]?.ids[row * 20 + col] ?? 0;
 
-    // The tool carries no direction and no levels at all.
+    // The tool carries no direction and no levels at all, and what lands is ONE cell.
     stage.setTool({ kind: "stairs" });
     click();
-    expect(rampAt(5, 5)).toBe(fixedId(stairsFixedIndex("east", 0, "low")));
+    expect(rampAt(5, 5)).toBe(fixedId(oneCellRampFixedIndex("east", 0)));
 
     stage.undo();
     // Half a turn puts world-west on the screen's right, and the ramp follows the author's view
@@ -342,7 +342,7 @@ describe("HD-2D map editor stage", () => {
     stage.rotateQuarter(1);
     stage.rotateQuarter(1);
     click();
-    expect(rampAt(5, 5)).toBe(fixedId(stairsFixedIndex("west", 0, "low")));
+    expect(rampAt(5, 5)).toBe(fixedId(oneCellRampFixedIndex("west", 0)));
     stage.dispose();
   });
 

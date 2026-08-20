@@ -90,10 +90,10 @@ import {
   inferStairsPlacement,
   paintAutotile,
   paintElevation,
-  paintStairs,
+  paintOneCellRamp,
   paintTerrain,
+  type RampDirection,
   resolveWholeLayer,
-  type StairsDirection,
   slotAt,
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
@@ -242,7 +242,7 @@ export type EditorTool =
    * `prefer` is the only hint, and it is not the author's: the stage refreshes it from the camera's
    * yaw so a cell where two ramps genuinely fit climbs the way the author is looking.
    */
-  | { kind: "stairs"; prefer?: StairsDirection }
+  | { kind: "stairs"; prefer?: RampDirection }
   /**
    * Two clicks, one round trip: pick a door, pick another door on the same map, and both get a
    * `player-touch` teleporter aimed at the other. It authors nothing the event language could not
@@ -1720,7 +1720,9 @@ export function applyTool(
       if (!ground) return null;
       const placement = inferStairsPlacement(ground, col, row, tool.prefer);
       if (!placement) return null;
-      const layers = paintStairs(
+      // ONE cell, any of four directions. `paintStairs` and its two-cell bands are still what reads
+      // a map stored before ramps were geometry; nothing writes them any more.
+      const layers = paintOneCellRamp(
         map.layers,
         TINY_SWORDS_TILESET,
         col,

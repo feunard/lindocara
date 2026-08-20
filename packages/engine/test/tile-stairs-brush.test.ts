@@ -1,9 +1,11 @@
-import { bakeCollision } from "@lindocara/engine/map-data.js";
+import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import { bakeCollision, EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import {
   eraseTile,
   inferStairsPlacement,
   paintElevation,
+  paintOneCellRamp,
   paintStairs,
   type StairsDirection,
   stairsFixedIndex,
@@ -15,6 +17,8 @@ import { isPathWalkable, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js"
 import { decodeTileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
+  isRampFixedIndex,
+  oneCellRampFixedIndex,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -325,16 +329,20 @@ describe("inferStairsPlacement", () => {
     expect(inferStairsPlacement(layerAt(flat, 0), anchor.col, anchor.row)).toBeNull();
   });
 
-  it("answers null for a bank whose high side is north or south: there is no art for those", () => {
-    // Higher ground above the anchor rather than beside it. `STAIRS_DIRECTIONS` is east/west
-    // because Pixel Frog ships two side ramps, so this cliff simply has no staircase.
+  it("climbs a bank whose high side is north, which used to have no ramp at all", () => {
+    // Higher ground ABOVE the anchor rather than beside it. This answered null while a ramp was the
+    // official 64x128 side sprite, because Pixel Frog ships two side ramps and neither faces this
+    // way. A meshed ramp is geometry, so the limit went with the sprite.
     let field = blank();
     for (let row = 0; row < ROWS; row += 1) {
       for (let col = 0; col < COLS; col += 1) {
         field = paintElevation(field, set, row < anchor.row ? 1 : 0, col, row);
       }
     }
-    expect(inferStairsPlacement(layerAt(field, 0), anchor.col, anchor.row)).toBeNull();
+    expect(inferStairsPlacement(layerAt(field, 0), anchor.col, anchor.row)).toEqual({
+      direction: "north",
+      lowLevel: 0,
+    });
   });
 
   it("breaks a genuine tie with the caller's preference", () => {
@@ -352,5 +360,80 @@ describe("inferStairsPlacement", () => {
     expect(inferStairsPlacement(ground, anchor.col, anchor.row, "east")).toMatchObject({
       direction: "east",
     });
+  });
+});
+
+describe("a one-cell ramp", () => {
+  /** Flat low ground with a plateau on ONE side of the anchor, whichever side is asked for. */
+  function bankTo(direction: "east" | "west" | "south" | "north"): TileLayer[] {
+    const high = { east: [1, 0], west: [-1, 0], south: [0, 1], north: [0, -1] }[direction];
+    let layers = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) layers = paintElevation(layers, set, 0, col, row);
+    }
+    const [dc, dr] = high as [number, number];
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        const beyond =
+          dc !== 0
+            ? dc > 0
+              ? col > anchor.col
+              : col < anchor.col
+            : dr > 0
+              ? row > anchor.row
+              : row < anchor.row;
+        if (beyond) layers = paintElevation(layers, set, 1, col, row);
+      }
+    }
+    return layers;
+  }
+
+  it("stamps a single passable cell on every one of the four sides", () => {
+    for (const direction of ["east", "west", "south", "north"] as const) {
+      const layers = bankTo(direction);
+      const painted = paintOneCellRamp(layers, set, anchor.col, anchor.row, direction, 0);
+      expect(painted).not.toBe(layers);
+      const walls = layerAt(painted, 1);
+      expect(decodeTileId(idAt(walls, anchor.col, anchor.row))).toEqual({
+        kind: "fixed",
+        index: oneCellRampFixedIndex(direction, 0),
+      });
+      // ONE cell: the neighbour along the old two-cell axis is not part of it.
+      const second = decodeTileId(idAt(walls, anchor.col, anchor.row - 1));
+      expect(second.kind === "fixed" && isRampFixedIndex(second.index)).toBe(false);
+    }
+  });
+
+  it("refuses flat ground and a mismatched pair of levels", () => {
+    const flatOnly = bankTo("east");
+    // Climbing away from the plateau is climbing into nothing.
+    expect(paintOneCellRamp(flatOnly, set, anchor.col, anchor.row, "west", 0)).toBe(flatOnly);
+    // And a transition the terrain does not make: this bank joins 0 to 1, not 1 to 2.
+    expect(paintOneCellRamp(flatOnly, set, anchor.col, anchor.row, "east", 1)).toBe(flatOnly);
+  });
+
+  it("compiles to a 1x1 ramp rectangle carrying its direction", () => {
+    const layers = bankTo("south");
+    const painted = paintOneCellRamp(layers, set, anchor.col, anchor.row, "south", 0);
+    const compiled = compileAuthoredMap({
+      environment: "exterior",
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: COLS,
+      rows: ROWS,
+      layers: painted,
+      elements: [],
+      spawn: { col: 0, row: 0 },
+      markers: EMPTY_MARKERS,
+    });
+    expect(compiled.ramps).toEqual([
+      {
+        x: anchor.col - Math.max(COLS, ROWS) / 2,
+        z: anchor.row - Math.max(COLS, ROWS) / 2,
+        width: 1,
+        depth: 1,
+        direction: "south",
+        lowLevel: 0,
+      },
+    ]);
   });
 });

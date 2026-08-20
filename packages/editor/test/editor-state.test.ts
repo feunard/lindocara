@@ -52,9 +52,7 @@ import {
   eraseRect,
   groundElevationAt,
   paintRectAutotile,
-  paintStairs,
   slotAt,
-  stairsFixedIndex,
   stairsTilePlacements,
 } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -62,7 +60,9 @@ import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
+  isRampFixedIndex,
   MAX_TERRAIN_LEVEL,
+  oneCellRampFixedIndex,
   TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -726,22 +726,21 @@ describe("applyTool: stairs", () => {
     return place(top, { kind: "elevation", level: 1 }, 6, 5) as EditorMap;
   }
 
-  it("stamps both official ramp halves from the low entrance as one undo entry", () => {
+  it("stamps ONE cell from the low entrance, as one undo entry", () => {
     const base = eastBoundary();
     // No direction, no levels: the stamp reads both off the boundary under the cursor.
     const tool: EditorTool = { kind: "stairs" };
     const next = place(base, tool, 5, 5) as EditorMap;
     expect(next).not.toBeNull();
-    const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
-    expect(next.layers[1]).toEqual(expectedWalls);
     expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE)).toEqual({
       kind: "fixed",
-      index: stairsFixedIndex("east", 0, "low"),
+      index: oneCellRampFixedIndex("east", 0),
     });
-    expect(decodeTileId(next.layers[1]?.ids[4 * 20 + 5] ?? EMPTY_TILE)).toEqual({
-      kind: "fixed",
-      index: stairsFixedIndex("east", 0, "high"),
-    });
+    // The cell above is NOT part of the ramp any more: a slope is geometry, and the second cell
+    // existed only because the official sprite was two cells tall. It keeps whatever the cliff
+    // upkeep put there, which on this boundary is a cliff face.
+    const above = decodeTileId(next.layers[1]?.ids[4 * 20 + 5] ?? EMPTY_TILE);
+    expect(above.kind === "fixed" && isRampFixedIndex(above.index)).toBe(false);
 
     const history = commitEditorHistory(createEditorHistory(base), next);
     expect(history.past).toHaveLength(1);

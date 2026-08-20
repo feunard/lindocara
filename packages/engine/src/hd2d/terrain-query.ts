@@ -21,16 +21,28 @@ import {
  *  unjoinable. */
 export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace";
 
-/** A two-cell authored staircase. Its rectangle covers the low bank; `direction` names the edge
- * that meets the immediately higher plateau. Collision samples it as a continuous slope, and so
- * does the renderer: `meshStairs` builds the same slope this describes, off the same `progress`
- * convention, so what is drawn and what is walked cannot disagree. */
+/** Which way a ramp CLIMBS: `east`/`west` slope along x, `north`/`south` along z. All four exist
+ *  because a cliff runs in any direction and an author should not have to rebuild the hill to get
+ *  a way up it. */
+export type RampDirection = "east" | "west" | "north" | "south";
+
+/** Whether a ramp's slope runs along the x axis (`east`/`west`) or the z axis. The one place that
+ *  question is answered; every reader of a ramp's geometry asks it rather than testing a direction
+ *  against a hardcoded axis. */
+export function rampAlongX(direction: RampDirection): boolean {
+  return direction === "east" || direction === "west";
+}
+
+/** An authored staircase. Its rectangle covers the low bank; `direction` names the edge that meets
+ * the immediately higher plateau. Collision samples it as a continuous slope, and so does the
+ * renderer: `meshStairs` builds the same slope this describes, off the same `progress` convention,
+ * so what is drawn and what is walked cannot disagree. */
 export interface TerrainRamp {
   x: number;
   z: number;
   width: number;
   depth: number;
-  direction: "east" | "west";
+  direction: RampDirection;
   lowLevel: number;
 }
 
@@ -128,8 +140,14 @@ function rampSampleAt(
     ) {
       continue;
     }
-    const along = THREELESS_CLAMP((wx - ramp.x) / ramp.width);
-    const progress = ramp.direction === "east" ? along : 1 - along;
+    // The slope runs along ONE axis and is flat across the other, so which coordinate to read is
+    // the direction's own question. `east`/`south` climb toward the axis's positive end; `west`
+    // and `north` are the same ramp walked the other way.
+    const alongX = rampAlongX(ramp.direction);
+    const along = alongX
+      ? THREELESS_CLAMP((wx - ramp.x) / ramp.width)
+      : THREELESS_CLAMP((wz - ramp.z) / ramp.depth);
+    const progress = ramp.direction === "east" || ramp.direction === "south" ? along : 1 - along;
     const lowHeight = ramp.lowLevel * levelHeight;
     const highHeight = (ramp.lowLevel + 1) * levelHeight;
     return {
@@ -232,20 +250,38 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       const to = rampSampleAt(ramps, levelHeight, toX, toZ);
       const ramp = to ?? from;
       if (!ramp) return false;
-      const corridorMin = ramp.z + radius;
-      const corridorMax = ramp.z + ramp.depth - radius;
-      if (fromZ < corridorMin || fromZ > corridorMax || toZ < corridorMin || toZ > corridorMax) {
+      // The body must stay within the ramp's WIDTH, which is the axis the slope does not run along.
+      // Reading z for an east/west ramp and x for a north/south one is the same rule, asked of the
+      // right axis rather than of a hardcoded one.
+      const alongX = rampAlongX(ramp.direction);
+      const acrossFrom = alongX ? fromZ : fromX;
+      const acrossTo = alongX ? toZ : toX;
+      const acrossOrigin = alongX ? ramp.z : ramp.x;
+      const acrossSpan = alongX ? ramp.depth : ramp.width;
+      const corridorMin = acrossOrigin + radius;
+      const corridorMax = acrossOrigin + acrossSpan - radius;
+      if (
+        acrossFrom < corridorMin ||
+        acrossFrom > corridorMax ||
+        acrossTo < corridorMin ||
+        acrossTo > corridorMax
+      ) {
         return false;
       }
       if (from && to && from.x === to.x && from.z === to.z) return true;
-      const lowEdge = ramp.direction === "east" ? ramp.x : ramp.x + ramp.width;
-      const highEdge = ramp.direction === "east" ? ramp.x + ramp.width : ramp.x;
+      const alongOrigin = alongX ? ramp.x : ramp.z;
+      const alongSpan = alongX ? ramp.width : ramp.depth;
+      const climbsPositive = ramp.direction === "east" || ramp.direction === "south";
+      const lowEdge = climbsPositive ? alongOrigin : alongOrigin + alongSpan;
+      const highEdge = climbsPositive ? alongOrigin + alongSpan : alongOrigin;
       const near = Math.max(0.08, radius);
+      const alongFrom = alongX ? fromX : fromZ;
+      const alongTo = alongX ? toX : toZ;
       if (to && !from) {
-        return Math.abs(fromX - lowEdge) <= near || Math.abs(fromX - highEdge) <= near;
+        return Math.abs(alongFrom - lowEdge) <= near || Math.abs(alongFrom - highEdge) <= near;
       }
       if (from && !to) {
-        return Math.abs(toX - lowEdge) <= near || Math.abs(toX - highEdge) <= near;
+        return Math.abs(alongTo - lowEdge) <= near || Math.abs(alongTo - highEdge) <= near;
       }
       return false;
     },
