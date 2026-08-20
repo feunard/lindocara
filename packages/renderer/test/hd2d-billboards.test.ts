@@ -234,6 +234,34 @@ describe("the billboard registry", () => {
     expect(highMesh.position.y + foot).toBeCloseTo(map.levelHeight);
   });
 
+  it.each([
+    { surface: "building roof", terrainLevel: 0, platformTop: 1.3 },
+    { surface: "bridge deck", terrainLevel: null, platformTop: 0 },
+  ])("keeps a grounded actor's painted feet directly on a $surface", (fixture) => {
+    const map = mapOf(
+      4,
+      Array.from({ length: 16 }, () => fixture.terrainLevel),
+    );
+    map.colliders = [{ x: -0.5, z: -0.5, w: 1, h: 1, top: fixture.platformTop }];
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
+
+    registry.sync([{ ...actor("platform-player", 0, 0), y: fixture.platformTop }]);
+
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("expected a platform actor billboard");
+    const footOffset =
+      ACTOR_FOOT.player *
+      billboardHeight({
+        height: LAB_UNIT_HEIGHT,
+        pitch: HD2D_CAMERA.pitch,
+        stretch: ctx.config.spriteStretch,
+      });
+    expect(mesh.position.y + footOffset).toBeCloseTo(fixture.platformTop);
+    expect((mesh.material as THREE.Material).depthTest).toBe(false);
+  });
+
   it("turns an actor the way the snapshot faces it", () => {
     const scene = sceneFor(flatMap(4));
     const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());

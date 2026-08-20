@@ -315,9 +315,7 @@ function healthBarElevation(
     stretch: ctx.config.spriteStretch,
   });
   const foot = actor.foot ?? ACTOR_FOOT[actor.kind];
-  const elevation = elevationOf(actor, scene);
-  const platformLift = standsOnFinitePlatform(actor, scene, elevation) ? drawnHeight * foot : 0;
-  return elevation + platformLift + drawnHeight * (1 - foot) + ENEMY_HEALTH_BAR_GAP;
+  return elevationOf(actor, scene) + drawnHeight * (1 - foot) + ENEMY_HEALTH_BAR_GAP;
 }
 
 /**
@@ -437,9 +435,9 @@ export function createBillboardRegistry(
         const elevation = elevationOf(actor, scene);
         const elevatedPlatform = standsOnFinitePlatform(actor, scene, elevation);
         // Native roofs are opaque volumes in front of a camera-facing hero plane. On their top,
-        // ordinary depth clipping can swallow the entire actor and the frame's below-foot padding
-        // makes a foreground composite look embedded. Start the plane at the platform and draw it
-        // after the volume; terrain actors keep the ordinary foot pivot and depth test.
+        // ordinary depth clipping can swallow the entire actor. Draw it after the volume while
+        // preserving the ordinary foot pivot: lifting by `footOffset` puts the painted feet above
+        // both roof surfaces and bridge decks, which reads as levitation.
         for (const current of materials) {
           if (current instanceof THREE.MeshLambertMaterial) {
             current.color.setHex(actor.tint ?? 0xffffff);
@@ -471,9 +469,7 @@ export function createBillboardRegistry(
         }
         entry.billboard.placeAt(
           actor.x,
-          elevation +
-            (elevatedPlatform ? entry.billboard.footOffset : 0) -
-            (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
+          elevation - (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
           actor.z,
         );
         entry.billboard.setFacing(actor.facing);

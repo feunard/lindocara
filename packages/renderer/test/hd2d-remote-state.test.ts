@@ -288,7 +288,7 @@ describe("a remote hero's drawn state", () => {
 
     const mesh = meshes(scene.root)[0];
     if (!mesh) throw new Error("expected a billboard");
-    expect(mesh.position.y).toBeCloseTo(1.8);
+    expect(drawnElevation(mesh, ctx)).toBeCloseTo(1.8);
     expect((mesh.material as THREE.Material).depthTest).toBe(false);
     expect(mesh.renderOrder).toBe(6);
 
