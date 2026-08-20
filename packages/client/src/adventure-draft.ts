@@ -31,6 +31,15 @@ export interface DraftMemberInfo {
   exitIds: readonly string[];
   entryLabels: Readonly<Record<string, string>>;
   exitLabels: Readonly<Record<string, string>>;
+  /**
+   * Every event on the map, as `{ id, label }`, so a teleport authored anywhere in the adventure can
+   * offer the DESTINATION's events without fetching that map.
+   *
+   * Read straight off the payload the draft was already built from, so it costs no round trip. The
+   * label is the author's own event name where they gave one, and the `EV003` display id otherwise:
+   * a picker listing eight unnamed "Custom event" rows names nothing.
+   */
+  events: readonly { id: string; label: string }[];
 }
 
 export interface AdventureDraft {

@@ -32,6 +32,7 @@ function member(mapId: string, name: string, entryId: string, exitId: string): D
     exitIds: [exitId],
     entryLabels: {},
     exitLabels: {},
+    events: [],
   };
 }
 

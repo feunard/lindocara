@@ -20,6 +20,15 @@ import { DEFAULT_FIRST_MAP_NAME, defaultMapInput } from "@lindocara/engine/map-t
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { solidMaskFromMapPayload } from "../../game/editor-state.js";
 
+/** The label a destination picker shows for one event: the author's own name where they gave one,
+ *  and the `EV003` display id otherwise. */
+function eventChoices(events: readonly { id: string; name: string; ordinal: number }[]) {
+  return events.map((event) => ({
+    id: event.id,
+    label: event.name || `EV${String(event.ordinal).padStart(3, "0")}`,
+  }));
+}
+
 /** One map's draft-facing facts read from a payload already in hand — the same shape `memberInfo`
  *  produces, minus its fetch. A freshly created adventure hands us its default map inline, so
  *  re-requesting it would be a round trip for data we are already holding. */
@@ -38,6 +47,7 @@ function memberInfoFromPayload(payload: MapPayload): DraftMemberInfo {
     exitIds: exits.map((event) => event.id),
     entryLabels: labelsOf(entries),
     exitLabels: labelsOf(exits),
+    events: eventChoices(payload.events),
   };
 }
 

@@ -1476,6 +1476,7 @@ describe("AdventureEditorScreen shell", () => {
         exitIds: [],
         entryLabels: {},
         exitLabels: {},
+        events: [],
       },
     ];
     alepha.store.set(adventureEditorSessionAtom, {
@@ -1533,6 +1534,7 @@ describe("AdventureEditorScreen shell", () => {
         exitIds: [],
         entryLabels: {},
         exitLabels: {},
+        events: [],
       },
     ];
     alepha.store.set(adventureEditorSessionAtom, {
@@ -2344,6 +2346,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
             exitIds: ["gate"],
             entryLabels: {},
             exitLabels: {},
+            events: [],
           },
         ],
         registry: { switches: [], variables: [] },

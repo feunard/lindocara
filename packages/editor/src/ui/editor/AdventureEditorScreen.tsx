@@ -251,6 +251,10 @@ function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap
     exitIds: exits.map((event) => event.id),
     entryLabels: labels(entries),
     exitLabels: labels(exits),
+    events: edited.events.map((event) => ({
+      id: event.id,
+      label: event.name || eventDisplayId(event.ordinal),
+    })),
   };
 }
 
@@ -493,6 +497,10 @@ function AdventureEditorInner({
         name: member.name,
         rows: member.solid.length,
         cols: member.solid[0]?.length ?? 0,
+        // Its events too, so a teleport can be aimed at one of them instead of at a cell. Read off
+        // the draft the panel already holds: no fetch, and every member map's events are available
+        // wherever a command is authored.
+        destinations: member.events,
       })),
     [draftMembers],
   );
@@ -1796,7 +1804,17 @@ function AdventureEditorInner({
     : { cols: 0, rows: 0 };
   const liveTeleportMaps = teleportMaps.map((candidate) =>
     candidate.mapId === map?.id
-      ? { ...candidate, cols: currentSize.cols, rows: currentSize.rows }
+      ? {
+          ...candidate,
+          cols: currentSize.cols,
+          rows: currentSize.rows,
+          // The open map's events come from the stage, not from the last SAVED member: an author
+          // who places a door and immediately aims a teleport at it should find it in the list.
+          destinations: (currentMap?.events ?? []).map((event) => ({
+            id: event.id,
+            label: event.name || eventDisplayId(event.ordinal),
+          })),
+        }
       : candidate,
   );
   const currentQuestMap: QuestMapCatalog | null =

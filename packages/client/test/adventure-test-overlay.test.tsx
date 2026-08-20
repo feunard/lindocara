@@ -178,6 +178,7 @@ async function mountOnGameWithTestSession(): Promise<{
       exitIds: [],
       entryLabels: {},
       exitLabels: {},
+      events: [],
     },
   ];
   useUiStore.setState({

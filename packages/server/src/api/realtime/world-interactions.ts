@@ -669,6 +669,24 @@ export function cheatRevive(w: WorldGlue, player: PlayerRuntime): void {
  * way everyone else does — from the next snapshot — and snaps to it, because the position it finds
  * there is one it never reported (`net.ts`, `#adoptServerPosition`).
  */
+/**
+ * Where an authored teleport actually lands: the target EVENT's cell when it names one and that
+ * event still exists, and the authored cell otherwise.
+ *
+ * The fallback is not a nicety. An author who points a teleport at a door and then deletes that
+ * door has left a command that cannot be honoured, and refusing the whole teleport would strand a
+ * hero mid-adventure; the authored cell is the last thing the author DID say about where to go.
+ * The editor is where a dangling target should be reported, before it ever ships.
+ */
+export function authoredTeleportTarget(
+  events: readonly MapEvent[] | undefined,
+  effect: { col: number; row: number; eventId?: string },
+): { col: number; row: number } {
+  if (effect.eventId === undefined) return { col: effect.col, row: effect.row };
+  const target = events?.find((candidate) => candidate.id === effect.eventId);
+  return target ? { col: target.col, row: target.row } : { col: effect.col, row: effect.row };
+}
+
 export function teleportSameMap(
   w: WorldGlue,
   player: PlayerRuntime,
@@ -995,7 +1013,8 @@ export function dispatchTeleport(
     // A tile-unit position IS the body's centre; the pixel `+ PLAYER_SIZE / 2` recentring is gone.
     const fromX = player.x;
     const fromZ = player.z;
-    const result = teleportSameMap(w, player, effect.col, effect.row, dispatch.eventId);
+    const target = authoredTeleportTarget(w.state.location?.definition.events, effect);
+    const result = teleportSameMap(w, player, target.col, target.row, dispatch.eventId);
     if (result === "first-refusal") {
       w.deps.send(connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
     } else if (result === "teleported") {
@@ -1030,6 +1049,7 @@ export function dispatchTeleport(
     now,
     dispatch.eventId,
     effect.category,
+    effect.eventId,
   );
 }
 

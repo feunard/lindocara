@@ -137,6 +137,19 @@ export type EventCommand =
       readonly row: number;
       /** Absent only on legacy in-memory fixtures; the parser normalizes it to `geographic`. */
       readonly category?: TransitionCategory;
+      /**
+       * An EVENT on the destination map to arrive at, resolved when the teleport runs.
+       *
+       * The cell below is authored once and rots the moment the far map is edited; an event id
+       * survives its target being moved. It also makes a CROSS-MAP destination addressable at all:
+       * `col`/`row` are a tile-editor cell in the source map's space, which the destination's own
+       * heightfield grid cannot read, so a cross-map teleport with no `eventId` still lands on the
+       * destination's spawn (`WorldRoom.teleportCrossMap` says so in full).
+       *
+       * `col`/`row` stay the fallback for every stored command and for a target that has since been
+       * deleted, so nothing authored before this existed changed meaning.
+       */
+      readonly eventId?: string;
     }
   | { readonly t: "endAdventure" }
   /**
@@ -303,7 +316,18 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       // explicit.
       const category = record.category ?? "geographic";
       if (!isTransitionCategory(category)) return null;
-      return { t: "teleport", mapId: record.mapId, col, row, category };
+      // An absent target is the ordinary cell-addressed teleport. A malformed one is refused
+      // outright rather than silently dropped: a command that says "arrive at that door" and
+      // quietly arrives somewhere else is worse than one that fails to parse.
+      if (record.eventId !== undefined && !isUuid(record.eventId)) return null;
+      return {
+        t: "teleport",
+        mapId: record.mapId,
+        col,
+        row,
+        category,
+        ...(record.eventId === undefined ? {} : { eventId: record.eventId as string }),
+      };
     }
     case "endAdventure":
       // The optional end-game beat: marks the party's save complete when it runs. Field-free, like

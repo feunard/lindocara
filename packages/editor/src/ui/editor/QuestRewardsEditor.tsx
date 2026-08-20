@@ -433,7 +433,15 @@ export function QuestRewardsEditor({
           switches={registry.switches}
           variables={registry.variables}
           quests={quests}
-          maps={maps}
+          // A quest catalogue already carries each map's full events; the command editor only needs
+          // an id and a label, so the projection happens here rather than widening either shape.
+          maps={maps.map((entry) => ({
+            ...entry,
+            destinations: entry.events.map((event) => ({
+              id: event.id,
+              label: event.name || `EV${String(event.ordinal).padStart(3, "0")}`,
+            })),
+          }))}
           onChange={(customCommands) => update({ customCommands })}
         />
       </details>

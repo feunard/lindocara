@@ -430,6 +430,8 @@ interface TeleportFixture {
   roomAId: string;
   teleporter: MapEvent;
   destination: { col: number; row: number };
+  /** The event on map B the teleport aims at, when the fixture was asked for one. */
+  arrival: MapEvent | null;
   eventsA: readonly MapEvent[];
 }
 
@@ -515,7 +517,10 @@ async function buildingInteriorAdventure(prefix: string): Promise<BuildingInteri
 /** A member map B with nothing but walkable grass, and map A carrying a scripted `action` event
  *  whose program teleports straight to a cell on B — no exit anchor or graph link involved, proving
  *  the authored-teleport path rides the same handoff independently of the exit-graph path. */
-async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
+async function teleportAdventure(
+  prefix: string,
+  options: { destinationEvent?: { col: number; row: number } } = {},
+): Promise<TeleportFixture> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
   const adventureResponse = await api("/api/adventures", {
@@ -532,13 +537,26 @@ async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
   });
   expect(mapBResponse.status).toBe(201);
   const mapBId = ((await mapBResponse.json()) as { id: string }).id;
+  const arrival: MapEvent | null = options.destinationEvent
+    ? {
+        id: crypto.randomUUID(),
+        col: options.destinationEvent.col,
+        row: options.destinationEvent.row,
+        name: "Arrival",
+        ordinal: 3,
+        kind: "normal",
+        species: null,
+        patrolRadius: null,
+        pages: [page({ trigger: "action", commands: [] })],
+      }
+    : null;
   const putB = await api(`/api/maps/${mapBId}`, {
     method: "PUT",
     body: JSON.stringify({
       name: "B",
       ...grassTerrain(),
       elements: [],
-      events: [],
+      events: arrival ? [arrival] : [],
       spawn: { col: 0, row: 0 },
     }),
   });
@@ -565,6 +583,7 @@ async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
             col: destination.col,
             row: destination.row,
             category: "geographic",
+            ...(arrival ? { eventId: arrival.id } : {}),
           },
         ],
       }),
@@ -618,6 +637,7 @@ async function teleportAdventure(prefix: string): Promise<TeleportFixture> {
     roomAId: `${partyId}:${mapAId}`,
     teleporter,
     destination,
+    arrival,
     eventsA: [entryA, teleporter],
   };
 }
@@ -1144,6 +1164,44 @@ describe("world room transitions (FakeClock)", () => {
     expect(row?.x).toBe(MAP_B_SPAWN.x);
     expect(row?.y).toBe(0);
     expect(row?.z).toBe(MAP_B_SPAWN.z);
+    engine.dispose();
+  });
+
+  test("a teleport aimed at an event lands on that event, not on the destination's spawn", async () => {
+    // The whole point of an event destination: a column and a row are a cell in the SOURCE map's
+    // authoring space, which the destination's grid cannot read, so a cell-addressed cross-map
+    // teleport can only ever land on map B's spawn. An event id is authored in the DESTINATION's
+    // own space, so it is the first thing that can say WHERE to arrive.
+    const arrivalCell = { col: 9, row: 4 };
+    const fixture = await teleportAdventure("teleevent", { destinationEvent: arrivalCell });
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomAId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    clock.advanceTicks(20);
+
+    const player = playerOf(state, fixture.heroId);
+    const teleporterCentre = activeEventCentre(state, fixture.teleporter);
+    const previous = { x: player.x, z: player.z };
+    player.x = teleporterCentre.x - 20 / TILE_SIZE;
+    player.y = teleporterCentre.y;
+    player.z = teleporterCentre.z;
+    state.playerGrid.update(player, previous);
+
+    await engine.message(socket.id, { t: "interact" });
+    clock.advanceTicks(1);
+
+    await vi.waitFor(() => {
+      expect(socket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+    });
+    const row = await probe.heroes.findById(fixture.heroId);
+    expect(row?.mapId).toBe(fixture.mapBId);
+    // Map B is flat and empty, so the arrival is exactly the event's cell centre rather than the
+    // nearest standable cell `mapEntryPosition` would fall back to.
+    expect(row?.x).toBeCloseTo(arrivalCell.col + 0.5 - PROVING_SIZE / 2, 6);
+    expect(row?.z).toBeCloseTo(arrivalCell.row + 0.5 - PROVING_SIZE / 2, 6);
+    expect(row?.x).not.toBe(MAP_B_SPAWN.x);
     engine.dispose();
   });
 

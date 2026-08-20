@@ -1829,6 +1829,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.limit.count": "Cette page a atteint sa limite de {max} actions.",
   "editor.event.cmd.limit.depth":
     "Les groupes d’actions ne peuvent pas dépasser {max} niveaux ici.",
+  "editor.event.cmd.teleport.event": "Transition {category} : {map}, vers {event}",
+  "editor.event.cmd.destinationMissing": "un événement supprimé",
   "editor.event.cmd.teleport.noMaps": "Ajoutez une carte à l’aventure pour vous y téléporter.",
   "editor.event.cmd.quest.noQuests": "Créez d’abord une quête et un objectif dans Jeu → Quêtes.",
   "editor.event.cmd.state.noEntries": "Créez d’abord cette donnée dans Jeu → États et compteurs.",
@@ -1915,6 +1917,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.field.selfSwitch": "État local",
   "editor.event.cmd.field.frames": "Durée (cycles, 20 = 1 seconde)",
   "editor.event.cmd.field.transitionCategory": "Nature du passage",
+  "editor.event.cmd.field.destination": "Arrivée",
+  "editor.event.cmd.field.destination.cell": "Une case (ci-dessous)",
   "editor.event.cmd.field.map": "Carte",
   "editor.event.cmd.field.col": "Largeur X (1 à {max})",
   "editor.event.cmd.field.row": "Hauteur Y (1 à {max})",

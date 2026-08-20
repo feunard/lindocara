@@ -300,8 +300,20 @@ describe("EventCommandEditor", () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };
     const maps: TeleportMap[] = [
-      { mapId: "11111111-1111-4111-8111-111111111111", name: "Town", cols: 25, rows: 18 },
-      { mapId: "22222222-2222-4222-8222-222222222222", name: "Cave", cols: 8, rows: 6 },
+      {
+        mapId: "11111111-1111-4111-8111-111111111111",
+        name: "Town",
+        cols: 25,
+        rows: 18,
+        destinations: [],
+      },
+      {
+        mapId: "22222222-2222-4222-8222-222222222222",
+        name: "Cave",
+        cols: 8,
+        rows: 6,
+        destinations: [],
+      },
     ];
     render(<Harness maps={maps} latest={latest} />);
 

@@ -221,6 +221,8 @@ export type EventEffect =
       readonly col: number;
       readonly row: number;
       readonly category: TransitionCategory;
+      /** An event on the destination map to arrive at, resolved by the room. See the command. */
+      readonly eventId?: string;
     }
   | { readonly kind: "endAdventure" }
   /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
@@ -446,6 +448,10 @@ function executeCommand(
             col: command.col,
             row: command.row,
             category: command.category ?? "geographic",
+            // Passed through, never resolved here: this module is pure and has no map catalogue.
+            // Turning an event id into a cell needs the DESTINATION map's events, which only the
+            // room holds.
+            ...(command.eventId === undefined ? {} : { eventId: command.eventId }),
           },
         ],
       };

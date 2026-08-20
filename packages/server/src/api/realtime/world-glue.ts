@@ -137,6 +137,9 @@ export interface WorldTickDeps {
     now: number,
     eventId: string,
     category: TransitionCategory,
+    /** The SOURCE event is `eventId` above (it names the log line); this is the event on the
+     *  DESTINATION map to arrive at, when the command authored one. */
+    destinationEventId?: string,
   ): void;
   /** An intact authored building door enters its linked ordinary member map. */
   enterBuilding(

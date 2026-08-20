@@ -21,6 +21,7 @@ const VISUAL_INFO = {
   monsterCount: 0,
   entryLabels: {},
   exitLabels: {},
+  events: [],
 };
 const A: DraftMemberInfo = {
   ...VISUAL_INFO,

@@ -42,6 +42,10 @@ export interface TeleportMap {
   readonly name: string;
   readonly cols: number;
   readonly rows: number;
+  /** The map's own events, so a destination can be one of them rather than a pair of numbers.
+   *  Named `destinations` rather than `events` because `QuestMapCatalog` carries a richer `events`
+   *  through the same call sites, and two shapes under one name is how the wrong one gets passed. */
+  readonly destinations: readonly { readonly id: string; readonly label: string }[];
 }
 
 interface EventCommandEditorProps {
@@ -354,11 +358,23 @@ function commandLine(
       return t("editor.event.cmd.wait", { frames: command.frames });
     case "teleport": {
       const map = maps.find((m) => m.mapId === command.mapId);
+      const category = t(`editor.event.cmd.transition.${command.category ?? "geographic"}`);
+      const mapName = map?.name ?? t("editor.event.cmd.mapMissing");
+      // A summary naming a target that no longer exists is the failure this feature was asked to
+      // remove, so the line SAYS it rather than falling back to the cell it would land on.
+      if (command.eventId !== undefined) {
+        const destination = map?.destinations.find((entry) => entry.id === command.eventId);
+        return t("editor.event.cmd.teleport.event", {
+          category,
+          map: mapName,
+          event: destination?.label ?? t("editor.event.cmd.destinationMissing"),
+        });
+      }
       return t("editor.event.cmd.teleport", {
-        map: map?.name ?? t("editor.event.cmd.mapMissing"),
+        map: mapName,
         col: command.col + 1,
         row: command.row + 1,
-        category: t(`editor.event.cmd.transition.${command.category ?? "geographic"}`),
+        category,
       });
     }
     case "changeGold":
@@ -1347,8 +1363,11 @@ function TeleportParams({
           onChange={(e) => {
             const mapId = e.currentTarget.value;
             const next = maps.find((m) => m.mapId === mapId);
+            const { eventId: _dropped, ...rest } = command;
             onChange({
-              ...command,
+              // The target event belonged to the OLD map; carrying it across would name an event
+              // that is not there, which is the one failure this feature exists to remove.
+              ...rest,
               mapId,
               col: next ? clampInt(command.col, 0, next.cols - 1, 0) : command.col,
               row: next ? clampInt(command.row, 0, next.rows - 1, 0) : command.row,
@@ -1362,28 +1381,55 @@ function TeleportParams({
           ))}
         </FieldSelect>
       </Field>
-      <Field label={widthLabel}>
-        <NumberField
-          ariaLabel={widthLabel}
-          className="w-20"
-          value={command.col + 1}
-          min={1}
-          max={maxCol + 1}
-          onChange={(col) => onChange({ ...command, col: col - 1 })}
-          onBlur={() => onChange({ ...command, col: clampInt(command.col, 0, maxCol, 0) })}
-        />
+      {/* An event target survives its destination being moved, and it is the only thing that can
+          address a CROSS-MAP arrival at all: a column and a row are a cell in the SOURCE map's
+          authoring space, which the destination's own grid cannot read, so a cross-map teleport
+          with no event lands on that map's spawn whatever the numbers say. */}
+      <Field label={t("editor.event.cmd.field.destination")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.destination")}
+          className="w-52"
+          value={command.eventId ?? ""}
+          onChange={(event) => {
+            const eventId = event.currentTarget.value;
+            const { eventId: _dropped, ...rest } = command;
+            onChange(eventId === "" ? rest : { ...rest, eventId });
+          }}
+        >
+          <option value="">{t("editor.event.cmd.field.destination.cell")}</option>
+          {(map?.destinations ?? []).map((destination) => (
+            <option key={destination.id} value={destination.id}>
+              {destination.label}
+            </option>
+          ))}
+        </FieldSelect>
       </Field>
-      <Field label={heightLabel}>
-        <NumberField
-          ariaLabel={heightLabel}
-          className="w-20"
-          value={command.row + 1}
-          min={1}
-          max={maxRow + 1}
-          onChange={(row) => onChange({ ...command, row: row - 1 })}
-          onBlur={() => onChange({ ...command, row: clampInt(command.row, 0, maxRow, 0) })}
-        />
-      </Field>
+      {command.eventId === undefined && (
+        <>
+          <Field label={widthLabel}>
+            <NumberField
+              ariaLabel={widthLabel}
+              className="w-20"
+              value={command.col + 1}
+              min={1}
+              max={maxCol + 1}
+              onChange={(col) => onChange({ ...command, col: col - 1 })}
+              onBlur={() => onChange({ ...command, col: clampInt(command.col, 0, maxCol, 0) })}
+            />
+          </Field>
+          <Field label={heightLabel}>
+            <NumberField
+              ariaLabel={heightLabel}
+              className="w-20"
+              value={command.row + 1}
+              min={1}
+              max={maxRow + 1}
+              onChange={(row) => onChange({ ...command, row: row - 1 })}
+              onBlur={() => onChange({ ...command, row: clampInt(command.row, 0, maxRow, 0) })}
+            />
+          </Field>
+        </>
+      )}
     </div>
   );
 }

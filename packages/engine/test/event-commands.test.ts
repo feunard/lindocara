@@ -62,6 +62,24 @@ describe("parseEventCommands: good payloads", () => {
     expect(parseEventCommands([])).toEqual([]);
   });
 
+  it("carries an event destination, and refuses a malformed one outright", () => {
+    const EVENT = "bbbbbbbb-0000-4000-8000-000000000001";
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, eventId: EVENT }]),
+    ).toEqual([
+      { t: "teleport", mapId: UUID, col: 1, row: 2, category: "geographic", eventId: EVENT },
+    ]);
+    // Absent stays absent: every command authored before event targets existed keeps its meaning.
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2 }])?.[0],
+    ).not.toHaveProperty("eventId");
+    // Refused, not dropped: a command that says "arrive at that door" and quietly arrives somewhere
+    // else is worse than one that fails to parse.
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, eventId: "door" }]),
+    ).toBeNull();
+  });
+
   it("normalizes legacy teleports and rejects unknown transition categories", () => {
     expect(parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2 }])).toEqual([
       { t: "teleport", mapId: UUID, col: 1, row: 2, category: "geographic" },

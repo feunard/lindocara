@@ -48,6 +48,7 @@ import { canAct } from "@lindocara/engine/death.js";
 import { applyExperience, CEMETERIES, maxHpForLevel } from "@lindocara/engine/game.js";
 import type { WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
+import { authoredCellCentreGround } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import {
   EMPTY_PARTY_MATERIALS,
@@ -1187,7 +1188,17 @@ export class WorldRoom {
         // drain sees the claim and refuses (`world.ts:4965-4969`). `dispatchTeleport` in
         // `worldTick.ts` calls this dep directly with no wrapping of its own, so the claim has to be
         // the first synchronous statement here.
-        teleportCrossMap: (connectionId, player, mapId, col, row, now, eventId, category) => {
+        teleportCrossMap: (
+          connectionId,
+          player,
+          mapId,
+          col,
+          row,
+          now,
+          eventId,
+          category,
+          destinationEventId,
+        ) => {
           player.transitioning = true;
           void this.teleportCrossMap(
             room,
@@ -1200,6 +1211,8 @@ export class WorldRoom {
             now,
             eventId,
             category,
+            false,
+            destinationEventId,
           ).catch((error) => {
             this.logError("event_teleport_transition_failed", error, {
               heroId: player.id,
@@ -1587,6 +1600,7 @@ export class WorldRoom {
     eventId: string,
     category: import("@lindocara/engine/event-commands.js").TransitionCategory = "geographic",
     buildingEntry = false,
+    destinationEventId?: string,
   ): Promise<void> {
     const partyId = player.partyId;
     let claimedAuthorization = false;
@@ -1634,7 +1648,22 @@ export class WorldRoom {
       // destination has), and the destination's own spawn decides where — validated standable by
       // `mapEntryPosition` exactly as an ordinary admission is, rather than by a bounds check of
       // one coordinate space against another.
-      const spawn = mapEntryPosition(destination.terrain, destination.spawns?.[0]);
+      //
+      // A destination EVENT is the exception, and it is the reason event targets exist: its cell is
+      // authored in the DESTINATION's own space, so it can be read here where a source cell cannot.
+      // It is only a PREFERENCE: `mapEntryPosition` still validates it and snaps to the nearest
+      // standable cell, so a target that has been moved onto a cliff lands beside it rather than
+      // refusing the journey.
+      const destinationEvent = destinationEventId
+        ? destinationMap.events.find((candidate) => candidate.id === destinationEventId)
+        : undefined;
+      const preferred = destinationEvent
+        ? authoredCellCentreGround(
+            { col: destinationEvent.col, row: destinationEvent.row },
+            destination.terrain.size,
+          )
+        : destination.spawns?.[0];
+      const spawn = mapEntryPosition(destination.terrain, preferred);
 
       player.lastTransitionAt = now;
       cancelCombatAction(player);

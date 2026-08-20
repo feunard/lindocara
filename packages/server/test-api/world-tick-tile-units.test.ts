@@ -38,7 +38,7 @@ import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
 import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
-import { teleportSameMap } from "../src/api/realtime/world-interactions.ts";
+import { authoredTeleportTarget, teleportSameMap } from "../src/api/realtime/world-interactions.ts";
 import {
   applyReportedMove,
   handleRelease,
@@ -183,6 +183,30 @@ function glue(
   };
   return { state, deps };
 }
+
+describe("an authored teleport's destination", () => {
+  const EVENT = "bbbbbbbb-0000-4000-8000-000000000001";
+
+  it("resolves a target event's own cell, so moving the target moves the arrival", () => {
+    const events = [{ id: EVENT, col: 11, row: 6 }] as unknown as Parameters<
+      typeof authoredTeleportTarget
+    >[0];
+    expect(authoredTeleportTarget(events, { col: 3, row: 5, eventId: EVENT })).toEqual({
+      col: 11,
+      row: 6,
+    });
+  });
+
+  it("falls back to the authored cell when the target is gone", () => {
+    // A deleted target must not strand a hero mid-adventure: the authored cell is the last thing
+    // the author actually said about where to go. The EDITOR is where a dangling target is reported.
+    expect(authoredTeleportTarget([], { col: 3, row: 5, eventId: EVENT })).toEqual({
+      col: 3,
+      row: 5,
+    });
+    expect(authoredTeleportTarget(undefined, { col: 3, row: 5 })).toEqual({ col: 3, row: 5 });
+  });
+});
 
 describe("an authored teleport, in tile units", () => {
   it("lands on the grid-centred centre of the authored cell", () => {
