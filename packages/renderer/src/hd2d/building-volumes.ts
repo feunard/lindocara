@@ -4,6 +4,11 @@ import {
   type BuildingDimensions,
   type BuildingVolumeDimensions,
   buildingVolumeDimensions,
+  CASTLE_TOWER_POSITIONS,
+  CASTLE_TOWER_RADIUS,
+  FORTRESS_BODY_DEPTH,
+  FORTRESS_BODY_WIDTH,
+  WINDMILL_ROOF_RADIUS,
 } from "@lindocara/engine/buildings.js";
 import {
   type ElementOrientation,
@@ -770,7 +775,9 @@ function buildWindmill(
     m.stone,
   );
   addRoundStoneCourses(model, bodyRadius * 0.94, size.wallHeight, m.stoneShade);
-  const roof = shadow(new THREE.Mesh(new THREE.ConeGeometry(1.02, size.roofHeight, 12), m.roof));
+  const roof = shadow(
+    new THREE.Mesh(new THREE.ConeGeometry(WINDMILL_ROOF_RADIUS, size.roofHeight, 12), m.roof),
+  );
   roof.name = "windmill-cap";
   roof.position.y = size.wallHeight + size.roofHeight / 2;
   model.add(roof);
@@ -909,8 +916,8 @@ function buildFortress(
   model.name = `${kind}-footprint`;
   model.scale.set(size.width / 3, 1, size.depth / 2.375);
   root.add(model);
-  const bodyWidth = 2.32;
-  const bodyDepth = 1.92;
+  const bodyWidth = FORTRESS_BODY_WIDTH;
+  const bodyDepth = FORTRESS_BODY_DEPTH;
   box(
     model,
     "fortified-hall",
@@ -925,19 +932,12 @@ function buildFortress(
     [0, size.wallHeight - 0.06, 0],
     m.stoneShade,
   );
-  const towerRadius = 0.37;
+  const towerRadius = CASTLE_TOWER_RADIUS;
   const towerHeight = size.wallHeight + (kind === "castle" ? 0.26 : 0.08);
   // The barracks is one readable fortified hall. Detached front turrets made its silhouette look
   // assembled from unrelated parts; only the larger castle keeps integrated corner towers.
   const towerPositions: readonly (readonly [number, number])[] =
-    kind === "castle"
-      ? [
-          [-1.12, 0.79],
-          [1.12, 0.79],
-          [-1.12, -0.79],
-          [1.12, -0.79],
-        ]
-      : [];
+    kind === "castle" ? CASTLE_TOWER_POSITIONS : [];
   for (const [x, z] of towerPositions) {
     cylinder(
       model,

@@ -446,22 +446,34 @@ describe("Hd2dVisualLayer spawn marker", () => {
         { x: 2, z: 0 },
         { x: -1, z: 0 },
       ],
-      lengthHandle: { x: 2, z: 0.5 },
-      widthHandle: { x: 0.5, z: 0 },
-      hoverAxis: "length" as const,
-      activeAxis: null,
+      handles: [
+        { side: "length-start" as const, axis: "length" as const, point: { x: -1, z: 0.5 } },
+        { side: "length-end" as const, axis: "length" as const, point: { x: 2, z: 0.5 } },
+        { side: "width-start" as const, axis: "width" as const, point: { x: 0.5, z: 0 } },
+        { side: "width-end" as const, axis: "width" as const, point: { x: 0.5, z: 1 } },
+      ],
+      hoverSide: "length-end" as const,
+      activeSide: null,
       valid: true,
     };
     layer.setEditorOverlay({ ...base, bridgeResize });
 
     expect(root.getObjectByName("editor-bridge-resize")).toBeDefined();
-    expect(root.getObjectByName("editor-bridge-resize-length")?.position).toMatchObject({
+    expect(root.getObjectByName("editor-bridge-resize-length-start")?.position).toMatchObject({
+      x: -1,
+      z: 0.5,
+    });
+    expect(root.getObjectByName("editor-bridge-resize-length-end")?.position).toMatchObject({
       x: 2,
       z: 0.5,
     });
-    expect(root.getObjectByName("editor-bridge-resize-width")?.position).toMatchObject({
+    expect(root.getObjectByName("editor-bridge-resize-width-start")?.position).toMatchObject({
       x: 0.5,
       z: 0,
+    });
+    expect(root.getObjectByName("editor-bridge-resize-width-end")?.position).toMatchObject({
+      x: 0.5,
+      z: 1,
     });
     expect(root.getObjectByName("editor-bridge-resize-anchor")?.position).toMatchObject({
       x: 0.5,
@@ -470,7 +482,7 @@ describe("Hd2dVisualLayer spawn marker", () => {
 
     layer.setEditorOverlay({
       ...base,
-      bridgeResize: { ...bridgeResize, hoverAxis: null, valid: false },
+      bridgeResize: { ...bridgeResize, hoverSide: null, valid: false },
     });
     const outline = root.getObjectByName("editor-bridge-resize-outline") as THREE.LineSegments;
     expect((outline.material as THREE.LineBasicMaterial).color.getHex()).toBe(0xef5350);

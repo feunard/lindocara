@@ -170,7 +170,7 @@ describe("compileAuthoredMap", () => {
     [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 2.6, "gable", 1],
     [LINDOCARA_BUILDING_ASSET_IDS.monastery, 2.86, "gable", 1],
     [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, "flat", 5],
-    [LINDOCARA_BUILDING_ASSET_IDS.castle, 2.11, "flat", 5],
+    [LINDOCARA_BUILDING_ASSET_IDS.castle, 2.11, "flat", 57],
     [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, "flat", 13],
     [LINDOCARA_BUILDING_ASSET_IDS.windmill, 3.57, "cone", 1],
   ])("authors %s with its native %s roof at %s", (assetId, roofTop, roofShape, colliderCount) => {
@@ -216,7 +216,6 @@ describe("compileAuthoredMap", () => {
 
   it.each([
     [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, 2.09, 4],
-    [LINDOCARA_BUILDING_ASSET_IDS.castle, 2.11, 2.39, 4],
     [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, 3.47, 12],
   ])(
     "turns %s's visible roof edge into collision while keeping its deck walkable",
@@ -240,6 +239,81 @@ describe("compileAuthoredMap", () => {
       const edgeZ = edge.z + edge.h / 2;
       expect(canStand(terrain, edgeX, edgeZ, 0.08, roofTop)).toBe(false);
       expect(canStand(terrain, edgeX, edgeZ, 0.08, parapetTop)).toBe(true);
+    },
+  );
+
+  it("gives a castle's central deck and four corner towers their own roof-edge collision", () => {
+    const source = authored();
+    source.elements = [
+      {
+        col: 0,
+        row: 0,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: LINDOCARA_BUILDING_ASSET_IDS.castle,
+      },
+    ];
+    const compiled = compileAuthoredMap(source);
+    expect(compiled.colliders).toHaveLength(57);
+    const mainRoof = compiled.colliders[0];
+    const mainEdges = compiled.colliders.slice(1, 5);
+    const towerRoofs = [5, 18, 31, 44].map((index) => compiled.colliders[index]);
+    const towerEdges = [
+      ...compiled.colliders.slice(6, 18),
+      ...compiled.colliders.slice(19, 31),
+      ...compiled.colliders.slice(32, 44),
+      ...compiled.colliders.slice(45, 57),
+    ];
+    expect(mainRoof).toMatchObject({ top: 2.11, w: 2.32, h: 1.92 });
+    expect(mainEdges.every((edge) => edge.top === 2.39)).toBe(true);
+    expect(towerRoofs.every((roof) => roof?.footprint === "ellipse")).toBe(true);
+    expect(towerRoofs.every((roof) => Math.abs((roof?.top ?? 0) - 2.3) < 1e-6)).toBe(true);
+    expect(towerEdges).toHaveLength(48);
+    expect(towerEdges.every((edge) => Math.abs((edge.top ?? 0) - 2.65) < 1e-6)).toBe(true);
+  });
+
+  it.each([
+    [LINDOCARA_BUILDING_ASSET_IDS.windmill, { width: 13.75, depth: 10 }, 10.2, 10.2],
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, { width: 12, depth: 9.5 }, 9.28, 7.68],
+    [LINDOCARA_BUILDING_ASSET_IDS.castle, { width: 12, depth: 9.5 }, 9.28, 7.68],
+  ])(
+    "keeps a greatly resized %s collision on its real architecture",
+    (assetId, dimensions, expectedWidth, expectedDepth) => {
+      const size = 32;
+      const ground = emptyLayer(size, size);
+      ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+      const source: MapData = {
+        ...authored(),
+        cols: size,
+        rows: size,
+        layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+        elements: [
+          {
+            col: 16,
+            row: 20,
+            offsetX: 0,
+            offsetY: 0,
+            assetId,
+            building: { destructible: true, maxHp: 900, dimensions },
+          },
+        ],
+      };
+      const compiled = compileAuthoredMap(source);
+      const mainRoof = compiled.colliders[0];
+      if (!mainRoof) throw new Error("resized building roof missing");
+      expect(mainRoof.w).toBeCloseTo(expectedWidth);
+      expect(mainRoof.h).toBeCloseTo(expectedDepth);
+
+      const centreX = mainRoof.x + mainRoof.w / 2;
+      const centreZ = mainRoof.z + mainRoof.h / 2;
+      const emptyX = centreX + dimensions.width / 2 - 0.05;
+      const emptyZ = centreZ;
+      expect(
+        compiled.colliders.some((collider) => colliderContainsPoint(collider, emptyX, emptyZ)),
+      ).toBe(false);
+      const terrain = zoneTerrainFromHeightfield(compiled);
+      expect(terrain.query.surfaceAt?.(emptyX, emptyZ, Number.POSITIVE_INFINITY)).toBeCloseTo(0);
+      expect(canStand(terrain, emptyX, emptyZ, 0.2, 0)).toBe(true);
     },
   );
 

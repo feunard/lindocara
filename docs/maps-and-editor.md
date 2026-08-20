@@ -96,11 +96,13 @@ footprint. Scenery placement is terrain-independent: every known catalogue asset
 grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
 Once either wooden bridge is placed, its selection inspector can resize its crossing length and
 deck width in whole cells (1..32). Selecting it on the map also draws its exact deck footprint plus
-one length and one width handle; dragging either previews the snapped bridge immediately and commits
-the gesture as one undoable edit. The renderer regenerates planks, rails and supports from those
-dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
-geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
-transform integer, keeping old 3x1 bridges valid and requiring no schema migration.
+four independent edge handles. Dragging one end or side holds its opposite edge fixed, previews the
+snapped bridge immediately and commits the gesture as one undoable edit. The bridge's exact rotated,
+quarter-cell-shifted deck plus a small halo is selectable, rather than only its historical anchor.
+The renderer regenerates planks, rails and supports from those dimensions; the heightfield compiler
+bakes the identical footprint, deck and side rails, so visual geometry and movement collision cannot
+drift apart. Dimensions reuse the element row's existing transform integer, keeping old 3x1 bridges
+valid and requiring no schema migration.
 Bridge elevation is resolved from both the end-cap cells and terrain immediately beyond the two
 crossing ends, including for freely rotated bridges. Side terrain below a cliff no longer outvotes
 the actual support: the highest elevation touched by either end anchors the whole deck, even when
@@ -131,13 +133,18 @@ family that owns them; changing colour preserves the element identity, footprint
 durability and interior. The windmill has no synthetic colour choice because the source catalogue
 does not ship one.
 Flat crenellated roofs compile their visible edges as separate finite collision volumes. Barracks
-and castles receive four perimeter parapets; round towers receive the same twelve battlement
-positions as their rendered model. The open deck remains walkable, while a hero at deck height
-cannot cross the raised edge. This is keyed by the shared `crenellated` roof archetype, so a future
-native building using that roof contract receives logical edge collision automatically.
+receive four perimeter parapets; castles combine those central parapets with the same twelve
+battlement positions around each of their four corner towers as the rendered model. Standalone
+round towers use that twelve-piece ring too. The open deck remains walkable, while a hero at deck
+height cannot cross the raised edge. This is keyed by the shared `crenellated` roof archetype, so a
+future native building using that roof contract receives logical edge collision automatically.
 Resizing also preserves art density: timber facade bays, shingles, masonry and planks repeat across
 the final world-space faces (including internally scaled round/fortified models) instead of
 magnifying one low-resolution texture over the whole footprint.
+Irregular architecture also compiles as the solid pieces that are actually rendered instead of one
+bounding slab: mills use their round cap, fortified halls use their narrower central body, and
+castles add four independent round tower roofs. Enlarging those buildings therefore leaves their
+intentional margins and the passages between castle towers free of invisible collision.
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
 static visuals in place; event edits reuse the same path while their preview remains dynamic. The

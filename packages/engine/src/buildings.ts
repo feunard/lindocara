@@ -135,6 +135,18 @@ export interface BuildingVolumeDimensions {
   roofShape: "gable" | "cone" | "crenellated";
 }
 
+/** Native solid architecture measurements shared by rendering and heightfield collision. */
+export const WINDMILL_ROOF_RADIUS = 1.02;
+export const FORTRESS_BODY_WIDTH = 2.32;
+export const FORTRESS_BODY_DEPTH = 1.92;
+export const CASTLE_TOWER_RADIUS = 0.37;
+export const CASTLE_TOWER_POSITIONS = [
+  [-1.12, 0.79],
+  [1.12, 0.79],
+  [-1.12, -0.79],
+  [1.12, -0.79],
+] as const;
+
 export function buildingVolumeDimensions(
   archetype: BuildingArchetype,
   dimensions?: BuildingDimensions,
