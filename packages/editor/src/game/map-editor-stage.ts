@@ -8,7 +8,14 @@
 
 import { acquireStageCanvas, releaseStageCanvas } from "@lindocara/client/game/stage-canvas.js";
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
+import {
+  type BridgeDimensions,
+  bridgeDimensionsOrDefault,
+  bridgeOrientation,
+  bridgePlacementLayout,
+  MAX_BRIDGE_DIMENSION,
+  MIN_BRIDGE_DIMENSION,
+} from "@lindocara/engine/bridges.js";
 import {
   BUILDING_DIMENSION_STEP,
   type BuildingDimensions,
@@ -170,12 +177,20 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
 }
 
 export type BuildingResizeAxis = "width" | "depth";
+export type BridgeResizeAxis = "length" | "width";
 
 export interface BuildingResizeGuide {
   anchor: { x: number; z: number };
   outline: readonly { x: number; z: number }[];
   widthHandles: readonly [{ x: number; z: number }, { x: number; z: number }];
   depthHandle: { x: number; z: number };
+}
+
+export interface BridgeResizeGuide {
+  anchor: { x: number; z: number };
+  outline: readonly { x: number; z: number }[];
+  lengthHandle: { x: number; z: number };
+  widthHandle: { x: number; z: number };
 }
 
 /** World-space footprint and handles for one native building. The front threshold remains fixed:
@@ -237,6 +252,56 @@ export function buildingDimensionsAtPoint(
     ),
   );
   return { ...current, [axis]: snapped };
+}
+
+/** Exact compiled bridge footprint plus one positive-growth handle per authored dimension. */
+export function bridgeResizeGuide(
+  element: MapElement,
+  mapSize: number,
+  override?: BridgeDimensions,
+): BridgeResizeGuide | null {
+  const orientation = bridgeOrientation(element.assetId);
+  if (!orientation) return null;
+  const layout = bridgePlacementLayout({
+    ...element,
+    bridge: override ?? bridgeDimensionsOrDefault(element.bridge),
+  });
+  if (!layout) return null;
+  const offsetX = element.offsetX / ELEMENT_OFFSET_STEPS;
+  const offsetZ = element.offsetY / ELEMENT_OFFSET_STEPS;
+  const left = layout.startCol + offsetX - mapSize / 2;
+  const top = layout.startRow + offsetZ - mapSize / 2;
+  const right = left + layout.cols;
+  const bottom = top + layout.rows;
+  const centreX = (left + right) / 2;
+  const centreZ = (top + bottom) / 2;
+  return {
+    anchor: authoredElementGroundPoint(element, mapSize),
+    outline: [
+      { x: left, z: top },
+      { x: right, z: top },
+      { x: right, z: bottom },
+      { x: left, z: bottom },
+    ],
+    lengthHandle: orientation === "horizontal" ? { x: right, z: centreZ } : { x: centreX, z: top },
+    widthHandle: orientation === "horizontal" ? { x: centreX, z: top } : { x: right, z: centreZ },
+  };
+}
+
+/** Bridges snap to whole cells. Delta is measured from the pointer-down handle, which avoids the
+ * historical anchor's half-cell parity shift while the footprint changes between odd/even sizes. */
+export function bridgeDimensionsAtDelta(
+  element: MapElement,
+  axis: BridgeResizeAxis,
+  delta: number,
+): BridgeDimensions | null {
+  if (!bridgeOrientation(element.assetId) || !Number.isFinite(delta)) return null;
+  const current = bridgeDimensionsOrDefault(element.bridge);
+  const value = Math.max(
+    MIN_BRIDGE_DIMENSION,
+    Math.min(MAX_BRIDGE_DIMENSION, Math.round(current[axis] + delta)),
+  );
+  return { ...current, [axis]: value };
 }
 
 /** Every blocked cell inside `rect` — deliberately NOT the whole canvas: a 256×256 document is
@@ -331,13 +396,29 @@ export function openMapEditorStage(
     let spaceHeld = false;
     let strokeStart: EditorMap | null = null;
     let dragSelection: EditorSelection | null = null;
-    let resizeDrag: {
-      axis: BuildingResizeAxis;
-      selection: Extract<EditorSelection, { kind: "element" }>;
-      settings: BuildingSettings;
-    } | null = null;
-    let resizePreview: { dimensions: BuildingDimensions; valid: boolean } | null = null;
-    let hoverResizeAxis: BuildingResizeAxis | null = null;
+    let resizeDrag:
+      | {
+          kind: "building";
+          axis: BuildingResizeAxis;
+          selection: Extract<EditorSelection, { kind: "element" }>;
+          settings: BuildingSettings;
+        }
+      | {
+          kind: "bridge";
+          axis: BridgeResizeAxis;
+          selection: Extract<EditorSelection, { kind: "element" }>;
+          dimensions: BridgeDimensions;
+          startPoint: { x: number; z: number };
+        }
+      | null = null;
+    let resizePreview:
+      | { kind: "building"; dimensions: BuildingDimensions; valid: boolean }
+      | { kind: "bridge"; dimensions: BridgeDimensions; valid: boolean }
+      | null = null;
+    let hoverResize:
+      | { kind: "building"; axis: BuildingResizeAxis }
+      | { kind: "bridge"; axis: BridgeResizeAxis }
+      | null = null;
     let lastPaintedKey = "";
     // Terrain spray still remeshes the ground (12-45ms measured on a light canvas), so a fast drag
     // is throttled. Scenery and event edits use the incremental path and bypass this delay entirely.
@@ -362,33 +443,71 @@ export function openMapEditorStage(
     let renderedSeaGuardians: SceneSample["seaGuardians"] = [];
 
     const dimensions = () => editorMapSize(map);
-    const selectedBuildingElement = (): MapElement | null => {
+    const selectedElement = (): MapElement | null => {
       if (selected?.kind !== "element") return null;
       const selection = selected;
-      const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+      return map.elements.find((candidate) => sameElementSlot(candidate, selection)) ?? null;
+    };
+    const selectedBuildingElement = (): MapElement | null => {
+      const element = selectedElement();
       return element?.building ? element : null;
+    };
+    const selectedBridgeElement = (): MapElement | null => {
+      const element = selectedElement();
+      return element && bridgeOrientation(element.assetId) ? element : null;
     };
     const selectedBuildingGuide = (): BuildingResizeGuide | null => {
       const element = selectedBuildingElement();
       if (!element) return null;
       const { cols, rows } = dimensions();
-      return buildingResizeGuide(element, Math.max(cols, rows), resizePreview?.dimensions);
+      return buildingResizeGuide(
+        element,
+        Math.max(cols, rows),
+        resizePreview?.kind === "building" ? resizePreview.dimensions : undefined,
+      );
     };
-    const resizeAxisAt = (point: { x: number; z: number }): BuildingResizeAxis | null => {
-      const guide = selectedBuildingGuide();
-      if (!guide) return null;
+    const selectedBridgeGuide = (): BridgeResizeGuide | null => {
+      const element = selectedBridgeElement();
+      if (!element) return null;
+      const { cols, rows } = dimensions();
+      return bridgeResizeGuide(
+        element,
+        Math.max(cols, rows),
+        resizePreview?.kind === "bridge" ? resizePreview.dimensions : undefined,
+      );
+    };
+    const resizeAt = (point: {
+      x: number;
+      z: number;
+    }):
+      | { kind: "building"; axis: BuildingResizeAxis }
+      | { kind: "bridge"; axis: BridgeResizeAxis }
+      | null => {
       const distance = (handle: { x: number; z: number }): number =>
         Math.hypot(point.x - handle.x, point.z - handle.z);
-      if (Math.min(...guide.widthHandles.map(distance)) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS) {
-        return "width";
+      const building = selectedBuildingGuide();
+      if (building) {
+        if (Math.min(...building.widthHandles.map(distance)) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS) {
+          return { kind: "building", axis: "width" };
+        }
+        return distance(building.depthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
+          ? { kind: "building", axis: "depth" }
+          : null;
       }
-      return distance(guide.depthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS ? "depth" : null;
+      const bridge = selectedBridgeGuide();
+      if (!bridge) return null;
+      if (distance(bridge.lengthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS) {
+        return { kind: "bridge", axis: "length" };
+      }
+      return distance(bridge.widthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
+        ? { kind: "bridge", axis: "width" }
+        : null;
     };
     const refreshCursor = (): void => {
       canvas.dataset.cursor = resizeDrag
         ? "grabbing"
-        : hoverResizeAxis
-          ? `resize-${hoverResizeAxis}`
+        : hoverResize
+          ? `resize-${hoverResize.axis}`
           : tool.kind === "pan"
             ? "move"
             : tool.kind === "select"
@@ -444,6 +563,7 @@ export function openMapEditorStage(
       const previewAssetId = editorToolPreviewAssetId(tool);
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
       const buildingResize = selectedBuildingGuide();
+      const bridgeResize = selectedBridgeGuide();
       const rect = derivedRect();
       renderer.setEditorOverlay({
         cols,
@@ -472,9 +592,17 @@ export function openMapEditorStage(
         buildingResize: buildingResize
           ? {
               ...buildingResize,
-              hoverAxis: hoverResizeAxis,
-              activeAxis: resizeDrag?.axis ?? null,
-              valid: resizePreview?.valid ?? true,
+              hoverAxis: hoverResize?.kind === "building" ? hoverResize.axis : null,
+              activeAxis: resizeDrag?.kind === "building" ? resizeDrag.axis : null,
+              valid: resizePreview?.kind === "building" ? resizePreview.valid : true,
+            }
+          : null,
+        bridgeResize: bridgeResize
+          ? {
+              ...bridgeResize,
+              hoverAxis: hoverResize?.kind === "bridge" ? hoverResize.axis : null,
+              activeAxis: resizeDrag?.kind === "bridge" ? resizeDrag.axis : null,
+              valid: resizePreview?.kind === "bridge" ? resizePreview.valid : true,
             }
           : null,
         // The cursor outlines the unit the active mode actually places on: a whole cell for field
@@ -640,7 +768,7 @@ export function openMapEditorStage(
         if (isStrokeStart) {
           dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
           selected = dragSelection;
-          hoverResizeAxis = null;
+          hoverResize = null;
           refreshCursor();
           drawOverlay();
           notify();
@@ -671,7 +799,7 @@ export function openMapEditorStage(
         );
         if (exists) {
           selected = { kind: "element", col, row, offsetX, offsetY };
-          hoverResizeAxis = null;
+          hoverResize = null;
           refreshCursor();
           drawOverlay();
           notify();
@@ -682,7 +810,7 @@ export function openMapEditorStage(
         const exists = map.events.find((event) => event.col === col && event.row === row);
         if (exists) {
           selected = { kind: "event", id: exists.id };
-          hoverResizeAxis = null;
+          hoverResize = null;
           refreshCursor();
           drawOverlay();
           notify();
@@ -718,7 +846,7 @@ export function openMapEditorStage(
       notify();
     };
 
-    const resizeBuildingAt = (clientX: number, clientY: number): void => {
+    const resizeSelectedAt = (clientX: number, clientY: number): void => {
       if (!resizeDrag || !strokeStart) return;
       const drag = resizeDrag;
       const point = renderer.screenToWorld(clientX, clientY);
@@ -726,26 +854,57 @@ export function openMapEditorStage(
         sameElementSlot(candidate, drag.selection),
       );
       if (!point || !sourceElement) return;
-      const { cols, rows } = dimensions();
-      const nextDimensions = buildingDimensionsAtPoint(
-        sourceElement,
-        Math.max(cols, rows),
-        drag.axis,
-        point,
-      );
-      if (!nextDimensions) return;
-      const previousPreview = resizePreview?.dimensions;
-      if (
-        previousPreview?.width === nextDimensions.width &&
-        previousPreview.depth === nextDimensions.depth
-      ) {
-        return;
+      let next: EditorMap | null;
+      if (drag.kind === "building") {
+        const { cols, rows } = dimensions();
+        const nextDimensions = buildingDimensionsAtPoint(
+          sourceElement,
+          Math.max(cols, rows),
+          drag.axis,
+          point,
+        );
+        if (!nextDimensions) return;
+        const previousPreview =
+          resizePreview?.kind === "building" ? resizePreview.dimensions : null;
+        if (
+          previousPreview?.width === nextDimensions.width &&
+          previousPreview.depth === nextDimensions.depth
+        ) {
+          return;
+        }
+        next = updateSelectedBuildingSettings(map, drag.selection, {
+          ...drag.settings,
+          dimensions: nextDimensions,
+        });
+        resizePreview = {
+          kind: "building",
+          dimensions: nextDimensions,
+          valid: next !== null,
+        };
+      } else {
+        const orientation = bridgeOrientation(sourceElement.assetId);
+        if (!orientation) return;
+        const delta =
+          drag.axis === "length"
+            ? orientation === "horizontal"
+              ? point.x - drag.startPoint.x
+              : drag.startPoint.z - point.z
+            : orientation === "horizontal"
+              ? drag.startPoint.z - point.z
+              : point.x - drag.startPoint.x;
+        const source = { ...sourceElement, bridge: drag.dimensions };
+        const nextDimensions = bridgeDimensionsAtDelta(source, drag.axis, delta);
+        if (!nextDimensions) return;
+        const previousPreview = resizePreview?.kind === "bridge" ? resizePreview.dimensions : null;
+        if (
+          previousPreview?.length === nextDimensions.length &&
+          previousPreview.width === nextDimensions.width
+        ) {
+          return;
+        }
+        next = updateSelectedBridgeDimensions(map, drag.selection, nextDimensions);
+        resizePreview = { kind: "bridge", dimensions: nextDimensions, valid: next !== null };
       }
-      const next = updateSelectedBuildingSettings(map, drag.selection, {
-        ...drag.settings,
-        dimensions: nextDimensions,
-      });
-      resizePreview = { dimensions: nextDimensions, valid: next !== null };
       if (!next || next === map) {
         drawOverlay();
         return;
@@ -781,22 +940,46 @@ export function openMapEditorStage(
       }
       if (event.button !== 0) return;
       const point = renderer.screenToWorld(event.clientX, event.clientY);
-      const resizeAxis = point ? resizeAxisAt(point) : null;
+      const resize = point ? resizeAt(point) : null;
       const building = selectedBuildingElement();
+      const bridge = selectedBridgeElement();
       const currentDimensions = building?.building
         ? buildingDimensionsOrDefault(building.assetId, building.building.dimensions)
         : null;
-      if (resizeAxis && selected?.kind === "element" && building?.building && currentDimensions) {
+      if (
+        resize?.kind === "building" &&
+        selected?.kind === "element" &&
+        building?.building &&
+        currentDimensions
+      ) {
         resizeDrag = {
-          axis: resizeAxis,
+          kind: "building",
+          axis: resize.axis,
           selection: selected,
           settings: building.building,
         };
         resizePreview = {
+          kind: "building",
           dimensions: currentDimensions,
           valid: true,
         };
-        hoverResizeAxis = resizeAxis;
+        hoverResize = resize;
+        strokeStart = map;
+        refreshCursor();
+        drawOverlay();
+        return;
+      }
+      if (resize?.kind === "bridge" && selected?.kind === "element" && bridge && point) {
+        const bridgeDimensions = bridgeDimensionsOrDefault(bridge.bridge);
+        resizeDrag = {
+          kind: "bridge",
+          axis: resize.axis,
+          selection: selected,
+          dimensions: bridgeDimensions,
+          startPoint: point,
+        };
+        resizePreview = { kind: "bridge", dimensions: bridgeDimensions, valid: true };
+        hoverResize = resize;
         strokeStart = map;
         refreshCursor();
         drawOverlay();
@@ -834,11 +1017,11 @@ export function openMapEditorStage(
         return;
       }
       if (resizeDrag) {
-        resizeBuildingAt(event.clientX, event.clientY);
+        resizeSelectedAt(event.clientX, event.clientY);
         return;
       }
       const world = renderer.screenToWorld(event.clientX, event.clientY);
-      hoverResizeAxis = !painting && world ? resizeAxisAt(world) : null;
+      hoverResize = !painting && world ? resizeAt(world) : null;
       refreshCursor();
       const placement = placementAt(event.clientX, event.clientY);
       hover = placement;
@@ -851,7 +1034,7 @@ export function openMapEditorStage(
       const stoppedResize = resizeDrag !== null;
       resizeDrag = null;
       resizePreview = null;
-      hoverResizeAxis = null;
+      hoverResize = null;
       if (strokeRebuildPending) {
         strokeRebuildPending = false;
         strokeRebuiltAt = 0;
@@ -875,7 +1058,7 @@ export function openMapEditorStage(
 
     const onPointerLeave = (): void => {
       hover = null;
-      hoverResizeAxis = null;
+      hoverResize = null;
       refreshCursor();
       reportCursor(null, null);
       drawOverlay();
@@ -928,7 +1111,7 @@ export function openMapEditorStage(
           );
       if (!nextSelection) return;
       selected = nextSelection;
-      hoverResizeAxis = null;
+      hoverResize = null;
       refreshCursor();
       drawOverlay();
       notify();
@@ -978,7 +1161,7 @@ export function openMapEditorStage(
           (mode === "element" && selected?.kind === "element") ||
           (mode === "event" && selected?.kind === "event");
         if (selected && !matches) selected = null;
-        if (!selected) hoverResizeAxis = null;
+        if (!selected) hoverResize = null;
         refreshCursor();
         drawOverlay();
         notify();
@@ -1014,7 +1197,7 @@ export function openMapEditorStage(
         selected = null;
         highlightedEventId = null;
         hover = null;
-        hoverResizeAxis = null;
+        hoverResize = null;
         refreshCursor();
         reportCursor(null, null);
         // A whole generated map is a new composition even though both documents use the same
@@ -1060,7 +1243,7 @@ export function openMapEditorStage(
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
-        hoverResizeAxis = null;
+        hoverResize = null;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redrawMapChange(previous);
@@ -1076,7 +1259,7 @@ export function openMapEditorStage(
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
-        hoverResizeAxis = null;
+        hoverResize = null;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redrawMapChange(previous);
@@ -1090,7 +1273,7 @@ export function openMapEditorStage(
       clearSelection() {
         if (!selected) return;
         selected = null;
-        hoverResizeAxis = null;
+        hoverResize = null;
         refreshCursor();
         drawOverlay();
         notify();

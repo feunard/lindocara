@@ -95,7 +95,9 @@ catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no l
 footprint. Scenery placement is terrain-independent: every known catalogue asset may be placed on
 grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
 Once either wooden bridge is placed, its selection inspector can resize its crossing length and
-deck width in whole cells (1..32). The renderer regenerates planks, rails and supports from those
+deck width in whole cells (1..32). Selecting it on the map also draws its exact deck footprint plus
+one length and one width handle; dragging either previews the snapped bridge immediately and commits
+the gesture as one undoable edit. The renderer regenerates planks, rails and supports from those
 dimensions; the heightfield compiler bakes the identical footprint, deck and side rails, so visual
 geometry and movement collision cannot drift apart. Dimensions reuse the element row's existing
 transform integer, keeping old 3x1 bridges valid and requiring no schema migration.

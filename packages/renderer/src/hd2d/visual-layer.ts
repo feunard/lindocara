@@ -142,6 +142,16 @@ export interface Hd2dEditorOverlay {
     activeAxis?: "width" | "depth" | null;
     valid: boolean;
   } | null;
+  /** Direct-manipulation gizmo for a selected native bridge. */
+  bridgeResize?: {
+    anchor: GroundVector;
+    outline: readonly GroundVector[];
+    lengthHandle: GroundVector;
+    widthHandle: GroundVector;
+    hoverAxis?: "length" | "width" | null;
+    activeAxis?: "length" | "width" | null;
+    valid: boolean;
+  } | null;
   /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
    *  element mode places at quarter cells and marks one of those. Defaults to 1. */
   cursorCells?: number;
@@ -1633,6 +1643,73 @@ export class Hd2dVisualLayer {
         transparentMaterial(resize.valid ? 0xffffff : 0xef5350, 0.95),
       );
       anchor.name = "editor-building-resize-anchor";
+      anchor.rotation.x = -Math.PI / 2;
+      anchor.rotation.z = Math.PI / 4;
+      anchor.position.set(
+        resize.anchor.x,
+        this.#groundY(resize.anchor.x, resize.anchor.z, 0.205),
+        resize.anchor.z,
+      );
+      anchor.renderOrder = 43;
+      (anchor.material as THREE.MeshBasicMaterial).depthTest = false;
+      group.add(anchor);
+      this.#editorRoot.add(group);
+    }
+    if (overlay.bridgeResize) {
+      const resize = overlay.bridgeResize;
+      const group = new THREE.Group();
+      group.name = "editor-bridge-resize";
+      const positions: number[] = [];
+      for (let index = 0; index < resize.outline.length; index += 1) {
+        const from = resize.outline[index];
+        const to = resize.outline[(index + 1) % resize.outline.length];
+        if (!from || !to) continue;
+        positions.push(
+          from.x,
+          this.#groundY(from.x, from.z, 0.19),
+          from.z,
+          to.x,
+          this.#groundY(to.x, to.z, 0.19),
+          to.z,
+        );
+      }
+      const outlineGeometry = new THREE.BufferGeometry();
+      outlineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      const outlineMaterial = new THREE.LineBasicMaterial({
+        color: resize.valid ? 0x7de7ff : 0xef5350,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+      outline.name = "editor-bridge-resize-outline";
+      outline.renderOrder = 42;
+      group.add(outline);
+
+      const addHandle = (point: GroundVector, axis: "length" | "width"): void => {
+        const highlighted = resize.activeAxis === axis || resize.hoverAxis === axis;
+        const color = resize.valid ? (axis === "length" ? 0xffb84d : 0x57d6ff) : 0xef5350;
+        const handle = new THREE.Mesh(
+          new THREE.CircleGeometry(highlighted ? 0.27 : 0.22, 24),
+          transparentMaterial(color, highlighted ? 1 : 0.9),
+        );
+        handle.name = `editor-bridge-resize-${axis}`;
+        handle.rotation.x = -Math.PI / 2;
+        handle.position.set(point.x, this.#groundY(point.x, point.z, 0.205), point.z);
+        handle.renderOrder = 43;
+        (handle.material as THREE.MeshBasicMaterial).depthTest = false;
+        group.add(handle);
+      };
+      addHandle(resize.lengthHandle, "length");
+      addHandle(resize.widthHandle, "width");
+
+      const anchor = new THREE.Mesh(
+        new THREE.RingGeometry(0.08, 0.14, 4),
+        transparentMaterial(resize.valid ? 0xffffff : 0xef5350, 0.95),
+      );
+      anchor.name = "editor-bridge-resize-anchor";
       anchor.rotation.x = -Math.PI / 2;
       anchor.rotation.z = Math.PI / 4;
       anchor.position.set(

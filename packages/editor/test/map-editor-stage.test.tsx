@@ -1,5 +1,7 @@
 import { blankMap, canvasEditorMap, toMapData } from "@lindocara/editor/game/editor-state.js";
 import {
+  bridgeDimensionsAtDelta,
+  bridgeResizeGuide,
   buildingDimensionsAtPoint,
   buildingResizeGuide,
   defaultDimForMode,
@@ -510,6 +512,47 @@ describe("HD-2D map editor stage", () => {
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
     stage.dispose();
   });
+
+  it("draws and drags bridge length handles as one undoable edit", async () => {
+    const point = { x: 0.5, z: -5.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const bridge = {
+      col: 10,
+      row: 4,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal",
+    } as const;
+    const stage = await openMapEditorStage(
+      { ...blankMap("Crossing", 20, 15), elements: [bridge] },
+      vi.fn(),
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "select" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const guide = mock.renderer.setEditorOverlay.mock.lastCall?.[0].bridgeResize;
+    expect(guide).toMatchObject({
+      lengthHandle: expect.any(Object),
+      widthHandle: expect.any(Object),
+      valid: true,
+    });
+
+    Object.assign(point, guide.lengthHandle);
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    point.x += 3;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().elements[0]?.bridge).toEqual({ length: 6, width: 1 });
+    stage.undo();
+    expect(stage.current().elements[0]?.bridge).toBeUndefined();
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
 });
 
 describe("building resize geometry", () => {
@@ -544,6 +587,32 @@ describe("building resize geometry", () => {
       width: 4,
       depth: 4,
     });
+  });
+});
+
+describe("bridge resize geometry", () => {
+  it("places horizontal and vertical handles on their compiled deck edges", () => {
+    const horizontal = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "terrain.bridge.wood.horizontal" as const,
+    };
+    const vertical = { ...horizontal, assetId: "terrain.bridge.wood.vertical" as const };
+
+    expect(bridgeResizeGuide(horizontal, 20)).toMatchObject({
+      anchor: { x: 0.5, z: 1 },
+      lengthHandle: { x: 2, z: 0.5 },
+      widthHandle: { x: 0.5, z: 0 },
+    });
+    expect(bridgeResizeGuide(vertical, 20)).toMatchObject({
+      anchor: { x: 0.5, z: 1 },
+      lengthHandle: { x: 0.5, z: -2 },
+      widthHandle: { x: 1, z: -0.5 },
+    });
+    expect(bridgeDimensionsAtDelta(horizontal, "length", 3)).toEqual({ length: 6, width: 1 });
+    expect(bridgeDimensionsAtDelta(vertical, "width", 2)).toEqual({ length: 3, width: 3 });
   });
 });
 

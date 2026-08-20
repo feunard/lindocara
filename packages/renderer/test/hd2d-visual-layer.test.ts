@@ -436,6 +436,47 @@ describe("Hd2dVisualLayer spawn marker", () => {
     layer.dispose();
   });
 
+  it("draws a selected bridge footprint with independent length and width handles", () => {
+    const { layer, root } = harness();
+    const bridgeResize = {
+      anchor: { x: 0.5, z: 1 },
+      outline: [
+        { x: -1, z: 1 },
+        { x: 2, z: 1 },
+        { x: 2, z: 0 },
+        { x: -1, z: 0 },
+      ],
+      lengthHandle: { x: 2, z: 0.5 },
+      widthHandle: { x: 0.5, z: 0 },
+      hoverAxis: "length" as const,
+      activeAxis: null,
+      valid: true,
+    };
+    layer.setEditorOverlay({ ...base, bridgeResize });
+
+    expect(root.getObjectByName("editor-bridge-resize")).toBeDefined();
+    expect(root.getObjectByName("editor-bridge-resize-length")?.position).toMatchObject({
+      x: 2,
+      z: 0.5,
+    });
+    expect(root.getObjectByName("editor-bridge-resize-width")?.position).toMatchObject({
+      x: 0.5,
+      z: 0,
+    });
+    expect(root.getObjectByName("editor-bridge-resize-anchor")?.position).toMatchObject({
+      x: 0.5,
+      z: 1,
+    });
+
+    layer.setEditorOverlay({
+      ...base,
+      bridgeResize: { ...bridgeResize, hoverAxis: null, valid: false },
+    });
+    const outline = root.getObjectByName("editor-bridge-resize-outline") as THREE.LineSegments;
+    expect((outline.material as THREE.LineBasicMaterial).color.getHex()).toBe(0xef5350);
+    layer.dispose();
+  });
+
   it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });
