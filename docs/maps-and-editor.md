@@ -107,6 +107,12 @@ handle; dragging them previews the snapped size immediately and commits the whol
 undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
 buildings retain their native footprint, and explicit dimensions share the existing transform
 integer, so no schema migration is required.
+Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
+adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
+static visuals in place; event edits reuse the same path while their preview remains dynamic. The
+65,536 terrain cells of the 256x256 working canvas, the ground/water meshes, actors and post-effects
+remain alive. Field brushes are the only edits that remesh terrain, and rapid terrain strokes keep
+their existing throttle plus release flush.
 Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
 stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and column 3
 climbs left; those are the only supported orientations. Both halves run beside

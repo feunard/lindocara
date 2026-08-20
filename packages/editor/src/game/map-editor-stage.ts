@@ -22,6 +22,7 @@ import {
   authoredElementGroundPoint,
   authoredStairsRamp,
   compileAuthoredMap,
+  compileAuthoredMapContent,
 } from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData as CompiledMapData } from "@lindocara/engine/hd2d/map-data.js";
@@ -338,11 +339,8 @@ export function openMapEditorStage(
     let resizePreview: { dimensions: BuildingDimensions; valid: boolean } | null = null;
     let hoverResizeAxis: BuildingResizeAxis | null = null;
     let lastPaintedKey = "";
-    // Spray throttle: a painted cell costs a full world rebuild (`configureMapTerrain` tears the
-    // scene down and rebuilds it — 12-45ms measured on a light canvas), so a fast drag rebuilding
-    // per cell saturates the main thread. Mid-stroke the rebuild runs at most once per interval;
-    // the edits themselves always land, and `stopStroke` flushes the last pending rebuild so the
-    // released stroke is never stale.
+    // Terrain spray still remeshes the ground (12-45ms measured on a light canvas), so a fast drag
+    // is throttled. Scenery and event edits use the incremental path and bypass this delay entirely.
     let strokeRebuiltAt = 0;
     let strokeRebuildPending = false;
     let lastPointerX = 0;
@@ -508,7 +506,7 @@ export function openMapEditorStage(
       });
     };
 
-    const redraw = (): void => {
+    const redraw = (contentOnly = false): void => {
       const heightfield = compiled();
       renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
       renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
@@ -520,11 +518,36 @@ export function openMapEditorStage(
       renderer.setDayCycleOverride(
         map.dayNightCycle ? null : fixedLightingOverride(map.fixedLighting),
       );
-      renderer.configureMapTerrain("editor", [], ++revision, heightfield);
+      revision += 1;
+      if (contentOnly) renderer.updateEditorContent(revision, heightfield);
+      else renderer.configureMapTerrain("editor", [], revision, heightfield);
       renderer.preloadWorldEventAssets(renderedEvents);
       renderer.setCameraFocus(cameraX, cameraZ);
       renderer.setCameraZoom(zoom);
       drawOverlay(heightfield);
+    };
+
+    /** Terrain mesh inputs live in the authored layers. Content mutations preserve that array, so
+     * they can refresh scenery and collision without paying for a ground/water rebuild. */
+    const redrawMapChange = (previous: EditorMap): void => {
+      const previousSize = editorMapSize(previous);
+      const nextSize = dimensions();
+      const contentOnly =
+        previous.layers === map.layers &&
+        previous.environment === map.environment &&
+        previousSize.cols === nextSize.cols &&
+        previousSize.rows === nextSize.rows;
+      if (contentOnly && compiledCache?.map === previous) {
+        compiledCache = {
+          map,
+          heightfield: compileAuthoredMapContent(
+            toMapData(map),
+            compiledCache.heightfield,
+            map.events,
+          ),
+        };
+      }
+      redraw(contentOnly);
     };
 
     const notify = (): void => {
@@ -540,7 +563,11 @@ export function openMapEditorStage(
 
     /** Rebuild the world now if the spray throttle allows, otherwise keep the stroke visually
      *  honest with the cheap overlay pass and leave the rebuild pending for `stopStroke`. */
-    const strokeRedraw = (): void => {
+    const strokeRedraw = (previous: EditorMap): void => {
+      if (previous.layers === map.layers) {
+        redrawMapChange(previous);
+        return;
+      }
       const now = performance.now();
       if (now - strokeRebuiltAt >= STROKE_REBUILD_MS) {
         strokeRebuiltAt = now;
@@ -592,10 +619,11 @@ export function openMapEditorStage(
       nextSelection: EditorSelection | null = selected,
     ): boolean => {
       if (!next || next === map) return false;
+      const previous = map;
       history = commitEditorHistory({ ...history, present: map }, next);
       map = next;
       selected = nextSelection;
-      redraw();
+      redrawMapChange(previous);
       notify();
       return true;
     };
@@ -622,12 +650,13 @@ export function openMapEditorStage(
         const previous = dragSelection;
         const next = moveSelection(map, previous, col, row, offsetX, offsetY);
         if (!next || next === map) return;
+        const previousMap = map;
         const nextSelection: EditorSelection =
           previous.kind === "element" ? { ...previous, col, row, offsetX, offsetY } : previous;
         map = next;
         dragSelection = nextSelection;
         selected = nextSelection;
-        redraw();
+        redrawMapChange(previousMap);
         notify();
         return;
       }
@@ -679,12 +708,13 @@ export function openMapEditorStage(
         return;
       }
       if (next === map) return;
+      const previous = map;
       map = next;
       if (tool.kind === "event") {
         const placed = map.events.find((event) => event.col === col && event.row === row);
         if (placed) selected = { kind: "event", id: placed.id };
       }
-      strokeRedraw();
+      strokeRedraw(previous);
       notify();
     };
 
@@ -720,8 +750,9 @@ export function openMapEditorStage(
         drawOverlay();
         return;
       }
+      const previous = map;
       map = next;
-      strokeRedraw();
+      strokeRedraw(previous);
       notify();
     };
 
@@ -977,6 +1008,7 @@ export function openMapEditorStage(
         const currentHistory = { ...history, present: map };
         const nextHistory = commitEditorHistory(currentHistory, next);
         if (nextHistory === currentHistory) return;
+        const previous = map;
         history = nextHistory;
         map = next;
         selected = null;
@@ -988,7 +1020,7 @@ export function openMapEditorStage(
         // A whole generated map is a new composition even though both documents use the same
         // 256x256 working canvas. Open on its authored content immediately.
         centreCamera();
-        redraw();
+        redrawMapChange(previous);
         notify();
       },
       setName(name) {
@@ -1023,6 +1055,7 @@ export function openMapEditorStage(
         const previousRect = derivedRect();
         const next = undoEditorHistory(history);
         if (next === history) return;
+        const previous = map;
         history = next;
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
@@ -1030,7 +1063,7 @@ export function openMapEditorStage(
         hoverResizeAxis = null;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
-        redraw();
+        redrawMapChange(previous);
         notify();
       },
       redo() {
@@ -1038,6 +1071,7 @@ export function openMapEditorStage(
         const previousRect = derivedRect();
         const next = redoEditorHistory(history);
         if (next === history) return;
+        const previous = map;
         history = next;
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
@@ -1045,7 +1079,7 @@ export function openMapEditorStage(
         hoverResizeAxis = null;
         refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
-        redraw();
+        redrawMapChange(previous);
         notify();
       },
       markSaved(saved = map) {
@@ -1106,10 +1140,11 @@ export function openMapEditorStage(
         return beginEventDraft(map, id);
       },
       commitEventDraft(draft) {
+        const previous = map;
         history = commitEventDraft({ ...history, present: map }, draft);
         map = history.present;
         selected = { kind: "event", id: draft.id };
-        redraw();
+        redrawMapChange(previous);
         notify();
       },
       deleteEvent(id) {

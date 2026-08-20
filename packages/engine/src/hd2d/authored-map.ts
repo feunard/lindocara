@@ -296,6 +296,46 @@ export function authoredElementColliders(
       ];
 }
 
+function authoredContent(
+  authored: AuthoredMapData,
+  events: readonly MapEvent[],
+  levels: readonly (number | null)[],
+  size: number,
+): Pick<MapData, "colliders" | "elements" | "events" | "spawns"> {
+  // Native resources are live world events: keeping a static copy here would draw the intact asset
+  // over its depleted state and leave an immortal collider behind after harvesting.
+  const staticElements = authored.elements.filter(
+    (element) => !isNativeHarvestAsset(element.assetId),
+  );
+  return {
+    colliders: staticElements.flatMap((element) =>
+      authoredElementColliders(authored, element, levels, size),
+    ),
+    spawns: [
+      {
+        name: "default",
+        x: authored.spawn.col + 0.5 - size / 2,
+        z: authored.spawn.row + 0.5 - size / 2,
+      },
+    ],
+    elements: staticElements.map((element) => ({
+      assetId: element.assetId,
+      ...authoredElementRenderPoint(element, size),
+      ...(element.orientation ? { orientation: element.orientation } : {}),
+      ...(bridgeOrientation(element.assetId)
+        ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
+        : {}),
+      ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
+    })),
+    events: events.map((event) => ({
+      id: event.id,
+      x: event.col + 0.5 - size / 2,
+      z: event.row + 0.5 - size / 2,
+      graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
+    })),
+  };
+}
+
 /** Compile one validated editor map and its full authored event documents into heightfield bytes. */
 export function compileAuthoredMap(
   authored: AuthoredMapData,
@@ -316,25 +356,6 @@ export function compileAuthoredMap(
     }
   }
 
-  // Native resources are live world events: keeping a static copy here would draw the intact asset
-  // over its depleted state and leave an immortal collider behind after harvesting.
-  const staticElements = authored.elements.filter(
-    (element) => !isNativeHarvestAsset(element.assetId),
-  );
-  const elements = staticElements.map((element) => ({
-    assetId: element.assetId,
-    ...authoredElementRenderPoint(element, size),
-    ...(element.orientation ? { orientation: element.orientation } : {}),
-    ...(bridgeOrientation(element.assetId)
-      ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
-      : {}),
-    ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
-  }));
-
-  const colliders = staticElements.flatMap((element) =>
-    authoredElementColliders(authored, element, levels, size),
-  );
-
   return {
     version: 1,
     environment: authored.environment ?? "exterior",
@@ -344,20 +365,25 @@ export function compileAuthoredMap(
     levels,
     materials,
     ramps: authoredRamps(authored, size),
-    colliders,
-    spawns: [
-      {
-        name: "default",
-        x: authored.spawn.col + 0.5 - size / 2,
-        z: authored.spawn.row + 0.5 - size / 2,
-      },
-    ],
-    elements,
-    events: events.map((event) => ({
-      id: event.id,
-      x: event.col + 0.5 - size / 2,
-      z: event.row + 0.5 - size / 2,
-      graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
-    })),
+    ...authoredContent(authored, events, levels, size),
+  };
+}
+
+/**
+ * Recompile the authored facts that can change without touching terrain geometry. The editor uses
+ * this for scenery, building, bridge, spawn and event edits so a 256x256 working canvas does not
+ * rescan every ground cell merely because one prop moved. A size mismatch falls back to the full
+ * compiler because the previous row-major terrain arrays no longer fit.
+ */
+export function compileAuthoredMapContent(
+  authored: AuthoredMapData,
+  terrain: MapData,
+  events: readonly MapEvent[] = [],
+): MapData {
+  const size = Math.max(authored.cols, authored.rows);
+  if (terrain.size !== size) return compileAuthoredMap(authored, events);
+  return {
+    ...terrain,
+    ...authoredContent(authored, events, terrain.levels, size),
   };
 }

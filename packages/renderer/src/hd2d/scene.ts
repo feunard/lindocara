@@ -337,6 +337,8 @@ export interface Hd2dScene {
    * the visual layer. Those are placed against the OLD terrain and must be rebuilt after this call.
    */
   updateTerrain(map: MapData): void;
+  /** Refresh gameplay/editor collision against unchanged terrain geometry. */
+  updateCollisionMap(map: MapData): void;
 }
 
 /**
@@ -668,6 +670,11 @@ export function createHd2dScene(
       // The camera is deliberately NOT re-parked: `focusReached` stays true, so an author's pan
       // survives the edit. That parking is what `focusOn`'s comment below had to work around when
       // every painted cell built a whole new scene.
+    },
+    updateCollisionMap(next: MapData): void {
+      currentMap = next;
+      query = createTerrainQuery(mapToQuerySource(next));
+      clampCameraTo(next.size);
     },
     gameHour: () => cycle.hour,
     fireIntensity: () => mood.value.fire,

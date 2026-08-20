@@ -17,6 +17,7 @@ const mock = vi.hoisted(() => {
   let frame: ((now: number) => void) | null = null;
   const renderer = {
     configureMapTerrain: vi.fn(),
+    updateEditorContent: vi.fn(),
     destroy: vi.fn(),
     onFrame: vi.fn((callback: (now: number) => void) => {
       frame = callback;
@@ -407,17 +408,46 @@ describe("HD-2D map editor stage", () => {
     const tree = "decoration.terrain-decorations-bushes.bushe1" as const;
     stage.setActiveMode("element");
     stage.setTool({ kind: "element", assetId: tree });
+    const initialHeightfield = mock.renderer.configureMapTerrain.mock.lastCall?.[3];
+    if (!initialHeightfield) throw new Error("initial heightfield missing");
 
     canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
     const overlayBeforePlacement = mock.renderer.setEditorOverlay.mock.lastCall?.[0];
     const previewPoint = overlayBeforePlacement?.assetPreview?.point;
 
+    const terrainRebuilds = mock.renderer.configureMapTerrain.mock.calls.length;
     canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
     const compiledElement = compileAuthoredMap(toMapData(stage.current())).elements[0];
 
     expect(stage.current().elements[0]).toMatchObject({ col: 1, row: 2, offsetX: 2, offsetY: 2 });
     expect(previewPoint).toEqual({ x: compiledElement?.x, z: compiledElement?.z });
+    expect(mock.renderer.configureMapTerrain).toHaveBeenCalledTimes(terrainRebuilds);
+    expect(mock.renderer.updateEditorContent).toHaveBeenLastCalledWith(
+      2,
+      expect.objectContaining({ elements: [expect.objectContaining({ assetId: tree })] }),
+    );
+    expect(mock.renderer.updateEditorContent.mock.lastCall?.[1].levels).toBe(
+      initialHeightfield.levels,
+    );
+    stage.dispose();
+  });
+
+  it("adds events through the incremental path without rebuilding terrain", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const guard = "character.units-red-units-warrior.warrior-idle" as const;
+    stage.setActiveMode("event");
+    stage.setTool({ kind: "event", eventKind: "guard", patrolRadius: 2, graphic: guard });
+    const terrainRebuilds = mock.renderer.configureMapTerrain.mock.calls.length;
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().events).toHaveLength(1);
+    expect(mock.renderer.configureMapTerrain).toHaveBeenCalledTimes(terrainRebuilds);
+    expect(mock.renderer.updateEditorContent).toHaveBeenCalledOnce();
     stage.dispose();
   });
 

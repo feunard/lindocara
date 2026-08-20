@@ -266,6 +266,31 @@ describe("static map content", () => {
     content.dispose();
   });
 
+  it("updates only changed authored scenery and preserves every untouched visual", () => {
+    const tree = art();
+    const rock = art({ height: 1 });
+    const elements = [
+      { assetId: "tree", x: -1.5, z: -1.5 },
+      { assetId: "tree", x: 0.5, z: -1.5 },
+    ];
+    const map = flatMap(4, { elements });
+    const scene = sceneFor(map);
+    const resolve = resolverFor({ tree, rock });
+    const content = placeStaticContent(createHd2dContext(), scene, map, resolve);
+    const untouched = meshes(scene.root).find((mesh) => mesh.position.x === 0.5);
+    if (!untouched) throw new Error("untouched scenery missing");
+
+    content.syncElements(
+      [{ assetId: "rock", x: -0.5, z: -1.5 }, elements[1] as HeightfieldElement],
+      resolve,
+    );
+
+    expect(meshes(scene.root)).toHaveLength(2);
+    expect(meshes(scene.root).find((mesh) => mesh.position.x === 0.5)).toBe(untouched);
+    expect(meshes(scene.root).some((mesh) => mesh.position.x === -0.5)).toBe(true);
+    content.dispose();
+  });
+
   it("gives coplanar overlapping scenery a stable depth order without biasing other rows", () => {
     const map = flatMap(4, {
       elements: [

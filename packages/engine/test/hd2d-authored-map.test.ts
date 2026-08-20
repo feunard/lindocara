@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileAuthoredMap } from "../src/hd2d/authored-map.js";
+import { compileAuthoredMap, compileAuthoredMapContent } from "../src/hd2d/authored-map.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
@@ -93,6 +93,23 @@ describe("compileAuthoredMap", () => {
         graphicAssetId: "resource.terrain-resources-wood-trees.tree3",
       },
     ]);
+  });
+
+  it("recompiles content and collision while reusing unchanged terrain arrays", () => {
+    const source = authored();
+    const terrain = compileAuthoredMap(source);
+    const changed: MapData = {
+      ...source,
+      spawn: { col: 2, row: 0 },
+      elements: source.elements.map((element) => ({ ...element, col: 0, row: 1 })),
+    };
+
+    const incremental = compileAuthoredMapContent(changed, terrain);
+    expect(incremental).toEqual(compileAuthoredMap(changed));
+    expect(incremental.levels).toBe(terrain.levels);
+    expect(incremental.materials).toBe(terrain.materials);
+    expect(incremental.ramps).toBe(terrain.ramps);
+    expect(incremental.colliders).not.toEqual(terrain.colliders);
   });
 
   it("leaves native resources out of static content and collision", () => {

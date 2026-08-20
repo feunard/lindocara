@@ -1050,6 +1050,29 @@ export class Hd2dRenderer implements RendererLike {
     this.#syncWorldEventContent(this.#worldEvents, this.#worldBuildings, true);
   }
 
+  /**
+   * Applies an editor-only content edit without rebuilding unchanged terrain, water, actors or
+   * post-processing. Building and bridge colliders still come from the newly compiled heightfield,
+   * so picking and movement validation see their new footprint immediately.
+   */
+  updateEditorContent(revision: number, heightfield: MapData): void {
+    const scene = this.#scene;
+    if (
+      !scene ||
+      this.#currentMapId !== "editor" ||
+      this.#waterKey !== waterPlaneKey(heightfield)
+    ) {
+      this.configureMapTerrain("editor", [], revision, heightfield);
+      return;
+    }
+    this.#currentMapRevision = revision;
+    this.#map = heightfield;
+    scene.updateCollisionMap(heightfield);
+    void this.#syncStaticContent(scene, heightfield).catch((error: unknown) => {
+      console.warn("[hd2d] map scenery could not be updated", error);
+    });
+  }
+
   setDayCycleOverride(override: DayCycleOverride): void {
     this.#dayCycleOverride = override;
     this.#scene?.setDayCycleOverride(override);
@@ -1059,7 +1082,11 @@ export class Hd2dRenderer implements RendererLike {
   #sceneFor(scene: Hd2dScene, heightfield: MapData): BillboardScene {
     return {
       root: scene.scene,
-      query: scene.query,
+      // Keep this live across editor content edits: building/bridge collision is replaced without
+      // recreating the scene, and newly placed visuals must sample the refreshed surface.
+      get query() {
+        return scene.query;
+      },
       size: heightfield.size,
       waterLevel: heightfield.waterLevel,
     };
@@ -1114,6 +1141,30 @@ export class Hd2dRenderer implements RendererLike {
         return materializeStaticSpec(spec, textures);
       },
     );
+  }
+
+  /** Loads only missing scenery sheets, then diffs placements against the content already alive. */
+  async #syncStaticContent(scene: Hd2dScene, heightfield: MapData): Promise<void> {
+    if (!this.#content) {
+      await this.#loadStaticContent(scene, heightfield);
+      return;
+    }
+    const token = ++this.#contentToken;
+    const specByAsset = new Map<string, StaticAssetSpec>();
+    for (const assetId of staticAssetIds(heightfield)) {
+      const spec = staticAssetSpec(assetId);
+      if (spec) specByAsset.set(assetId, spec);
+    }
+    const specs: TextureSpec[] = [
+      ...new Set([...specByAsset.values()].flatMap(staticSpecUrls)),
+    ].map((url) => ({ url }));
+    const textures = specs.length > 0 ? await this.#assetTextures.load(specs) : null;
+    if (this.#destroyed || token !== this.#contentToken || this.#scene !== scene) return;
+    this.#content.syncElements(heightfield.elements, (assetId) => {
+      const spec = specByAsset.get(assetId);
+      if (!spec || !textures) return null;
+      return materializeStaticSpec(spec, textures);
+    });
   }
 
   async #loadEditorPreviewAsset(assetId: string, token: number): Promise<void> {

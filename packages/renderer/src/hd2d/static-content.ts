@@ -29,7 +29,11 @@
 import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
 import type { BuildingDimensions } from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
-import type { HeightfieldEvent, MapData } from "@lindocara/engine/hd2d/map-data.js";
+import type {
+  HeightfieldElement,
+  HeightfieldEvent,
+  MapData,
+} from "@lindocara/engine/hd2d/map-data.js";
 import type { Billboard, CardVolume, Sprite, TextureUvRect } from "@lindocara/hd2d/billboard.js";
 import {
   makeBillboard,
@@ -117,6 +121,8 @@ export interface StaticContentEvent extends HeightfieldEvent {
 
 export interface StaticContent {
   setFireMood(intensity: number): void;
+  /** Incrementally updates authored scenery while preserving every unchanged visual. */
+  syncElements(elements: readonly HeightfieldElement[], resolve: StaticArtResolver): void;
   /** Incrementally updates authored-event sprites without rebuilding every resource on the map. */
   syncEvents(events: readonly StaticContentEvent[]): void;
   update(now: number): void;
@@ -225,6 +231,7 @@ export function placeStaticContent(
     shadow: boolean;
   }[] = [];
   const eventVisuals = new Map<string, string>();
+  const elementVisuals = new Map<string, string>();
   const healthBars: {
     contentKey: string;
     group: THREE.Group;
@@ -447,12 +454,18 @@ export function placeStaticContent(
     }
   }
 
-  for (const element of map.elements) {
+  const elementKey = (index: number): string => `element:${index}`;
+  const elementVisual = (element: HeightfieldElement): string =>
+    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}`;
+
+  for (const [index, element] of map.elements.entries()) {
+    const key = elementKey(index);
+    elementVisuals.set(key, elementVisual(element));
     place(
       element.assetId,
       element.x,
       element.z,
-      null,
+      key,
       undefined,
       element.orientation ?? 0,
       element.bridge,
@@ -540,6 +553,33 @@ export function placeStaticContent(
   return {
     setFireMood(intensity) {
       fireMood = Math.max(0, intensity);
+    },
+    syncElements(elements, nextResolve) {
+      resolve = nextResolve;
+      const desiredKeys = new Set(elements.map((_element, index) => elementKey(index)));
+      for (const key of elementVisuals.keys()) {
+        if (desiredKeys.has(key)) continue;
+        dropContentKey(key);
+        elementVisuals.delete(key);
+      }
+      for (const [index, element] of elements.entries()) {
+        const key = elementKey(index);
+        const visual = elementVisual(element);
+        if (elementVisuals.get(key) === visual) continue;
+        dropContentKey(key);
+        elementVisuals.set(key, visual);
+        place(
+          element.assetId,
+          element.x,
+          element.z,
+          key,
+          undefined,
+          element.orientation ?? 0,
+          element.bridge,
+          element.building,
+        );
+      }
+      flushSkipped();
     },
     syncEvents(events) {
       const desiredIds = new Set(events.map((event) => event.id));
