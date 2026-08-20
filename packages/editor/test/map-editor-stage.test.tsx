@@ -1,4 +1,9 @@
-import { blankMap, canvasEditorMap, toMapData } from "@lindocara/editor/game/editor-state.js";
+import {
+  applyTool,
+  blankMap,
+  canvasEditorMap,
+  toMapData,
+} from "@lindocara/editor/game/editor-state.js";
 import {
   bridgeDimensionsAtDelta,
   bridgeResizeGuide,
@@ -407,7 +412,9 @@ describe("HD-2D map editor stage", () => {
   });
 
   it("sends the compiled bank elevation with a bridge placement preview", async () => {
-    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const raised = applyTool(blankMap("Map", 20, 15), { kind: "elevation", level: 2 }, 3, 3);
+    if (!raised) throw new Error("raised bridge endpoint fixture missing");
+    const stage = await openMapEditorStage(raised, vi.fn());
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
     if (!canvas) throw new Error("fixture canvas missing");
     stage.setActiveMode("element");
@@ -416,7 +423,9 @@ describe("HD-2D map editor stage", () => {
 
     expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        assetPreview: expect.objectContaining({ elevation: 0 }),
+        // This quarter-cell-aligned bridge's rightmost end cap is raised while the terrain
+        // immediately beyond it is level 0.
+        assetPreview: expect.objectContaining({ elevation: 1.8 }),
       }),
     );
     stage.dispose();

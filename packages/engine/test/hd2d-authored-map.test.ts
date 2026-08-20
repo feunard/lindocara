@@ -414,6 +414,12 @@ describe("compileAuthoredMap", () => {
     expect(authoredBridgeTop({ cols: size, rows: size }, bridge, levels, size)).toBe(1.8);
     levels[3 * size + 5] = 1;
     expect(authoredBridgeTop({ cols: size, rows: size }, bridge, levels, size)).toBe(1.8);
+
+    // The raised support can be the deck's own end cell while the immediately-adjacent terrain is
+    // already back at level 0. This is the editor placement case that used to drop the bridge.
+    levels.fill(0);
+    levels[3 * size + 2] = 2;
+    expect(authoredBridgeTop({ cols: size, rows: size }, bridge, levels, size)).toBe(1.8);
   });
 
   it("compiles a resized bridge's visual centre, deck and rails from the same dimensions", () => {

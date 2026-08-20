@@ -6,7 +6,12 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { terrainAtlasKey, terrainGroupFor, waterPlaneKey } from "../src/hd2d/scene.js";
+import {
+  cameraFocusSurface,
+  terrainAtlasKey,
+  terrainGroupFor,
+  waterPlaneKey,
+} from "../src/hd2d/scene.js";
 
 /**
  * An atlas whose only job is to exist: `meshTerrain` reads `cols`/`rows`/`block`/`wallRow`/`tilePx`
@@ -163,6 +168,21 @@ describe("the HD-2D scene's terrain", () => {
       );
       expect(corners.size).toBe(4);
     }
+  });
+
+  it("keeps camera focus on the platform under the hero instead of the lower terrain", () => {
+    const map = {
+      ...ground(3),
+      colliders: [{ x: -0.5, z: -0.5, w: 1, h: 1, top: 1.8 }],
+    };
+    const query = createTerrainQuery(mapToQuerySource(map));
+
+    expect(query.heightAt(0, 0)).toBe(0);
+    expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.8)).toBe(1.8);
+    // A platform overhead must not pull the camera up before the hero reaches it, and editor focus
+    // without a tracked body intentionally remains terrain-based.
+    expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 0)).toBe(0);
+    expect(cameraFocusSurface(query, map.waterLevel, 0, 0)).toBe(0);
   });
 });
 

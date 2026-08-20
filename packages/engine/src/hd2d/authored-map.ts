@@ -169,27 +169,34 @@ export function authoredBridgeTop(
   const width = orientation === "horizontal" ? collider.height : collider.width;
   const samples = Math.max(1, Math.ceil(width / TILE_SIZE));
   const bankLevels: [Set<number>, Set<number>] = [new Set(), new Set()];
+  // An author reads the first/last deck cells as the bridge's ends. Sampling only OUTSIDE the
+  // collider misses a raised end the instant the next cell is level 0, which makes the whole bridge
+  // fall to the lower terrain while it is being positioned. Read both the end cap itself and the
+  // immediately-adjacent bank; either is a legitimate support for the deck.
+  const endpointDepths = [Math.max(0, length / 2 - TILE_SIZE / 2), length / 2 + TILE_SIZE * 0.25];
   for (const [bankIndex, direction] of [-1, 1].entries()) {
     const bank = bankLevels[bankIndex];
     if (!bank) continue;
-    for (let sample = 0; sample < samples; sample += 1) {
-      const across = -width / 2 + ((sample + 0.5) * width) / samples;
-      const along = direction * (length / 2 + TILE_SIZE * 0.25);
-      const localX = orientation === "horizontal" ? along : across;
-      const localY = orientation === "horizontal" ? across : along;
-      const worldX = centreX + localX * cos - localY * sin;
-      const worldY = centreY + localX * sin + localY * cos;
-      const col = Math.floor(worldX / TILE_SIZE);
-      const row = Math.floor(worldY / TILE_SIZE);
-      if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) continue;
-      const level = levels[row * size + col] ?? null;
-      if (level !== null) bank.add(level);
+    for (const endpointDepth of endpointDepths) {
+      for (let sample = 0; sample < samples; sample += 1) {
+        const across = -width / 2 + ((sample + 0.5) * width) / samples;
+        const along = direction * endpointDepth;
+        const localX = orientation === "horizontal" ? along : across;
+        const localY = orientation === "horizontal" ? across : along;
+        const worldX = centreX + localX * cos - localY * sin;
+        const worldY = centreY + localX * sin + localY * cos;
+        const col = Math.floor(worldX / TILE_SIZE);
+        const row = Math.floor(worldY / TILE_SIZE);
+        if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) continue;
+        const level = levels[row * size + col] ?? null;
+        if (level !== null) bank.add(level);
+      }
     }
   }
-  const shared = [...bankLevels[0]].filter((level) => bankLevels[1].has(level));
-  const candidates = shared.length > 0 ? shared : [...bankLevels[0], ...bankLevels[1]];
-  // A bridge between equal raised banks selects that shared level. With incomplete banks, preferring
-  // the highest endpoint avoids the former pull toward the much larger level-0 area below a cliff.
+  const candidates = [...bankLevels[0], ...bankLevels[1]];
+  // Level 0 may be present at BOTH ends while one end cap still rests on a raised cliff. Treating
+  // that common low level as authoritative is exactly what pulled the bridge down during placement;
+  // the highest support touched by either end is the deck's stable authored elevation.
   const level = candidates.length > 0 ? Math.max(...candidates) : 0;
   return level * AUTHORED_LEVEL_HEIGHT;
 }

@@ -1396,13 +1396,13 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals?.sync(sample, context.now);
 
     // The camera follows the local player, and only it: every other actor is drawn where the
-    // interpolated view puts it. `focusOn` takes a GROUND point — `x` and `z` — and the snapshot is
-    // already in the scene's own tile units, so nothing is converted here. `self.y` is the
-    // ELEVATION; handing it over as the second ground axis parks the camera on the horizon.
+    // interpolated view puts it. `x` and `z` are the ground point; `self.y` is supplied separately
+    // as the surface ceiling so a bridge/roof under the hero drives camera height without confusing
+    // elevation with a ground axis.
     // A player the view has not sent yet leaves the camera wherever it last was, which is the map's
     // spawn on the very first frames.
     const self = sample.players.find((player) => player.id === this.#selfId);
-    if (self) scene.focusOn(self.x, self.z);
+    if (self) scene.focusOn(self.x, self.z, self.y);
     else if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     const shake = this.#cameraShake.offset(context.now);
     scene.setCameraShake(shake.x, shake.y);

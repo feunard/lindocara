@@ -604,6 +604,11 @@ must not redo. Everything below was found while porting terrain, actors and scen
   spawn; damping toward the hero from there is a one-second fly-in on every single join, which reads
   as a feature and is a bug. Only the first focus snaps; every frame after it damps
   (`1 - exp(-follow Â· dt)`, the lab's own exponential).
+- **A gameplay camera follows the standable surface under its hero, not bare `heightAt`.** Bridges
+  and roofs are collider platforms that `heightAt` deliberately excludes. `focusOn(x, z, y)` uses
+  the hero elevation as a ceiling for `surfaceAt`, so the camera stays level over a raised bridge
+  while still ignoring a roof above a hero walking underneath it. Manual editor focus has no hero
+  elevation and remains terrain-based.
 - **`setFocusY` damps 8 % per call, so calling it once beside the framing is very nearly a no-op**
   that *reads* as "the tilt-shift band tracks the target". It must be called every frame, from
   `render()`. Caught only by asking what one call actually moves.

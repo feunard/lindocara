@@ -61,10 +61,17 @@ corepack yarn vitest run --maxWorkers=4
 ```
 
 Do not raise `testTimeout` or edit individual tests for that failure shape: they never received a
-healthy worker. Targeted tests can still be used to diagnose a real failure, but this bounded full
-run is the reliable verification fallback on a busy 16 GB Windows workstation. Once it is green,
-continue the remaining verification stages (migrations/content checks, build and smoke) instead of
-repeating the saturated default test run.
+healthy worker. A bounded run can still leave one slow UI file with isolated 5-second test timeouts
+while every other file passes. Rerun only the named failures with one worker and a name filter, for
+example:
+
+```powershell
+corepack yarn vitest run packages/editor/test/editor-shell.test.tsx --maxWorkers=1 -t "first failing test|second failing test"
+```
+
+If those pass alone, record the bounded-suite total plus the targeted retry and continue the
+remaining verification stages (migrations/content checks, build and smoke). Do not repeat all
+2,700+ tests or hide a real assertion failure by increasing timeouts.
 
 **Empty rooms reset.** Room state is memory-only: the tick stops when a room empties and Node
 sweeps idle rooms after 5 minutes â€” temporary
