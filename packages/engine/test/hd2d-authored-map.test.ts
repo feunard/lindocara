@@ -161,17 +161,19 @@ describe("compileAuthoredMap", () => {
   });
 
   it.each([
-    [LINDOCARA_BUILDING_ASSET_IDS.house, 2.68, "gable"],
-    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 2.6, "gable"],
-    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, "flat"],
-    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, "flat"],
-    [LINDOCARA_BUILDING_ASSET_IDS.windmill, 3.57, "cone"],
-  ])("authors %s with its native %s roof at %s", (assetId, roofTop, roofShape) => {
+    [LINDOCARA_BUILDING_ASSET_IDS.house, 2.68, "gable", 1],
+    [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 2.6, "gable", 1],
+    [LINDOCARA_BUILDING_ASSET_IDS.monastery, 2.86, "gable", 1],
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, "flat", 5],
+    [LINDOCARA_BUILDING_ASSET_IDS.castle, 2.11, "flat", 5],
+    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, "flat", 13],
+    [LINDOCARA_BUILDING_ASSET_IDS.windmill, 3.57, "cone", 1],
+  ])("authors %s with its native %s roof at %s", (assetId, roofTop, roofShape, colliderCount) => {
     const source = authored();
     source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId, orientation: 1 }];
     const compiled = compileAuthoredMap(source);
     expect(compiled.elements[0]?.orientation).toBe(1);
-    expect(compiled.colliders).toHaveLength(1);
+    expect(compiled.colliders).toHaveLength(colliderCount);
     expect(compiled.colliders[0]?.top).toBeCloseTo(roofTop);
     expect(compiled.colliders[0]?.support).toBe("center");
 
@@ -206,6 +208,35 @@ describe("compileAuthoredMap", () => {
       ).toBeNull();
     }
   });
+
+  it.each([
+    [LINDOCARA_BUILDING_ASSET_IDS.barracks, 1.81, 2.09, 4],
+    [LINDOCARA_BUILDING_ASSET_IDS.castle, 2.11, 2.39, 4],
+    [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, 3.12, 3.47, 12],
+  ])(
+    "turns %s's visible roof edge into collision while keeping its deck walkable",
+    (assetId, roofTop, parapetTop, edgeCount) => {
+      const source = authored();
+      source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId }];
+      const compiled = compileAuthoredMap(source);
+      const roof = compiled.colliders[0];
+      const edges = compiled.colliders.slice(1);
+      if (!roof || !edges[0]) throw new Error("crenellated building collision missing");
+      expect(edges).toHaveLength(edgeCount);
+      expect(edges.every((edge) => Math.abs((edge.top ?? 0) - parapetTop) < 1e-6)).toBe(true);
+
+      const terrain = zoneTerrainFromHeightfield(compiled);
+      const centreX = roof.x + roof.w / 2;
+      const centreZ = roof.z + roof.h / 2;
+      expect(canStand(terrain, centreX, centreZ, 0.1, roofTop)).toBe(true);
+
+      const edge = edges[0];
+      const edgeX = edge.x + edge.w / 2;
+      const edgeZ = edge.z + edge.h / 2;
+      expect(canStand(terrain, edgeX, edgeZ, 0.08, roofTop)).toBe(false);
+      expect(canStand(terrain, edgeX, edgeZ, 0.08, parapetTop)).toBe(true);
+    },
+  );
 
   it("compiles a resized building's model metadata and roof from one footprint", () => {
     const size = 12;

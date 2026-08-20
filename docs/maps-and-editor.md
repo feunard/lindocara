@@ -115,6 +115,11 @@ of recoloured cards. After placement, the inspector offers the five shipped roof
 family that owns them; changing colour preserves the element identity, footprint, orientation,
 durability and interior. The windmill has no synthetic colour choice because the source catalogue
 does not ship one.
+Flat crenellated roofs compile their visible edges as separate finite collision volumes. Barracks
+and castles receive four perimeter parapets; round towers receive the same twelve battlement
+positions as their rendered model. The open deck remains walkable, while a hero at deck height
+cannot cross the raised edge. This is keyed by the shared `crenellated` roof archetype, so a future
+native building using that roof contract receives logical edge collision automatically.
 Resizing also preserves art density: timber facade bays, shingles, masonry and planks repeat across
 the final world-space faces (including internally scaled round/fortified models) instead of
 magnifying one low-resolution texture over the whole footprint.

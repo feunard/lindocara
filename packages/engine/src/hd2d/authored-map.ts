@@ -36,6 +36,9 @@ import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
 const BRIDGE_RAIL_THICKNESS = 0.11;
+const BUILDING_PARAPET_TOP = 0.37;
+const RECTANGULAR_PARAPET_THICKNESS = 0.22;
+const ROUND_PARAPET_SEGMENTS = 12;
 
 function groundCoordinate(pixels: number, size: number): number {
   return pixels / TILE_SIZE - size / 2;
@@ -257,6 +260,81 @@ function buildingRoofCollider(
   };
 }
 
+/** Solid roof-edge volumes generated from the same crenellated archetype and resized footprint as
+ * the rendered battlements. Rectangular roofs use four continuous parapets; round towers use the
+ * renderer's twelve crenellation positions so their open deck stays circular. */
+function buildingRoofEdgeColliders(
+  collider: Pick<ColliderRect, "x" | "z" | "w" | "h">,
+  element: MapElement,
+  base: number,
+): ColliderRect[] {
+  const archetype = buildingArchetype(element.assetId);
+  if (!archetype) return [];
+  const asset = editorAsset(element.assetId);
+  if (asset?.tags.some((tag) => tag === "construction" || tag.includes("inconstruction"))) {
+    return [];
+  }
+  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
+  if (volume.roofShape !== "crenellated") return [];
+  const top = base + volume.wallHeight + BUILDING_PARAPET_TOP;
+
+  if (archetype !== "tower") {
+    const rotated = (element.orientation ?? 0) % 2 === 1;
+    const thicknessX =
+      collider.w *
+      (rotated ? RECTANGULAR_PARAPET_THICKNESS / 2.375 : RECTANGULAR_PARAPET_THICKNESS / 3);
+    const thicknessZ =
+      collider.h *
+      (rotated ? RECTANGULAR_PARAPET_THICKNESS / 3 : RECTANGULAR_PARAPET_THICKNESS / 2.375);
+    return [
+      { x: collider.x, z: collider.z, w: collider.w, h: thicknessZ, top, support: "center" },
+      {
+        x: collider.x,
+        z: collider.z + collider.h - thicknessZ,
+        w: collider.w,
+        h: thicknessZ,
+        top,
+        support: "center",
+      },
+      { x: collider.x, z: collider.z, w: thicknessX, h: collider.h, top, support: "center" },
+      {
+        x: collider.x + collider.w - thicknessX,
+        z: collider.z,
+        w: thicknessX,
+        h: collider.h,
+        top,
+        support: "center",
+      },
+    ];
+  }
+
+  const centreX = collider.x + collider.w / 2;
+  const centreZ = collider.z + collider.h / 2;
+  const radiusX = collider.w / 2;
+  const radiusZ = collider.h / 2;
+  const battlementWidth = 0.32 * radiusX;
+  const battlementDepth = 0.28 * radiusZ;
+  return Array.from({ length: ROUND_PARAPET_SEGMENTS }, (_, index) => {
+    const angle = (index / ROUND_PARAPET_SEGMENTS) * Math.PI * 2;
+    const halfWidth =
+      (Math.abs(Math.cos(angle)) * battlementWidth + Math.abs(Math.sin(angle)) * battlementDepth) /
+      2;
+    const halfDepth =
+      (Math.abs(Math.sin(angle)) * battlementWidth + Math.abs(Math.cos(angle)) * battlementDepth) /
+      2;
+    const x = centreX + Math.sin(angle) * radiusX * 0.93;
+    const z = centreZ + Math.cos(angle) * radiusZ * 0.93;
+    return {
+      x: x - halfWidth,
+      z: z - halfDepth,
+      w: halfWidth * 2,
+      h: halfDepth * 2,
+      top,
+      support: "center" as const,
+    };
+  });
+}
+
 /**
  * Compile one authored scenery footprint into finite world volumes. Buildings use the same native
  * dimensions as their rendered mesh, so pitched and round roofs are real surfaces rather than a
@@ -284,7 +362,12 @@ export function authoredElementColliders(
     return [{ ...collider, top }, ...bridgeRails(collider, top, orientation)];
   }
   const roof = buildingRoofCollider(collider, element, elementBaseTop(element, levels, size));
-  if (roof) return [roof];
+  if (roof) {
+    return [
+      roof,
+      ...buildingRoofEdgeColliders(collider, element, elementBaseTop(element, levels, size)),
+    ];
+  }
   const elevation = asset ? editorAssetCollisionElevation(asset) : null;
   return elevation === null
     ? [collider]
