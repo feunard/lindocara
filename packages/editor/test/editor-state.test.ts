@@ -1173,7 +1173,8 @@ describe("applyTool: functional event kinds", () => {
     const guardian = placed.events[0] as MapEvent;
     expect(guardian).toMatchObject({
       kind: "sea-guardian",
-      name: "Sea guardian",
+      // Numbered on placement, like every other preset: two guardians on one map are told apart.
+      name: "Sea guardian 1",
       species: null,
       patrolRadius: null,
       pages: [defaultEventPage()],
@@ -1375,6 +1376,82 @@ describe("entry/exit event uuids drive the graph binding (the Cartes-panel start
     // The scripted event is neither an entry nor an exit anchor.
     expect(entries.some((e) => e.col === 9)).toBe(false);
     expect(exits.some((e) => e.col === 9)).toBe(false);
+  });
+});
+
+describe("a placed preset is numbered per preset", () => {
+  const TELEPORTER = "Téléporteur";
+  const CHEST = "Coffre (or)";
+
+  function placePreset(map: EditorMap, preset: "teleporter" | "chest", col: number, row: number) {
+    return place(
+      map,
+      {
+        kind: "event",
+        eventKind: "normal",
+        preset,
+        selfMapId: MAP_ID,
+        presetName: preset === "teleporter" ? TELEPORTER : CHEST,
+      },
+      col,
+      row,
+    ) as EditorMap;
+  }
+  const MAP_ID = "5d2f6d5a-6f4c-4a4a-9a2e-2f1f0d3a7b11";
+
+  it("counts up, per preset, with a space before the number", () => {
+    let map = blankMap("m", 20, 15);
+    map = placePreset(map, "teleporter", 3, 3);
+    map = placePreset(map, "teleporter", 4, 3);
+    map = placePreset(map, "chest", 5, 3);
+    map = placePreset(map, "teleporter", 6, 3);
+    expect(map.events.map((event) => event.name)).toEqual([
+      "Téléporteur 1",
+      "Téléporteur 2",
+      "Coffre (or) 1",
+      "Téléporteur 3",
+    ]);
+  });
+
+  it("takes the next number ABOVE the highest in use, so a delete cannot cause a collision", () => {
+    let map = blankMap("m", 20, 15);
+    map = placePreset(map, "teleporter", 3, 3);
+    map = placePreset(map, "teleporter", 4, 3);
+    const first = map.events[0];
+    if (!first) throw new Error("nothing placed");
+    const pruned = deleteSelection(map, { kind: "event", id: first.id }) as EditorMap;
+    expect(pruned.events.map((event) => event.name)).toEqual(["Téléporteur 2"]);
+    // Counting existing events would mint `Téléporteur 2` a second time here.
+    expect(placePreset(pruned, "teleporter", 5, 3).events[1]?.name).toBe("Téléporteur 3");
+  });
+
+  it("does not count a name the author has rewritten", () => {
+    let map = blankMap("m", 20, 15);
+    map = placePreset(map, "teleporter", 3, 3);
+    const first = map.events[0];
+    if (!first) throw new Error("nothing placed");
+    map = { ...map, events: [{ ...first, name: "Vers la crypte" }] };
+    expect(placePreset(map, "teleporter", 4, 3).events[1]?.name).toBe("Téléporteur 1");
+  });
+
+  it("gives both doors of one link the SAME number", () => {
+    // Two doors of one link are ONE thing an author names, so the pair shares a number and the
+    // NEXT link is 2 rather than the second door being 2.
+    const base = blankMap("m", 20, 20);
+    const link = (map: EditorMap, from: { col: number; row: number }, col: number, row: number) =>
+      applyTool(
+        map,
+        { kind: "link", selfMapId: MAP_ID, from, name: "Liaison" },
+        col,
+        row,
+        true,
+        "event",
+      ) as EditorMap;
+
+    const one = link(base, { col: 3, row: 3 }, 10, 12);
+    expect(one.events.map((event) => event.name)).toEqual(["Liaison 1", "Liaison 1"]);
+    const two = link(one, { col: 5, row: 5 }, 14, 14);
+    expect(two.events.slice(2).map((event) => event.name)).toEqual(["Liaison 2", "Liaison 2"]);
   });
 });
 

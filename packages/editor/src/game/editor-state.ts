@@ -1157,6 +1157,33 @@ function nextEventOrdinal(events: readonly MapEvent[]): number {
   return events.reduce((max, event) => Math.max(max, event.ordinal), 0) + 1;
 }
 
+/**
+ * A placed preset's name: its label plus the next number free for THAT label on this map, so a map
+ * reads `Téléporteur 1`, `Téléporteur 2`, `Coffre 1` instead of three events all called by their
+ * preset. `EV001` is identity and stays identity; this is the name an author reads and renames.
+ *
+ * Counted from the highest number already used rather than from how many events exist: deleting
+ * `Téléporteur 1` must not make the next placement collide with `Téléporteur 2`. A name the author
+ * has since rewritten simply stops counting, which is the right answer for a field they own.
+ *
+ * The label arrives already localized (the palette passes `t(PRESET_LABEL[preset])`) because an
+ * event name is authored DATA in the author's own language, never a message key. Labels contain
+ * `/` and parentheses, so the match is a prefix test rather than a regular expression nobody would
+ * remember to escape.
+ */
+function numberedPresetName(label: string, events: readonly MapEvent[]): string {
+  if (label.length === 0) return label;
+  const prefix = `${label} `;
+  let highest = 0;
+  for (const event of events) {
+    if (!event.name.startsWith(prefix)) continue;
+    const suffix = event.name.slice(prefix.length);
+    if (!/^\d+$/.test(suffix)) continue;
+    highest = Math.max(highest, Number(suffix));
+  }
+  return `${prefix}${highest + 1}`;
+}
+
 /** The editor's layers are the map's layers: no projection, nothing to lose. Markers are QUARANTINED
  *  (UX wave #12) — entries/exits/monster spawns are typed events now — so the editor always emits
  *  `EMPTY_MARKERS` and never a functional marker the server would ignore. */
@@ -1761,7 +1788,9 @@ export function applyTool(
       if (!fromLanding || !toLanding) return null;
       if (map.events.length + 2 > MAX_EVENTS_PER_MAP) return null;
       const ordinal = nextEventOrdinal(map.events);
-      const name = tool.name ?? "";
+      // ONE number for the pair: two doors of the same link are one thing an author names, so
+      // `Liaison de portes 1` appears at both ends rather than numbering them 1 and 2.
+      const name = numberedPresetName(tool.name ?? "", map.events);
       return {
         ...map,
         events: [
@@ -1899,7 +1928,9 @@ export function applyTool(
           // The map's own spawn is the walkable placeholder a fresh `teleporter` aims at, and the
           // preset label names the event so five presets do not all list as "Custom event".
           selfSpawn: map.spawn,
-          ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+          ...(tool.presetName === undefined
+            ? {}
+            : { name: numberedPresetName(tool.presetName, map.events) }),
         });
         return { ...map, events: [...map.events, event] };
       }
@@ -1910,7 +1941,7 @@ export function applyTool(
           row,
           ordinal,
           kind: "sea-guardian",
-          name: tool.presetName ?? "",
+          name: numberedPresetName(tool.presetName ?? "", map.events),
         });
         return { ...map, events: [...map.events, event] };
       }
@@ -2034,7 +2065,7 @@ export function applyTool(
           row,
           ordinal,
           kind: "harvestable",
-          name: tool.presetName ?? "",
+          name: numberedPresetName(tool.presetName ?? "", map.events),
           harvestProfile: profile,
           graphicAssetId: tool.graphic,
         });
