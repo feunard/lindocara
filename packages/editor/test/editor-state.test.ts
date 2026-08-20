@@ -768,6 +768,41 @@ describe("applyTool: stairs", () => {
     }
   });
 
+  /**
+   * The stamp is only half the feature: what it writes has to survive a SAVE. `toSaveInput`
+   * compiles the map to a heightfield and `decodeMap` is the gate the server puts it through
+   * (`parseHeightfieldBody`), so a direction the parser does not know is not a cosmetic gap - it
+   * refuses the whole map, and the author is told the map data is invalid with no way to store it.
+   *
+   * That is exactly what shipped: the one-cell ramp grew to four directions everywhere except
+   * `toRamp`, and every stairs test above happened to face east.
+   */
+  it.each(["east", "west", "south", "north"] as const)(
+    "compiles a %s staircase into a heightfield the server can decode",
+    (direction) => {
+      const side = {
+        east: { col: 1, row: 0 },
+        west: { col: -1, row: 0 },
+        south: { col: 0, row: 1 },
+        north: { col: 0, row: -1 },
+      }[direction];
+      const raised = place(
+        blankMap("m", 20, 15),
+        { kind: "elevation", level: 1 },
+        5 + side.col,
+        5 + side.row,
+      ) as EditorMap;
+      const next = place(raised, { kind: "stairs" }, 5, 5) as EditorMap;
+      expect(next, `${direction}: the stamp was refused`).not.toBeNull();
+
+      const decoded = decodeMap(toSaveInput(next).heightfield);
+      expect(decoded, `${direction}: the heightfield does not decode`).not.toBeNull();
+      expect(decoded?.ramps).toEqual([
+        expect.objectContaining({ direction, lowLevel: 0, width: 1, depth: 1 }),
+      ]);
+    },
+  );
+
   it("a water rectangle removes every ramp cell it covers", () => {
     const ramp = place(eastBoundary(), { kind: "stairs" }, 5, 5) as EditorMap;
     const water: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };

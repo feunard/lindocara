@@ -27,7 +27,12 @@ import {
   parseMapEnvironment,
 } from "../map-environment.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
-import type { TerrainMaterial, TerrainQuerySource, TerrainRamp } from "./terrain-query.js";
+import {
+  isRampDirection,
+  type TerrainMaterial,
+  type TerrainQuerySource,
+  type TerrainRamp,
+} from "./terrain-query.js";
 
 /** The four materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
  *  enough to validate a string coming from the network, it vanishes at compile time. */
@@ -251,7 +256,7 @@ function toRamp(value: unknown): TerrainRamp | null {
     value.width <= 0 ||
     !isFiniteNumber(value.depth) ||
     value.depth <= 0 ||
-    (value.direction !== "east" && value.direction !== "west") ||
+    !isRampDirection(value.direction) ||
     !Number.isSafeInteger(value.lowLevel) ||
     (value.lowLevel as number) < 0
   ) {

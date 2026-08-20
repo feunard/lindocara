@@ -152,8 +152,28 @@ describe("the map codec", () => {
     const { ramps: _ramps, ...legacy } = map;
     expect(decodeMap(JSON.stringify(legacy))).toEqual(legacy);
     expect(
-      decodeMap(JSON.stringify({ ...map, ramps: [{ ...map.ramps?.[0], direction: "north" }] })),
+      decodeMap(JSON.stringify({ ...map, ramps: [{ ...map.ramps?.[0], direction: "up" }] })),
     ).toBeNull();
+    expect(
+      decodeMap(JSON.stringify({ ...map, ramps: [{ ...map.ramps?.[0], direction: 3 }] })),
+    ).toBeNull();
+  });
+
+  /**
+   * A one-cell ramp climbs any of four ways, and this parser is where that has to be TRUE rather
+   * than merely typed. It spelled out `"east"`/`"west"` while `RampDirection` had grown to four,
+   * so the editor happily stamped a staircase up a north-facing bank, compiled it, and then could
+   * not store it: `decodeMap` refused the whole heightfield over the one ramp it did not
+   * recognise, and the author was told the map data was invalid with no way to save.
+   */
+  it("decodes a ramp climbing any of the four directions", () => {
+    for (const direction of ["east", "west", "north", "south"] as const) {
+      const encoded = JSON.stringify({
+        ...map,
+        ramps: [{ ...map.ramps?.[0], direction }],
+      });
+      expect(decodeMap(encoded)?.ramps?.[0]?.direction, direction).toBe(direction);
+    }
   });
 
   it("rejects a zero or fractional size", () => {

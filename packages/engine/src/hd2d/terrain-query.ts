@@ -26,6 +26,19 @@ export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace";
  *  a way up it. */
 export type RampDirection = "east" | "west" | "north" | "south";
 
+/**
+ * The four, as data. `decodeMap` has to test a direction it read out of a stored string against
+ * them, and a union alone cannot be tested at runtime: the parser spelled out `"east"`/`"west"`
+ * instead and kept refusing every north/south ramp long after the type had grown to four, so a map
+ * with a staircase up a north-facing bank saved fine and then would not decode.
+ */
+export const RAMP_DIRECTIONS: readonly RampDirection[] = ["east", "west", "north", "south"];
+
+/** Whether an arbitrary value is one of the four directions a stored ramp may climb. */
+export function isRampDirection(value: unknown): value is RampDirection {
+  return typeof value === "string" && (RAMP_DIRECTIONS as readonly string[]).includes(value);
+}
+
 /** Whether a ramp's slope runs along the x axis (`east`/`west`) or the z axis. The one place that
  *  question is answered; every reader of a ramp's geometry asks it rather than testing a direction
  *  against a hardcoded axis. */
