@@ -28,12 +28,12 @@ const alepha = Alepha.create({ ...BODY_PARSER_OPTIONS_SEED }).with(LindocaraApi)
 // Without `SIGIL_KEY` the module still captures and sends nothing; errors go to the logger
 // instead, so it is safe to register unconditionally, including in development and in tests.
 //
-// `SIGIL_CONFIG` is the other half, and the newer one: it names the project and says what to
-// collect. Sigil used to ask the sink for that at render time; it reads the environment now, so
-// what production reports is a line in `.github/workflows/deploy.yml` rather than a state held on
-// the other side of a network call. A key present with no config is the one shape that reports
-// nothing while looking configured — `SigilSinkProvider` warns at boot and stays inert rather than
-// reporting into a project nobody named.
+// The key is the whole configuration: it names the project too, being shaped
+// `sg_lindocara_<secret>`, so there is no second variable to keep in agreement with it. What the
+// app collects is `SIGIL_CONFIG`, which is optional and only ever turns things off — sigil used
+// to ask the sink for that at render time, and reads the environment now, so what production
+// reports is a line in `.github/workflows/deploy.yml` rather than a state held on the other side
+// of a network call. A key on its own is a fully enrolled app, not a half-configured one.
 alepha.with(AlephaSigil);
 
 // Drizzle executes this entry under plain Node to discover server entities. Importing the browser
