@@ -1,3 +1,4 @@
+import { buildingArchetype } from "@lindocara/engine/buildings.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   CURATED_EDITOR_ASSET_IDS,
@@ -87,6 +88,21 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(2);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
+  });
+
+  it("offers one palette card for every native 3D building archetype", () => {
+    const placeableBuildings = PLACEABLE_EDITOR_ASSETS.filter(
+      (asset) => asset.editor.category === "buildings",
+    );
+    expect(placeableBuildings.map((asset) => buildingArchetype(asset.id)).sort()).toEqual([
+      "archery",
+      "barracks",
+      "castle",
+      "house",
+      "monastery",
+      "tower",
+      "windmill",
+    ]);
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {

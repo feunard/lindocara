@@ -1070,6 +1070,44 @@ describe("AdventureEditorScreen shell", () => {
     });
   });
 
+  it("changes a placed building's native colour from its inspector", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+    const house = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "building.lindocara.house" as const,
+      building: {
+        destructible: true,
+        maxHp: 900,
+        dimensions: { width: 5, depth: 3.125 },
+      },
+    };
+    const editor = { ...blankMap("Village", 40, 30), elements: [house] };
+    stageMock.current.mockReturnValue(editor);
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(editor, {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "element", col: 8, row: 8, offsetX: 0, offsetY: 0 },
+      });
+    });
+
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    const color = within(inspector).getByRole("combobox", {
+      name: t("editor.inspector.building.color"),
+    });
+    expect(color).toHaveValue("blue");
+    fireEvent.change(color, { target: { value: "red" } });
+    expect(stageMock.setSelectedElementAsset).toHaveBeenCalledWith(
+      "building.buildings-red-buildings.house1",
+    );
+  });
+
   it("creates and opens an editable interior from a selected building", async () => {
     const exterior = payloadFor(oneMap[0] as MapSummary);
     const house = {

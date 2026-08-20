@@ -137,6 +137,8 @@ const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
   [LINDOCARA_BUILDING_ASSET_IDS.stoneTower]: "editor.asset.lindocara.stoneTower",
   [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild]: "editor.asset.lindocara.archeryGuild",
   [LINDOCARA_BUILDING_ASSET_IDS.barracks]: "editor.asset.lindocara.barracks",
+  [LINDOCARA_BUILDING_ASSET_IDS.monastery]: "editor.asset.lindocara.monastery",
+  [LINDOCARA_BUILDING_ASSET_IDS.castle]: "editor.asset.lindocara.castle",
   [LINDOCARA_BUILDING_ASSET_IDS.windmill]: "editor.asset.lindocara.windmill",
   [LINDOCARA_INTERIOR_ASSET_IDS.hearth]: "editor.asset.lindocara.hearth",
   [LINDOCARA_INTERIOR_ASSET_IDS.bed]: "editor.asset.lindocara.bed",

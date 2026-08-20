@@ -200,6 +200,8 @@ export const LINDOCARA_BUILDING_ASSET_IDS = {
   stoneTower: "building.lindocara.stone-tower",
   archeryGuild: "building.lindocara.archery-guild",
   barracks: "building.lindocara.barracks",
+  monastery: "building.lindocara.monastery",
+  castle: "building.lindocara.castle",
   windmill: "building.lindocara.windmill",
 } as const;
 const LINDOCARA_BUILDING_ASSET_ID_SET: ReadonlySet<string> = new Set(
@@ -382,6 +384,26 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     2,
   ),
   lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.monastery,
+    "/assets/lindocara/hd2d/buildings/archery-front.png",
+    ["monastery", "habitable"],
+    225,
+    202,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -96, y: -144, width: 192, height: 144 },
+    2,
+  ),
+  lindocaraBuilding(
+    LINDOCARA_BUILDING_ASSET_IDS.castle,
+    "/assets/lindocara/hd2d/buildings/barracks-front.png",
+    ["castle", "habitable"],
+    267,
+    206,
+    [-1, 0, 1].flatMap((row) => [-1, 0, 1].map((col) => ({ col, row }))),
+    { x: -96, y: -152, width: 192, height: 152 },
+    3,
+  ),
+  lindocaraBuilding(
     LINDOCARA_BUILDING_ASSET_IDS.windmill,
     "/assets/lindocara/hd2d/buildings/windmill-front.png",
     ["tower", "windmill", "mill", "habitable"],
@@ -512,9 +534,9 @@ export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_
     if (DUPLICATE_EDITOR_ASSET_IDS.has(asset.id)) return false;
     if (asset.role === "event-state") return false;
     if (asset.domain === "character" || asset.domain === "enemy") return false;
-    // Legacy Tiny Swords building ids stay readable for every saved map, but new authoring uses the
-    // five coherent Lindocara volumes. That is a storage-compatible replacement, not 62 recoloured
-    // cards followed by the actual production buildings on the last palette page.
+    // Legacy Tiny Swords building ids stay readable for every saved map, but new authoring uses one
+    // coherent Lindocara card for each native 3D archetype. Recolours belong in the selected
+    // building's inspector instead of becoming dozens of near-identical palette cards.
     if (asset.editor.category === "buildings" && !LINDOCARA_BUILDING_ASSET_ID_SET.has(asset.id)) {
       return false;
     }

@@ -109,6 +109,12 @@ handle; dragging them previews the snapped size immediately and commits the whol
 undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
 buildings retain their native footprint, and explicit dimensions share the existing transform
 integer, so no schema migration is required.
+The Buildings palette exposes one card for each native 3D archetype (house, tower, archery guild,
+barracks, monastery, castle and windmill), rather than hiding supported models or repeating dozens
+of recoloured cards. After placement, the inspector offers the five shipped roof colours for each
+family that owns them; changing colour preserves the element identity, footprint, orientation,
+durability and interior. The windmill has no synthetic colour choice because the source catalogue
+does not ship one.
 Resizing also preserves art density: timber facade bays, shingles, masonry and planks repeat across
 the final world-space faces (including internally scaled round/fortified models) instead of
 magnifying one low-resolution texture over the whole footprint.

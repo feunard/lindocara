@@ -1,5 +1,7 @@
 import {
   BUILDING_DOOR_INTERACTION_RANGE,
+  buildingColor,
+  buildingColorVariants,
   buildingDimensionsOrDefault,
   buildingDoorGroundPoint,
   decodeBuildingTransform,
@@ -70,6 +72,8 @@ describe("building authoring rules", () => {
     [LINDOCARA_BUILDING_ASSET_IDS.stoneTower, { x: -64, y: -128, width: 128, height: 128 }],
     [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, { x: -96, y: -144, width: 192, height: 144 }],
     [LINDOCARA_BUILDING_ASSET_IDS.barracks, { x: -96, y: -152, width: 192, height: 152 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.monastery, { x: -96, y: -144, width: 192, height: 144 }],
+    [LINDOCARA_BUILDING_ASSET_IDS.castle, { x: -96, y: -152, width: 192, height: 152 }],
     [LINDOCARA_BUILDING_ASSET_IDS.windmill, { x: -88, y: -128, width: 176, height: 128 }],
   ] as const)("keeps %s solid across its complete native footprint", (assetId, collider) => {
     expect(editorAsset(assetId)?.editor.collider).toEqual(collider);
@@ -88,6 +92,22 @@ describe("building authoring rules", () => {
       expect(isDestroyedBuildingAsset(destroyed ?? "")).toBe(true);
     }
     expect(isStandingBuildingAsset(RUIN)).toBe(false);
+  });
+
+  it("offers native colour swaps only within the selected 3D model family", () => {
+    expect(buildingColor(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe("blue");
+    expect(buildingColor("building.buildings-purple-buildings.house1")).toBe("purple");
+    expect(buildingColorVariants(LINDOCARA_BUILDING_ASSET_IDS.house)).toEqual([
+      { color: "blue", assetId: LINDOCARA_BUILDING_ASSET_IDS.house },
+      { color: "red", assetId: "building.buildings-red-buildings.house1" },
+      { color: "yellow", assetId: "building.buildings-yellow-buildings.house1" },
+      { color: "purple", assetId: "building.buildings-purple-buildings.house1" },
+      { color: "black", assetId: "building.buildings-black-buildings.house1" },
+    ]);
+    expect(buildingColorVariants(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toEqual([]);
+    expect(
+      buildingColorVariants("building.factions-knights-buildings-house.house-construction"),
+    ).toEqual([]);
   });
 
   it("defaults legacy standing buildings to destructible and keeps non-buildings clean", () => {

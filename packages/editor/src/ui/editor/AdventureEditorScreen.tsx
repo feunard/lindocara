@@ -48,6 +48,8 @@ import {
 import {
   BUILDING_DIMENSION_STEP,
   type BuildingSettings,
+  buildingColor,
+  buildingColorVariants,
   buildingDimensionsOrDefault,
   defaultBuildingSettings,
   destroyedBuildingAssetId,
@@ -1990,6 +1992,9 @@ function AdventureEditorInner({
                     onSetOrientation={(orientation) =>
                       handleRef.current?.setSelectedElementOrientation(orientation)
                     }
+                    onSetElementAsset={(assetId) =>
+                      handleRef.current?.setSelectedElementAsset(assetId)
+                    }
                     onSetBridgeDimensions={(dimensions) =>
                       handleRef.current?.setSelectedBridgeDimensions(dimensions)
                     }
@@ -2272,6 +2277,7 @@ function SelectionInspector({
   onMove,
   onSetOffset,
   onSetOrientation,
+  onSetElementAsset,
   onSetBridgeDimensions,
   onSetBuilding,
   onOpenInterior,
@@ -2285,6 +2291,7 @@ function SelectionInspector({
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
   onSetOrientation(orientation: ElementOrientation): void;
+  onSetElementAsset(assetId: EditorAssetId): void;
   onSetBridgeDimensions(dimensions: BridgeDimensions): void;
   onSetBuilding(settings: BuildingSettings): void;
   onOpenInterior(element: MapElement): void;
@@ -2308,6 +2315,10 @@ function SelectionInspector({
     selectedElement && selectedBuilding
       ? buildingDimensionsOrDefault(selectedElement.assetId, selectedBuilding.dimensions)
       : null;
+  const selectedBuildingColor = selectedElement ? buildingColor(selectedElement.assetId) : null;
+  const selectedBuildingColorVariants = selectedElement
+    ? buildingColorVariants(selectedElement.assetId)
+    : [];
   const selectedBridge =
     selectedElement && bridgeOrientation(selectedElement.assetId)
       ? bridgeDimensionsOrDefault(selectedElement.bridge)
@@ -2386,6 +2397,34 @@ function SelectionInspector({
 
       {selectedElement && selectedBuilding && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+          {selectedBuildingColor && selectedBuildingColorVariants.length > 1 && (
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="inspector-building-color" className="text-[11px] text-zinc-600">
+                {t("editor.inspector.building.color")}
+              </Label>
+              <select
+                id="inspector-building-color"
+                className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                value={selectedBuildingColor}
+                onChange={(event) => {
+                  const variant = selectedBuildingColorVariants.find(
+                    (candidate) => candidate.color === event.currentTarget.value,
+                  );
+                  if (variant && variant.assetId !== selectedElement.assetId) {
+                    onSetElementAsset(variant.assetId);
+                  }
+                }}
+              >
+                {selectedBuildingColorVariants.map((variant) => (
+                  <option key={variant.color} value={variant.color}>
+                    {t(
+                      `editor.inspector.building.color.${variant.color}` as Parameters<typeof t>[0],
+                    )}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <Label className="text-[11px] text-zinc-600">
               {t("editor.inspector.building.orientation")}

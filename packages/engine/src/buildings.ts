@@ -5,6 +5,7 @@ import {
   type EditorAssetDefinition,
   type EditorAssetId,
   editorAsset,
+  LINDOCARA_BUILDING_ASSET_IDS,
 } from "./tiny-swords-catalog.js";
 
 /** The authored durability contract carried by a standing building element. */
@@ -263,6 +264,90 @@ export function buildingArchetype(assetId: string): BuildingArchetype | null {
   if (name.includes("tower")) return "tower";
   if (name.includes("house")) return "house";
   return null;
+}
+
+export const BUILDING_COLORS = ["blue", "red", "yellow", "purple", "black"] as const;
+export type BuildingColor = (typeof BUILDING_COLORS)[number];
+
+export interface BuildingColorVariant {
+  color: BuildingColor;
+  assetId: EditorAssetId;
+}
+
+type RecolorableBuildingArchetype = Exclude<BuildingArchetype, "windmill">;
+
+/** One stable saved-map identity per native 3D colour. The blue choice keeps the concise Lindocara
+ * identity used by new maps; the other choices reuse catalogue ids which remain fully supported. */
+const BUILDING_COLOR_ASSET_IDS: Readonly<
+  Record<RecolorableBuildingArchetype, Readonly<Record<BuildingColor, EditorAssetId>>>
+> = {
+  house: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.house,
+    red: "building.buildings-red-buildings.house1" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.house1" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.house1" as EditorAssetId,
+    black: "building.buildings-black-buildings.house1" as EditorAssetId,
+  },
+  tower: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.stoneTower,
+    red: "building.buildings-red-buildings.tower" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.tower" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.tower" as EditorAssetId,
+    black: "building.buildings-black-buildings.tower" as EditorAssetId,
+  },
+  archery: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.archeryGuild,
+    red: "building.buildings-red-buildings.archery" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.archery" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.archery" as EditorAssetId,
+    black: "building.buildings-black-buildings.archery" as EditorAssetId,
+  },
+  barracks: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.barracks,
+    red: "building.buildings-red-buildings.barracks" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.barracks" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.barracks" as EditorAssetId,
+    black: "building.buildings-black-buildings.barracks" as EditorAssetId,
+  },
+  monastery: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.monastery,
+    red: "building.buildings-red-buildings.monastery" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.monastery" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.monastery" as EditorAssetId,
+    black: "building.buildings-black-buildings.monastery" as EditorAssetId,
+  },
+  castle: {
+    blue: LINDOCARA_BUILDING_ASSET_IDS.castle,
+    red: "building.buildings-red-buildings.castle" as EditorAssetId,
+    yellow: "building.buildings-yellow-buildings.castle" as EditorAssetId,
+    purple: "building.buildings-purple-buildings.castle" as EditorAssetId,
+    black: "building.buildings-black-buildings.castle" as EditorAssetId,
+  },
+};
+
+/** Native roof colour currently encoded by a standing building id. */
+export function buildingColor(assetId: string): BuildingColor | null {
+  const asset = editorAsset(assetId);
+  if (!asset || !buildingArchetype(assetId)) return null;
+  const tagged = BUILDING_COLORS.find((color) => asset.tags.includes(color));
+  if (tagged) return tagged;
+  return asset.id.startsWith("building.lindocara.") ? "blue" : null;
+}
+
+/** Available native recolours for one 3D model. Construction, ruins, goblin buildings and the
+ * windmill intentionally return none: changing those would also change the model's authored state. */
+export function buildingColorVariants(assetId: string): readonly BuildingColorVariant[] {
+  const asset = editorAsset(assetId);
+  const archetype = buildingArchetype(assetId);
+  if (!asset || !archetype || archetype === "windmill" || buildingColor(assetId) === null)
+    return [];
+  if (asset.tags.some((tag) => tag === "construction" || tag.includes("inconstruction"))) return [];
+  if (asset.tags.includes("goblins")) return [];
+  const byColor = BUILDING_COLOR_ASSET_IDS[archetype];
+  return BUILDING_COLORS.flatMap((color) => {
+    const variantAssetId = byColor[color];
+    return editorAsset(variantAssetId) ? [{ color, assetId: variantAssetId }] : [];
+  });
 }
 
 /**
