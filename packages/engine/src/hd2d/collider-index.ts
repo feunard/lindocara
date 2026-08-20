@@ -25,6 +25,14 @@ export interface ColliderRect {
   rotation?: number;
   /** Walkable flat top surface. Kept as the backward-compatible form for props and old maps. */
   top?: number;
+  /**
+   * The volume's UNDERSIDE: below it, a body passes beneath rather than into.
+   *
+   * Absent means a column with no bottom, which is what every collider was before this existed and
+   * is still right for anything standing on the ground: a wall, a tree, a building. It is wrong for
+   * anything RAISED, and a bridge deck two levels up was walling off the bank underneath it.
+   */
+  bottom?: number;
   /** Round towers and mills collide as their visible footprint instead of an invisible square. */
   footprint?: "ellipse";
   /** A non-flat walkable roof, sampled at the hero's local X/Z position. */
@@ -208,10 +216,40 @@ export function colliderSurfaceHeightNear(rect: ColliderRect, x: number, z: numb
   return colliderSurfaceHeightAt(rect, nearest.x, nearest.z);
 }
 
+/**
+ * The vertical room a body needs to pass under something, in world units.
+ *
+ * ONE constant rather than a height on `HeroSettings`, deliberately: every body the collision index
+ * serves is hero-sized today, and a per-hero knob that nothing else reads is a setting with no
+ * second caller and no way to be wrong safely. The day a body genuinely differs, this becomes a
+ * parameter and the call sites say which body they are asking about.
+ *
+ * Slightly under one authored level (0.9), so a deck raised a full level is passable and one raised
+ * by a hair is not.
+ */
+export const BODY_CLEARANCE = 0.8;
+
+/**
+ * Does this collider refuse a body whose feet are at `y`?
+ *
+ * The body is a SPAN, `[y, y + BODY_CLEARANCE]`, and it is refused when that span meets the
+ * collider's own `[bottom, top]`. Feet below the top is the half that always existed; head above
+ * the underside is the half that was missing, and its absence is why a raised bridge deck walled
+ * off the ground beneath it.
+ *
+ * An absent `top` is a wall: solid all the way up. An absent `bottom` is a column standing on the
+ * world, which is what every collider was and what a tree or a building still is.
+ *
+ * `y === undefined` still blocks on any overlap. Two callers ask that way (`terrain-access.ts`'s
+ * ramp traversal and its escape test) and they mean "is anything here at all", which must stay the
+ * conservative answer rather than quietly gain a clearance they never asked for.
+ */
 function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefined): boolean {
   if (y === undefined) return true;
   const surface = colliderSurfaceHeightNear(rect, x, z);
-  return surface === null || y < surface - 1e-3;
+  const underTop = surface === null || y < surface - 1e-3;
+  if (!underTop) return false;
+  return rect.bottom === undefined || y + BODY_CLEARANCE > rect.bottom + 1e-3;
 }
 
 /** A monotone overlap score: zero outside, increasing as a disc penetrates farther into a shape. */

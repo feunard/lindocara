@@ -117,3 +117,44 @@ describe("createColliderIndex", () => {
     expect(idx.heightToClear(4, 4, 0.05)).toBeNull();
   });
 });
+
+describe("a raised slab has an underside", () => {
+  /** A deck two levels up (1.8), 0.18 thick: the shape a bridge over a gorge compiles to. */
+  const deck = { x: 0, z: 0, w: 3, h: 1, top: 1.8, bottom: 1.62 } as const;
+
+  it("lets a body walk underneath it", () => {
+    const idx = createColliderIndex();
+    idx.add({ ...deck });
+    // Feet on the bank, head at 0.8: the whole body is below the planking.
+    expect(idx.blocked(1.5, 0.5, 0.3, 0)).toBe(false);
+  });
+
+  it("still blocks a body whose head meets it", () => {
+    const idx = createColliderIndex();
+    idx.add({ ...deck });
+    // Standing one level up: feet at 0.9, head at 1.7, which is inside [1.62, 1.8].
+    expect(idx.blocked(1.5, 0.5, 0.3, 0.9)).toBe(true);
+  });
+
+  it("still lets a body stand ON it", () => {
+    const idx = createColliderIndex();
+    idx.add({ ...deck });
+    // Feet at the deck's top: above it, so not inside it. This is the half that always worked.
+    expect(idx.blocked(1.5, 0.5, 0.3, 1.8)).toBe(false);
+  });
+
+  it("keeps a column with no underside solid all the way down", () => {
+    const idx = createColliderIndex();
+    // No `bottom`: a wall, a tree, a building. Every collider was this before the underside existed.
+    idx.add({ x: 0, z: 0, w: 3, h: 1, top: 1.8 });
+    expect(idx.blocked(1.5, 0.5, 0.3, 0)).toBe(true);
+  });
+
+  it("blocks on any overlap when no height is asked about", () => {
+    const idx = createColliderIndex();
+    idx.add({ ...deck });
+    // Two callers ask this way and mean "is anything here at all"; they must not silently gain a
+    // clearance they never asked for.
+    expect(idx.blocked(1.5, 0.5, 0.3)).toBe(true);
+  });
+});

@@ -45,6 +45,10 @@ export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
 const BRIDGE_RAIL_THICKNESS = 0.11;
 const BUILDING_PARAPET_TOP = 0.37;
+/** How deep a bridge's planking is. Small on purpose: it is what an author sees as the deck's
+ *  thickness from the side, and the whole clearance under a raised crossing is the level height
+ *  minus this. */
+const BRIDGE_DECK_THICKNESS = 0.18;
 const RECTANGULAR_PARAPET_THICKNESS = 0.22;
 const ROUND_PARAPET_SEGMENTS = 12;
 
@@ -215,28 +219,29 @@ function bridgeRails(
   orientation: "horizontal" | "vertical",
 ): ColliderRect[] {
   const top = deckTop + AUTHORED_LEVEL_HEIGHT;
+  const bottom = deckTop;
   if (orientation === "horizontal") {
     return [
-      orientedSubCollider(collider, 0, 0, collider.w, BRIDGE_RAIL_THICKNESS, { top }),
+      orientedSubCollider(collider, 0, 0, collider.w, BRIDGE_RAIL_THICKNESS, { top, bottom }),
       orientedSubCollider(
         collider,
         0,
         collider.h - BRIDGE_RAIL_THICKNESS,
         collider.w,
         BRIDGE_RAIL_THICKNESS,
-        { top },
+        { top, bottom },
       ),
     ];
   }
   return [
-    orientedSubCollider(collider, 0, 0, BRIDGE_RAIL_THICKNESS, collider.h, { top }),
+    orientedSubCollider(collider, 0, 0, BRIDGE_RAIL_THICKNESS, collider.h, { top, bottom }),
     orientedSubCollider(
       collider,
       collider.w - BRIDGE_RAIL_THICKNESS,
       0,
       BRIDGE_RAIL_THICKNESS,
       collider.h,
-      { top },
+      { top, bottom },
     ),
   ];
 }
@@ -247,7 +252,7 @@ function orientedSubCollider(
   offsetZ: number,
   w: number,
   h: number,
-  extra: Pick<ColliderRect, "top" | "support"> = {},
+  extra: Pick<ColliderRect, "top" | "bottom" | "support"> = {},
 ): ColliderRect {
   const rotation = parent.rotation ?? 0;
   if (rotation === 0) {
@@ -523,7 +528,13 @@ export function authoredElementColliders(
     const top = authoredBridgeTop(authored, element, levels, size);
     const orientation = bridgeOrientation(element.assetId);
     if (!orientation) return [];
-    return [{ ...collider, top }, ...bridgeRails(collider, top, orientation)];
+    // The deck is a SLAB, not a column: `bottom` is its underside, so a hero on the bank walks
+    // beneath a raised crossing instead of into it. Its rails stand ON the deck, so their underside
+    // is the deck's top.
+    return [
+      { ...collider, top, bottom: top - BRIDGE_DECK_THICKNESS },
+      ...bridgeRails(collider, top, orientation),
+    ];
   }
   const roofs = buildingRoofParts(collider, element, elementBaseTop(element, levels, size));
   if (roofs.length > 0)

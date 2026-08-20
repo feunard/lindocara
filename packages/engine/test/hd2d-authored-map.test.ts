@@ -4,7 +4,7 @@ import {
   compileAuthoredMap,
   compileAuthoredMapContent,
 } from "../src/hd2d/authored-map.js";
-import { colliderContainsPoint } from "../src/hd2d/collider-index.js";
+import { colliderContainsPoint, createColliderIndex } from "../src/hd2d/collider-index.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
@@ -529,6 +529,51 @@ describe("compileAuthoredMap", () => {
     expect(compiled.colliders[0]).toMatchObject({ x: -3, z: -1, w: 5, h: 2, top: 0 });
     expect(compiled.colliders[1]).toMatchObject({ x: -3, z: -1, w: 5, h: 0.11 });
     expect(compiled.colliders[2]).toMatchObject({ x: -3, z: 0.89, w: 5, h: 0.11 });
+    // The deck is a slab: it has an UNDERSIDE, so ground beneath a raised crossing stays walkable.
+    // Its rails stand on it, so theirs is the deck's own top.
+    expect(compiled.colliders[0]?.bottom).toBeCloseTo(-0.18, 6);
+    expect(compiled.colliders[1]?.bottom).toBe(0);
+    expect(compiled.colliders[2]?.bottom).toBe(0);
+  });
+
+  it("leaves the bank under a raised deck walkable", () => {
+    const size = 10;
+    const ground = emptyLayer(size, size);
+    // The banks either side stand two levels up; the channel between them stays at ground level.
+    ground.ids = Array.from({ length: size * size }, (_unused, index) =>
+      autotileId(TERRAIN_MATERIAL_SLOTS.herbe[index % size === 2 || index % size === 6 ? 2 : 0], 0),
+    );
+    const compiled = compileAuthoredMap({
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [
+        {
+          col: 4,
+          row: 5,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "terrain.bridge.wood.horizontal",
+          bridge: { length: 5, width: 1 },
+        },
+      ],
+    });
+    const deck = compiled.colliders[0];
+    if (!deck) throw new Error("the bridge compiled no deck");
+    expect(deck.top).toBeGreaterThan(1);
+    const index = createColliderIndex();
+    for (const collider of compiled.colliders) index.add(collider);
+    // A body on the channel floor: under the planking, so it walks through. Standing on the deck
+    // is still fine, and a body raised into the deck is still refused.
+    expect(index.blocked(-0.5, 0.5, 0.3, 0)).toBe(false);
+    expect(index.blocked(-0.5, 0.5, 0.3, deck.top ?? 0)).toBe(false);
+    expect(index.blocked(-0.5, 0.5, 0.3, (deck.bottom ?? 0) - 0.1)).toBe(true);
+
+    // And the SERVER agrees, from the same bake. This is the half that matters most: a client that
+    // walks under a deck the room refuses would be rubber-banded back out from under it.
+    const terrain = zoneTerrainFromHeightfield(compiled);
+    expect(canStand(terrain, -0.5, 0.5, 0.3, 0)).toBe(true);
   });
 
   it("keeps a freely rotated bridge's deck, rails and visual on the same angle", () => {

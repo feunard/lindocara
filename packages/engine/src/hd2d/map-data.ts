@@ -170,6 +170,7 @@ function toCollider(value: unknown): ColliderRect | null {
   )
     return null;
   if (value.top !== undefined && !isFiniteNumber(value.top)) return null;
+  if (value.bottom !== undefined && !isFiniteNumber(value.bottom)) return null;
   if (value.rotation !== undefined && !isFiniteNumber(value.rotation)) return null;
   if (value.footprint !== undefined && value.footprint !== "ellipse") return null;
   if (value.support !== undefined && value.support !== "center") return null;
@@ -182,6 +183,7 @@ function toCollider(value: unknown): ColliderRect | null {
     h: value.h,
     ...(value.rotation === undefined ? {} : { rotation: value.rotation }),
     ...(value.top === undefined ? {} : { top: value.top }),
+    ...(value.bottom === undefined ? {} : { bottom: value.bottom }),
     ...(value.footprint === undefined ? {} : { footprint: value.footprint }),
     ...(value.support === undefined ? {} : { support: value.support }),
     ...(surface === undefined ? {} : { surface }),
