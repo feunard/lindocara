@@ -1,4 +1,8 @@
-import { paintElevation } from "@lindocara/engine/tile-brush.js";
+import {
+  elevationStepTarget,
+  groundElevationAt,
+  paintElevation,
+} from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId, fixedId } from "@lindocara/engine/tileset.js";
 import {
@@ -8,6 +12,7 @@ import {
   CLIFF_WATER_HIGH_2_SLOT,
   CLIFF_WATER_SLOT,
   GRASS_SLOTS,
+  MAX_TERRAIN_LEVEL,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
@@ -122,5 +127,40 @@ describe("the elevation brush", () => {
     layers = paintElevation(layers, set, 1, 2, 3);
     layers = paintElevation(layers, set, 2, 2, 2);
     expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WALL_HIGH_2_SLOT);
+  });
+});
+
+describe("relative elevation steps", () => {
+  it("steps one level from wherever the cell already stands", () => {
+    expect(elevationStepTarget("raise", 0)).toBe(1);
+    expect(elevationStepTarget("raise", 2)).toBe(3);
+    expect(elevationStepTarget("lower", 3)).toBe(2);
+    expect(elevationStepTarget("lower", 1)).toBe(0);
+    expect(elevationStepTarget("ground", 3)).toBe(0);
+    expect(elevationStepTarget("keep", 2)).toBe(2);
+  });
+
+  it("REFUSES rather than repainting when a step has nowhere to go", () => {
+    // Null is the whole point: a brush that quietly repaints the same slot is indistinguishable
+    // from a broken one, so the editor can flash its hint instead.
+    expect(elevationStepTarget("lower", 0)).toBeNull();
+    expect(elevationStepTarget("raise", MAX_TERRAIN_LEVEL)).toBeNull();
+  });
+
+  it("lands the first stroke on the sea at ground level, and never below it", () => {
+    // Water, void and off-map all read as -1 (`elevationOfSlot`). There is deliberately nothing
+    // below the ground: a negative level would need art, collision and an encoding that do not exist.
+    for (const step of ["keep", "ground", "raise"] as const) {
+      expect(elevationStepTarget(step, -1)).toBe(0);
+    }
+    expect(elevationStepTarget("lower", -1)).toBeNull();
+  });
+
+  it("reads a cell's current level off the ground layer, water included", () => {
+    const layers = paintElevation(blank(), set, 2, 3, 3);
+    const ground = layerAt(layers, 0);
+    expect(groundElevationAt(ground, 3, 3)).toBe(2);
+    expect(groundElevationAt(ground, 0, 0)).toBe(-1);
+    expect(groundElevationAt(ground, -1, 0)).toBe(-1);
   });
 });

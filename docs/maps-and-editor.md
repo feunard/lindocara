@@ -144,12 +144,26 @@ static visuals in place; event edits reuse the same path while their preview rem
 65,536 terrain cells of the 256x256 working canvas, the ground/water meshes, actors and post-effects
 remain alive. Field brushes are the only edits that remesh terrain, and rapid terrain strokes keep
 their existing throttle plus release flush.
-Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
-stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and column 3
-climbs left; those are the only supported orientations. Both halves run beside
-one 0â†”1 or 1â†”2 boundary; the clicked cell is the low half and the preview shows both occupied cells.
-It never paints elevation itself: the author paints both levels first, and flat or mismatched ground
-is refused. Other adjacent elevation faces do not invalidate two matching endpoints. Painting water
+Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready.
+
+The elevation brushes are RELATIVE: ground, +1 and -1, resolved against whatever level the painted
+cell already stands at (`elevationStepTarget`, `tile-brush.ts`). Picking a material alone carries
+`keep`, so choosing ice does not flatten the plateau it lands on. A step with nowhere to go returns
+null and the stage flashes its refusal hint rather than repainting the same slot: there is nothing
+below the ground, and `MAX_TERRAIN_LEVEL` is the top. That ceiling is the tile encoding, not a
+preference - a cell's level IS its index into `TERRAIN_MATERIAL_SLOTS`, and the raised tints, the
+cliff faces and the ramp art are all per-level in the same way, so a taller range costs four sets of
+new art before the number can move.
+
+The stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and
+column 3 climbs left; those are the only supported orientations, so a bank whose high side is north
+or south has no ramp at all. The author no longer declares which: `inferStairsPlacement` tries all
+six candidates (two directions, three transitions) at the hovered cell and takes the one that fits,
+with the camera's yaw breaking a genuine tie toward whichever direction currently reads as the
+screen's right. The ghost still draws where nothing fits, marked invalid so it paints red. Both
+halves run beside one 0â†”1, 1â†”2 or 2â†”3 boundary; the clicked cell is the low half and the preview
+shows both occupied cells. It never paints elevation itself: the author paints both levels first,
+and flat or mismatched ground is refused. Other adjacent elevation faces do not invalidate two matching endpoints. Painting water
 over either stair tile, or any later terrain edit that invalidates either endpoint, removes the whole
 pair and restores normal cliff upkeep. Baked ramp cells reduce hero movement to 86%; the renderer
 adds a smooth 7px hero lift and raises the camera target by 24px on level 1 and 56px on level 2,

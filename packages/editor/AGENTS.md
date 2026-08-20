@@ -12,14 +12,24 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - `src/game/editor-state.ts` owns pure editor mutations and serialization.
 - The package composes `@lindocara/engine`, `@lindocara/renderer`, `@lindocara/client` and
   `@alepha/ui`; it must not duplicate their movement, terrain or rendering rules.
-- Entering the editor opens an **unsaved local sandbox** (`createSandboxSession()` in
-  `src/ui/editor/adventure-session.ts`) and WRITES NOTHING. There is no landing/picker page:
-  reaching an existing adventure is `File → Open`, and starting another sandbox is
-  `File → New adventure`. The sandbox's map comes from the engine's `defaultMapInput` — the SAME
-  template `MapService.createMap` uses, so it is born on terrain the server would have produced —
-  and the first save creates the adventure and that map in one `POST /api/adventures` carrying the
-  map. This replaced a `POST` on entry that left one untitled row per visit behind, never cleaned
-  up; the trade is that a sandbox is memory-only, so closing the tab loses it.
+- Entering the editor **RESUMES the account's most recently worked-on adventure**
+  (`loadLastAdventureSession()` in `src/ui/editor/adventure-session.ts`), and opens an **unsaved
+  local sandbox** (`createSandboxSession()`) only when there is nothing to resume. Entry still
+  WRITES NOTHING: the resume is one `GET /api/adventures`, whose ORDER is the answer. The server
+  returns the owner's adventures most-recently-updated first, and `MapService.updateMap` touches
+  the adventure row on every map save so that order means "what I was working on" rather than "what
+  I last renamed". A `localStorage` note was the alternative, and is worse in two ways an author
+  meets: it does not follow them to another machine, and two tabs disagree about it. A resume
+  pushes `/editor/<id>` with `replace: true`, exactly as `File → Open` pushes its own URL and for
+  the same reason. Anything that fails on the way (an empty account, a vanished row, an offline
+  listing) falls back to the sandbox QUIETLY. That is the opposite of the deep link's behaviour and
+  it is deliberate: nobody named an adventure here.
+- There is no landing/picker page: reaching a different adventure is `File → Open`, and starting a
+  sandbox is `File → New adventure`. The sandbox's map comes from the engine's `defaultMapInput`,
+  the SAME template `MapService.createMap` uses, so it is born on terrain the server would have
+  produced, and the first save creates the adventure and that map in one `POST /api/adventures`
+  carrying the map. This replaced a `POST` on entry that left one untitled row per visit behind,
+  never cleaned up; the trade is that a sandbox is memory-only, so closing the tab loses it.
 - **`adventureId === null` means "sandbox"**, and every server-backed surface must read it rather
   than assume a row exists: Test routes through the first-save popup and continues into the launch,
   the settings dialog saves through `onSaveDraft` (the create seam) and hides Delete, New map is
@@ -39,12 +49,29 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   deleted) still calls `setSession(null)` directly and still wants a fresh sandbox: the two are
   different intents.
 - The entry bootstrap keeps ONE ref: `startedRef`, the fire-once latch against strict mode's
-  double-invoked effect — drop it and the second invocation replaces the sandbox with a different
-  one, discarding the first's map id while the draft still points at it. Its former twin `aliveRef`
-  (cancellation, reasserted per effect run) died with the request it guarded: minting a sandbox is
-  synchronous, so there is nothing in flight for a synthetic cleanup to discard. Do not reintroduce
-  a `POST` here without bringing that ref back — the docblock above the component records why a
-  per-closure `cancelled` flag is not equivalent.
+  double-invoked effect. Drop it and the second invocation issues a second resume lookup, or
+  replaces the sandbox with a different one and discards the first's map id while the draft still
+  points at it. Its former twin `aliveRef` (cancellation, reasserted per effect run) died with the
+  `POST` it guarded and has NOT come back with the resume `GET`: a late resolution writes the
+  session the author wants, which is the same argument the deep-link path already made. Do not
+  reintroduce a WRITE here without bringing that ref back; the docblock above the component records
+  why a per-closure `cancelled` flag is not equivalent.
+
+- **Two terrain tools read the map instead of asking the author.** The elevation brushes are
+  relative (ground / +1 / -1, `elevationStepTarget`), resolved per painted cell, and the stairs
+  stamp infers its direction and the two levels it joins (`inferStairsPlacement`) from the cell
+  under the cursor, with the camera's yaw breaking a genuine tie. Both REFUSE rather than no-op:
+  `applyTool` returns null and the stage counts a placement rejection, which flashes the visible
+  hint. A brush that silently repaints the same slot is indistinguishable from a broken one.
+- **The door-link tool is two clicks and one undo step.** It mints the `teleporter` preset twice,
+  once per door, each aimed at the walkable cell in FRONT of the other (never the door itself: a
+  `player-touch` teleporter you land on is how a pair of doors becomes a loop). The first door lives
+  in the stage (`linkFrom`), not on the map, so the pair is one `applyTool` call; it is published on
+  `MapEditorStageState.linkAnchor` so the palette can say which click is next, and cleared whenever
+  the tool changes. After the click the two are ORDINARY independent events: there is no pair object
+  in the map model, so deleting one end leaves the other as a one-way door. That is the decision,
+  not an omission; a pair object would be a second identity to persist, migrate and keep in step
+  with two freely editable events.
 
 - The authoring camera can turn: `[`/`]` step a quarter turn (snapping to the nearest quarter
   first, so they also straighten a freely-orbited view), and **right**-drag orbits to any angle with

@@ -1,13 +1,24 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
-import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
+import type { ElevationStep, StairsDirection } from "@lindocara/engine/tile-brush.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
 
-const ELEVATION_LEVELS: (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
-const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
-const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1, 2];
+/**
+ * The elevation brushes, and they are RELATIVE now.
+ *
+ * One button per absolute level ("Sol", "Plateau +1", "Plateau +2", "Haut plateau +3") described
+ * the range instead of the intent: an author who wanted a fourth plateau had nowhere to click, and
+ * one who wanted to raise a slope had to work out what level it was already at. These three say
+ * what the author means and stay correct whatever the range becomes. The preview tint is the level
+ * each step LANDS on from flat ground, which is the honest illustration of a relative brush.
+ */
+const ELEVATION_STEPS: readonly { step: Exclude<ElevationStep, "keep">; previewLevel: 0 | 1 }[] = [
+  { step: "ground", previewLevel: 0 },
+  { step: "raise", previewLevel: 1 },
+  { step: "lower", previewLevel: 0 },
+];
 const MATERIAL_OPTIONS: readonly TerrainMaterial[] = ["herbe", "sable", "neige", "glace"];
 const MATERIAL_BACKGROUNDS: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
   sable: "linear-gradient(145deg, #e6c57a, #b98345)",
@@ -37,16 +48,10 @@ interface TerrainPaletteProps {
   fillActive: boolean;
   /** True while the stairs stamp is the active tool. */
   stairsActive: boolean;
-  /** The side reached by climbing; walking the opposite way descends. */
-  stairsDirection: StairsDirection;
-  /** 0 connects ground to +1; 1 connects +1 to +2. */
-  stairsLowLevel: StairsLowLevel;
   /** True while the hero-spawn tool is the active tool, so its palette button reads as pressed. */
   spawnActive: boolean;
   onPickContent(content: RectFillContent): void;
   onSelectStairs(): void;
-  onStairsDirectionChange(direction: StairsDirection): void;
-  onStairsLowLevelChange(level: StairsLowLevel): void;
   onSelectSpawn(): void;
 }
 
@@ -66,13 +71,9 @@ export function TerrainPalette({
   terrainActive,
   fillActive,
   stairsActive,
-  stairsDirection,
-  stairsLowLevel,
   spawnActive,
   onPickContent,
   onSelectStairs,
-  onStairsDirectionChange,
-  onStairsLowLevelChange,
   onSelectSpawn,
 }: TerrainPaletteProps) {
   useLocale();
@@ -86,7 +87,11 @@ export function TerrainPalette({
       : content.block === "grass"
         ? "herbe"
         : null;
-  const selectedLevel = content.kind === "elevation" ? content.level : 0;
+  // A relative brush has no selected level to echo; the material swatches preview at ground level,
+  // which is what "paint this material here" looks like on the map an author starts from.
+  const selectedStep =
+    content.kind === "elevation" && "step" in content ? content.step : ("keep" as ElevationStep);
+  const selectedLevel = content.kind === "elevation" && "level" in content ? content.level : 0;
   const waterActive = terrainActive && content.kind === "block" && content.block === "water";
 
   return (
@@ -112,7 +117,9 @@ export function TerrainPalette({
               }
               active={terrainActive && selectedMaterial === material}
               preview={<TerrainMaterialPreview material={material} level={selectedLevel} />}
-              onClick={() => onPickContent({ kind: "elevation", material, level: selectedLevel })}
+              // Picking a material changes the ground and leaves the height alone: `keep`. Choosing
+              // a colour is not a reason to flatten the plateau it is painted on.
+              onClick={() => onPickContent({ kind: "elevation", material, step: "keep" })}
             />
           ))}
           <SwatchButton
@@ -129,20 +136,20 @@ export function TerrainPalette({
           <span className="text-[11.5px] text-zinc-500">
             {t("editor.shell.terrain.elevationLabel")}
           </span>
-          <div className="grid grid-cols-4 gap-1">
-            {ELEVATION_LEVELS.map((level) => {
-              const active = terrainActive && selectedMaterial !== null && selectedLevel === level;
+          <div className="grid grid-cols-3 gap-1">
+            {ELEVATION_STEPS.map(({ step, previewLevel }) => {
+              const active = terrainActive && selectedMaterial !== null && selectedStep === step;
               return (
                 <button
-                  key={level}
+                  key={step}
                   type="button"
-                  aria-label={t("editor.shell.terrain.level", { level })}
+                  aria-label={t(`editor.shell.terrain.step.${step}`)}
                   aria-pressed={active}
                   onClick={() =>
                     onPickContent({
                       kind: "elevation",
                       material: selectedMaterial ?? "herbe",
-                      level,
+                      step,
                     })
                   }
                   className={`flex min-w-0 flex-col items-center gap-1 rounded-md border p-1 text-[10px] font-medium ${
@@ -151,83 +158,33 @@ export function TerrainPalette({
                       : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"
                   }`}
                 >
-                  <TerrainMaterialPreview material={selectedMaterial ?? "herbe"} level={level} />
-                  <span className="w-full truncate">{t(`editor.shell.terrain.level${level}`)}</span>
+                  <TerrainMaterialPreview
+                    material={selectedMaterial ?? "herbe"}
+                    level={previewLevel}
+                  />
+                  <span className="w-full truncate">{t(`editor.shell.terrain.step.${step}`)}</span>
                 </button>
               );
             })}
           </div>
+          <p className="px-0.5 text-[10px] text-zinc-400">{t("editor.shell.terrain.step.hint")}</p>
         </div>
 
-        <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2">
+        {/* One button. The direction and the pair of levels used to be six more buttons the author
+            had to set BEFORE clicking, and the map already answers both exactly: the stamp reads
+            them off the cell under the cursor (`inferStairsPlacement`). What is left to say is the
+            part the terrain cannot: the art only exists for banks that run north to south. */}
+        <div
+          data-testid="terrain-stairs"
+          className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"
+        >
           <SwatchButton
             label={t("editor.shell.tool.stairs")}
             active={stairsActive}
-            preview={
-              <TerrainTilePreview
-                kind="stairs"
-                level={stairsLowLevel}
-                direction={stairsDirection}
-              />
-            }
+            preview={<TerrainTilePreview kind="stairs" level={0} direction="east" />}
             onClick={onSelectStairs}
           />
-
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-[11px] font-medium text-zinc-600">
-              {t("editor.stairs.highSide")}
-            </legend>
-            <div className="grid grid-cols-2 gap-1">
-              {STAIRS_DIRECTION_OPTIONS.map((direction) => (
-                <button
-                  key={direction}
-                  type="button"
-                  aria-pressed={stairsActive && stairsDirection === direction}
-                  className={`rounded border px-2 py-1 text-[10.5px] ${
-                    stairsActive && stairsDirection === direction
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
-                  }`}
-                  onClick={() => onStairsDirectionChange(direction)}
-                >
-                  {t(`editor.stairs.direction.${direction}`)}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-[11px] font-medium text-zinc-600">
-              {t("editor.stairs.transition")}
-            </legend>
-            <div className="grid grid-cols-2 gap-1">
-              {STAIRS_LOW_LEVEL_OPTIONS.map((lowLevel) => (
-                <button
-                  key={lowLevel}
-                  type="button"
-                  aria-pressed={stairsActive && stairsLowLevel === lowLevel}
-                  className={`rounded border px-2 py-1 text-[10.5px] ${
-                    stairsActive && stairsLowLevel === lowLevel
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
-                  }`}
-                  onClick={() => onStairsLowLevelChange(lowLevel)}
-                >
-                  {t("editor.stairs.transitionLevels", {
-                    low: lowLevel,
-                    high: lowLevel + 1,
-                  })}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <p className="text-[10.5px] leading-snug text-zinc-500">
-            {t("editor.stairs.hint", {
-              up: t(`editor.stairs.direction.${stairsDirection}`),
-              down: t(`editor.stairs.direction.${oppositeDirection(stairsDirection)}`),
-            })}
-          </p>
+          <p className="text-[10.5px] leading-snug text-zinc-500">{t("editor.stairs.hint")}</p>
         </div>
         <SwatchButton
           label={t("editor.tool.spawn")}
@@ -377,11 +334,6 @@ function TerrainTilePreview({
       />
     </span>
   );
-}
-
-function oppositeDirection(direction: StairsDirection): StairsDirection {
-  if (direction === "east") return "west";
-  return "east";
 }
 
 export function SpriteSheetPreview({ source, frame }: { source: string; frame?: number }) {

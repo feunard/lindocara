@@ -553,7 +553,7 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(grass());
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "elevation",
-      level: 0,
+      step: "keep",
       material: "herbe",
     });
     expect(grass()).toHaveAttribute("aria-pressed", "true");
@@ -1699,53 +1699,49 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
+    // The elevation brushes are relative: the tool carries a STEP, and the step survives a change
+    // of material the way the old absolute level used to.
     await userEvent.click(
-      screen.getByRole("button", { name: t("editor.shell.terrain.level", { level: 2 }) }),
+      screen.getByRole("button", { name: t("editor.shell.terrain.step.raise") }),
     );
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "elevation",
-      level: 2,
+      step: "raise",
       material: "herbe",
     });
 
+    // Picking a material is a material choice, not a height choice: it carries `keep`, so painting
+    // ice over a plateau leaves the plateau where it is.
     await userEvent.click(screen.getByRole("button", { name: t("editor.tool.grass") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "elevation",
-      level: 2,
+      step: "keep",
       material: "herbe",
     });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.palette.terrain.glace") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "elevation",
-      level: 2,
+      step: "keep",
       material: "glace",
     });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "stairs",
-      direction: "east",
-      lowLevel: 0,
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: t("editor.stairs.direction.west") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "stairs",
-      direction: "west",
-      lowLevel: 0,
-    });
-
     await userEvent.click(
-      screen.getByRole("button", {
-        name: t("editor.stairs.transitionLevels", { low: 1, high: 2 }),
-      }),
+      screen.getByRole("button", { name: t("editor.shell.terrain.step.lower") }),
     );
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "stairs",
-      direction: "west",
-      lowLevel: 1,
+      kind: "elevation",
+      step: "lower",
+      material: "glace",
     });
+
+    // One button, and the tool carries nothing: the direction and the two levels are read off the
+    // cell under the cursor at click time, so there is no longer a "which ramp" to choose first.
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "stairs" });
+    // And the six buttons that used to stand in front of the stamp (two directions, three
+    // transitions) are gone: the box holds the stamp and nothing else.
+    expect(within(screen.getByTestId("terrain-stairs")).getAllByRole("button")).toHaveLength(1);
   });
 
   it("gates the fill+water dead combination: the water swatch is disabled while fill is active", async () => {

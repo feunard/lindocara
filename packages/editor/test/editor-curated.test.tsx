@@ -60,6 +60,20 @@ describe("editor asset catalogue", () => {
     expect(within(smallStone as HTMLElement).getByText("Stone +1–3")).toBeVisible();
   });
 
+  it("offers one bridge card, and never badges a deck an author crosses as blocking", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search placeable assets" }), {
+      target: { value: "bridge" },
+    });
+    const cards = screen
+      .getAllByRole("button")
+      .filter((button) => button.dataset.assetId?.startsWith("terrain.bridge."));
+    expect(cards.map((card) => card.dataset.assetId)).toEqual(["terrain.bridge.wood.horizontal"]);
+    expect(within(cards[0] as HTMLElement).queryByText("Collision")).toBeNull();
+  });
+
   it("offers every actor model to free NPCs, including native colours, workers and the Rogue thief", () => {
     setLocale("en");
     render(<CatalogueAssetPicker usage="character" value={null} onSelectAsset={() => {}} />);
@@ -95,6 +109,9 @@ describe("editor asset catalogue", () => {
         eventKind="monster"
         eventPreset="raw"
         teleporterEnabled
+        linkActive={false}
+        linkPending={false}
+        onSelectDoorLink={() => {}}
         markerSpecies="spear_goblin"
         markerRadius={96}
         npcGraphic={DEFAULT_NPC_MODEL_ASSET_ID}

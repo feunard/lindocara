@@ -6,6 +6,16 @@ export const BRIDGE_ASSET_IDS = {
 } as const;
 
 export type BridgeOrientation = keyof typeof BRIDGE_ASSET_IDS;
+export type BridgeAssetId = (typeof BRIDGE_ASSET_IDS)[BridgeOrientation];
+
+/**
+ * The one bridge the palette offers, and the answer every ambiguous crossing falls back to.
+ *
+ * Both ids stay real assets: `bridgeAssetIdForCrossing` picks between them at placement, the
+ * inspector switches an existing deck from one to the other, and every stored map keeps loading
+ * either. Only the second CARD is gone, because two cards described one sheet at two rotations.
+ */
+export const DEFAULT_BRIDGE_ASSET_ID: BridgeAssetId = BRIDGE_ASSET_IDS.horizontal;
 
 export interface BridgeDimensions {
   /** Cells along the crossing direction. */
@@ -28,6 +38,50 @@ export function bridgeOrientation(assetId: string): BridgeOrientation | null {
 export function bridgeBaseRotationDegrees(assetId: string): 0 | 90 | null {
   const orientation = bridgeOrientation(assetId);
   return orientation === "horizontal" ? 0 : orientation === "vertical" ? 90 : null;
+}
+
+/** Contiguous open cells through `(col, row)` along one axis, the anchor included. Capped at the
+ *  longest authorable deck in each direction: an ocean would otherwise be walked to the map edge to
+ *  learn what two capped runs already say, which is "this is not a crossing". */
+function openRun(
+  openAt: (col: number, row: number) => boolean,
+  col: number,
+  row: number,
+  stepCol: number,
+  stepRow: number,
+): number {
+  let run = 1;
+  for (const direction of [-1, 1]) {
+    for (let step = 1; step <= MAX_BRIDGE_DIMENSION; step += 1) {
+      if (!openAt(col + stepCol * direction * step, row + stepRow * direction * step)) break;
+      run += 1;
+    }
+  }
+  return run;
+}
+
+/**
+ * Which bridge belongs on this cell: a deck crosses water the SHORT way. A river running north to
+ * south is long down the row axis and narrow across the column axis, so what spans it is a
+ * `horizontal` deck; an east-west river is the same argument turned ninety degrees.
+ *
+ * `openAt` answers "is this cell open water" over the caller's own map, which is what keeps this
+ * module free of every map type (and what makes the rule testable without one). It must answer
+ * `false` off-map, so the walk stops at the border like it stops at a bank.
+ *
+ * A dry anchor or a tie (a square pond, the open sea, plain ground) keeps
+ * `DEFAULT_BRIDGE_ASSET_ID`. That is deliberately the orientation the palette card previews: a
+ * placement made nowhere near water is the one the author was already looking at.
+ */
+export function bridgeAssetIdForCrossing(
+  openAt: (col: number, row: number) => boolean,
+  col: number,
+  row: number,
+): BridgeAssetId {
+  if (!openAt(col, row)) return DEFAULT_BRIDGE_ASSET_ID;
+  const across = openRun(openAt, col, row, 1, 0);
+  const along = openRun(openAt, col, row, 0, 1);
+  return across <= along ? BRIDGE_ASSET_IDS.horizontal : BRIDGE_ASSET_IDS.vertical;
 }
 
 export function parseBridgeDimensions(value: unknown): BridgeDimensions | null {

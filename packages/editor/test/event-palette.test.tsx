@@ -44,6 +44,9 @@ function baseProps() {
     eventKind: "normal" as const,
     eventPreset: "raw" as const,
     teleporterEnabled: true,
+    linkActive: false,
+    linkPending: false,
+    onSelectDoorLink: () => {},
     markerSpecies: "spear_goblin" as const,
     markerRadius: 96,
     npcGraphic: DEFAULT_NPC_MODEL_ASSET_ID,
@@ -64,6 +67,32 @@ function baseProps() {
 }
 
 describe("EventPalette (D13/D14)", () => {
+  it("offers the door-link tool and says which of its two clicks is next", () => {
+    setLocale("en");
+    const onSelectDoorLink = vi.fn();
+    const { rerender } = render(
+      <EventPalette {...baseProps()} onSelectDoorLink={onSelectDoorLink} />,
+    );
+    const link = within(screen.getByTestId("event-door-link"));
+    fireEvent.click(link.getByRole("button", { name: t("editor.event.preset.doorLink") }));
+    expect(onSelectDoorLink).toHaveBeenCalled();
+    // Inactive: no step text competing with the rest of the palette.
+    expect(screen.queryByText(t("editor.event.preset.doorLink.step1"))).toBeNull();
+
+    rerender(<EventPalette {...baseProps()} linkActive />);
+    expect(screen.getByText(t("editor.event.preset.doorLink.step1"))).toBeVisible();
+
+    rerender(<EventPalette {...baseProps()} linkActive linkPending />);
+    expect(screen.getByText(t("editor.event.preset.doorLink.step2"))).toBeVisible();
+  });
+
+  it("gates the door link on a saved map, like the teleporter preset it mints twice", () => {
+    setLocale("en");
+    render(<EventPalette {...baseProps()} teleporterEnabled={false} />);
+    const link = within(screen.getByTestId("event-door-link"));
+    expect(link.getByRole("button", { name: t("editor.event.preset.doorLink") })).toBeDisabled();
+  });
+
   it("keeps large actor catalogues closed until requested and then shows every free NPC model", () => {
     setLocale("en");
     const onSelectNpcGraphic = vi.fn();

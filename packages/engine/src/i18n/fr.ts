@@ -1176,6 +1176,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.tool.monster": "Monstre",
   "editor.tool.pan": "Déplacer la carte",
   "editor.tool.event": "Événement",
+  "editor.tool.link": "Liaison de portes",
   "editor.inspector.title": "Inspecteur de sélection",
   "editor.inspector.id": "Repère de l’événement",
   "editor.inspector.label": "Libellé affiché",
@@ -1202,6 +1203,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.building.depth": "Profondeur",
   "editor.inspector.building.sizeHint":
     "Proportions liées ; le modèle, sa hauteur, le toit et la collision suivent.",
+  "editor.inspector.bridge.orientation": "Sens de la traversée",
+  "editor.inspector.bridge.orientation.horizontal": "De gauche à droite",
+  "editor.inspector.bridge.orientation.vertical": "De haut en bas",
   "editor.inspector.bridge.size": "Dimensions du pont",
   "editor.inspector.bridge.length": "Longueur",
   "editor.inspector.bridge.width": "Largeur",
@@ -1290,6 +1294,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.palette.category.camp-and-treasure": "Camp et trésors",
   "editor.palette.category.farm-and-village": "Ferme et village",
   "editor.palette.category.interior-furniture": "Mobilier intérieur",
+  "editor.asset.bridge.wood": "Pont de bois",
   "editor.asset.lindocara.house": "Maison lindocara",
   "editor.asset.lindocara.stoneTower": "Tour de pierre",
   "editor.asset.lindocara.archeryGuild": "Guilde d’archers",
@@ -1365,11 +1370,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.terrain.elevation2": "Élévation 2",
   "editor.shell.terrain.elevation3": "Élévation 3",
   "editor.shell.terrain.elevationLabel": "Élévation du terrain",
-  "editor.shell.terrain.level": "Terrain élévation niveau {level}",
-  "editor.shell.terrain.level0": "Sol",
-  "editor.shell.terrain.level1": "Plateau +1",
-  "editor.shell.terrain.level2": "Plateau +2",
-  "editor.shell.terrain.level3": "Haut plateau +3",
+  "editor.shell.terrain.step.ground": "Sol",
+  "editor.shell.terrain.step.raise": "Monter +1",
+  "editor.shell.terrain.step.lower": "Descendre -1",
+  "editor.shell.terrain.step.hint":
+    "Monter et descendre décalent d’un niveau depuis celui où la case se trouve déjà. Rien n’existe encore sous le sol : descendre s’y arrête.",
   "editor.shell.decor.heading": "Éléments",
   "editor.mapBudget.scenery": "Budget de sécurité des décors",
   "editor.mapBudget.sceneryReached":
@@ -1383,13 +1388,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.fill.water_disabled":
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
-  "editor.stairs.highSide": "Sens de la montée",
-  "editor.stairs.direction.east": "Droite",
-  "editor.stairs.direction.west": "Gauche",
-  "editor.stairs.transition": "Niveaux reliés",
-  "editor.stairs.transitionLevels": "Niveau {low} ↔ {high}",
   "editor.stairs.hint":
-    "Choisissez le sens de montée. La rampe occupe 2 cases le long de la falaise : cliquez sur la case basse. Les héros montent vers {up} et redescendent vers {down}.",
+    "Cliquez sur la case basse contre une falaise : la rampe trouve seule son sens et les deux niveaux qu’elle relie, et les héros la parcourent dans les deux sens. L’aperçu passe au rouge là où aucune ne convient, y compris pour une falaise dont le côté haut est au nord ou au sud : il n’existe pas de rampe pour celles-là.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
@@ -2024,6 +2024,14 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.preset.sign": "Panneau / Dialogue",
   "editor.event.preset.chest": "Coffre (or)",
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
+  "editor.event.preset.doorLink": "Liaison de portes",
+  "editor.event.preset.doorLink.disabled":
+    "Enregistrez d’abord la carte pour relier deux de ses portes.",
+  "editor.event.preset.doorLink.step1": "Cliquez sur la première porte.",
+  "editor.event.preset.doorLink.step2":
+    "Cliquez maintenant sur la seconde porte. Recliquez la première pour recommencer.",
+  "editor.event.preset.doorLink.hint":
+    "Chaque porte reçoit un téléporteur vers l’autre. Le héros arrive sur la case praticable devant la porte d’en face, jamais sur la porte elle-même.",
   "editor.event.list.heading": "Événements",
   "editor.event.list.empty": "Aucun événement sur cette carte.",
   "editor.registry.title": "États et compteurs de l’aventure",

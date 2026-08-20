@@ -498,6 +498,14 @@ export class MapService {
           : {}),
         ...(preparedRegistry !== undefined ? { registry: JSON.stringify(preparedRegistry) } : {}),
       });
+    } else {
+      // An empty patch, on purpose: the repository always stamps `updatedAt`, so this is a pure
+      // touch. It makes the adventure row mean "last WORKED ON" rather than "last renamed", which
+      // is what `AdventureService.listAdventures` orders by and therefore what a bare `/editor`
+      // resumes. Without it, an hour of painting would leave the adventure looking untouched since
+      // the day it was titled. A map save carries `adventure` only when the editor happens to have
+      // metadata to send, so the branch above cannot be relied on to keep the timestamp honest.
+      await this.adventures.updateById(existing.adventureId, {});
     }
 
     return {

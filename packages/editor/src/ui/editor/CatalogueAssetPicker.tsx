@@ -1,5 +1,6 @@
 import { Input } from "@alepha/ui/components/ui/input";
 import { t, useLocale } from "@lindocara/client/i18n.js";
+import { BRIDGE_ASSET_IDS } from "@lindocara/engine/bridges.js";
 import { nativeHarvestPresetForAsset } from "@lindocara/engine/harvest-presets.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
@@ -133,6 +134,12 @@ const ASSET_DISPLAY_NAMES: ReadonlyMap<EditorAssetId, string> = (() => {
 })();
 
 const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
+  // Both bridge ids, and NOT for the usual reason. The sheet-derived names ("Bridge All
+  // (horizontal)" / "(vertical)") were already ugly, and they became wrong when placement started
+  // choosing the orientation from the crossing: the one card an author clicks must not promise a
+  // direction the click may not produce.
+  [BRIDGE_ASSET_IDS.horizontal]: "editor.asset.bridge.wood",
+  [BRIDGE_ASSET_IDS.vertical]: "editor.asset.bridge.wood",
   [LINDOCARA_BUILDING_ASSET_IDS.house]: "editor.asset.lindocara.house",
   [LINDOCARA_BUILDING_ASSET_IDS.stoneTower]: "editor.asset.lindocara.stoneTower",
   [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild]: "editor.asset.lindocara.archeryGuild",
@@ -316,7 +323,12 @@ function AssetChoice({
   onSelect(assetId: EditorAssetId): void;
   disabled: boolean;
 }) {
-  const collides = asset.editor.collider !== undefined;
+  // A bridge carries a collider AND `terrainOverride: "walkable"`: the collider is its raised deck
+  // and rails (a surface a hero stands ON), while the override is what turns the water underneath
+  // into ground. Reading the collider alone badged the one asset an author places precisely in
+  // order to CROSS something as "blocking".
+  const collides =
+    asset.editor.collider !== undefined && asset.editor.terrainOverride !== "walkable";
   const harvestPreset = nativeHarvestPresetForAsset(asset.id as EditorAssetId);
   const harvestRange = harvestPreset
     ? harvestPreset.profile.resource === "gold"

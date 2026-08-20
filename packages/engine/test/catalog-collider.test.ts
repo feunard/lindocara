@@ -130,6 +130,17 @@ describe("catalogue colliders", () => {
     }
   });
 
+  it("offers one wooden bridge while the second orientation stays readable and placeable in code", () => {
+    // Two cards described one sheet at two rotations. Placement now reads the orientation off the
+    // crossing and the inspector switches it, so the vertical id must survive as an ASSET while
+    // disappearing as a CARD: every stored map holding one still resolves, and MapService still
+    // encodes its dimensions off `bridgeOrientation(row.kind)`.
+    const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
+    expect(placeableIds).toContain("terrain.bridge.wood.horizontal");
+    expect(placeableIds).not.toContain("terrain.bridge.wood.vertical");
+    expect(editorAsset("terrain.bridge.wood.vertical")).not.toBeNull();
+  });
+
   it("hides redundant resource cards while keeping their saved-map identities readable", () => {
     const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
     const hiddenDuplicates = [

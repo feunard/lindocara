@@ -1,3 +1,4 @@
+import { BRIDGE_ASSET_IDS } from "./bridges.js";
 import type { PrimaryColor } from "./character.js";
 import type { Rect } from "./game.js";
 import {
@@ -543,6 +544,11 @@ export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_
     // Raw tilemaps/foam/shadow stay automatic terrain sources, but the pack's dedicated animated
     // water rocks carry explicit placement metadata and are authored offshore decorations.
     if (asset.role === "terrain-source" && asset.editor.category !== "water-decor") return false;
+    // The two wooden bridges are one sheet at two rotations, and a bridge is native 3D geometry
+    // now: a resizable raised deck with rails, not the flat crop those two cards were named after.
+    // One card is offered; placement picks the orientation from the crossing and the inspector
+    // switches it afterwards, so the vertical id stays reachable without being a second card.
+    if (asset.id === BRIDGE_ASSET_IDS.vertical) return false;
     const { width, height } = effectiveAssetSize(asset);
     const maxWidth = asset.editor.renderLayer === "sky" ? 576 : 384;
     return width <= maxWidth && height <= 384 && asset.editor.visualFootprint.length <= 36;

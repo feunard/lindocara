@@ -23,6 +23,7 @@ import {
   CLIFF_WATER_HIGH_2_SLOT,
   CLIFF_WATER_SLOT,
   elevationOfSlot,
+  MAX_TERRAIN_LEVEL,
   RAMP_FIXED_TILE_COUNT,
   RAMP_LEVEL_3_FIXED_BASE,
   terrainSlot,
@@ -313,6 +314,46 @@ export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer
 /** Which elevation level a ground cell stands at. Empty and off-map read as -1: lower than any
  *  authored level, so a cliff at the map's edge still gets its face. */
 function elevationAt(ground: TileLayer, col: number, row: number): number {
+  return elevationOfSlot(slotAt(ground, col, row));
+}
+
+/**
+ * What an elevation brush does to the cell it lands on, RELATIVE to what is already there.
+ *
+ * The editor's palette used to offer one button per absolute level ("Ground", "Plateau +1",
+ * "Plateau +2", "High plateau +3"), which meant an author who wanted a fourth plateau had nowhere
+ * to click, and one who wanted to raise an existing slope had to read its current level off the
+ * screen first. These four steps say what the author actually means, and they do not enumerate the
+ * range, so they keep working the day the range grows.
+ */
+export type ElevationStep = "keep" | "ground" | "raise" | "lower";
+
+/**
+ * The absolute level an `ElevationStep` reaches from `current`, or `null` when it has nowhere to
+ * go. `null` is a REFUSAL the caller is expected to show (the editor flashes its "not here" hint),
+ * never a silent no-op: a button that does nothing is indistinguishable from a broken one.
+ *
+ * Water and off-map read as -1 (`elevationOfSlot`), below every authored level. The first stroke on
+ * the sea therefore always lands on the ground, whichever step carries it, and only `lower` refuses
+ * there, because there is deliberately nothing below the ground: negative levels would need art,
+ * collision and a stored encoding none of which exist.
+ */
+export function elevationStepTarget(step: ElevationStep, current: number): number | null {
+  if (current < 0) return step === "lower" ? null : 0;
+  switch (step) {
+    case "keep":
+      return current;
+    case "ground":
+      return 0;
+    case "raise":
+      return current < MAX_TERRAIN_LEVEL ? current + 1 : null;
+    case "lower":
+      return current > 0 ? current - 1 : null;
+  }
+}
+
+/** Which elevation the ground layer already holds at a cell: -1 for water, void and off-map. */
+export function groundElevationAt(ground: TileLayer, col: number, row: number): number {
   return elevationOfSlot(slotAt(ground, col, row));
 }
 
@@ -647,6 +688,43 @@ function syncWall(
   const ids = [...walls.ids];
   ids[indexOf(walls, col, row)] = fixedId(wantedIndex);
   return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
+}
+
+export interface StairsPlacement {
+  direction: StairsDirection;
+  lowLevel: StairsLowLevel;
+}
+
+/**
+ * The staircase this cell can actually take, read off the terrain instead of asked for.
+ *
+ * There are only six candidates (two ramp directions, three transitions) and `stairsFits` already
+ * answers each of them exactly: both ramp halves must stand on `lowLevel` and both must touch
+ * `lowLevel + 1` on the chosen side. So the editor never needed the author to declare a direction
+ * and a pair of levels before clicking; it needed to ask this question at the hovered cell.
+ *
+ * In practice at most one candidate fits, because east and west want cliffs on opposite sides. When
+ * two genuinely do (a cell in a trench, higher ground both ways), `prefer` breaks the tie: the
+ * editor passes whichever direction currently reads as "to the right of the screen" at the camera's
+ * yaw, so the ramp climbs the way the author is looking.
+ *
+ * `null` is a real answer and the common one: flat ground, or a bank running north to south, which
+ * has NO ramp art at all (`STAIRS_DIRECTIONS` is east/west, and Pixel Frog ships those two sides).
+ * A caller that swallows the null turns a missing asset into a click that mysteriously does nothing.
+ */
+export function inferStairsPlacement(
+  ground: TileLayer,
+  col: number,
+  row: number,
+  prefer?: StairsDirection,
+): StairsPlacement | null {
+  const fits: StairsPlacement[] = [];
+  for (const direction of STAIRS_DIRECTIONS) {
+    for (const lowLevel of [0, 1, 2] as const) {
+      if (stairsFits(ground, col, row, direction, lowLevel)) fits.push({ direction, lowLevel });
+    }
+  }
+  return fits.find((placement) => placement.direction === prefer) ?? fits[0] ?? null;
 }
 
 /**

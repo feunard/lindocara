@@ -296,3 +296,19 @@ export function materialOfSlot(slot: number): TerrainMaterial {
 export function terrainSlot(material: TerrainMaterial, level: number): number | null {
   return TERRAIN_MATERIAL_SLOTS[material][level as 0 | 1 | 2 | 3] ?? null;
 }
+
+/**
+ * The highest authored elevation: ground plus three plateaus.
+ *
+ * This is not a preference, it is where the model runs out. A cell's level IS its index into
+ * `TERRAIN_MATERIAL_SLOTS`, which holds exactly four slots per material, and three more tables are
+ * per-level in the same way: the raised tints above, the cliff faces (`CLIFF_WALL_SLOT` /
+ * `CLIFF_WALL_HIGH_2_SLOT`) and the ramp art `tile-brush.ts` indexes by `StairsLowLevel` (`0 | 1 |
+ * 2`). Raising this number alone would return `null` from `terrainSlot` and paint nothing.
+ *
+ * A taller range therefore costs four things, none of them here: ground art per new level, a tint
+ * per new level, cliff faces for the new drops, and ramps for the new transitions. The relative
+ * brushes are what make a taller range USABLE once that art exists, and they are worth having on
+ * this range meanwhile.
+ */
+export const MAX_TERRAIN_LEVEL = GRASS_SLOTS.length - 1;

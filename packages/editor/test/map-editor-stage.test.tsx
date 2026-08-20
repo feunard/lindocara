@@ -2,6 +2,7 @@ import {
   applyTool,
   blankMap,
   canvasEditorMap,
+  type EditorMap,
   toMapData,
 } from "@lindocara/editor/game/editor-state.js";
 import {
@@ -18,6 +19,8 @@ import {
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
+import { stairsFixedIndex } from "@lindocara/engine/tile-brush.js";
+import { fixedId } from "@lindocara/engine/tileset.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -222,6 +225,143 @@ describe("HD-2D map editor stage", () => {
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({ canUndo: true, dirty: true }),
+    );
+    stage.dispose();
+  });
+
+  it("links two doors with two clicks, writing nothing until the second", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: 0, z: 0 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const click = (col: number, row: number): void => {
+      point.x = col + 0.5 - 10;
+      point.z = row + 0.5 - 10;
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }),
+      );
+      window.dispatchEvent(new PointerEvent("pointerup"));
+    };
+
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "link",
+      selfMapId: "aaaaaaaa-0000-4000-8000-00000000abcd",
+      name: "Door",
+    });
+
+    click(3, 3);
+    // The first door writes NOTHING: no event, and no unsaved edit to warn the author about. It is
+    // published as the pending anchor so the palette can say which step the tool is on.
+    expect(stage.current().events).toHaveLength(0);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ dirty: false, linkAnchor: { col: 3, row: 3 } }),
+    );
+
+    click(8, 6);
+    expect(stage.current().events).toHaveLength(2);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ dirty: true, linkAnchor: null }),
+    );
+
+    // ONE undo takes the whole round trip back, because the pair was one map change. Two undos
+    // would be the tell that the first click had quietly become a history step of its own.
+    stage.undo();
+    expect(stage.current().events).toHaveLength(0);
+    stage.dispose();
+  });
+
+  it("forgets a pending first door when the author leaves the link tool", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -6.5, z: -6.5 }));
+
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "link",
+      selfMapId: "aaaaaaaa-0000-4000-8000-00000000abcd",
+      name: "Door",
+    });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ linkAnchor: { col: 3, row: 3 } }),
+    );
+
+    // A door picked under the link tool means nothing under any other tool; keeping it would pair
+    // the author's next link with a door they chose minutes ago.
+    stage.setTool({ kind: "select" });
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ linkAnchor: null }),
+    );
+    stage.dispose();
+  });
+
+  it("stamps the stairs the terrain allows, and turns the tie with the camera", async () => {
+    // A trench one cell wide: higher ground on BOTH sides of the ramp's two cells, so east and west
+    // genuinely both fit and the tie-break is the only thing choosing.
+    let trench = blankMap("Map", 20, 15);
+    for (const cell of [
+      [4, 4],
+      [4, 5],
+      [6, 4],
+      [6, 5],
+    ] as const) {
+      trench = applyTool(trench, { kind: "elevation", level: 1 }, cell[0], cell[1]) as EditorMap;
+    }
+    const stage = await openMapEditorStage(trench, vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: 5.5 - 10, z: 5.5 - 10 }));
+    const click = (): void => {
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }),
+      );
+      window.dispatchEvent(new PointerEvent("pointerup"));
+    };
+    const rampAt = (col: number, row: number): number =>
+      stage.current().layers[1]?.ids[row * 20 + col] ?? 0;
+
+    // The tool carries no direction and no levels at all.
+    stage.setTool({ kind: "stairs" });
+    click();
+    expect(rampAt(5, 5)).toBe(fixedId(stairsFixedIndex("east", 0, "low")));
+
+    stage.undo();
+    // Half a turn puts world-west on the screen's right, and the ramp follows the author's view
+    // rather than a world axis they can no longer see.
+    stage.rotateQuarter(1);
+    stage.rotateQuarter(1);
+    click();
+    expect(rampAt(5, 5)).toBe(fixedId(stairsFixedIndex("west", 0, "low")));
+    stage.dispose();
+  });
+
+  it("refuses stairs on flat ground and says so through the placement counter", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -4.5, z: -4.5 }));
+
+    stage.setTool({ kind: "stairs" });
+    // Hovering first is what the author does, and it is what fills the ghost.
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().layers[1]?.ids.every((id) => id === 0)).toBe(true);
+    // The ghost turns red on the way in; this is the click itself refusing out loud.
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stairsPreview: expect.objectContaining({ valid: false }) }),
     );
     stage.dispose();
   });

@@ -99,11 +99,22 @@ export class AdventureService {
   users = $repository(users);
   adventureTestSessions = $repository(adventureTestSessions);
 
-  /** The owner-scoped editor listing (default, no `scope`). Ported from `listAdventures`. */
+  /**
+   * The owner-scoped editor listing (default, no `scope`), MOST RECENTLY WORKED ON FIRST.
+   *
+   * The order is load-bearing, not presentation: a bare `/editor` resumes `[0]` rather than opening
+   * an empty sandbox, so this endpoint is what "the adventure I was last working on" means. It
+   * reads the adventure row's own `updatedAt`, which `MapService.updateMap` touches on every map
+   * save precisely so that painting a map for an hour counts as working on its adventure. Ordering
+   * by `createdAt` (what this did before) would have resumed whichever adventure happened to be
+   * made first, forever.
+   *
+   * File → Open shows the same order, which is the right one there too.
+   */
   async listAdventures(userId: string): Promise<AdventureSummary[]> {
     const rows = await this.adventures.findMany({
       where: { userId: { eq: userId } },
-      orderBy: "createdAt",
+      orderBy: { column: "updatedAt", direction: "desc" },
     });
     return Promise.all(rows.map((row) => this.toSummary(row)));
   }

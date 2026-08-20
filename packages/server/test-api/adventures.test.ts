@@ -392,6 +392,45 @@ describe("lifecycle over the wire", () => {
   });
 });
 
+describe("the owner listing is ordered by what was last worked on", () => {
+  test("a plain map save moves its adventure to the front", async () => {
+    const { token } = await registerAndLogin("advrecent");
+    const older = (
+      (await (await createAdventure(token, { title: "Older", maxPlayers: 4 })).json()) as {
+        id: string;
+      }
+    ).id;
+    const newer = (
+      (await (await createAdventure(token, { title: "Newer", maxPlayers: 4 })).json()) as {
+        id: string;
+      }
+    ).id;
+
+    const listedIds = async (): Promise<string[]> =>
+      ((await (await authedFetch("/api/adventures", token)).json()) as { id: string }[]).map(
+        (entry) => entry.id,
+      );
+
+    // The order is what a bare `/editor` resumes, so it is asserted here rather than left to the
+    // client: newest work first, which for two untouched adventures is the newer one.
+    expect(await listedIds()).toEqual([newer, older]);
+
+    // A map PUT carrying NO `adventure` metadata: the shape the editor sends when it saves
+    // terrain. The owning adventure must still be touched, or an hour of painting would leave it
+    // looking untouched since the day it was titled, and the editor would resume the wrong one.
+    const { mapIds } = (await (await authedFetch(`/api/adventures/${older}`, token)).json()) as {
+      mapIds: string[];
+    };
+    const saved = await authedFetch(`/api/maps/${mapIds[0]}`, token, {
+      method: "PUT",
+      body: JSON.stringify(mapBody("Painted")),
+    });
+    expect(saved.status).toBe(200);
+
+    expect(await listedIds()).toEqual([older, newer]);
+  });
+});
+
 describe("scope=play / scope=all: collaborative listings with author", () => {
   test("scope=play lists another account's playable adventure, with its author; scope defaults stay owner-scoped", async () => {
     const owner = await registerAndLogin("advowner");

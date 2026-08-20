@@ -39,7 +39,9 @@ import {
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import {
+  BRIDGE_ASSET_IDS,
   type BridgeDimensions,
+  type BridgeOrientation,
   bridgeDimensionsOrDefault,
   bridgeOrientation,
   MAX_BRIDGE_DIMENSION,
@@ -81,7 +83,6 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
-import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_MONSTER_APPEARANCE_ASSET_ID,
@@ -123,7 +124,11 @@ import { startMapPreview } from "../../game/map-preview.js";
 import { generateProceduralMap, type ProceduralMapOptions } from "../../game/procedural-map.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
-import { createSandboxSession, loadAdventureSession } from "./adventure-session.js";
+import {
+  createSandboxSession,
+  loadAdventureSession,
+  loadLastAdventureSession,
+} from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -146,16 +151,11 @@ import { RegistryDialog } from "./RegistryDialog.js";
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
-const DEFAULT_STAIRS: Readonly<{
-  direction: StairsDirection;
-  lowLevel: StairsLowLevel;
-}> = { direction: "east", lowLevel: 0 };
-
 type StageStatus = "loading" | "empty" | "ready" | "error";
 /** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no toolbar button —
  *  they are picked in the palette or the EV slot — so the toolbar highlights only its six canvas
  *  tools. */
-type ToolKey = EditorPaintTool | "stairs" | "spawn" | "event";
+type ToolKey = EditorPaintTool | "stairs" | "spawn" | "event" | "link";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -256,23 +256,18 @@ function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap
 
 /** The single EditorTool a toolbar/palette selection resolves to. Terrain content composes into
  *  pencil (single cell), rect and fill exactly as the pre-merge editor's paint path did. */
-function paintToolFor(
-  key: EditorPaintTool | "stairs",
-  content: RectFillContent,
-  stairs = DEFAULT_STAIRS,
-): EditorTool {
+function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent): EditorTool {
   switch (key) {
     case "select":
       return { kind: "select" };
     case "pan":
       return { kind: "pan" };
     case "pencil":
+      // The pencil IS the terrain content, single cell. Spread rather than rebuilt field by field:
+      // the content carries either a relative `step` or an absolute `level`, and copying one of the
+      // two by name is how the other silently stops reaching the brush.
       return content.kind === "elevation"
-        ? {
-            kind: "elevation",
-            level: content.level,
-            ...(content.material === undefined ? {} : { material: content.material }),
-          }
+        ? { ...content }
         : { kind: "block", block: content.block };
     case "rect":
       return { kind: "rect", content };
@@ -281,7 +276,9 @@ function paintToolFor(
     case "eraser":
       return { kind: "eraser" };
     case "stairs":
-      return { kind: "stairs", direction: stairs.direction, lowLevel: stairs.lowLevel };
+      // No direction and no levels: the stamp reads both off the cell under the cursor, and the
+      // stage adds the camera-derived tie-break on its way to `applyTool`.
+      return { kind: "stairs" };
   }
 }
 
@@ -373,22 +370,26 @@ export function AdventureEditorScreen(props: { adventureId?: string }) {
 }
 
 /**
- * The no-session branch: open a local sandbox. Entering the editor no longer asks which adventure to
- * work on — that is `File → Open` now — and no longer WRITES one either: `createSandboxSession()` is
- * pure and synchronous, so there is nothing here to await, fail or retry.
+ * The no-session branch: RESUME the author's last adventure, or open a local sandbox when there is
+ * nothing to resume. Entering the editor no longer asks which adventure to work on (that is
+ * `File → Open`), and it still WRITES nothing: the resume is a `GET`, and a sandbox is minted
+ * locally exactly as before.
  *
- * That is what retired this component's strict-mode machinery. This screen mounts under Alepha's
- * real router root, which enables strict mode by default (`ReactPageProvider.root`, `strictMode`
+ * That `GET` is the one thing to be careful with here. This screen mounts under Alepha's real
+ * router root, which enables strict mode by default (`ReactPageProvider.root`, `strictMode`
  * defaulting `true`, never overridden in this app), so its mount→cleanup→mount dance is real in
- * development — and when the effect POSTed an adventure, that dance needed a fire-once latch (or the
- * author got two untitled rows per visit) plus a mount-reasserted cancellation ref (or the screen
- * hung on "Preparing…" forever after the synthetic cleanup discarded its own in-flight result).
- * `startedRef` remains as the latch, and it is still doing real work: without it the second
- * invocation would replace the sandbox with a different one, discarding the first (empty) session
- * and its map id. Nothing is in flight any more, so cancellation has nothing left to cancel.
+ * development. `startedRef` is the fire-once latch that keeps the doubled effect from issuing two
+ * loads, and it was already load-bearing for the sandbox branch, where a second invocation would
+ * replace the sandbox with a different one and discard the first session's map id.
+ *
+ * No cancellation ref, matching the deep-link path: a late resolution writes the session the author
+ * asked for, which is what they want whether or not React discarded a render on the way. The ref
+ * that DID exist (`aliveRef`) guarded a `POST` that created an adventure per visit; do not
+ * reintroduce a write here without bringing it back.
  */
 function AdventureEditorBootstrap({ adventureId }: { adventureId?: string }) {
   useLocale();
+  const router = useRouter();
   const [, setSession] = useStore(adventureEditorSessionAtom);
   const startedRef = useRef(false);
   const [failed, setFailed] = useState(false);
@@ -397,17 +398,33 @@ function AdventureEditorBootstrap({ adventureId }: { adventureId?: string }) {
     if (startedRef.current) return;
     startedRef.current = true;
     if (adventureId === undefined) {
-      setSession(createSandboxSession());
+      // Resume, and fall back QUIETLY. That is the opposite of the deep-link branch below, and for
+      // the opposite reason: nobody named an adventure here, so an empty account, a vanished row or
+      // an offline listing all mean "there is nothing to reopen", not "the link you were sent is
+      // broken". The sandbox is the correct answer to all three.
+      void loadLastAdventureSession()
+        .then((resumed) => {
+          if (!resumed?.adventureId) {
+            setSession(createSandboxSession());
+            return;
+          }
+          setSession(resumed);
+          // The address bar follows what is open, exactly as `File → Open` does: a reload then
+          // reopens the same adventure through the deep link instead of re-running this lookup,
+          // and the URL stops naming a sandbox that is not on screen. `replace`, not `push`, since
+          // this is a redirect the author never navigated to: Back should leave the editor rather
+          // than bounce through `/editor` and land right back here.
+          void router.push(`/editor/${resumed.adventureId}`, { replace: true });
+        })
+        .catch(() => setSession(createSandboxSession()));
       return;
     }
-    // Deep link. Unlike the sandbox branch this IS in flight, so the strict-mode note above
-    // applies again for this path — `startedRef` keeps the doubled effect from issuing two loads.
-    // No cancellation ref: a late resolution writes the session the URL asked for, which is what
-    // the author wants whether or not React discarded a render on the way.
+    // Deep link. Unlike a resume, the URL NAMED this adventure, so a failure is worth saying out
+    // loud rather than papering over with a sandbox.
     void loadAdventureSession(adventureId)
       .then(setSession)
       .catch(() => setFailed(true));
-  }, [adventureId, setSession]);
+  }, [adventureId, setSession, router]);
 
   // A link to an adventure that no longer resolves — deleted, mistyped, or from another
   // environment — must SAY so. Falling through to a sandbox is the tempting default and the wrong
@@ -520,8 +537,6 @@ function AdventureEditorInner({
   const [map, setMap] = useState<MapPayload | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
   const [content, setContent] = useState<RectFillContent>(DEFAULT_CONTENT);
-  const [stairsDirection, setStairsDirection] = useState<StairsDirection>(DEFAULT_STAIRS.direction);
-  const [stairsLowLevel, setStairsLowLevel] = useState<StairsLowLevel>(DEFAULT_STAIRS.lowLevel);
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
   const [mode, setActiveMode] = useState<EditorMode>("field");
   const [showGrid, setShowGrid] = useState(true);
@@ -534,6 +549,7 @@ function AdventureEditorInner({
   const [yawDegrees, setYawDegrees] = useState(0);
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const [linkPending, setLinkPending] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
   const [buildingInteriorBusy, setBuildingInteriorBusy] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -749,6 +765,10 @@ function AdventureEditorInner({
         setCanUndo(state.canUndo);
         setCanRedo(state.canRedo);
         setSelection(state.selection);
+        // Which step the door-link tool is on. Published by the stage rather than derived here: the
+        // first door lives in the stage between the two clicks, and the palette has to say whether
+        // that click registered instead of leaving the author to guess.
+        setLinkPending(state.linkAnchor !== null);
         // C7: a new rejection count flashes the "can't place here" hint, restarting its timer even
         // if the previous flash is still fading (see the `placementHint` state declaration above).
         const rejectedAt = state.placementRejectedAt ?? null;
@@ -914,21 +934,7 @@ function AdventureEditorInner({
         ? { kind: "block", block: "grass" }
         : content;
     if (next !== content) setContent(next);
-    pushTool(paintToolFor(key, next, { direction: stairsDirection, lowLevel: stairsLowLevel }));
-  }
-
-  function chooseStairsDirection(direction: StairsDirection): void {
-    setStairsDirection(direction);
-    setToolKey("stairs");
-    setSelectedAsset(null);
-    pushTool(paintToolFor("stairs", content, { direction, lowLevel: stairsLowLevel }));
-  }
-
-  function chooseStairsLowLevel(lowLevel: StairsLowLevel): void {
-    setStairsLowLevel(lowLevel);
-    setToolKey("stairs");
-    setSelectedAsset(null);
-    pushTool(paintToolFor("stairs", content, { direction: stairsDirection, lowLevel }));
+    pushTool(paintToolFor(key, next));
   }
 
   function selectSpawn(): void {
@@ -1002,6 +1008,18 @@ function AdventureEditorInner({
       eventKind: "guard",
       patrolRadius: markerRadius,
       graphic: assetId,
+    });
+  }
+
+  // Door link: two clicks, one round trip. It places events, so it lives in Event mode beside the
+  // presets, and it needs the open map's uuid for the same reason the Teleporter preset does.
+  function selectDoorLink(): void {
+    setToolKey("link");
+    setSelectedAsset(null);
+    pushTool({
+      kind: "link",
+      selfMapId: map?.id ?? "",
+      name: t("editor.event.preset.doorLink"),
     });
   }
 
@@ -1887,13 +1905,9 @@ function AdventureEditorInner({
                 terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
                 fillActive: toolKey === "fill",
                 stairsActive: toolKey === "stairs",
-                stairsDirection,
-                stairsLowLevel,
                 spawnActive: toolKey === "spawn",
                 onPickContent: pickContent,
                 onSelectStairs: () => selectTool("stairs"),
-                onStairsDirectionChange: chooseStairsDirection,
-                onStairsLowLevelChange: chooseStairsLowLevel,
                 onSelectSpawn: selectSpawn,
               }}
               element={{
@@ -1906,6 +1920,9 @@ function AdventureEditorInner({
                 eventKind,
                 eventPreset,
                 teleporterEnabled: map !== null,
+                linkActive: toolKey === "link",
+                linkPending,
+                onSelectDoorLink: selectDoorLink,
                 markerSpecies,
                 markerRadius,
                 npcGraphic,
@@ -2576,6 +2593,29 @@ function SelectionInspector({
 
       {selectedElement && selectedBridge && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
+          {/* Placement reads the orientation off the crossing, which is right often enough to be
+              worth doing and wrong often enough to need an undo that is not "delete and re-place".
+              Swapping the asset id is how the building colour variants already do exactly this. */}
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="inspector-bridge-orientation" className="text-[11px] text-zinc-600">
+              {t("editor.inspector.bridge.orientation")}
+            </Label>
+            <select
+              id="inspector-bridge-orientation"
+              className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+              value={bridgeOrientation(selectedElement.assetId) ?? "horizontal"}
+              onChange={(event) => {
+                const next = BRIDGE_ASSET_IDS[event.currentTarget.value as BridgeOrientation];
+                if (next && next !== selectedElement.assetId) onSetElementAsset(next);
+              }}
+            >
+              {(["horizontal", "vertical"] as const).map((orientation) => (
+                <option key={orientation} value={orientation}>
+                  {t(`editor.inspector.bridge.orientation.${orientation}`)}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-[11px] font-medium text-zinc-600">
             {t("editor.inspector.bridge.size")}
           </p>

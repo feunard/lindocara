@@ -8,6 +8,7 @@ export const EDITOR_HISTORY_LIMIT = 100;
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import {
   type BridgeDimensions,
+  bridgeAssetIdForCrossing,
   bridgeBaseRotationDegrees,
   bridgeOrientation,
   parseBridgeDimensions,
@@ -79,16 +80,20 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import {
+  type ElevationStep,
+  elevationStepTarget,
   eraseRect,
   eraseTile,
   floodFill,
+  groundElevationAt,
+  inferStairsPlacement,
+  paintAutotile,
   paintElevation,
-  paintRectAutotile,
   paintStairs,
   paintTerrain,
   resolveWholeLayer,
   type StairsDirection,
-  type StairsLowLevel,
+  slotAt,
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -168,9 +173,32 @@ const GROUND_LAYER = 0;
  * targets the ground layer and its wall upkeep, the same fixed rule the single-cell `block`/
  * `elevation` tools follow — the active mode never routes them elsewhere.
  */
-export type RectFillContent =
-  | { kind: "block"; block: "grass" | "water" }
+export type RectFillContent = { kind: "block"; block: "grass" | "water" } | ElevationContent;
+
+/**
+ * A terrain-material selection plus what it does to the cell's HEIGHT.
+ *
+ * Two spellings on purpose, and the difference is who is holding the brush:
+ *
+ * - `step` is RELATIVE and is what the palette authors. "Ground", "+1" and "-1" read off the cell
+ *   under the cursor, so they never enumerate the range and an author never has to know which level
+ *   a slope is already at. Picking a material alone carries `keep`: change the ground, leave the
+ *   height.
+ * - `level` is ABSOLUTE, for a caller that genuinely means one named plateau: procedural generation,
+ *   fixtures and the tests that assert what a specific level paints.
+ *
+ * Both resolve through `elevationTargetLevel` before anything is written, so there is exactly one
+ * place that decides which slot a stroke lands on.
+ */
+export type ElevationContent =
+  | { kind: "elevation"; step: ElevationStep; material?: TerrainMaterial }
   | { kind: "elevation"; level: 0 | 1 | 2 | 3; material?: TerrainMaterial };
+
+/** The absolute level a terrain selection reaches on a cell already standing at `current`, or null
+ *  when the step has nowhere to go and the stroke must be REFUSED rather than quietly dropped. */
+function elevationTargetLevel(content: ElevationContent, current: number): number | null {
+  return "level" in content ? content.level : elevationStepTarget(content.step, current);
+}
 
 interface EditorEventToolBase {
   kind: "event";
@@ -199,7 +227,7 @@ export type EditorEventTool =
 
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "elevation"; level: 0 | 1 | 2 | 3; material?: TerrainMaterial }
+  | ElevationContent
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }
@@ -207,7 +235,33 @@ export type EditorTool =
   | { kind: "pan" }
   | { kind: "rect"; content: RectFillContent }
   | { kind: "fill"; content: RectFillContent }
-  | { kind: "stairs"; direction: StairsDirection; lowLevel: StairsLowLevel }
+  /**
+   * One stamp, no declarations. The direction and the pair of levels are READ off the cell under
+   * the cursor (`inferStairsPlacement`), because the terrain already answers both questions exactly.
+   * `prefer` is the only hint, and it is not the author's: the stage refreshes it from the camera's
+   * yaw so a cell where two ramps genuinely fit climbs the way the author is looking.
+   */
+  | { kind: "stairs"; prefer?: StairsDirection }
+  /**
+   * Two clicks, one round trip: pick a door, pick another door on the same map, and both get a
+   * `player-touch` teleporter aimed at the other. It authors nothing the event language could not
+   * already express (it mints the `teleporter` preset twice, see `presetEvent`) and exists because
+   * the hand path was: place an event, choose the preset, open the dialog, pick a category, pick the
+   * destination map, then type the destination column and row as numbers. Twice, with the
+   * coordinates read off the map by eye.
+   *
+   * `from` is the first door, held by the STAGE between the two clicks rather than on the map: the
+   * whole link is then one `applyTool` call, so it is one undo step and this module stays a pure
+   * function of (map, tool, cell).
+   */
+  | {
+      kind: "link";
+      selfMapId: string;
+      from?: { col: number; row: number };
+      /** The pair's display name, localized by the palette exactly as `presetName` is: an event name
+       *  is authored DATA in the author's own language, never a message key. */
+      name?: string;
+    }
   /**
    * UX wave #12: the one placement tool for every event kind — markers are dead, their meaning is a
    * typed event now. `eventKind` selects what is placed:
@@ -243,7 +297,7 @@ export type EditorMode = "field" | "element" | "event";
 const MODE_TOOLS: Record<EditorMode, readonly EditorTool["kind"][]> = {
   field: ["block", "elevation", "rect", "fill", "stairs", "spawn", "eraser", "select", "pan"],
   element: ["element", "eraser", "select", "pan"],
-  event: ["event", "eraser", "select", "pan"],
+  event: ["event", "link", "eraser", "select", "pan"],
 };
 
 export function toolAllowedInMode(tool: EditorTool, mode: EditorMode): boolean {
@@ -1343,15 +1397,37 @@ function changedBounds(
   return c1 < c0 ? null : { c0, r0, c1, r1 };
 }
 
-/** The autotile slot a terrain selection paints with, or null for water — water has no slot, it
- *  erases instead, the same "empty ground is the sea" rule the single-cell block tool uses. */
-function contentSlot(content: RectFillContent): number | null {
-  if (content.kind === "elevation") return terrainSlot(content.material ?? "herbe", content.level);
+/**
+ * The autotile slot a terrain selection paints on ONE cell, or null when it paints nothing there.
+ *
+ * Null has two meanings and both are correct: water has no slot at all (it erases, the same "empty
+ * ground is the sea" rule the block tool uses), and a relative elevation step can have nowhere to
+ * go on this particular cell. The cell is a parameter precisely because of the second: a relative
+ * brush has no answer until it knows what it landed on.
+ */
+function contentSlot(
+  content: RectFillContent,
+  ground: TileLayer,
+  col: number,
+  row: number,
+): number | null {
+  if (content.kind === "elevation") {
+    const target = elevationTargetLevel(content, groundElevationAt(ground, col, row));
+    return target === null ? null : terrainSlot(content.material ?? "herbe", target);
+  }
   return content.block === "grass" ? GRASS_SLOTS[0] : null;
 }
 
-/** A rectangle of `content` on the ground layer: `paintRectAutotile` for grass/elevation,
- *  `eraseRect` for water. */
+/**
+ * A rectangle of `content` on the ground layer.
+ *
+ * Water erases the whole rectangle in one pass. Everything else is painted CELL BY CELL, because a
+ * relative elevation step resolves against each cell's own height: a "+1" rectangle dragged across
+ * a slope raises every cell it covers by one rather than flattening them all to whatever the first
+ * cell happened to be. Reading each cell's level back off the in-progress layer is safe: a
+ * rectangle touches every cell once, and the neighbour re-resolution `paintAutotile` performs
+ * changes variants, never slots.
+ */
 function paintRectContent(
   ground: TileLayer,
   content: RectFillContent,
@@ -1360,10 +1436,18 @@ function paintRectContent(
   c1: number,
   r1: number,
 ): TileLayer {
-  const slot = contentSlot(content);
-  return slot === null
-    ? eraseRect(ground, TINY_SWORDS_TILESET, c0, r0, c1, r1)
-    : paintRectAutotile(ground, TINY_SWORDS_TILESET, slot, c0, r0, c1, r1);
+  if (content.kind === "block" && content.block === "water") {
+    return eraseRect(ground, TINY_SWORDS_TILESET, c0, r0, c1, r1);
+  }
+  let layer = ground;
+  for (let row = r0; row <= r1; row += 1) {
+    for (let col = c0; col <= c1; col += 1) {
+      const slot = contentSlot(content, layer, col, row);
+      if (slot === null) continue;
+      layer = paintAutotile(layer, TINY_SWORDS_TILESET, slot, col, row);
+    }
+  }
+  return layer;
 }
 
 /** A flood fill of `content` on the ground layer, or null when the content has no fill primitive —
@@ -1375,9 +1459,118 @@ function fillContent(
   col: number,
   row: number,
 ): TileLayer | null {
-  const slot = contentSlot(content);
+  // One slot for the whole region, resolved at the CLICKED cell, and that is exact rather than an
+  // approximation: a flood region is by definition every cell sharing the origin's slot, so every
+  // cell in it stands at the same level and a relative step reaches the same target from all of them.
+  const slot = contentSlot(content, ground, col, row);
   if (slot === null) return null;
   return floodFill(ground, TINY_SWORDS_TILESET, slot, col, row);
+}
+
+/**
+ * Where a hero arriving through a door is put down: a walkable cell touching it, never the door
+ * itself.
+ *
+ * A door teleporter commonly sits on SOLID ground (the gate is part of a building), which is exactly
+ * what `detectPlayerTouch` is built for: it tests the body's footprint against the event cell with a
+ * movement tolerance, so a hero can touch a door it can never occupy. The arrival is the other half
+ * of that: the runtime refuses a teleport onto unwalkable ground, and it only warns into the server
+ * log, so an arrival cell chosen carelessly is a door that silently does nothing.
+ *
+ * South first, because that is the side a Tiny Swords building's threshold faces, then the two sides,
+ * then north. `null` means this cell has no reachable front at all and cannot be a door.
+ */
+function doorLandingCell(
+  map: EditorMap,
+  col: number,
+  row: number,
+): { col: number; row: number } | null {
+  const { cols, rows } = editorMapSize(map);
+  const candidates = [
+    { col, row: row + 1 },
+    { col: col + 1, row },
+    { col: col - 1, row },
+    { col, row: row - 1 },
+  ];
+  for (const candidate of candidates) {
+    if (candidate.col < 0 || candidate.row < 0 || candidate.col >= cols || candidate.row >= rows) {
+      continue;
+    }
+    if (isWalkableCell(map, candidate.col, candidate.row)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * May this cell be one end of a door link? Shared by the commit and by the stage's hover preview, so
+ * the ghost and the click cannot disagree about which cells are refused.
+ */
+export function canLinkDoorAt(map: EditorMap, col: number, row: number): boolean {
+  const { cols, rows } = editorMapSize(map);
+  if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+  // One event per cell is the placement rule everywhere else; a link may not quietly break it.
+  if (map.events.some((event) => event.col === col && event.row === row)) return false;
+  return doorLandingCell(map, col, row) !== null;
+}
+
+/** One end of a door link: the `teleporter` preset aimed at the far door's landing cell, and marked
+ *  `shortcut` rather than `geographic` — nothing about this crosses the world's geography, it is two
+ *  doors on one map. Everything else comes from the preset, so the command program a link writes and
+ *  the one the palette's Teleporter writes cannot drift. */
+function doorLinkEvent(params: {
+  col: number;
+  row: number;
+  ordinal: number;
+  selfMapId: string;
+  destination: { col: number; row: number };
+  name: string;
+}): MapEvent {
+  const event = presetEvent({
+    id: crypto.randomUUID(),
+    col: params.col,
+    row: params.row,
+    ordinal: params.ordinal,
+    preset: "teleporter",
+    selfMapId: params.selfMapId,
+    selfSpawn: params.destination,
+    name: params.name,
+  });
+  return {
+    ...event,
+    pages: event.pages.map((page) => ({
+      ...page,
+      commands: page.commands.map((command) =>
+        command.t === "teleport" ? { ...command, category: "shortcut" as const } : command,
+      ),
+    })),
+  };
+}
+
+/** Open water in the authoring document: on the ground layer an empty cell IS the sea, the same
+ *  reading the water brush writes (`applyTool`'s `block` case erases rather than paints). Off-map
+ *  answers false, so a crossing measured against the border stops there like it stops at a bank. */
+function openWaterAt(map: EditorMap, col: number, row: number): boolean {
+  const ground = map.layers[GROUND_LAYER];
+  if (!ground) return false;
+  if (col < 0 || row < 0 || col >= ground.cols || row >= ground.rows) return false;
+  return slotAt(ground, col, row) < 0;
+}
+
+/** The asset a placement actually writes. Everything places what the palette selected, except a
+ *  bridge: one card is offered and the crossing under the cursor decides which of the two decks it
+ *  becomes (the inspector switches it afterwards). */
+export function placedAssetId(
+  map: EditorMap,
+  assetId: EditorAssetId,
+  col: number,
+  row: number,
+): EditorAssetId {
+  if (!bridgeOrientation(assetId)) return assetId;
+  return bridgeAssetIdForCrossing(
+    (candidateCol, candidateRow) => openWaterAt(map, candidateCol, candidateRow),
+    col,
+    row,
+  );
 }
 
 export function applyTool(
@@ -1411,12 +1604,21 @@ export function applyTool(
       if (!layers) return null;
       return commitTerrain(map, layers);
     }
+    /**
+     * One cell, relative to what is already there. A refusal (`null`) reaches the stage as a
+     * placement rejection and flashes its hint, so "-1 on the ground" says so instead of looking
+     * like a brush that stopped working.
+     */
     case "elevation": {
+      const ground = map.layers[GROUND_LAYER];
+      if (!ground) return null;
+      const target = elevationTargetLevel(tool, groundElevationAt(ground, col, row));
+      if (target === null) return null;
       const layers = paintTerrain(
         map.layers,
         TINY_SWORDS_TILESET,
         tool.material ?? "herbe",
-        tool.level,
+        target,
         col,
         row,
       );
@@ -1481,22 +1683,79 @@ export function applyTool(
      *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed
      *  straight through. */
     case "stairs": {
+      const ground = map.layers[GROUND_LAYER];
+      if (!ground) return null;
+      const placement = inferStairsPlacement(ground, col, row, tool.prefer);
+      if (!placement) return null;
       const layers = paintStairs(
         map.layers,
         TINY_SWORDS_TILESET,
         col,
         row,
-        tool.direction,
-        tool.lowLevel,
+        placement.direction,
+        placement.lowLevel,
       );
       if (layers === map.layers) return null;
       return commitTerrain(map, layers);
+    }
+    /**
+     * The second click of a door link. The first is the stage's to remember (`tool.from`), so what
+     * lands here is the complete round trip: two `player-touch` teleporters, each aimed at the cell
+     * in front of the other, minted in ONE map change and therefore one undo step.
+     *
+     * Both ends are refused together. A half link, one door teleporting into a wall or a return leg
+     * silently skipped, is worse than no link at all, because it looks authored.
+     *
+     * AFTERWARDS the two are ordinary, independent events, and deliberately so: there is no pair
+     * object in the map model, and inventing one would mean a second identity to persist, migrate
+     * and keep in step with two freely editable events. So deleting one end leaves the other as a
+     * one-way door the author can retarget or delete, and moving one end does not follow the other.
+     * The tool is authoring sugar, not a relationship.
+     */
+    case "link": {
+      const from = tool.from;
+      if (!from) return null;
+      // The wire parser `isUuid`-checks a teleport's destination map, so a link authored on a map
+      // with no id yet would write a command the server rejects on save. The palette gates the tool
+      // the way the Teleporter preset is gated; this is the rule behind that gate.
+      if (!tool.selfMapId) return null;
+      if (from.col === col && from.row === row) return null;
+      if (!canLinkDoorAt(map, from.col, from.row) || !canLinkDoorAt(map, col, row)) return null;
+      const fromLanding = doorLandingCell(map, from.col, from.row);
+      const toLanding = doorLandingCell(map, col, row);
+      if (!fromLanding || !toLanding) return null;
+      if (map.events.length + 2 > MAX_EVENTS_PER_MAP) return null;
+      const ordinal = nextEventOrdinal(map.events);
+      const name = tool.name ?? "";
+      return {
+        ...map,
+        events: [
+          ...map.events,
+          doorLinkEvent({
+            col: from.col,
+            row: from.row,
+            ordinal,
+            selfMapId: tool.selfMapId,
+            destination: toLanding,
+            name,
+          }),
+          doorLinkEvent({
+            col,
+            row,
+            ordinal: ordinal + 1,
+            selfMapId: tool.selfMapId,
+            destination: fromLanding,
+            name,
+          }),
+        ],
+      };
     }
     case "element": {
       // Element placement is quarter-cell: the stage resolves the pointer to a cell plus a 0..3
       // sub-step per axis and threads it here. Field/Event callers leave the offsets at 0, so those
       // modes stay grid-forced.
-      const nativeResource = isNativeHarvestAsset(tool.assetId);
+      const assetId = placedAssetId(map, tool.assetId, col, row);
+      const nativeResource = isNativeHarvestAsset(assetId);
       const resourceOffset = nativeResource ? 0 : null;
       const slot = {
         col,
@@ -1505,26 +1764,22 @@ export function applyTool(
         offsetY: resourceOffset ?? offsetY,
       };
       const replaced = map.elements.find((element) => sameElementSlot(element, slot));
-      const building = defaultBuildingSettings(tool.assetId);
+      const building = defaultBuildingSettings(assetId);
       const placed: MapElement = {
         ...(replaced?.id ? { id: replaced.id } : {}),
         ...slot,
-        assetId: tool.assetId,
-        ...(replaced?.assetId === tool.assetId && replaced.orientation
+        assetId,
+        ...(replaced?.assetId === assetId && replaced.orientation
           ? { orientation: replaced.orientation }
           : {}),
-        ...(replaced?.assetId === tool.assetId && replaced.rotation
+        ...(replaced?.assetId === assetId && replaced.rotation
           ? { rotation: replaced.rotation }
           : {}),
-        ...(replaced?.assetId === tool.assetId && replaced.bridge
-          ? { bridge: replaced.bridge }
-          : {}),
+        ...(replaced?.assetId === assetId && replaced.bridge ? { bridge: replaced.bridge } : {}),
         ...(building
           ? {
               building:
-                replaced?.assetId === tool.assetId && replaced.building
-                  ? replaced.building
-                  : building,
+                replaced?.assetId === assetId && replaced.building ? replaced.building : building,
             }
           : {}),
       };
@@ -1800,7 +2055,11 @@ export function placementLegalAt(
   if (tool.kind === "fill") {
     const { cols, rows } = editorMapSize(map);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
-    return contentSlot(tool.content) !== null;
+    const ground = map.layers[GROUND_LAYER];
+    return ground !== undefined && contentSlot(tool.content, ground, col, row) !== null;
   }
+  // Before the first door is picked there is no pair to try, so legality is the single-cell rule.
+  // Once one IS picked the stage passes it as `tool.from` and the full commit below answers.
+  if (tool.kind === "link" && !tool.from) return canLinkDoorAt(map, col, row);
   return applyTool(map, tool, col, row, true, mode) !== null;
 }

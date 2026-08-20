@@ -50,7 +50,10 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
+import { inferStairsPlacement, type StairsDirection } from "@lindocara/engine/tile-brush.js";
 import {
+  type CellOffset,
+  type EditorAssetDefinition,
   type EditorAssetId,
   editorAsset,
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
@@ -70,6 +73,7 @@ import type {
 import {
   applyTool,
   beginEventDraft,
+  canLinkDoorAt,
   commitEditorHistory,
   commitEventDraft,
   convertElementToEvent,
@@ -79,6 +83,7 @@ import {
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
+  placedAssetId,
   placementLegalAt,
   redoEditorHistory,
   selectionAtMode,
@@ -143,6 +148,10 @@ export interface MapEditorStageState {
   dirty: boolean;
   selection: EditorSelection | null;
   placementRejectedAt: number | null;
+  /** The first door of a door link, while the author is between its two clicks. Published so the
+   *  palette can say which step it is on rather than leaving the author to guess whether the first
+   *  click registered. */
+  linkAnchor: { col: number; row: number } | null;
 }
 
 export function defaultDimForMode(mode: EditorMode): boolean {
@@ -274,6 +283,34 @@ export function buildingDimensionsAtPoint(
     ),
   );
   return proportionalBuildingDimensions(element.assetId, axis, snapped);
+}
+
+/**
+ * The cells a placement ghost outlines, as offsets from the anchor cell.
+ *
+ * A bridge takes them from `bridgePlacementLayout`, the authority that decides its footprint
+ * everywhere else (`elementCells`, the heightfield bake, the resize gizmo), rather than from the
+ * authored `visualFootprint` the two sprite-era cards carried. The two agree for a fresh 3x1 deck,
+ * which is exactly why the drift would be invisible the day the default changes. Every other asset
+ * keeps its authored footprint, which is its own truth.
+ */
+export function previewFootprintOffsets(
+  asset: EditorAssetDefinition,
+  col: number,
+  row: number,
+): readonly CellOffset[] {
+  const layout = bridgePlacementLayout({ assetId: asset.id, col, row });
+  if (!layout) return asset.editor.visualFootprint;
+  const cells: CellOffset[] = [];
+  for (let deckRow = 0; deckRow < layout.rows; deckRow += 1) {
+    for (let deckCol = 0; deckCol < layout.cols; deckCol += 1) {
+      cells.push({
+        col: layout.startCol + deckCol - col,
+        row: layout.startRow + deckRow - row,
+      });
+    }
+  }
+  return cells;
 }
 
 /** Exact compiled bridge footprint plus one positive-growth handle per authored dimension. */
@@ -471,6 +508,10 @@ export function openMapEditorStage(
     let spaceHeld = false;
     let strokeStart: EditorMap | null = null;
     let dragSelection: EditorSelection | null = null;
+    // The first door of a pending link. Held here rather than on the map so the completed pair is
+    // ONE `applyTool` call and therefore one undo step, and so a half-finished link can never be
+    // serialized or make the map read as dirty. Cleared whenever the tool changes.
+    let linkFrom: { col: number; row: number } | null = null;
     let resizeDrag:
       | {
           kind: "building";
@@ -514,6 +555,23 @@ export function openMapEditorStage(
     // `applyYaw`, which is what keeps the two in step.
     let yaw = 0;
     let orbiting = false;
+    /**
+     * Which ramp direction currently reads as "toward the right of the screen".
+     *
+     * The pan handler below IS the definition of that mapping: it rotates a screen drag into world
+     * space with the yaw's cosine and sine, so world +x is the screen's right exactly while
+     * `cos(yaw)` is positive. A cell where both ramps genuinely fit (higher ground on both sides)
+     * therefore climbs toward the author's right whichever way they have turned the camera, instead
+     * of snapping to a world axis that is off-screen.
+     */
+    const stairsPreference = (): StairsDirection => (Math.cos(yaw) >= 0 ? "east" : "west");
+    /** What a click would actually apply: the palette's tool plus the state only the stage holds
+     *  (the first door of a pending link, the camera-derived ramp preference). */
+    const activeTool = (): EditorTool => {
+      if (tool.kind === "link" && linkFrom) return { ...tool, from: linkFrom };
+      if (tool.kind === "stairs") return { ...tool, prefer: stairsPreference() };
+      return tool;
+    };
     let disposed = false;
     let lastCursorKey = "";
     const visualEvents = (): MapEvent[] => [
@@ -649,26 +707,42 @@ export function openMapEditorStage(
 
     const drawOverlay = (heightfield = compiled()): void => {
       const { cols, rows } = dimensions();
-      const focusSelection = highlightedEventId
-        ? selectionPoint(map, { kind: "event", id: highlightedEventId })
-        : selectionPoint(map, selected);
       const size = Math.max(cols, rows);
+      // A pending link owns the selection highlight: the first door IS what the author has picked,
+      // and there is no element or event selection worth showing in the middle of the two clicks.
+      const focusSelection = linkFrom
+        ? { x: linkFrom.col + 0.5 - size / 2, z: linkFrom.row + 0.5 - size / 2 }
+        : highlightedEventId
+          ? selectionPoint(map, { kind: "event", id: highlightedEventId })
+          : selectionPoint(map, selected);
       const hoverPoint = hover
         ? history.activeMode === "element"
           ? authoredElementGroundPoint(hover, size)
           : { x: hover.col + 0.5 - size / 2, z: hover.row + 0.5 - size / 2 }
         : null;
-      const previewAssetId = editorToolPreviewAssetId(tool);
+      // The preview shows what the click would WRITE, not what the palette holds: a bridge takes its
+      // orientation from the crossing under the cursor, so resolving it here is what makes the
+      // ghosted deck turn as the pointer moves from a north-south river to an east-west one.
+      const selectedAssetId = editorToolPreviewAssetId(tool);
+      const previewAssetId =
+        selectedAssetId && hover
+          ? placedAssetId(map, selectedAssetId, hover.col, hover.row)
+          : selectedAssetId;
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
       const previewBridgeTop =
-        hover && tool.kind === "element" && bridgeOrientation(tool.assetId)
+        hover && previewAssetId && tool.kind === "element" && bridgeOrientation(previewAssetId)
           ? authoredBridgeTop(
               { cols, rows },
-              { ...hover, assetId: tool.assetId },
+              { ...hover, assetId: previewAssetId },
               heightfield.levels,
               size,
             )
           : undefined;
+      const groundLayer = map.layers[0];
+      const hoveredStairs =
+        hover && tool.kind === "stairs" && groundLayer
+          ? inferStairsPlacement(groundLayer, hover.col, hover.row, stairsPreference())
+          : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
       const rotation = selectedRotationGuide();
@@ -725,11 +799,20 @@ export function openMapEditorStage(
         // and event work, one of the 4x4 sub-cell slots in element mode (`hoverPoint` is already a
         // quarter-cell centre there).
         cursorCells: history.activeMode === "element" ? 1 / ELEMENT_OFFSET_STEPS : 1,
+        // The ghost shows the ramp the cell can actually take. Where none fits it still draws, at
+        // the default orientation and marked invalid, which the overlay paints red: an author who
+        // hovers a flat field or a north-south bank sees a refusal rather than nothing at all.
         stairsPreview:
           hover && tool.kind === "stairs"
             ? {
-                ramp: authoredStairsRamp(hover.col, hover.row, size, tool.direction, tool.lowLevel),
-                valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
+                ramp: authoredStairsRamp(
+                  hover.col,
+                  hover.row,
+                  size,
+                  hoveredStairs?.direction ?? "east",
+                  hoveredStairs?.lowLevel ?? 0,
+                ),
+                valid: hoveredStairs !== null,
                 levelHeight: heightfield.levelHeight,
               }
             : null,
@@ -737,10 +820,12 @@ export function openMapEditorStage(
           hover && hoverPoint && previewAsset
             ? {
                 point: hoverPoint,
-                footprint: previewAsset.editor.visualFootprint.map((cell) => ({
-                  x: hoverPoint.x + cell.col,
-                  z: hoverPoint.z + cell.row,
-                })),
+                footprint: previewFootprintOffsets(previewAsset, hover.col, hover.row).map(
+                  (cell) => ({
+                    x: hoverPoint.x + cell.col,
+                    z: hoverPoint.z + cell.row,
+                  }),
+                ),
                 valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
                 ...(previewBridgeTop === undefined ? {} : { elevation: previewBridgeTop }),
                 ...(previewAsset.editor.renderLayer === "sky"
@@ -803,6 +888,7 @@ export function openMapEditorStage(
         dirty: isEditorHistoryDirty(history, map),
         selection: selected,
         placementRejectedAt: placementRejections > 0 ? placementRejections : null,
+        linkAnchor: linkFrom,
       });
     };
 
@@ -938,9 +1024,32 @@ export function openMapEditorStage(
         }
       }
 
+      // A link's FIRST click writes nothing: it only remembers the door, so the pair that lands on
+      // the second click is one map change and one undo step. Clicking the same door again is how
+      // an author changes their mind without leaving the tool.
+      if (tool.kind === "link" && isStrokeStart) {
+        if (linkFrom && linkFrom.col === col && linkFrom.row === row) {
+          linkFrom = null;
+          drawOverlay();
+          notify();
+          return;
+        }
+        if (!linkFrom) {
+          if (!canLinkDoorAt(map, col, row)) {
+            placementRejections += 1;
+            notify();
+            return;
+          }
+          linkFrom = { col, row };
+          drawOverlay();
+          notify();
+          return;
+        }
+      }
+
       const next = applyTool(
         map,
-        tool,
+        activeTool(),
         col,
         row,
         isStrokeStart,
@@ -949,7 +1058,15 @@ export function openMapEditorStage(
         offsetY,
       );
       if (next === null) {
-        if (tool.kind === "element" || tool.kind === "event") {
+        // A refused stroke has to SAY so. `elevation` joined the list when the brushes went relative:
+        // "-1" on ground level, or "+1" at the top of the range, now returns null rather than
+        // painting the same slot again, and a brush that silently does nothing reads as broken.
+        if (
+          tool.kind === "element" ||
+          tool.kind === "event" ||
+          tool.kind === "link" ||
+          tool.kind === "elevation"
+        ) {
           placementRejections += 1;
           notify();
         }
@@ -962,6 +1079,9 @@ export function openMapEditorStage(
         const placed = map.events.find((event) => event.col === col && event.row === row);
         if (placed) selected = { kind: "event", id: placed.id };
       }
+      // The pair landed: the tool is ready for the next link rather than still holding a door the
+      // author already spent.
+      if (tool.kind === "link") linkFrom = null;
       strokeRedraw(previous);
       notify();
     };
@@ -1315,9 +1435,13 @@ export function openMapEditorStage(
     const handle: MapEditorStageHandle = {
       setTool(next) {
         tool = next;
+        // A door picked under the link tool means nothing under any other tool, and a stale anchor
+        // would silently pair the author's next link with a door they picked minutes ago.
+        if (next.kind !== "link") linkFrom = null;
         renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
         refreshCursor();
         drawOverlay();
+        notify();
       },
       setActiveMode(mode) {
         history = setActiveMode(history, mode);

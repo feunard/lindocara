@@ -8,7 +8,7 @@
 
 import { type DraftMemberInfo, draftFromAdventure } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload } from "@lindocara/client/api.js";
-import { fetchAdventure, fetchMap } from "@lindocara/client/api.js";
+import { fetchAdventure, fetchAdventures, fetchMap } from "@lindocara/client/api.js";
 import { t } from "@lindocara/client/i18n.js";
 import type { AdventureEditorSession } from "@lindocara/client/store.js";
 import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
@@ -108,6 +108,25 @@ export function createSandboxSession(): AdventureEditorSession {
     titleUntouched: true,
     sandboxMap: map,
   };
+}
+
+/**
+ * The session a bare `/editor` opens: the author's most recently worked-on adventure, or `null`
+ * when they have none and a sandbox is the honest answer.
+ *
+ * "Most recent" is decided by the SERVER, not by this browser. `GET /api/adventures` returns the
+ * owner's adventures most-recently-updated first (`AdventureService.listAdventures`), and
+ * `MapService.updateMap` touches the adventure row on every map save so that ordering means "what
+ * I was working on" rather than "what I last renamed". A `localStorage` note of the last id opened
+ * here would have been cheaper and wrong in two ways an author would meet: it does not follow them
+ * to another machine, and two tabs disagree about it.
+ *
+ * Resolving to `null` rather than throwing is deliberate: an empty account is not a failure.
+ */
+export async function loadLastAdventureSession(): Promise<AdventureEditorSession | null> {
+  const [latest] = await fetchAdventures();
+  if (!latest) return null;
+  return loadAdventureSession(latest.id);
 }
 
 /** Fetch an adventure and build the full editor session (draft + saved snapshot) for it. */

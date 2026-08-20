@@ -2,6 +2,7 @@ import { bakeCollision } from "@lindocara/engine/map-data.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import {
   eraseTile,
+  inferStairsPlacement,
   paintElevation,
   paintStairs,
   type StairsDirection,
@@ -300,5 +301,56 @@ describe("the official two-cell stairs stamp", () => {
         );
       }
     }
+  });
+});
+
+describe("inferStairsPlacement", () => {
+  it("reads the direction and the joined levels off the terrain", () => {
+    for (const direction of DIRECTIONS) {
+      for (const lowLevel of [0, 1, 2] as const) {
+        const ground = layerAt(fieldForDirection(direction, lowLevel), 0);
+        expect(inferStairsPlacement(ground, anchor.col, anchor.row)).toEqual({
+          direction,
+          lowLevel,
+        });
+      }
+    }
+  });
+
+  it("answers null on flat ground, so a click can say no instead of doing nothing", () => {
+    let flat = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) flat = paintElevation(flat, set, 0, col, row);
+    }
+    expect(inferStairsPlacement(layerAt(flat, 0), anchor.col, anchor.row)).toBeNull();
+  });
+
+  it("answers null for a bank whose high side is north or south: there is no art for those", () => {
+    // Higher ground above the anchor rather than beside it. `STAIRS_DIRECTIONS` is east/west
+    // because Pixel Frog ships two side ramps, so this cliff simply has no staircase.
+    let field = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        field = paintElevation(field, set, row < anchor.row ? 1 : 0, col, row);
+      }
+    }
+    expect(inferStairsPlacement(layerAt(field, 0), anchor.col, anchor.row)).toBeNull();
+  });
+
+  it("breaks a genuine tie with the caller's preference", () => {
+    // A trench: higher ground on BOTH sides of the ramp's two cells, so east and west both fit.
+    let trench = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        trench = paintElevation(trench, set, col === anchor.col ? 0 : 1, col, row);
+      }
+    }
+    const ground = layerAt(trench, 0);
+    expect(inferStairsPlacement(ground, anchor.col, anchor.row, "west")).toMatchObject({
+      direction: "west",
+    });
+    expect(inferStairsPlacement(ground, anchor.col, anchor.row, "east")).toMatchObject({
+      direction: "east",
+    });
   });
 });

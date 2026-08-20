@@ -67,6 +67,10 @@ interface EventPaletteProps {
   /** Whether the `teleporter` preset can be placed — false when no map is open, since its `teleport`
    *  command needs the current map's uuid as a same-map destination default. */
   teleporterEnabled: boolean;
+  /** Whether the door-link tool is the one active selection. */
+  linkActive: boolean;
+  /** True between the tool's two clicks: the first door is picked and the second is awaited. */
+  linkPending: boolean;
   /** The species/radius the next placed `monster` event will carry. */
   markerSpecies: MonsterSpecies;
   markerRadius: number;
@@ -78,6 +82,7 @@ interface EventPaletteProps {
   /** The selected event's id, so the list marks it. */
   selectedEventId: string | null;
   onSelectPreset(preset: EventPreset): void;
+  onSelectDoorLink(): void;
   onSelectEventKind(kind: EventKind): void;
   onMarkerSpeciesChange(species: MonsterSpecies): void;
   onMarkerRadiusChange(radius: number): void;
@@ -101,6 +106,8 @@ export function EventPalette({
   eventKind,
   eventPreset,
   teleporterEnabled,
+  linkActive,
+  linkPending,
   markerSpecies,
   markerRadius,
   npcGraphic,
@@ -109,6 +116,7 @@ export function EventPalette({
   events,
   selectedEventId,
   onSelectPreset,
+  onSelectDoorLink,
   onSelectEventKind,
   onMarkerSpeciesChange,
   onMarkerRadiusChange,
@@ -178,6 +186,32 @@ export function EventPalette({
               onClick={() => onSelectPreset(preset)}
             />
           ))}
+        </div>
+
+        {/* Two clicks instead of two dialogs. It mints the Teleporter preset twice, once per door,
+            which is why it sits with the presets rather than with the functional kinds: it authors
+            nothing the command language could not already express, it just spares the author the
+            coordinates. A pair needs two free event slots, and a destination map uuid. */}
+        <div data-testid="event-door-link" className="flex flex-col gap-1">
+          <SwatchButton
+            label={t("editor.event.preset.doorLink")}
+            active={linkActive}
+            disabled={events.length + 2 > MAX_EVENTS_PER_MAP || !teleporterEnabled}
+            title={!teleporterEnabled ? t("editor.event.preset.doorLink.disabled") : undefined}
+            onClick={onSelectDoorLink}
+          />
+          {linkActive && (
+            <p role="status" className="px-0.5 text-[10.5px] text-zinc-600">
+              {linkPending
+                ? t("editor.event.preset.doorLink.step2")
+                : t("editor.event.preset.doorLink.step1")}
+            </p>
+          )}
+          {linkActive && (
+            <p className="px-0.5 text-[10px] text-zinc-400">
+              {t("editor.event.preset.doorLink.hint")}
+            </p>
+          )}
         </div>
 
         <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">

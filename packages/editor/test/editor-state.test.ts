@@ -2,6 +2,7 @@ import {
   applyTool,
   beginEventDraft,
   blankMap,
+  canLinkDoorAt,
   canvasEditorMap,
   commitEditorHistory,
   commitEventDraft,
@@ -49,6 +50,7 @@ import {
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import {
   eraseRect,
+  groundElevationAt,
   paintRectAutotile,
   paintStairs,
   slotAt,
@@ -60,6 +62,8 @@ import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
+  MAX_TERRAIN_LEVEL,
+  TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import {
@@ -698,7 +702,8 @@ describe("applyTool: stairs", () => {
 
   it("stamps both official ramp halves from the low entrance as one undo entry", () => {
     const base = eastBoundary();
-    const tool: EditorTool = { kind: "stairs", direction: "east", lowLevel: 0 };
+    // No direction, no levels: the stamp reads both off the boundary under the cursor.
+    const tool: EditorTool = { kind: "stairs" };
     const next = place(base, tool, 5, 5) as EditorMap;
     expect(next).not.toBeNull();
     const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
@@ -718,7 +723,8 @@ describe("applyTool: stairs", () => {
 
   it("refuses flat ground instead of manufacturing its own elevation", () => {
     const base = blankMap("m", 20, 15);
-    const tool: EditorTool = { kind: "stairs", direction: "east", lowLevel: 0 };
+    // No direction, no levels: the stamp reads both off the boundary under the cursor.
+    const tool: EditorTool = { kind: "stairs" };
     expect(place(base, tool, 5, 5)).toBeNull();
 
     const history = commitEditorHistory(createEditorHistory(base), base);
@@ -726,12 +732,7 @@ describe("applyTool: stairs", () => {
   });
 
   it("water painted on the ramp cell removes the ramp", () => {
-    const ramp = place(
-      eastBoundary(),
-      { kind: "stairs", direction: "east", lowLevel: 0 },
-      5,
-      5,
-    ) as EditorMap;
+    const ramp = place(eastBoundary(), { kind: "stairs" }, 5, 5) as EditorMap;
     const drowned = place(ramp, { kind: "block", block: "water" }, 5, 5) as EditorMap;
     expect(groundSlot(drowned, 5, 5)).toBe(-1);
     for (const placement of stairsTilePlacements("east", 0)) {
@@ -743,12 +744,7 @@ describe("applyTool: stairs", () => {
   });
 
   it("a water rectangle removes every ramp cell it covers", () => {
-    const ramp = place(
-      eastBoundary(),
-      { kind: "stairs", direction: "east", lowLevel: 0 },
-      5,
-      5,
-    ) as EditorMap;
+    const ramp = place(eastBoundary(), { kind: "stairs" }, 5, 5) as EditorMap;
     const water: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
     let drowned = place(ramp, water, 4, 5, true) as EditorMap;
     drowned = place(drowned, water, 6, 6, false) as EditorMap;
@@ -1960,5 +1956,220 @@ describe("dynamic map size", () => {
       layers: [{ ...ground, ids: erasedIds }, ...canvas.layers.slice(1)],
     };
     expect(toSaveInput(erased).cols).toBe(20 + 2 * MAP_OCEAN_MARGIN);
+  });
+});
+
+describe("bridge placement reads the crossing", () => {
+  function carveWater(map: EditorMap, cells: readonly (readonly [number, number])[]): EditorMap {
+    return cells.reduce<EditorMap>((current, [col, row]) => {
+      const next = applyTool(current, { kind: "block", block: "water" }, col, row, true, "field");
+      return next ?? current;
+    }, map);
+  }
+
+  function placeBridge(map: EditorMap, col: number, row: number): EditorMap | null {
+    return applyTool(map, { kind: "element", assetId: BRIDGE }, col, row, true, "element");
+  }
+
+  const everyRow = Array.from({ length: 20 }, (_unused, row) => row);
+
+  it("writes a horizontal deck across a north-south river", () => {
+    const river = carveWater(
+      blankMap("m", 20, 20),
+      everyRow.flatMap((row) => [[3, row] as const, [4, row] as const]),
+    );
+    expect(placeBridge(river, 3, 5)?.elements[0]?.assetId).toBe("terrain.bridge.wood.horizontal");
+  });
+
+  it("writes a vertical deck across an east-west river", () => {
+    const river = carveWater(
+      blankMap("m", 20, 20),
+      everyRow.flatMap((col) => [[col, 3] as const, [col, 4] as const]),
+    );
+    expect(placeBridge(river, 5, 3)?.elements[0]?.assetId).toBe("terrain.bridge.wood.vertical");
+  });
+
+  it("keeps the palette's own orientation on dry ground", () => {
+    expect(placeBridge(blankMap("m", 20, 20), 3, 5)?.elements[0]?.assetId).toBe(
+      "terrain.bridge.wood.horizontal",
+    );
+  });
+
+  it("leaves every other asset exactly as the palette selected it", () => {
+    const river = carveWater(
+      blankMap("m", 20, 20),
+      everyRow.flatMap((col) => [[col, 3] as const, [col, 4] as const]),
+    );
+    const placed = applyTool(river, { kind: "element", assetId: STONE }, 5, 6, true, "element");
+    expect(placed?.elements[0]?.assetId).toBe(STONE);
+  });
+});
+
+describe("door links", () => {
+  const MAP_ID = "aaaaaaaa-0000-4000-8000-00000000abcd";
+
+  function linkTool(from?: { col: number; row: number }) {
+    return { kind: "link", selfMapId: MAP_ID, name: "Door", ...(from ? { from } : {}) } as const;
+  }
+
+  function teleportOf(event: MapEvent | undefined) {
+    const command = event?.pages[0]?.commands[0];
+    return command?.t === "teleport" ? command : null;
+  }
+
+  function water(map: EditorMap, cells: readonly (readonly [number, number])[]): EditorMap {
+    return cells.reduce<EditorMap>((current, [col, row]) => {
+      const next = applyTool(current, { kind: "block", block: "water" }, col, row, true, "field");
+      return next ?? current;
+    }, map);
+  }
+
+  it("mints a round trip: each door teleports to the cell in FRONT of the other", () => {
+    const linked = applyTool(
+      blankMap("m", 20, 20),
+      linkTool({ col: 3, row: 3 }),
+      10,
+      12,
+      true,
+      "event",
+    );
+    expect(linked?.events).toHaveLength(2);
+    const first = linked?.events[0];
+    const second = linked?.events[1];
+    expect(first).toMatchObject({ col: 3, row: 3, kind: "normal" });
+    expect(second).toMatchObject({ col: 10, row: 12, kind: "normal" });
+    // Never the door cell itself: landing on a `player-touch` teleporter is how a pair of doors
+    // becomes a loop. South first, the side a building's threshold faces.
+    expect(teleportOf(first)).toMatchObject({ mapId: MAP_ID, col: 10, row: 13 });
+    expect(teleportOf(second)).toMatchObject({ mapId: MAP_ID, col: 3, row: 4 });
+    // The trigger comes from the shared `teleporter` preset; only the category is the link's own.
+    expect(first?.pages[0]?.trigger).toBe("player-touch");
+    expect(second?.pages[0]?.trigger).toBe("player-touch");
+    expect(teleportOf(first)?.category).toBe("shortcut");
+    expect(teleportOf(second)?.category).toBe("shortcut");
+  });
+
+  it("refuses both ends together rather than authoring half a link", () => {
+    const map = blankMap("m", 20, 20);
+    // No first door yet: the stage owns that click, so a bare tool writes nothing.
+    expect(applyTool(map, linkTool(), 4, 4, true, "event")).toBeNull();
+    // A door linked to itself is not a link.
+    expect(applyTool(map, linkTool({ col: 4, row: 4 }), 4, 4, true, "event")).toBeNull();
+    // An unsaved map has no uuid for the destination, and the wire parser demands one.
+    expect(
+      applyTool(
+        map,
+        { kind: "link", selfMapId: "", from: { col: 4, row: 4 } },
+        9,
+        9,
+        true,
+        "event",
+      ),
+    ).toBeNull();
+    // Event mode owns this tool; Field mode must drop it like every other mismatched pair.
+    expect(applyTool(map, linkTool({ col: 4, row: 4 }), 9, 9, true, "field")).toBeNull();
+  });
+
+  it("refuses a door with no reachable front, and a cell an event already holds", () => {
+    const island = water(blankMap("m", 20, 20), [
+      [5, 4],
+      [5, 6],
+      [4, 5],
+      [6, 5],
+    ]);
+    expect(canLinkDoorAt(island, 5, 5)).toBe(false);
+    expect(applyTool(island, linkTool({ col: 9, row: 9 }), 5, 5, true, "event")).toBeNull();
+
+    const occupied = applyTool(
+      blankMap("m", 20, 20),
+      { kind: "event", eventKind: "normal", preset: "sign" },
+      7,
+      7,
+      true,
+      "event",
+    ) as EditorMap;
+    expect(canLinkDoorAt(occupied, 7, 7)).toBe(false);
+    expect(applyTool(occupied, linkTool({ col: 9, row: 9 }), 7, 7, true, "event")).toBeNull();
+  });
+});
+
+describe("relative elevation brushes", () => {
+  function levelAt(map: EditorMap, col: number, row: number): number {
+    const ground = map.layers[0];
+    return ground ? groundElevationAt(ground, col, row) : -1;
+  }
+
+  it("raises and lowers from whatever the cell already stands at", () => {
+    const base = blankMap("m", 20, 15);
+    const once = place(base, { kind: "elevation", step: "raise" }, 5, 5) as EditorMap;
+    expect(levelAt(once, 5, 5)).toBe(1);
+    const twice = place(once, { kind: "elevation", step: "raise" }, 5, 5) as EditorMap;
+    expect(levelAt(twice, 5, 5)).toBe(2);
+    const down = place(twice, { kind: "elevation", step: "lower" }, 5, 5) as EditorMap;
+    expect(levelAt(down, 5, 5)).toBe(1);
+    const flat = place(down, { kind: "elevation", step: "ground" }, 5, 5) as EditorMap;
+    expect(levelAt(flat, 5, 5)).toBe(0);
+  });
+
+  it("refuses rather than silently repainting when a step has nowhere to go", () => {
+    const base = blankMap("m", 20, 15);
+    // Ground is the floor: "-1" there returns null, which the stage turns into its visible hint.
+    expect(place(base, { kind: "elevation", step: "lower" }, 5, 5)).toBeNull();
+    let top = base;
+    for (let step = 0; step < MAX_TERRAIN_LEVEL; step += 1) {
+      top = place(top, { kind: "elevation", step: "raise" }, 5, 5) as EditorMap;
+    }
+    expect(levelAt(top, 5, 5)).toBe(MAX_TERRAIN_LEVEL);
+    expect(place(top, { kind: "elevation", step: "raise" }, 5, 5)).toBeNull();
+  });
+
+  it("keeps the height when only the material changes", () => {
+    const raised = place(
+      blankMap("m", 20, 15),
+      { kind: "elevation", step: "raise" },
+      5,
+      5,
+    ) as EditorMap;
+    const iced = place(
+      raised,
+      { kind: "elevation", step: "keep", material: "glace" },
+      5,
+      5,
+    ) as EditorMap;
+    expect(levelAt(iced, 5, 5)).toBe(1);
+    expect(groundSlot(iced, 5, 5)).toBe(TERRAIN_MATERIAL_SLOTS.glace[1]);
+  });
+
+  it("raises every cell of a rectangle by one, across a slope", () => {
+    // A staircase of levels 0/1/2 side by side, then one "+1" rectangle over all three.
+    let map = blankMap("m", 20, 15);
+    map = place(map, { kind: "elevation", level: 1 }, 4, 5) as EditorMap;
+    map = place(map, { kind: "elevation", level: 2 }, 5, 5) as EditorMap;
+    const tool: EditorTool = { kind: "rect", content: { kind: "elevation", step: "raise" } };
+    map = place(map, tool, 3, 5, true) as EditorMap;
+    map = place(map, tool, 5, 5, false) as EditorMap;
+    // Relative means relative per CELL: an absolute rectangle would have flattened all three to
+    // whichever level the first cell happened to be.
+    expect(levelAt(map, 3, 5)).toBe(1);
+    expect(levelAt(map, 4, 5)).toBe(2);
+    expect(levelAt(map, 5, 5)).toBe(3);
+  });
+
+  it("floods one connected region to the step's target, read at the clicked cell", () => {
+    const plateau = place(
+      blankMap("m", 20, 15),
+      { kind: "elevation", level: 1 },
+      5,
+      5,
+    ) as EditorMap;
+    const filled = place(
+      plateau,
+      { kind: "fill", content: { kind: "elevation", step: "raise" } },
+      5,
+      5,
+    ) as EditorMap;
+    expect(levelAt(filled, 5, 5)).toBe(2);
+    // The surrounding level-0 grass is a different region and is untouched.
+    expect(levelAt(filled, 8, 8)).toBe(0);
   });
 });
