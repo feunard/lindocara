@@ -107,6 +107,9 @@ handle; dragging them previews the snapped size immediately and commits the whol
 undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
 buildings retain their native footprint, and explicit dimensions share the existing transform
 integer, so no schema migration is required.
+Resizing also preserves art density: timber facade bays, shingles, masonry and planks repeat across
+the final world-space faces (including internally scaled round/fortified models) instead of
+magnifying one low-resolution texture over the whole footprint.
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
 static visuals in place; event edits reuse the same path while their preview remains dynamic. The

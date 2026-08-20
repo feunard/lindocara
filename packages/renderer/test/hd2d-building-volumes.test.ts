@@ -31,6 +31,22 @@ function building(
   });
 }
 
+function uvSpan(mesh: THREE.Mesh, groupIndex: number): { u: number; v: number } {
+  const group = mesh.geometry.groups[groupIndex];
+  const index = mesh.geometry.index;
+  const uv = mesh.geometry.getAttribute("uv");
+  if (!group || !index || !(uv instanceof THREE.BufferAttribute)) {
+    throw new Error("grouped UV geometry missing");
+  }
+  const vertices = new Set<number>();
+  for (let offset = group.start; offset < group.start + group.count; offset += 1) {
+    vertices.add(index.getX(offset));
+  }
+  const us = [...vertices].map((vertex) => uv.getX(vertex));
+  const vs = [...vertices].map((vertex) => uv.getY(vertex));
+  return { u: Math.max(...us) - Math.min(...us), v: Math.max(...vs) - Math.min(...vs) };
+}
+
 describe("native HD-2D building volumes", () => {
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
     "builds %s as complete native architecture behind its authored front threshold",
@@ -44,6 +60,32 @@ describe("native HD-2D building volumes", () => {
       visual.dispose();
     },
   );
+
+  it("repeats facade and roof modules across a resized house instead of magnifying one texture", () => {
+    const visual = building("house", { width: 5, depth: 3.125 });
+    const wall = visual.mesh.getObjectByName("plaster-house");
+    const roof = visual.mesh.getObjectByName("blue-roof-slope");
+    if (!(wall instanceof THREE.Mesh) || !(roof instanceof THREE.Mesh)) {
+      throw new Error("resized house shell missing");
+    }
+
+    // Box groups 4/5 are the front/back faces; the 2-world-unit facade module now repeats 2.5x.
+    expect(uvSpan(wall, 4)).toEqual({ u: 2.5, v: 1 });
+    // Roof top/bottom faces repeat the one-tile shingles in both slope and depth directions.
+    expect(uvSpan(roof, 2).u).toBeGreaterThan(2.5);
+    expect(uvSpan(roof, 2).v).toBeGreaterThan(3);
+    visual.dispose();
+  });
+
+  it("compensates texture repetition for internally scaled round buildings", () => {
+    const visual = building("tower", { width: 5, depth: 3.125 });
+    const wall = visual.mesh.getObjectByName("stone-watchtower");
+    if (!(wall instanceof THREE.Mesh)) throw new Error("resized tower wall missing");
+
+    expect(uvSpan(wall, 0).u).toBeGreaterThan(5);
+    expect(uvSpan(wall, 0).v).toBeGreaterThan(1);
+    visual.dispose();
+  });
 
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
     "regenerates resized %s architecture from the requested footprint",

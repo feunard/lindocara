@@ -496,6 +496,97 @@ interface Materials {
   metal: THREE.MeshLambertMaterial;
 }
 
+interface TextureWorldSize {
+  width: number;
+  height: number;
+}
+
+const TEXTURE_WORLD_SIZE = "lindocaraTextureWorldSize";
+
+function tiled<T extends THREE.MeshLambertMaterial>(material: T, width: number, height: number): T {
+  material.userData[TEXTURE_WORLD_SIZE] = { width, height } satisfies TextureWorldSize;
+  return material;
+}
+
+function textureWorldSize(material: THREE.Material): TextureWorldSize | null {
+  const value = material.userData[TEXTURE_WORLD_SIZE];
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Partial<TextureWorldSize>;
+  return typeof candidate.width === "number" && typeof candidate.height === "number"
+    ? { width: candidate.width, height: candidate.height }
+    : null;
+}
+
+function textureRepeat(length: number, unit: number): number {
+  return Number.isFinite(unit) ? Math.max(1, length / unit) : 1;
+}
+
+function scaleUvGroup(
+  geometry: THREE.BufferGeometry,
+  groupIndex: number,
+  repeatU: number,
+  repeatV: number,
+): void {
+  const group = geometry.groups[groupIndex];
+  const index = geometry.index;
+  const uv = geometry.getAttribute("uv");
+  if (!group || !index || !(uv instanceof THREE.BufferAttribute)) return;
+  const vertices = new Set<number>();
+  for (let offset = group.start; offset < group.start + group.count; offset += 1) {
+    vertices.add(index.getX(offset));
+  }
+  for (const vertex of vertices) {
+    uv.setXY(vertex, uv.getX(vertex) * repeatU, uv.getY(vertex) * repeatV);
+  }
+  uv.needsUpdate = true;
+}
+
+/**
+ * Retiles mapped native geometry after the complete hierarchy has been scaled. Box UVs are mapped
+ * per physical face; cylindrical bodies repeat around their final circumference. This is the
+ * texture equivalent of adding facade/roof modules instead of magnifying one low-resolution tile.
+ */
+function tileBuildingGeometry(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true);
+  const scale = new THREE.Vector3();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const tile = materials.map(textureWorldSize).find((value) => value !== null);
+    if (!tile) return;
+    object.getWorldScale(scale);
+    const geometry = object.geometry;
+    if (geometry instanceof THREE.BoxGeometry) {
+      const width = geometry.parameters.width * scale.x;
+      const height = geometry.parameters.height * scale.y;
+      const depth = geometry.parameters.depth * scale.z;
+      const horizontal = (length: number): number => textureRepeat(length, tile.width);
+      const vertical = (length: number): number => textureRepeat(length, tile.height);
+      scaleUvGroup(geometry, 0, horizontal(depth), vertical(height));
+      scaleUvGroup(geometry, 1, horizontal(depth), vertical(height));
+      scaleUvGroup(geometry, 2, horizontal(width), vertical(depth));
+      scaleUvGroup(geometry, 3, horizontal(width), vertical(depth));
+      scaleUvGroup(geometry, 4, horizontal(width), vertical(height));
+      scaleUvGroup(geometry, 5, horizontal(width), vertical(height));
+      return;
+    }
+    if (geometry instanceof THREE.CylinderGeometry) {
+      const radius = Math.max(geometry.parameters.radiusTop, geometry.parameters.radiusBottom);
+      const radiusX = radius * scale.x;
+      const radiusZ = radius * scale.z;
+      const circumference =
+        Math.PI *
+        (3 * (radiusX + radiusZ) - Math.sqrt((3 * radiusX + radiusZ) * (radiusX + 3 * radiusZ)));
+      scaleUvGroup(
+        geometry,
+        0,
+        textureRepeat(circumference, tile.width),
+        textureRepeat(geometry.parameters.height * scale.y, tile.height),
+      );
+    }
+  });
+}
+
 function makeMaterials(art: BuildingVolumeArt): Materials {
   const destroyed = art.state === "destroyed";
   for (const texture of [art.wall, art.roof, art.stone, art.blueStone, art.wood]) {
@@ -504,45 +595,69 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
     texture.needsUpdate = true;
   }
   return {
-    wall: new THREE.MeshLambertMaterial({
-      map: art.wall,
-      color: destroyed ? 0x777064 : 0xffffff,
-      flatShading: true,
-    }),
-    stone: new THREE.MeshLambertMaterial({
-      map: art.stone,
-      color: destroyed ? 0x746e65 : 0xffffff,
-      flatShading: true,
-    }),
-    stoneShade: new THREE.MeshLambertMaterial({
-      map: art.blueStone,
-      color: destroyed ? 0x57545a : 0xffffff,
-      flatShading: true,
-    }),
-    wood: new THREE.MeshLambertMaterial({
-      map: art.wood,
-      // Preserve the warm pixels from the timber texture. Multiplying them by another dark brown
-      // made beams read as featureless black once the directional light and AO were applied.
-      color: destroyed ? 0x4a433d : 0xffffff,
-      flatShading: true,
-    }),
-    deck: new THREE.MeshLambertMaterial({
-      map: art.wood,
-      color: destroyed ? 0x585047 : 0xe4c093,
-      flatShading: true,
-    }),
+    wall: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.wall,
+        color: destroyed ? 0x777064 : 0xffffff,
+        flatShading: true,
+      }),
+      2,
+      Number.POSITIVE_INFINITY,
+    ),
+    stone: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.stone,
+        color: destroyed ? 0x746e65 : 0xffffff,
+        flatShading: true,
+      }),
+      1.5,
+      1.5,
+    ),
+    stoneShade: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.blueStone,
+        color: destroyed ? 0x57545a : 0xffffff,
+        flatShading: true,
+      }),
+      1.5,
+      1.5,
+    ),
+    wood: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.wood,
+        // Preserve the warm pixels from the timber texture. Multiplying them by another dark brown
+        // made beams read as featureless black once the directional light and AO were applied.
+        color: destroyed ? 0x4a433d : 0xffffff,
+        flatShading: true,
+      }),
+      1,
+      1,
+    ),
+    deck: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.wood,
+        color: destroyed ? 0x585047 : 0xe4c093,
+        flatShading: true,
+      }),
+      1,
+      1,
+    ),
     outline: new THREE.MeshLambertMaterial({ color: 0x161c2e, flatShading: true }),
     blue: new THREE.MeshLambertMaterial({
       // Doors use a clean faction colour. A brown albedo multiplied by cyan collapsed to black.
       color: destroyed ? 0x59626a : 0x326f80,
       flatShading: true,
     }),
-    roof: new THREE.MeshLambertMaterial({
-      map: art.roof,
-      color: destroyed ? 0x55535a : art.roofColor,
-      side: THREE.DoubleSide,
-      flatShading: true,
-    }),
+    roof: tiled(
+      new THREE.MeshLambertMaterial({
+        map: art.roof,
+        color: destroyed ? 0x55535a : art.roofColor,
+        side: THREE.DoubleSide,
+        flatShading: true,
+      }),
+      1,
+      1,
+    ),
     window: new THREE.MeshLambertMaterial({
       color: destroyed ? 0x2d3035 : 0x173b50,
       flatShading: true,
@@ -979,6 +1094,7 @@ export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
     structure.rotation.z = -0.045;
     addRubble(structure, size, materials);
   }
+  tileBuildingGeometry(structure);
 
   return {
     mesh: group,
