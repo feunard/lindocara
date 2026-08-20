@@ -131,6 +131,17 @@ export interface Hd2dEditorOverlay {
   colliders: readonly ColliderRect[];
   hover?: GroundVector | null;
   selection?: GroundVector | null;
+  /** Direct-manipulation gizmo for a selected native building. The front anchor stays fixed while
+   * the two side handles resize width and the rear handle resizes depth. */
+  buildingResize?: {
+    anchor: GroundVector;
+    outline: readonly GroundVector[];
+    widthHandles: readonly [GroundVector, GroundVector];
+    depthHandle: GroundVector;
+    hoverAxis?: "width" | "depth" | null;
+    activeAxis?: "width" | "depth" | null;
+    valid: boolean;
+  } | null;
   /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
    *  element mode places at quarter cells and marks one of those. Defaults to 1. */
   cursorCells?: number;
@@ -1564,6 +1575,76 @@ export class Hd2dVisualLayer {
     // above the hover rather than by being oversized.
     if (overlay.hover) addCursor(overlay.hover, 0xffd66b, 0.13);
     if (overlay.selection) addCursor(overlay.selection, 0x57d6ff, 0.135);
+    if (overlay.buildingResize) {
+      const resize = overlay.buildingResize;
+      const group = new THREE.Group();
+      group.name = "editor-building-resize";
+      const positions: number[] = [];
+      for (let index = 0; index < resize.outline.length; index += 1) {
+        const from = resize.outline[index];
+        const to = resize.outline[(index + 1) % resize.outline.length];
+        if (!from || !to) continue;
+        positions.push(
+          from.x,
+          this.#groundY(from.x, from.z, 0.19),
+          from.z,
+          to.x,
+          this.#groundY(to.x, to.z, 0.19),
+          to.z,
+        );
+      }
+      const outlineGeometry = new THREE.BufferGeometry();
+      outlineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      const outlineMaterial = new THREE.LineBasicMaterial({
+        color: resize.valid ? 0x7de7ff : 0xef5350,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+      outline.name = "editor-building-resize-outline";
+      outline.renderOrder = 42;
+      group.add(outline);
+
+      const addHandle = (point: GroundVector, axis: "width" | "depth", index?: number): void => {
+        const highlighted = resize.activeAxis === axis || resize.hoverAxis === axis;
+        const color = resize.valid ? (axis === "width" ? 0xffb84d : 0x57d6ff) : 0xef5350;
+        const handle = new THREE.Mesh(
+          new THREE.CircleGeometry(highlighted ? 0.27 : 0.22, 24),
+          transparentMaterial(color, highlighted ? 1 : 0.9),
+        );
+        handle.name = `editor-building-resize-${axis}${index === undefined ? "" : `-${index}`}`;
+        handle.rotation.x = -Math.PI / 2;
+        handle.position.set(point.x, this.#groundY(point.x, point.z, 0.205), point.z);
+        handle.renderOrder = 43;
+        const material = handle.material as THREE.MeshBasicMaterial;
+        material.depthTest = false;
+        group.add(handle);
+      };
+      for (const [index, point] of resize.widthHandles.entries()) {
+        addHandle(point, "width", index);
+      }
+      addHandle(resize.depthHandle, "depth");
+
+      const anchor = new THREE.Mesh(
+        new THREE.RingGeometry(0.08, 0.14, 4),
+        transparentMaterial(resize.valid ? 0xffffff : 0xef5350, 0.95),
+      );
+      anchor.name = "editor-building-resize-anchor";
+      anchor.rotation.x = -Math.PI / 2;
+      anchor.rotation.z = Math.PI / 4;
+      anchor.position.set(
+        resize.anchor.x,
+        this.#groundY(resize.anchor.x, resize.anchor.z, 0.205),
+        resize.anchor.z,
+      );
+      anchor.renderOrder = 43;
+      (anchor.material as THREE.MeshBasicMaterial).depthTest = false;
+      group.add(anchor);
+      this.#editorRoot.add(group);
+    }
     if (overlay.assetPreview) {
       for (const point of overlay.assetPreview.footprint) {
         const cell = new THREE.Mesh(

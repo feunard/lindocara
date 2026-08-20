@@ -1,5 +1,7 @@
 import { blankMap, canvasEditorMap, toMapData } from "@lindocara/editor/game/editor-state.js";
 import {
+  buildingDimensionsAtPoint,
+  buildingResizeGuide,
   defaultDimForMode,
   editorToolPreviewAssetId,
   openMapEditorStage,
@@ -8,6 +10,8 @@ import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const HOUSE = "building.buildings-blue-buildings.house1" as const;
 
 const mock = vi.hoisted(() => {
   let frame: ((now: number) => void) | null = null;
@@ -415,6 +419,101 @@ describe("HD-2D map editor stage", () => {
     expect(stage.current().elements[0]).toMatchObject({ col: 1, row: 2, offsetX: 2, offsetY: 2 });
     expect(previewPoint).toEqual({ x: compiledElement?.x, z: compiledElement?.z });
     stage.dispose();
+  });
+
+  it("draws and drags building resize handles as one undoable edit", async () => {
+    const point = { x: 5.5, z: 2.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const building = {
+      col: 15,
+      row: 12,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: HOUSE,
+      building: {
+        destructible: true,
+        maxHp: 900,
+        dimensions: { width: 2.75, depth: 2.125 },
+      },
+    } as const;
+    const map = { ...blankMap("Village", 20, 15), elements: [building] };
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(map, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "select" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const guide = mock.renderer.setEditorOverlay.mock.lastCall?.[0].buildingResize;
+    expect(guide).toMatchObject({
+      widthHandles: expect.any(Array),
+      depthHandle: expect.any(Object),
+      valid: true,
+    });
+
+    Object.assign(point, guide.widthHandles[1]);
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    point.x = 30;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 35, clientY: 20 }));
+    expect(stage.current().elements[0]?.building?.dimensions?.width).toBe(2.75);
+    expect(mock.renderer.setEditorOverlay.mock.lastCall?.[0].buildingResize.valid).toBe(false);
+
+    point.x = 8;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().elements[0]?.building?.dimensions).toEqual({
+      width: 5,
+      depth: 2.125,
+    });
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ canUndo: true, dirty: true }),
+    );
+    stage.undo();
+    expect(stage.current().elements[0]?.building?.dimensions).toEqual({
+      width: 2.75,
+      depth: 2.125,
+    });
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
+});
+
+describe("building resize geometry", () => {
+  const building = {
+    col: 10,
+    row: 10,
+    offsetX: 0,
+    offsetY: 0,
+    assetId: HOUSE,
+    orientation: 1 as const,
+    building: {
+      destructible: true,
+      maxHp: 900,
+      dimensions: { width: 4, depth: 3 },
+    },
+  };
+
+  it("rotates the visible handles and converts drags back into local width and depth", () => {
+    expect(buildingResizeGuide(building, 20)).toMatchObject({
+      anchor: { x: 0.5, z: 1 },
+      widthHandles: [
+        { x: 2, z: -1 },
+        { x: 2, z: 3 },
+      ],
+      depthHandle: { x: 3.5, z: 1 },
+    });
+    expect(buildingDimensionsAtPoint(building, 20, "width", { x: 0.5, z: 4 })).toEqual({
+      width: 6,
+      depth: 3,
+    });
+    expect(buildingDimensionsAtPoint(building, 20, "depth", { x: 4.5, z: 1 })).toEqual({
+      width: 4,
+      depth: 4,
+    });
   });
 });
 

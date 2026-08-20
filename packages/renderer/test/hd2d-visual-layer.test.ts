@@ -397,6 +397,45 @@ describe("Hd2dVisualLayer spawn marker", () => {
     layer.dispose();
   });
 
+  it("draws a selected building footprint with two width handles and one depth handle", () => {
+    const { layer, root } = harness();
+    const buildingResize = {
+      anchor: { x: 0, z: 1 },
+      outline: [
+        { x: -2, z: 1 },
+        { x: 2, z: 1 },
+        { x: 2, z: -2 },
+        { x: -2, z: -2 },
+      ],
+      widthHandles: [
+        { x: -2, z: -0.5 },
+        { x: 2, z: -0.5 },
+      ] as const,
+      depthHandle: { x: 0, z: -2 },
+      hoverAxis: "width" as const,
+      activeAxis: null,
+      valid: true,
+    };
+    layer.setEditorOverlay({ ...base, buildingResize });
+
+    expect(root.getObjectByName("editor-building-resize")).toBeDefined();
+    expect(root.getObjectByName("editor-building-resize-width-0")?.position.x).toBeCloseTo(-2);
+    expect(root.getObjectByName("editor-building-resize-width-1")?.position.x).toBeCloseTo(2);
+    expect(root.getObjectByName("editor-building-resize-depth")?.position.z).toBeCloseTo(-2);
+    expect(root.getObjectByName("editor-building-resize-anchor")?.position).toMatchObject({
+      x: 0,
+      z: 1,
+    });
+
+    layer.setEditorOverlay({
+      ...base,
+      buildingResize: { ...buildingResize, hoverAxis: null, valid: false },
+    });
+    const outline = root.getObjectByName("editor-building-resize-outline") as THREE.LineSegments;
+    expect((outline.material as THREE.LineBasicMaterial).color.getHex()).toBe(0xef5350);
+    layer.dispose();
+  });
+
   it("draws the spawn where the overlay puts it, and nothing when there is none", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });

@@ -9,7 +9,14 @@
 import { acquireStageCanvas, releaseStageCanvas } from "@lindocara/client/game/stage-canvas.js";
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
-import type { BuildingSettings } from "@lindocara/engine/buildings.js";
+import {
+  BUILDING_DIMENSION_STEP,
+  type BuildingDimensions,
+  type BuildingSettings,
+  buildingDimensionsOrDefault,
+  MAX_BUILDING_DIMENSION,
+  MIN_BUILDING_DIMENSION,
+} from "@lindocara/engine/buildings.js";
 import type { ElementOrientation } from "@lindocara/engine/element-orientation.js";
 import {
   authoredElementGroundPoint,
@@ -19,7 +26,11 @@ import {
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData as CompiledMapData } from "@lindocara/engine/hd2d/map-data.js";
 import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
-import { ELEMENT_OFFSET_STEPS } from "@lindocara/engine/map-data.js";
+import {
+  ELEMENT_OFFSET_STEPS,
+  type MapElement,
+  sameElementSlot,
+} from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
@@ -157,6 +168,76 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
   return authoredElementGroundPoint(selection, size);
 }
 
+export type BuildingResizeAxis = "width" | "depth";
+
+export interface BuildingResizeGuide {
+  anchor: { x: number; z: number };
+  outline: readonly { x: number; z: number }[];
+  widthHandles: readonly [{ x: number; z: number }, { x: number; z: number }];
+  depthHandle: { x: number; z: number };
+}
+
+/** World-space footprint and handles for one native building. The front threshold remains fixed:
+ * width grows symmetrically from it, while depth grows only behind it. */
+export function buildingResizeGuide(
+  element: MapElement,
+  mapSize: number,
+  override?: BuildingDimensions,
+): BuildingResizeGuide | null {
+  const dimensions = buildingDimensionsOrDefault(
+    element.assetId,
+    override ?? element.building?.dimensions,
+  );
+  if (!dimensions) return null;
+  const anchor = authoredElementGroundPoint(element, mapSize);
+  const orientation = element.orientation ?? 0;
+  const point = (localX: number, localZ: number): { x: number; z: number } => {
+    let x = localX;
+    let z = localZ;
+    for (let turn = 0; turn < orientation; turn += 1) [x, z] = [-z, x];
+    return { x: anchor.x + x, z: anchor.z + z };
+  };
+  return {
+    anchor,
+    outline: [
+      point(-dimensions.width / 2, 0),
+      point(dimensions.width / 2, 0),
+      point(dimensions.width / 2, -dimensions.depth),
+      point(-dimensions.width / 2, -dimensions.depth),
+    ],
+    widthHandles: [
+      point(-dimensions.width / 2, -dimensions.depth / 2),
+      point(dimensions.width / 2, -dimensions.depth / 2),
+    ],
+    depthHandle: point(0, -dimensions.depth),
+  };
+}
+
+/** Convert a dragged world point back into the building's unrotated local axes and snap it to the
+ * same eighth-cell contract used by the inspector and persistence layer. */
+export function buildingDimensionsAtPoint(
+  element: MapElement,
+  mapSize: number,
+  axis: BuildingResizeAxis,
+  world: { x: number; z: number },
+): BuildingDimensions | null {
+  const current = buildingDimensionsOrDefault(element.assetId, element.building?.dimensions);
+  if (!current) return null;
+  const anchor = authoredElementGroundPoint(element, mapSize);
+  let x = world.x - anchor.x;
+  let z = world.z - anchor.z;
+  for (let turn = 0; turn < (element.orientation ?? 0); turn += 1) [x, z] = [z, -x];
+  const raw = axis === "width" ? Math.abs(x) * 2 : -z;
+  const snapped = Math.max(
+    MIN_BUILDING_DIMENSION,
+    Math.min(
+      MAX_BUILDING_DIMENSION,
+      Math.round(raw / BUILDING_DIMENSION_STEP) * BUILDING_DIMENSION_STEP,
+    ),
+  );
+  return { ...current, [axis]: snapped };
+}
+
 /** Every blocked cell inside `rect` — deliberately NOT the whole canvas: a 256×256 document is
  *  mostly ocean outside the derived save rect, and marking all of it as red collision would be
  *  noise rather than signal. */
@@ -202,6 +283,7 @@ const ORBIT_RADIANS_PER_PIXEL = 0.005;
  *  while the drag is in flight, high enough that a fast spray costs a handful of rebuilds a
  *  second instead of one per painted cell. */
 const STROKE_REBUILD_MS = 200;
+const BUILDING_RESIZE_HANDLE_HIT_RADIUS = 0.34;
 
 /** Yaw as a 0..359 heading for the status bar. Rounded, because the readout is for orientation,
  *  not measurement, and a free orbit would otherwise jitter its last digit every frame. */
@@ -248,6 +330,13 @@ export function openMapEditorStage(
     let spaceHeld = false;
     let strokeStart: EditorMap | null = null;
     let dragSelection: EditorSelection | null = null;
+    let resizeDrag: {
+      axis: BuildingResizeAxis;
+      selection: Extract<EditorSelection, { kind: "element" }>;
+      settings: BuildingSettings;
+    } | null = null;
+    let resizePreview: { dimensions: BuildingDimensions; valid: boolean } | null = null;
+    let hoverResizeAxis: BuildingResizeAxis | null = null;
     let lastPaintedKey = "";
     // Spray throttle: a painted cell costs a full world rebuild (`configureMapTerrain` tears the
     // scene down and rebuilds it — 12-45ms measured on a light canvas), so a fast drag rebuilding
@@ -275,6 +364,39 @@ export function openMapEditorStage(
     let renderedSeaGuardians: SceneSample["seaGuardians"] = [];
 
     const dimensions = () => editorMapSize(map);
+    const selectedBuildingElement = (): MapElement | null => {
+      if (selected?.kind !== "element") return null;
+      const selection = selected;
+      const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+      return element?.building ? element : null;
+    };
+    const selectedBuildingGuide = (): BuildingResizeGuide | null => {
+      const element = selectedBuildingElement();
+      if (!element) return null;
+      const { cols, rows } = dimensions();
+      return buildingResizeGuide(element, Math.max(cols, rows), resizePreview?.dimensions);
+    };
+    const resizeAxisAt = (point: { x: number; z: number }): BuildingResizeAxis | null => {
+      const guide = selectedBuildingGuide();
+      if (!guide) return null;
+      const distance = (handle: { x: number; z: number }): number =>
+        Math.hypot(point.x - handle.x, point.z - handle.z);
+      if (Math.min(...guide.widthHandles.map(distance)) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS) {
+        return "width";
+      }
+      return distance(guide.depthHandle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS ? "depth" : null;
+    };
+    const refreshCursor = (): void => {
+      canvas.dataset.cursor = resizeDrag
+        ? "grabbing"
+        : hoverResizeAxis
+          ? `resize-${hoverResizeAxis}`
+          : tool.kind === "pan"
+            ? "move"
+            : tool.kind === "select"
+              ? "select"
+              : "paint";
+    };
     // The rect a save would store, memoized per document identity: the map is immutable per edit
     // (every mutator returns a fresh object), so recomputing `derivedMapRect` — a full scan of every
     // layer, element, event and marker — on each hover would repeat the same O(cells) walk for free.
@@ -323,6 +445,7 @@ export function openMapEditorStage(
         : null;
       const previewAssetId = editorToolPreviewAssetId(tool);
       const previewAsset = previewAssetId ? editorAsset(previewAssetId) : null;
+      const buildingResize = selectedBuildingGuide();
       const rect = derivedRect();
       renderer.setEditorOverlay({
         cols,
@@ -348,6 +471,14 @@ export function openMapEditorStage(
         },
         hover: hoverPoint,
         selection: focusSelection,
+        buildingResize: buildingResize
+          ? {
+              ...buildingResize,
+              hoverAxis: hoverResizeAxis,
+              activeAxis: resizeDrag?.axis ?? null,
+              valid: resizePreview?.valid ?? true,
+            }
+          : null,
         // The cursor outlines the unit the active mode actually places on: a whole cell for field
         // and event work, one of the 4x4 sub-cell slots in element mode (`hoverPoint` is already a
         // quarter-cell centre there).
@@ -481,6 +612,8 @@ export function openMapEditorStage(
         if (isStrokeStart) {
           dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
           selected = dragSelection;
+          hoverResizeAxis = null;
+          refreshCursor();
           drawOverlay();
           notify();
           return;
@@ -509,6 +642,8 @@ export function openMapEditorStage(
         );
         if (exists) {
           selected = { kind: "element", col, row, offsetX, offsetY };
+          hoverResizeAxis = null;
+          refreshCursor();
           drawOverlay();
           notify();
           return;
@@ -518,6 +653,8 @@ export function openMapEditorStage(
         const exists = map.events.find((event) => event.col === col && event.row === row);
         if (exists) {
           selected = { kind: "event", id: exists.id };
+          hoverResizeAxis = null;
+          refreshCursor();
           drawOverlay();
           notify();
           return;
@@ -551,6 +688,43 @@ export function openMapEditorStage(
       notify();
     };
 
+    const resizeBuildingAt = (clientX: number, clientY: number): void => {
+      if (!resizeDrag || !strokeStart) return;
+      const drag = resizeDrag;
+      const point = renderer.screenToWorld(clientX, clientY);
+      const sourceElement = strokeStart.elements.find((candidate) =>
+        sameElementSlot(candidate, drag.selection),
+      );
+      if (!point || !sourceElement) return;
+      const { cols, rows } = dimensions();
+      const nextDimensions = buildingDimensionsAtPoint(
+        sourceElement,
+        Math.max(cols, rows),
+        drag.axis,
+        point,
+      );
+      if (!nextDimensions) return;
+      const previousPreview = resizePreview?.dimensions;
+      if (
+        previousPreview?.width === nextDimensions.width &&
+        previousPreview.depth === nextDimensions.depth
+      ) {
+        return;
+      }
+      const next = updateSelectedBuildingSettings(map, drag.selection, {
+        ...drag.settings,
+        dimensions: nextDimensions,
+      });
+      resizePreview = { dimensions: nextDimensions, valid: next !== null };
+      if (!next || next === map) {
+        drawOverlay();
+        return;
+      }
+      map = next;
+      strokeRedraw();
+      notify();
+    };
+
     const panTrigger = (event: PointerEvent): boolean =>
       event.button === 1 || (event.button === 0 && (spaceHeld || tool.kind === "pan"));
 
@@ -575,6 +749,28 @@ export function openMapEditorStage(
         return;
       }
       if (event.button !== 0) return;
+      const point = renderer.screenToWorld(event.clientX, event.clientY);
+      const resizeAxis = point ? resizeAxisAt(point) : null;
+      const building = selectedBuildingElement();
+      const currentDimensions = building?.building
+        ? buildingDimensionsOrDefault(building.assetId, building.building.dimensions)
+        : null;
+      if (resizeAxis && selected?.kind === "element" && building?.building && currentDimensions) {
+        resizeDrag = {
+          axis: resizeAxis,
+          selection: selected,
+          settings: building.building,
+        };
+        resizePreview = {
+          dimensions: currentDimensions,
+          valid: true,
+        };
+        hoverResizeAxis = resizeAxis;
+        strokeStart = map;
+        refreshCursor();
+        drawOverlay();
+        return;
+      }
       painting = true;
       strokeStart = map;
       lastPaintedKey = "";
@@ -606,6 +802,13 @@ export function openMapEditorStage(
         renderer.setCameraFocus(cameraX, cameraZ);
         return;
       }
+      if (resizeDrag) {
+        resizeBuildingAt(event.clientX, event.clientY);
+        return;
+      }
+      const world = renderer.screenToWorld(event.clientX, event.clientY);
+      hoverResizeAxis = !painting && world ? resizeAxisAt(world) : null;
+      refreshCursor();
       const placement = placementAt(event.clientX, event.clientY);
       hover = placement;
       reportCursor(placement?.col ?? null, placement?.row ?? null);
@@ -614,6 +817,10 @@ export function openMapEditorStage(
     };
 
     const stopStroke = (): void => {
+      const stoppedResize = resizeDrag !== null;
+      resizeDrag = null;
+      resizePreview = null;
+      hoverResizeAxis = null;
       if (strokeRebuildPending) {
         strokeRebuildPending = false;
         strokeRebuiltAt = 0;
@@ -631,12 +838,14 @@ export function openMapEditorStage(
       // the one-press way back to an axis. Springing back would make a free look useless for any
       // work done from that angle.
       orbiting = false;
-      canvas.dataset.cursor =
-        tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+      refreshCursor();
+      if (stoppedResize && !strokeRebuildPending) drawOverlay();
     };
 
     const onPointerLeave = (): void => {
       hover = null;
+      hoverResizeAxis = null;
+      refreshCursor();
       reportCursor(null, null);
       drawOverlay();
     };
@@ -688,6 +897,8 @@ export function openMapEditorStage(
           );
       if (!nextSelection) return;
       selected = nextSelection;
+      hoverResizeAxis = null;
+      refreshCursor();
       drawOverlay();
       notify();
       onOpenSelection?.(nextSelection);
@@ -726,8 +937,7 @@ export function openMapEditorStage(
       setTool(next) {
         tool = next;
         renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
-        canvas.dataset.cursor =
-          tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+        refreshCursor();
         drawOverlay();
       },
       setActiveMode(mode) {
@@ -737,6 +947,8 @@ export function openMapEditorStage(
           (mode === "element" && selected?.kind === "element") ||
           (mode === "event" && selected?.kind === "event");
         if (selected && !matches) selected = null;
+        if (!selected) hoverResizeAxis = null;
+        refreshCursor();
         drawOverlay();
         notify();
       },
@@ -770,6 +982,8 @@ export function openMapEditorStage(
         selected = null;
         highlightedEventId = null;
         hover = null;
+        hoverResizeAxis = null;
+        refreshCursor();
         reportCursor(null, null);
         // A whole generated map is a new composition even though both documents use the same
         // 256x256 working canvas. Open on its authored content immediately.
@@ -813,6 +1027,8 @@ export function openMapEditorStage(
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
+        hoverResizeAxis = null;
+        refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redraw();
         notify();
@@ -826,6 +1042,8 @@ export function openMapEditorStage(
         map = { ...history.present, name: map.name };
         history = { ...history, present: map };
         selected = null;
+        hoverResizeAxis = null;
+        refreshCursor();
         if (!sameRect(previousRect, derivedRect())) centreCamera();
         redraw();
         notify();
@@ -838,6 +1056,8 @@ export function openMapEditorStage(
       clearSelection() {
         if (!selected) return;
         selected = null;
+        hoverResizeAxis = null;
+        refreshCursor();
         drawOverlay();
         notify();
       },

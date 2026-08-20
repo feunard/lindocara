@@ -102,7 +102,9 @@ transform integer, keeping old 3x1 bridges valid and requiring no schema migrati
 Every supported native 3D building uses the same generic contract: its inspector can resize facade
 width and depth from 1 to 32 cells in eighth-cell increments. The model is regenerated from those
 dimensions rather than scaled, and the compiled roof, solid footprint and doorway use the same
-values. Newly registered native building archetypes inherit the controls automatically. Legacy
+values. Selecting one on the map also draws its footprint plus two width handles and one rear depth
+handle; dragging them previews the snapped size immediately and commits the whole gesture as one
+undoable edit. Newly registered native building archetypes inherit the controls automatically. Legacy
 buildings retain their native footprint, and explicit dimensions share the existing transform
 integer, so no schema migration is required.
 Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
