@@ -720,6 +720,11 @@ properties of the current renderer, not an outstanding no-op list:
     invisible and standing every swimmer on the seabed. `hd2d-remote-state.test.ts` is what holds
     it closed.
 - **Remote heroes preserve their vertical pose.** Snapshots carry elevation, locomotion flags and `vy`; billboards use them for water-line placement, airborne height, squash/stretch and the glider canopy.
+- **Sea guardians are water volumes, not sprites pasted above the sea.** Patrol rendering uses a
+  deterministic per-guardian 14-second cycle to lower and fade each shark beneath the water, while
+  chase and attack remain surfaced for gameplay readability. A guardian whose footprint overlaps a
+  finite platform is fully occluded, so its tall billboard cannot show through a bridge's planks or
+  transparent-water pass; it becomes visible again after clearing the platform.
 - **Bomb aiming is a real ground raycast.** `screenToWorld` intersects the visible terrain, stairs or
   water and refuses out-of-map points; `showPeasantBombAim` draws the accepted direction.
 - **Actors animate authored sheets.** Idle/run/attack selection follows movement and authoritative

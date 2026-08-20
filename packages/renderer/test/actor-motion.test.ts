@@ -8,9 +8,11 @@ import {
   monsterActorSheet,
   playerActorSheet,
   playerActorView,
+  SEA_GUARDIAN_DIVE_CYCLE_MS,
   SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL,
   SEA_GUARDIAN_SWIM_TEXTURE_URL,
   SEA_GUARDIAN_SWIM_UP_TEXTURE_URL,
+  seaGuardianPresentation,
   seaGuardianSwimTextureUrl,
 } from "@lindocara/renderer/hd2d/game-renderer.js";
 import * as THREE from "three";
@@ -102,6 +104,29 @@ describe("actor animation art", () => {
     expect(seaGuardianSwimTextureUrl({ x: 0, z: 1 })).toBe(SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL);
     expect(seaGuardianSwimTextureUrl({ x: 1, z: 0 })).toBe(SEA_GUARDIAN_SWIM_TEXTURE_URL);
     expect(seaGuardianSwimTextureUrl({ x: -1, z: 0 })).toBe(SEA_GUARDIAN_SWIM_TEXTURE_URL);
+  });
+
+  it("periodically submerges patrolling sharks without hiding a chase or attack", () => {
+    const patrol = Array.from({ length: 140 }, (_, index) =>
+      seaGuardianPresentation(
+        "sea-guardian_alpha",
+        "patrol",
+        (index * SEA_GUARDIAN_DIVE_CYCLE_MS) / 140,
+      ),
+    );
+
+    expect(Math.min(...patrol.map((sample) => sample.waterDepth))).toBeCloseTo(0.48);
+    expect(Math.max(...patrol.map((sample) => sample.waterDepth))).toBeCloseTo(2.35);
+    expect(Math.min(...patrol.map((sample) => sample.opacity))).toBeCloseTo(0.06);
+    expect(Math.max(...patrol.map((sample) => sample.opacity))).toBe(1);
+    expect(seaGuardianPresentation("sea-guardian_alpha", "chase", 9_000)).toEqual({
+      waterDepth: 0.48,
+      opacity: 1,
+    });
+    expect(seaGuardianPresentation("sea-guardian_alpha", "attack", 9_000)).toEqual({
+      waterDepth: 0.18,
+      opacity: 1,
+    });
   });
 });
 

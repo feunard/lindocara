@@ -35,6 +35,7 @@ import type {
   WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
+import type { SeaGuardianState } from "@lindocara/engine/sea-guardian.js";
 import {
   isSheepAssetId,
   type SHEEP_ASSET_IDS,
@@ -314,6 +315,65 @@ export const SEA_GUARDIAN_SWIM_UP_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guar
 export const SEA_GUARDIAN_SWIM_DOWN_TEXTURE_URL =
   "/assets/lindocara/hd2d/sea-guardian-swim-down.png";
 export const SEA_GUARDIAN_ATTACK_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-attack.png";
+export const SEA_GUARDIAN_DIVE_CYCLE_MS = 14_000;
+const SEA_GUARDIAN_DIVE_START_MS = 7_000;
+const SEA_GUARDIAN_DIVE_TRANSITION_MS = 1_200;
+const SEA_GUARDIAN_DIVE_HOLD_MS = 3_500;
+const SEA_GUARDIAN_SURFACE_DEPTH = 0.48;
+const SEA_GUARDIAN_SUBMERGED_DEPTH = 2.35;
+const SEA_GUARDIAN_SUBMERGED_OPACITY = 0.06;
+
+export interface SeaGuardianPresentation {
+  waterDepth: number;
+  opacity: number;
+}
+
+function seaGuardianPhaseOffset(id: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash ^= id.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0) % SEA_GUARDIAN_DIVE_CYCLE_MS;
+}
+
+function smoothDive(value: number): number {
+  const clamped = THREE.MathUtils.clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+/** Periodic patrol-only dive. Chasing and attacking stay readable gameplay threats. */
+export function seaGuardianPresentation(
+  id: string,
+  state: SeaGuardianState,
+  now: number,
+): SeaGuardianPresentation {
+  if (state === "attack") return { waterDepth: 0.18, opacity: 1 };
+  if (state === "chase") return { waterDepth: SEA_GUARDIAN_SURFACE_DEPTH, opacity: 1 };
+  const phase =
+    (((now + seaGuardianPhaseOffset(id)) % SEA_GUARDIAN_DIVE_CYCLE_MS) +
+      SEA_GUARDIAN_DIVE_CYCLE_MS) %
+    SEA_GUARDIAN_DIVE_CYCLE_MS;
+  const descentEnd = SEA_GUARDIAN_DIVE_START_MS + SEA_GUARDIAN_DIVE_TRANSITION_MS;
+  const holdEnd = descentEnd + SEA_GUARDIAN_DIVE_HOLD_MS;
+  const ascentEnd = holdEnd + SEA_GUARDIAN_DIVE_TRANSITION_MS;
+  const amount =
+    phase < SEA_GUARDIAN_DIVE_START_MS || phase >= ascentEnd
+      ? 0
+      : phase < descentEnd
+        ? smoothDive((phase - SEA_GUARDIAN_DIVE_START_MS) / SEA_GUARDIAN_DIVE_TRANSITION_MS)
+        : phase < holdEnd
+          ? 1
+          : 1 - smoothDive((phase - holdEnd) / SEA_GUARDIAN_DIVE_TRANSITION_MS);
+  return {
+    waterDepth: THREE.MathUtils.lerp(
+      SEA_GUARDIAN_SURFACE_DEPTH,
+      SEA_GUARDIAN_SUBMERGED_DEPTH,
+      amount,
+    ),
+    opacity: THREE.MathUtils.lerp(1, SEA_GUARDIAN_SUBMERGED_OPACITY, amount),
+  };
+}
 
 /** Directional swim sheet; side-facing movement keeps the original mirrored profile. */
 export function seaGuardianSwimTextureUrl(facing: GroundVector): string {
@@ -1511,6 +1571,7 @@ export class Hd2dRenderer implements RendererLike {
     for (const guardian of sample.seaGuardians) {
       present.add(guardian.id);
       const attacking = guardian.state === "attack";
+      const presentation = seaGuardianPresentation(guardian.id, guardian.state, animationTimeMs);
       const facing = facingOf(guardian.facing);
       const attackStartedAt = this.#serverClock.toLocal(guardian.animationStartedAt);
       const attackDuration =
@@ -1526,7 +1587,8 @@ export class Hd2dRenderer implements RendererLike {
         airborne: false,
         swimming: true,
         gliding: false,
-        waterDepth: attacking ? 0.18 : 0.48,
+        waterDepth: presentation.waterDepth,
+        opacity: presentation.opacity,
         vy: 0,
         facing,
         textureKey: attacking

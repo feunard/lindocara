@@ -262,6 +262,32 @@ describe("the billboard registry", () => {
     expect((mesh.material as THREE.Material).depthTest).toBe(false);
   });
 
+  it("fully occludes a sea guardian while its body passes below a bridge platform", () => {
+    const map = mapOf(
+      4,
+      Array.from({ length: 16 }, () => null),
+    );
+    map.colliders = [{ x: -1, z: -0.5, w: 2, h: 1, top: 1.8 }];
+    const scene = sceneFor(map);
+    const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());
+    const shark: ActorView = {
+      ...actor("shark", 0, 0),
+      kind: "sea_guardian",
+      y: map.waterLevel,
+      swimming: true,
+      waterDepth: 0.48,
+      renderHeight: 3.4,
+    };
+
+    registry.sync([shark]);
+    const mesh = registry.objectsFor([shark.id])[0];
+    if (!mesh) throw new Error("expected sea guardian billboard");
+    expect(mesh.visible).toBe(false);
+
+    registry.sync([{ ...shark, x: 1.75 }]);
+    expect(mesh.visible).toBe(true);
+  });
+
   it("turns an actor the way the snapshot faces it", () => {
     const scene = sceneFor(flatMap(4));
     const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());

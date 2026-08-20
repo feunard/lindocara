@@ -157,6 +157,7 @@ const DEFAULT_FRAME_PX = 192;
  *  thing to be wrong about: a sprite that idles slightly slow reads as calm, and one that RUNS
  *  slow reads as broken. Callers that know the motion pass `ACTOR_FRAME_MS` for it instead. */
 const DEFAULT_FRAME_MS = 1_000 / 7;
+const SEA_GUARDIAN_PLATFORM_OCCLUSION_RADIUS = 0.55;
 
 /** The lab's measured actor scale: a 192px Tiny Swords unit is 2.6 world tiles high, not the
  * pixel-era 3 tiles produced by dividing by TILE_SIZE. Larger sheets retain the same ratio. */
@@ -222,6 +223,19 @@ function standsOnFinitePlatform(
   if (actor.kind !== "player" || actor.airborne || actor.gliding || actor.swimming) return false;
   const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
   return elevation > terrain + 0.01;
+}
+
+/** A shark passing below a bridge is behind an opaque gameplay surface even where plank gaps or
+ * transparent-water sorting would otherwise reveal its tall billboard. */
+function seaGuardianUnderPlatform(actor: ActorView, scene: BillboardScene): boolean {
+  if (actor.kind !== "sea_guardian" || !actor.swimming) return false;
+  const platform = scene.query.platformSurfaceAround?.(
+    actor.x,
+    actor.z,
+    SEA_GUARDIAN_PLATFORM_OCCLUSION_RADIUS,
+    Number.POSITIVE_INFINITY,
+  );
+  return platform !== null && platform !== undefined && platform > scene.waterLevel + 0.01;
 }
 
 interface Entry {
@@ -434,6 +448,7 @@ export function createBillboardRegistry(
         const opacity = actor.opacity ?? (actor.pose === "ghost" ? 0.48 : 1);
         const elevation = elevationOf(actor, scene);
         const elevatedPlatform = standsOnFinitePlatform(actor, scene, elevation);
+        entry.billboard.mesh.visible = !seaGuardianUnderPlatform(actor, scene);
         // Native roofs are opaque volumes in front of a camera-facing hero plane. On their top,
         // ordinary depth clipping can swallow the entire actor. Draw it after the volume while
         // preserving the ordinary foot pivot: lifting by `footOffset` puts the painted feet above
