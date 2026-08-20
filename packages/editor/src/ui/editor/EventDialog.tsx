@@ -96,6 +96,26 @@ const RUNTIME_EVENT_TRIGGERS = [
 const NPC_MOVE_SPEEDS = [0, 1, 2, 3, 4, 5] as const;
 const NPC_MOVE_FREQUENCIES = [0, 1, 2, 3, 4] as const;
 
+/**
+ * ONE height for the three section panels, and the panel is what scrolls.
+ *
+ * `min-h` was the first attempt and only fixed the floor: a long action list or the appearance
+ * grid still grew past it, so the dialog jumped every time an author changed tab and the footer's
+ * buttons moved out from under the pointer. A fixed height cannot do that, whichever panel is
+ * open and whatever is in it.
+ *
+ * `clamp` rather than a flat `rem`, because the right height is the viewport's business: 46vh
+ * fills a tall window without ever reaching the dialog's own `max-h-[88vh]`, and the two bounds
+ * keep a laptop from squeezing the panel into a slot and a large display from stretching one
+ * checkbox over half the screen.
+ *
+ * `flex-none` is load-bearing, not decoration. `TabsContent` ships `flex-1` — `flex: 1 1 0%` — and
+ * a flex-basis of 0 beats `height` outright, so the panel was sized by whatever the flex container
+ * had left rather than by the number above. Measured in the browser it came out ~100px short of
+ * the floor. `tailwind-merge` resolves the two against each other, and the later one is this one.
+ */
+const TAB_PANEL = "h-[clamp(20rem,46vh,32rem)] flex-none overflow-y-auto pr-1";
+
 type EventStatField =
   | "patrolRadius"
   | "respawnDelay"
@@ -1373,9 +1393,7 @@ export function EventDialog({
                 )}
               </TabsList>
 
-              {/* One height for every panel, so switching tabs never resizes the dialog under the
-                  pointer. The dialog's own `max-h-[88vh]` still caps a long action list. */}
-              <TabsContent value="conditions" className="min-h-[22rem]">
+              <TabsContent value="conditions" className={TAB_PANEL}>
                 <div className="flex flex-col gap-4">
                   <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
                     <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -1514,7 +1532,7 @@ export function EventDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="appearance" className="min-h-[22rem]">
+              <TabsContent value="appearance" className={TAB_PANEL}>
                 <div className="flex flex-col gap-4">
                   {(draft.kind === "normal" || draft.kind === "npc") && (
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
@@ -1623,7 +1641,7 @@ export function EventDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="actions" className="min-h-[22rem]">
+              <TabsContent value="actions" className={TAB_PANEL}>
                 {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
                   <EventCommandEditor
                     commands={page.commands}

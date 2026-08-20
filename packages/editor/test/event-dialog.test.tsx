@@ -220,6 +220,30 @@ describe("EventDialog", () => {
     expect(radius).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("gives every section panel one fixed height, so changing tab never resizes the dialog", async () => {
+    // The complaint this pins: each tab was a different height, so the dialog jumped on every tab
+    // change and the footer's buttons moved out from under the pointer. The suite runs with
+    // `css: false` and cannot measure a rendered box, so it asserts the rule the box comes from -
+    // one height class, shared, and the panel scrolls rather than the dialog growing.
+    const user = userEvent.setup();
+    renderDialog(seedEvent());
+
+    const heights = new Set<string>();
+    for (const name of [
+      t("editor.event.conditions"),
+      t("editor.event.appearance"),
+      t("editor.event.commands"),
+    ]) {
+      await openTab(user, name);
+      const panel = screen.getByRole("tabpanel");
+      const height = [...panel.classList].find((token) => token.startsWith("h-["));
+      expect(height, `${name} has no fixed height`).toBeDefined();
+      expect([...panel.classList]).toContain("overflow-y-auto");
+      if (height) heights.add(height);
+    }
+    expect([...heights]).toHaveLength(1);
+  });
+
   it("caps pages at MAX_PAGES_PER_EVENT and disables add there", async () => {
     const user = userEvent.setup();
     renderDialog(seedEvent());
