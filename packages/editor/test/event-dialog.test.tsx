@@ -58,6 +58,12 @@ describe("EventDialog", () => {
     setLocale("en");
   });
 
+  /** The page's fields live in three tabs now (conditions, appearance, actions), so a test reaches
+   *  a control the way an author does: by opening the tab that holds it. */
+  const openTab = async (user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> => {
+    await user.click(screen.getByRole("tab", { name }));
+  };
+
   it("round-trips runtime-backed controls across two pages with explicit nulls", async () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent(), RUNTIME_REGISTRY);
@@ -74,7 +80,9 @@ describe("EventDialog", () => {
       screen.getByRole("combobox", { name: t("editor.event.trigger") }),
       "player-touch",
     );
+    await openTab(user, t("editor.event.appearance"));
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.opt.onTop") }));
+    await openTab(user, t("editor.event.conditions"));
 
     // Add page 2 (auto-selected) and author a different set of fields there.
     await user.click(screen.getByRole("button", { name: t("editor.event.page.add") }));
@@ -182,14 +190,46 @@ describe("EventDialog", () => {
     expect(onCommit.mock.calls[0]?.[0].name).toBe("EV005");
   });
 
+  it("keeps a refused save's error visible whichever page tab is open", async () => {
+    // Tabs hide things, which is the risk they carry. Every field that can REFUSE a save is a
+    // kind-specific one and lives outside the page's tabs; nothing inside conditions, appearance or
+    // actions validates today. This pins that: move a validated field into a tab and this test says
+    // so, instead of an author meeting a save button that does nothing.
+    const user = userEvent.setup({ delay: null });
+    const { onCommit } = renderDialog(
+      seedEvent({
+        kind: "guard",
+        name: "Garde",
+        species: null,
+        patrolRadius: 96,
+        pages: [{ ...defaultEventPage(), commands: [] }],
+      }),
+      RUNTIME_REGISTRY,
+    );
+
+    const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
+    fireEvent.change(radius, { target: { value: "9999" } });
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(radius).toHaveAttribute("aria-invalid", "true");
+
+    await openTab(user, t("editor.event.commands"));
+    // The same node, still on screen and still refusing: the field is outside the tabs, so opening
+    // another one cannot hide the reason a save was refused.
+    expect(radius).toBeVisible();
+    expect(radius).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("caps pages at MAX_PAGES_PER_EVENT and disables add there", async () => {
     const user = userEvent.setup();
     renderDialog(seedEvent());
 
     const add = screen.getByRole("button", { name: t("editor.event.page.add") });
-    // From one page, seven adds reach the cap of eight.
+    // From one page, seven adds reach the cap of eight. Scoped to the PAGE tablist: the page's
+    // fields are a second tablist beside it now, and an unscoped query counts both.
     for (let i = 0; i < 7; i += 1) await user.click(add);
-    expect(screen.getAllByRole("tab")).toHaveLength(8);
+    const pages = screen.getByRole("tablist", { name: t("editor.event.pages.aria") });
+    expect(within(pages).getAllByRole("tab")).toHaveLength(8);
     expect(add).toBeDisabled();
   });
 
@@ -460,15 +500,18 @@ describe("EventDialog", () => {
       RUNTIME_REGISTRY,
     );
 
-    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: t("editor.event.pages.aria") })).toBeInTheDocument();
     expect(
       screen.queryByRole("combobox", { name: t("editor.markers.species") }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(t("editor.event.kind.guard.hint"))).toBeVisible();
+    // A guard has no appearance tab (its look is a kind-specific field), so its page is two tabs.
+    await openTab(user, t("editor.event.commands"));
     await user.click(screen.getByRole("button", { name: "Garde: En position." }));
     const dialogue = screen.getByRole("textbox", { name: t("editor.event.cmd.field.text") });
     await user.clear(dialogue);
     await user.type(dialogue, "La route est sûre.");
+    await openTab(user, t("editor.event.conditions"));
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
 
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
@@ -506,8 +549,12 @@ describe("EventDialog", () => {
       RUNTIME_REGISTRY,
     );
 
-    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: t("editor.event.pages.aria") })).toBeInTheDocument();
+    await openTab(user, t("editor.event.commands"));
     expect(screen.getByRole("button", { name: t("editor.event.cmd.insert") })).toBeEnabled();
+    // Movement, the graphic and the walking routine are the appearance tab's; the NPC's stats are
+    // kind-specific fields and stay outside the tabs entirely.
+    await openTab(user, t("editor.event.appearance"));
     expect(screen.getByText(t("editor.event.kind.npc.hint"))).toBeVisible();
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.markers.radius") }), {
       target: { value: "160" },

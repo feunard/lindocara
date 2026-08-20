@@ -1751,9 +1751,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.dialog.title": "Éditeur d’événement",
   "editor.event.dialog.caption": "Repère {id} · case ({col}, {row})",
   "editor.event.help": "Comprendre les événements",
-  "editor.event.guide.summary":
-    "Une page est une version de cet événement. Sa condition décide quand elle existe, son déclencheur décide quand elle démarre, et son contenu décrit ce qu’elle fait. Si plusieurs pages sont valides, la plus à droite est utilisée.",
+  "editor.event.guide.pageChoice":
+    "Si plusieurs pages sont valides, la plus à droite est utilisée.",
   "editor.event.name": "Nom",
+  "editor.event.sections.aria": "Sections de la page",
   "editor.event.pages.aria": "Pages de l’événement",
   "editor.event.page.aria": "Page {n}",
   "editor.event.page.add": "Nouvelle page",

@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@alepha/ui/components/ui/dialog";
 import { Input } from "@alepha/ui/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@alepha/ui/components/ui/tabs";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import {
@@ -1166,17 +1167,21 @@ export function EventDialog({
               onChange={(e) => setDraft(setEventDraftName(draft, e.currentTarget.value))}
             />
           </div>
-          <Button type="button" variant="outline" size="icon-sm" onClick={onOpenHelp}>
+          {/* `DialogContent` paints its own close control in the top-right corner, absolutely
+              positioned. A second icon button in the header's last slot lands underneath it, which
+              is what made help unclickable. `mr-8` steps out of that corner rather than fighting
+              for it. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="mr-8"
+            onClick={onOpenHelp}
+          >
             <CircleHelp />
             <span className="sr-only">{t("editor.event.help")}</span>
           </Button>
         </DialogHeader>
-
-        {draft.kind === "normal" && (
-          <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
-            {t("editor.event.guide.summary")}
-          </p>
-        )}
 
         {/* Monster events carry species, patrol radius and one focused on-defeat action list — a dense
             kind-specific block that replaces the normal event's page/condition machinery. */}
@@ -1347,122 +1352,171 @@ export function EventDialog({
               </Button>
             </div>
 
-            <div
-              className={
-                draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard"
-                  ? "grid gap-4 sm:grid-cols-2"
-                  : "grid gap-4"
-              }
-            >
-              {/* Left column: the authored page fields. */}
-              <div className="flex flex-col gap-4">
-                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("editor.event.conditions")}
-                  </h3>
-                  <CheckRow
-                    checked={page.condSwitchId !== null}
-                    disabled={page.condSwitchId === null && registry.switches.length === 0}
-                    onToggle={(on) => {
-                      const id = defaultConditionId(registry.switches);
-                      update({ condSwitchId: on ? id : null });
-                    }}
-                    label={t("editor.event.cond.switch")}
-                  >
-                    {page.condSwitchId !== null && (
-                      <>
-                        <ConditionIdField
-                          entries={registry.switches}
-                          value={page.condSwitchId}
-                          ariaLabel={t("editor.event.cond.switch")}
-                          onCommit={(id) => update({ condSwitchId: id })}
-                        />
-                        <span className="text-[12.5px] text-zinc-500">
-                          {t("editor.event.cond.switch.on")}
-                        </span>
-                      </>
-                    )}
-                  </CheckRow>
-                  {registry.switches.length === 0 && (
-                    <p className="pl-6 text-[11px] text-zinc-400">
-                      {t("editor.event.cond.switch.empty.hint")}
-                    </p>
-                  )}
-                  <CheckRow
-                    checked={page.condVariableId !== null}
-                    disabled={page.condVariableId === null && registry.variables.length === 0}
-                    onToggle={(on) => {
-                      const id = defaultConditionId(registry.variables);
-                      update(
-                        on && id
-                          ? {
-                              condVariableId: id,
-                              condVariableMin: 0,
-                            }
-                          : { condVariableId: null, condVariableMin: null },
-                      );
-                    }}
-                    label={t("editor.event.cond.variable")}
-                  >
-                    {page.condVariableId !== null && (
-                      <>
-                        <ConditionIdField
-                          entries={registry.variables}
-                          value={page.condVariableId}
-                          ariaLabel={t("editor.event.cond.variable")}
-                          onCommit={(id) => update({ condVariableId: id })}
-                        />
-                        <span className="text-[12.5px] text-zinc-500">≥</span>
-                        <Input
-                          aria-label={t("editor.event.cond.variable.min")}
-                          type="number"
-                          className="h-7 w-20 text-xs tabular-nums"
-                          value={page.condVariableMin ?? 0}
-                          onChange={(e) =>
-                            update({ condVariableMin: Number(e.currentTarget.value) })
-                          }
-                          onBlur={() => {
-                            if (page.condVariableMin !== null)
-                              update({
-                                condVariableMin: normalizeConditionMin(page.condVariableMin),
-                              });
-                          }}
-                        />
-                      </>
-                    )}
-                  </CheckRow>
-                  {registry.variables.length === 0 && (
-                    <p className="pl-6 text-[11px] text-zinc-400">
-                      {t("editor.event.cond.variable.empty.hint")}
-                    </p>
-                  )}
-                  {(draft.kind === "normal" || draft.kind === "npc") && (
+            <p className="-mt-1 text-[11px] text-muted-foreground">
+              {t("editor.event.guide.pageChoice")}
+            </p>
+
+            {/* Three peers, not two stacked cards beside a third. The old layout put conditions and
+                appearance in a left column and the action list in a right one, so a dialog capped
+                at 88vh scrolled the asset grid over the actions and an author lost sight of what
+                the page DOES while choosing what it looks like. The tab names are the sections'
+                own headings, and the split is the one the retired banner used to describe in
+                prose: when the page exists and starts, what it looks like, what it does. */}
+            <Tabs defaultValue="conditions" className="gap-3">
+              <TabsList aria-label={t("editor.event.sections.aria")}>
+                <TabsTrigger value="conditions">{t("editor.event.conditions")}</TabsTrigger>
+                {(draft.kind === "normal" || draft.kind === "npc") && (
+                  <TabsTrigger value="appearance">{t("editor.event.appearance")}</TabsTrigger>
+                )}
+                {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
+                  <TabsTrigger value="actions">{t("editor.event.commands")}</TabsTrigger>
+                )}
+              </TabsList>
+
+              {/* One height for every panel, so switching tabs never resizes the dialog under the
+                  pointer. The dialog's own `max-h-[88vh]` still caps a long action list. */}
+              <TabsContent value="conditions" className="min-h-[22rem]">
+                <div className="flex flex-col gap-4">
+                  <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      {t("editor.event.conditions")}
+                    </h3>
                     <CheckRow
-                      checked={page.condSelfSwitch !== null}
-                      onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
-                      label={t("editor.event.cond.selfSwitch")}
+                      checked={page.condSwitchId !== null}
+                      disabled={page.condSwitchId === null && registry.switches.length === 0}
+                      onToggle={(on) => {
+                        const id = defaultConditionId(registry.switches);
+                        update({ condSwitchId: on ? id : null });
+                      }}
+                      label={t("editor.event.cond.switch")}
                     >
+                      {page.condSwitchId !== null && (
+                        <>
+                          <ConditionIdField
+                            entries={registry.switches}
+                            value={page.condSwitchId}
+                            ariaLabel={t("editor.event.cond.switch")}
+                            onCommit={(id) => update({ condSwitchId: id })}
+                          />
+                          <span className="text-[12.5px] text-zinc-500">
+                            {t("editor.event.cond.switch.on")}
+                          </span>
+                        </>
+                      )}
+                    </CheckRow>
+                    {registry.switches.length === 0 && (
+                      <p className="pl-6 text-[11px] text-zinc-400">
+                        {t("editor.event.cond.switch.empty.hint")}
+                      </p>
+                    )}
+                    <CheckRow
+                      checked={page.condVariableId !== null}
+                      disabled={page.condVariableId === null && registry.variables.length === 0}
+                      onToggle={(on) => {
+                        const id = defaultConditionId(registry.variables);
+                        update(
+                          on && id
+                            ? {
+                                condVariableId: id,
+                                condVariableMin: 0,
+                              }
+                            : { condVariableId: null, condVariableMin: null },
+                        );
+                      }}
+                      label={t("editor.event.cond.variable")}
+                    >
+                      {page.condVariableId !== null && (
+                        <>
+                          <ConditionIdField
+                            entries={registry.variables}
+                            value={page.condVariableId}
+                            ariaLabel={t("editor.event.cond.variable")}
+                            onCommit={(id) => update({ condVariableId: id })}
+                          />
+                          <span className="text-[12.5px] text-zinc-500">≥</span>
+                          <Input
+                            aria-label={t("editor.event.cond.variable.min")}
+                            type="number"
+                            className="h-7 w-20 text-xs tabular-nums"
+                            value={page.condVariableMin ?? 0}
+                            onChange={(e) =>
+                              update({ condVariableMin: Number(e.currentTarget.value) })
+                            }
+                            onBlur={() => {
+                              if (page.condVariableMin !== null)
+                                update({
+                                  condVariableMin: normalizeConditionMin(page.condVariableMin),
+                                });
+                            }}
+                          />
+                        </>
+                      )}
+                    </CheckRow>
+                    {registry.variables.length === 0 && (
+                      <p className="pl-6 text-[11px] text-zinc-400">
+                        {t("editor.event.cond.variable.empty.hint")}
+                      </p>
+                    )}
+                    {(draft.kind === "normal" || draft.kind === "npc") && (
+                      <CheckRow
+                        checked={page.condSelfSwitch !== null}
+                        onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
+                        label={t("editor.event.cond.selfSwitch")}
+                      >
+                        <FieldSelect
+                          aria-label={t("editor.event.cond.selfSwitch")}
+                          className="h-7 w-16 text-xs"
+                          disabled={page.condSelfSwitch === null}
+                          value={page.condSelfSwitch ?? "A"}
+                          onChange={(e) =>
+                            update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })
+                          }
+                        >
+                          {SELF_SWITCHES.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </FieldSelect>
+                      </CheckRow>
+                    )}
+                  </section>
+
+                  {/* The trigger lives with the conditions: both answer "when does this page
+                      run", one by existing and one by starting. */}
+                  {(draft.kind === "normal" || draft.kind === "npc") && (
+                    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("editor.event.trigger")}
+                      </h3>
+                      <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
                       <FieldSelect
-                        aria-label={t("editor.event.cond.selfSwitch")}
-                        className="h-7 w-16 text-xs"
-                        disabled={page.condSelfSwitch === null}
-                        value={page.condSelfSwitch ?? "A"}
-                        onChange={(e) =>
-                          update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })
+                        aria-label={t("editor.event.trigger")}
+                        className="h-7 text-xs"
+                        value={page.trigger}
+                        onChange={(event) =>
+                          update({ trigger: event.currentTarget.value as EventTrigger })
                         }
                       >
-                        {SELF_SWITCHES.map((option) => (
+                        {!runtimeTrigger(page.trigger) && (
+                          <option value={page.trigger} disabled>
+                            {t(`editor.event.trigger.${page.trigger}`)} — {t("editor.event.legacy")}
+                          </option>
+                        )}
+                        {RUNTIME_EVENT_TRIGGERS.map((option) => (
                           <option key={option} value={option}>
-                            {option}
+                            {t(`editor.event.trigger.${option}`)}
                           </option>
                         ))}
                       </FieldSelect>
-                    </CheckRow>
+                    </section>
                   )}
-                </section>
+                </div>
+              </TabsContent>
 
-                {(draft.kind === "normal" || draft.kind === "npc") && (
-                  <>
+              <TabsContent value="appearance" className="min-h-[22rem]">
+                <div className="flex flex-col gap-4">
+                  {(draft.kind === "normal" || draft.kind === "npc") && (
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
                       <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
                         {t("editor.event.appearance")}
@@ -1490,124 +1544,99 @@ export function EventDialog({
                         {t("editor.event.opt.onTop")}
                       </label>
                     </section>
+                  )}
 
-                    {draft.kind === "npc" && (
-                      <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                        <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                          {t("editor.event.movement")}
-                        </h3>
+                  {draft.kind === "npc" && (
+                    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("editor.event.movement")}
+                      </h3>
+                      <label
+                        htmlFor="npc-move-type"
+                        className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                      >
+                        {t("editor.event.move.type")}
+                        <FieldSelect
+                          id="npc-move-type"
+                          value={page.moveType}
+                          onChange={(event) =>
+                            update({
+                              moveType: event.currentTarget.value as MapEventPage["moveType"],
+                            })
+                          }
+                        >
+                          {MOVE_TYPES.map((moveType) => (
+                            <option key={moveType} value={moveType}>
+                              {t(`editor.event.moveType.${moveType}`)}
+                            </option>
+                          ))}
+                        </FieldSelect>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
                         <label
-                          htmlFor="npc-move-type"
+                          htmlFor="npc-move-speed"
                           className="flex flex-col gap-1 text-[11px] text-zinc-500"
                         >
-                          {t("editor.event.move.type")}
+                          {t("editor.event.move.speed")}
                           <FieldSelect
-                            id="npc-move-type"
-                            value={page.moveType}
+                            id="npc-move-speed"
+                            value={page.moveSpeed}
                             onChange={(event) =>
-                              update({
-                                moveType: event.currentTarget.value as MapEventPage["moveType"],
-                              })
+                              update({ moveSpeed: Number(event.currentTarget.value) })
                             }
                           >
-                            {MOVE_TYPES.map((moveType) => (
-                              <option key={moveType} value={moveType}>
-                                {t(`editor.event.moveType.${moveType}`)}
+                            {NPC_MOVE_SPEEDS.map((value) => (
+                              <option key={value} value={value}>
+                                {t(`editor.event.speed.${value}`)}
                               </option>
                             ))}
                           </FieldSelect>
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <label
-                            htmlFor="npc-move-speed"
-                            className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                        <label
+                          htmlFor="npc-move-frequency"
+                          className="flex flex-col gap-1 text-[11px] text-zinc-500"
+                        >
+                          {t("editor.event.move.freq")}
+                          <FieldSelect
+                            id="npc-move-frequency"
+                            value={page.moveFreq}
+                            onChange={(event) =>
+                              update({ moveFreq: Number(event.currentTarget.value) })
+                            }
                           >
-                            {t("editor.event.move.speed")}
-                            <FieldSelect
-                              id="npc-move-speed"
-                              value={page.moveSpeed}
-                              onChange={(event) =>
-                                update({ moveSpeed: Number(event.currentTarget.value) })
-                              }
-                            >
-                              {NPC_MOVE_SPEEDS.map((value) => (
-                                <option key={value} value={value}>
-                                  {t(`editor.event.speed.${value}`)}
-                                </option>
-                              ))}
-                            </FieldSelect>
-                          </label>
-                          <label
-                            htmlFor="npc-move-frequency"
-                            className="flex flex-col gap-1 text-[11px] text-zinc-500"
-                          >
-                            {t("editor.event.move.freq")}
-                            <FieldSelect
-                              id="npc-move-frequency"
-                              value={page.moveFreq}
-                              onChange={(event) =>
-                                update({ moveFreq: Number(event.currentTarget.value) })
-                              }
-                            >
-                              {NPC_MOVE_FREQUENCIES.map((value) => (
-                                <option key={value} value={value}>
-                                  {t(`editor.event.freq.${value}`)}
-                                </option>
-                              ))}
-                            </FieldSelect>
-                          </label>
-                        </div>
-                        {page.moveType === "custom" && (
-                          <NpcRoutineEditor
-                            route={page.moveRoute ?? []}
-                            onChange={(moveRoute) => update({ moveRoute })}
-                          />
-                        )}
-                      </section>
-                    )}
-
-                    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                        {t("editor.event.trigger")}
-                      </h3>
-                      <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
-                      <FieldSelect
-                        aria-label={t("editor.event.trigger")}
-                        className="h-7 text-xs"
-                        value={page.trigger}
-                        onChange={(event) =>
-                          update({ trigger: event.currentTarget.value as EventTrigger })
-                        }
-                      >
-                        {!runtimeTrigger(page.trigger) && (
-                          <option value={page.trigger} disabled>
-                            {t(`editor.event.trigger.${page.trigger}`)} — {t("editor.event.legacy")}
-                          </option>
-                        )}
-                        {RUNTIME_EVENT_TRIGGERS.map((option) => (
-                          <option key={option} value={option}>
-                            {t(`editor.event.trigger.${option}`)}
-                          </option>
-                        ))}
-                      </FieldSelect>
+                            {NPC_MOVE_FREQUENCIES.map((value) => (
+                              <option key={value} value={value}>
+                                {t(`editor.event.freq.${value}`)}
+                              </option>
+                            ))}
+                          </FieldSelect>
+                        </label>
+                      </div>
+                      {page.moveType === "custom" && (
+                        <NpcRoutineEditor
+                          route={page.moveRoute ?? []}
+                          onChange={(moveRoute) => update({ moveRoute })}
+                        />
+                      )}
                     </section>
-                  </>
-                )}
-              </div>
+                  )}
+                </div>
+              </TabsContent>
 
-              {/* Right column: the page's guided action list. */}
-              {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
-                <EventCommandEditor
-                  commands={page.commands}
-                  switches={registry.switches}
-                  variables={registry.variables}
-                  quests={registry.quests ?? []}
-                  maps={maps}
-                  defaultSpeakerName={draft.name}
-                  onChange={(commands) => update({ commands })}
-                />
-              )}
-            </div>
+              <TabsContent value="actions" className="min-h-[22rem]">
+                {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
+                  <EventCommandEditor
+                    commands={page.commands}
+                    switches={registry.switches}
+                    variables={registry.variables}
+                    quests={registry.quests ?? []}
+                    maps={maps}
+                    defaultSpeakerName={draft.name}
+                    onChange={(commands) => update({ commands })}
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
           </>
         )}
 

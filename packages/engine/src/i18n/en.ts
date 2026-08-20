@@ -1734,9 +1734,9 @@ export const en = {
   "editor.event.dialog.title": "Event editor",
   "editor.event.dialog.caption": "Marker {id} · cell ({col}, {row})",
   "editor.event.help": "Understand events",
-  "editor.event.guide.summary":
-    "A page is one version of this event. Its condition decides when it exists, its trigger decides when it starts, and its content describes what it does. If several pages are valid, the rightmost one is used.",
+  "editor.event.guide.pageChoice": "If several pages are valid, the rightmost one is used.",
   "editor.event.name": "Name",
+  "editor.event.sections.aria": "Page sections",
   "editor.event.pages.aria": "Event pages",
   "editor.event.page.aria": "Page {n}",
   "editor.event.page.add": "Add page",
