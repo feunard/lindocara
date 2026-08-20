@@ -1845,9 +1845,20 @@ export function applyTool(
       if (mode === "element") return erasedElement(map, col, row);
       return erasedTerrainMap(map, col, row);
     }
+    /**
+     * The hero start point, moved. Both guards are the invariant `keepsSpawnClear` enforces from the
+     * other side, and both now REFUSE (`null`) loudly: the stage counts the rejection and flashes its
+     * hint, because a decorated map refuses most cells an author aims at and a silent click reads as
+     * a dead tool.
+     *
+     * Clicking the cell the spawn already occupies returns the map UNCHANGED rather than a fresh
+     * object with identical contents. The author asked for nothing, so nothing should happen: no
+     * history entry, and above all no dirty flag inviting them to save a document they did not edit.
+     */
     case "spawn": {
       if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;
       if (!isWalkableCell(map, col, row)) return null;
+      if (map.spawn.col === col && map.spawn.row === row) return map;
       return { ...map, spawn: { col, row } };
     }
     case "select":

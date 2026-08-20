@@ -367,6 +367,55 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("shows the hero start point where it may go, and refuses out loud where it may not", async () => {
+    const withTree = applyTool(
+      blankMap("Map", 20, 15),
+      { kind: "element", assetId: HOUSE },
+      5,
+      5,
+      true,
+      "element",
+    ) as EditorMap;
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(withTree, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: 0, z: 0 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const hover = (col: number, row: number): void => {
+      point.x = col + 0.5 - 10;
+      point.z = row + 0.5 - 10;
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    };
+
+    stage.setTool({ kind: "spawn" });
+
+    // The tool places no art, so it gets the bare validity cell rather than a scenery ghost: open
+    // grass reads valid…
+    hover(12, 9);
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ assetPreview: expect.objectContaining({ valid: true }) }),
+    );
+    // …and the cell the house stands on does not.
+    hover(5, 5);
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ assetPreview: expect.objectContaining({ valid: false }) }),
+    );
+
+    // Clicking it counts a rejection, which is what raises the editor's "not there" hint. Before
+    // this the click evaporated and the tool looked broken.
+    const before = changes.mock.calls.length;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(changes.mock.calls.length).toBeGreaterThan(before);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ placementRejectedAt: expect.any(Number) }),
+    );
+    expect(stage.current().spawn).toEqual(withTree.spawn);
+    stage.dispose();
+  });
+
   it("throttles world rebuilds during a spray stroke and flushes once at release", async () => {
     const changes = vi.fn();
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);

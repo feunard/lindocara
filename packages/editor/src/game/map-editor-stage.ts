@@ -921,19 +921,24 @@ export function openMapEditorStage(
                 levelHeight: heightfield.levelHeight,
               }
             : null,
+        // Two shapes through one channel. With an asset it is the scenery ghost and its footprint;
+        // WITHOUT one it is a bare validity cell, which is what a tool that places no art still owes
+        // the author. The hero start point is the case that asked for it: its two guards (covered by
+        // scenery, unwalkable) refuse most of a decorated map, and a refusal nobody can see coming
+        // reads as a broken tool.
         assetPreview:
-          hover && hoverPoint && previewAsset
+          hover && hoverPoint && (previewAsset || tool.kind === "spawn")
             ? {
                 point: hoverPoint,
-                footprint: previewFootprintOffsets(previewAsset, hover.col, hover.row).map(
-                  (cell) => ({
-                    x: hoverPoint.x + cell.col,
-                    z: hoverPoint.z + cell.row,
-                  }),
-                ),
+                footprint: previewAsset
+                  ? previewFootprintOffsets(previewAsset, hover.col, hover.row).map((cell) => ({
+                      x: hoverPoint.x + cell.col,
+                      z: hoverPoint.z + cell.row,
+                    }))
+                  : [hoverPoint],
                 valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
                 ...(previewBridgeTop === undefined ? {} : { elevation: previewBridgeTop }),
-                ...(previewAsset.editor.renderLayer === "sky"
+                ...(previewAsset?.editor.renderLayer === "sky"
                   ? { skyAltitude: authoredSkyAltitude(heightfield) }
                   : {}),
               }
@@ -1170,7 +1175,8 @@ export function openMapEditorStage(
           tool.kind === "element" ||
           tool.kind === "event" ||
           tool.kind === "link" ||
-          tool.kind === "elevation"
+          tool.kind === "elevation" ||
+          tool.kind === "spawn"
         ) {
           placementRejections += 1;
           notify();

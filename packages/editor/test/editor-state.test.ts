@@ -2199,3 +2199,32 @@ describe("relative elevation brushes", () => {
     expect(levelAt(filled, 8, 8)).toBe(0);
   });
 });
+
+describe("the spawn tool refuses out loud", () => {
+  it("refuses a cell covered by scenery and a cell that is not walkable", () => {
+    const base = blankMap("m", 20, 15);
+    const withTree = place(base, { kind: "element", assetId: TREE }, 5, 5) as EditorMap;
+    // `null`, not "the same map": the stage turns a null into the visible placement hint, and only
+    // a REFUSAL can do that. Returning the map unchanged would look identical here and be silent
+    // on screen.
+    expect(place(withTree, { kind: "spawn" }, 5, 5)).toBeNull();
+
+    const flooded = applyTool(base, { kind: "block", block: "water" }, 8, 8, true, "field");
+    expect(place(flooded as EditorMap, { kind: "spawn" }, 8, 8)).toBeNull();
+  });
+
+  it("does nothing at all when the spawn is already on the clicked cell", () => {
+    const base = blankMap("m", 20, 15);
+    const moved = place(base, { kind: "spawn" }, 4, 4) as EditorMap;
+    expect(moved.spawn).toEqual({ col: 4, row: 4 });
+    // The SAME reference: the stage reads that as "nothing happened", so no history entry is
+    // pushed and the map does not read as dirty over a click that asked for nothing.
+    expect(place(moved, { kind: "spawn" }, 4, 4)).toBe(moved);
+  });
+
+  it("moves to any walkable, uncovered cell", () => {
+    const base = blankMap("m", 20, 15);
+    const moved = place(base, { kind: "spawn" }, 12, 9) as EditorMap;
+    expect(moved.spawn).toEqual({ col: 12, row: 9 });
+  });
+});
