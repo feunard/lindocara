@@ -97,7 +97,7 @@ import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.
 import { createBillboardRegistry } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
-import { createHd2dScene, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
+import { createHd2dScene, HD2D_CAMERA, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
 import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import {
@@ -904,6 +904,7 @@ export class Hd2dRenderer implements RendererLike {
   #fogEnabled = true;
   #cameraZoom = 100;
   #cameraYaw = 0;
+  #cameraPitch = HD2D_CAMERA.pitch;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -1019,6 +1020,7 @@ export class Hd2dRenderer implements RendererLike {
       scene.setDayCycleOverride(this.#dayCycleOverride);
       scene.setZoom(this.#cameraZoom);
       scene.setYaw(this.#cameraYaw);
+      scene.setPitch(this.#cameraPitch);
       scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
       scene.setFogEnabled(this.#fogEnabled);
       if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
@@ -2243,6 +2245,12 @@ export class Hd2dRenderer implements RendererLike {
   setCameraZoom(percent: number): void {
     this.#cameraZoom = percent;
     this.#scene?.setZoom(percent);
+  }
+
+  setCameraPitch(radians: number): void {
+    if (!Number.isFinite(radians)) return;
+    this.#cameraPitch = radians;
+    this.#scene?.setPitch(radians);
   }
 
   rotateCamera(deltaRadians: number): void {

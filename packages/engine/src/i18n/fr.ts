@@ -520,9 +520,9 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.disconnected":
     "Aucune manette détectée — branchez-en une, puis appuyez sur un bouton.",
   "settings.controls.keyboard_hint":
-    "Choisissez une action, puis appuyez sur la touche voulue. WASD déplace le héros ; les flèches utilisent les objets rapides et ouvrent le sac. Maintenez le clic droit et glissez pour tourner la caméra.",
+    "Choisissez une action, puis appuyez sur la touche voulue. WASD déplace le héros ; les flèches utilisent les objets rapides et ouvrent le sac. Maintenez le clic droit et glissez horizontalement ou verticalement pour tourner et incliner la caméra ; utilisez la molette pour zoomer.",
   "settings.controls.gamepad_hint":
-    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne la caméra. Le bouton inférieur interagit à portée et fait sauter sinon. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
+    "Choisissez une action, puis appuyez sur un bouton ou bougez un stick. Le stick gauche déplace le héros, la croix est réservée aux actions et le stick droit tourne et incline la caméra. Le bouton inférieur interagit à portée et fait sauter sinon. Les manettes Xbox, PS5, Switch et génériques sont prises en charge.",
   "settings.controls.press_key": "Appuyez sur une touche…",
   "settings.controls.press_button": "Appuyez sur un bouton…",
   "settings.controls.group.movement": "Déplacements",

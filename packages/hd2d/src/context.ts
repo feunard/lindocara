@@ -45,7 +45,18 @@ export interface LitBillboard {
 export interface Hd2dContextOptions {
   /** Surcharge partielle : chaque bloc absent garde ses valeurs par défaut. */
   config?: Partial<Hd2dConfig>;
+  /** Plongée initiale de la caméra, si ce contexte possède une caméra orbitale. */
+  pitch?: number;
 }
+
+type BillboardRegistration =
+  | { lit: false; onPitch?: (pitch: number) => void }
+  | {
+      lit: true;
+      material: THREE.MeshLambertMaterial;
+      mid: number | (() => number);
+      onPitch?: (pitch: number) => void;
+    };
 
 export interface Hd2dContext {
   readonly config: Hd2dConfig;
@@ -54,10 +65,9 @@ export interface Hd2dContext {
   readonly cloudUniforms: CloudUniforms;
   yaw(): number;
   setYaw(yaw: number): void;
-  registerBillboard(
-    mesh: THREE.Mesh,
-    opts: { lit: false } | { lit: true; material: THREE.MeshLambertMaterial; mid: number },
-  ): void;
+  pitch(): number | null;
+  setPitch(pitch: number): void;
+  registerBillboard(mesh: THREE.Mesh, opts: BillboardRegistration): void;
   /** Retire un mesh des DEUX registres (tous, éclairés). Sans ça, un billboard disposé reste dans
    *  `tous` pour toujours : `setYaw` continue de tourner un mesh détruit à chaque rotation de
    *  caméra, et un futur lecteur de `litBillboards()` toucherait le `.emissive` d'un matériau
@@ -96,7 +106,9 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
   // doivent pivoter avec, sinon on les voit par la tranche.
   const tous: THREE.Mesh[] = [];
   const eclaires: LitBillboard[] = [];
+  const adaptationsPlongee = new Map<THREE.Mesh, (pitch: number) => void>();
   let courant = 0;
+  let plongee = Number.isFinite(options.pitch) ? (options.pitch ?? null) : null;
 
   // Un objet FRAIS par contexte : le PoC en faisait une constante de module, partagée par toute la
   // page. `uCloudStrength` (0.34) n'est pas configurable ailleurs — c'est déjà ainsi dans le PoC —
@@ -126,16 +138,33 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
       courant = yaw;
       for (const m of tous) m.rotation.y = yaw;
     },
+    pitch: () => plongee,
+    setPitch(pitch) {
+      if (!Number.isFinite(pitch) || pitch === plongee) return;
+      plongee = pitch;
+      for (const adapt of adaptationsPlongee.values()) adapt(pitch);
+    },
     registerBillboard(mesh, opts) {
       // Un sprite né pendant une rotation doit adopter le yaw courant, pas zéro.
       mesh.rotation.y = courant;
       tous.push(mesh);
+      if (opts.onPitch) {
+        adaptationsPlongee.set(mesh, opts.onPitch);
+        if (plongee !== null) opts.onPitch(plongee);
+      }
       // Le matériau vient de l'appelant plutôt que d'un cast de `mesh.material` : rien ici ne
       // garantit qu'un mesh enregistré porte un `MeshLambertMaterial` (le type de `mesh.material`
       // est une union three), donc c'est à `makeBillboard`, qui construit lui-même le matériau
       // éclairé, de le passer explicitement.
       if (opts.lit) {
-        eclaires.push({ mesh, material: opts.material, mid: opts.mid });
+        const midpoint = opts.mid;
+        eclaires.push({
+          mesh,
+          material: opts.material,
+          get mid() {
+            return typeof midpoint === "function" ? midpoint() : midpoint;
+          },
+        });
       }
     },
     unregisterBillboard(mesh) {
@@ -143,12 +172,14 @@ export function createHd2dContext(options: Hd2dContextOptions = {}): Hd2dContext
       if (i !== -1) tous.splice(i, 1);
       const j = eclaires.findIndex((b) => b.mesh === mesh);
       if (j !== -1) eclaires.splice(j, 1);
+      adaptationsPlongee.delete(mesh);
     },
     billboards: () => tous,
     litBillboards: () => eclaires,
     dispose() {
       tous.length = 0;
       eclaires.length = 0;
+      adaptationsPlongee.clear();
       // Revue finale (point E3) : c'était le seul `dispose()` du package à ne pas rendre ce qu'il
       // avait pris — le texel neutre alloué ci-dessus restait en mémoire GPU indéfiniment.
       neutre.dispose();

@@ -35,7 +35,7 @@ yarn lab
 | `1` | attaquer â€” un coup d'Ã©pÃ©e, sans consÃ©quence pour l'instant |
 | `N` | jour â†” nuit |
 | molette | zoom |
-| clic droit + glisser | pivoter la camÃ©ra (Â±20Â°, revient seule au relÃ¢chement) |
+| clic droit + glisser | rotation horizontale complÃ¨te et inclinaison verticale de la camÃ©ra |
 | `F` | parler â€” Ã  Grota, le panda de la petite Ã®le du sud |
 | `Ã©chap` | couper court Ã  la conversation |
 | clic sur un mouton | il bÃªle â€” et si vous insistez, il Ã©clate |
@@ -607,10 +607,10 @@ must not redo. Everything below was found while porting terrain, actors and scen
 - **`setFocusY` damps 8 % per call, so calling it once beside the framing is very nearly a no-op**
   that *reads* as "the tilt-shift band tracks the target". It must be called every frame, from
   `render()`. Caught only by asking what one call actually moves.
-- **A billboard's vertical stretch is computed from the camera's plunge, so the two must read one
-  constant.** `HD2D_CAMERA.pitch` is exported for that reason alone: a stretch computed for an angle
-  the camera does not have is a whole scene of subtly wrong sprites, with nothing on screen naming
-  the cause.
+- **A billboard's vertical stretch is computed from the camera's live plunge.** The scene publishes
+  pitch changes through its own `Hd2dContext`, which updates geometry and foot anchoring together.
+  A stretch computed for an angle the camera does not have is a whole scene of subtly wrong sprites,
+  with nothing on screen naming the cause.
 - **Actor sheets must NOT be declared atlases â€” the exact inverse of the tileset rule above.** A
   tileset is sampled by sub-rectangle and needs its mipmaps suppressed; a sprite is seen at every
   distance and needs them. The lab's own catalogue marks the four tilesets and the foam, and nothing

@@ -300,6 +300,8 @@ export interface Hd2dScene {
   setZoom(percent: number): void;
   /** Sets the horizontal orbit while keeping the same target, pitch and distance. */
   setYaw(radians: number): void;
+  /** Sets the vertical viewing angle while keeping the same target, yaw and distance. */
+  setPitch(radians: number): void;
   /** Presentation-only screen-space camera impulse. It never changes the followed world point. */
   setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
@@ -390,7 +392,7 @@ export function createHd2dScene(
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 5000);
 
-  const ctx = createHd2dContext();
+  const ctx = createHd2dContext({ pitch: CAMERA.pitch });
 
   // --- world ------------------------------------------------------------------------------------
   // `heightFieldFor` is a stateless adapter over the map's own arrays, so the one `terrainGroupFor`
@@ -531,6 +533,7 @@ export function createHd2dScene(
   let focusReached = false;
   let cameraDistance = CAMERA.distance;
   let cameraYaw = 0;
+  let cameraPitch = CAMERA.pitch;
   const wantedTarget = new THREE.Vector3();
   let cameraMin = 0;
   let cameraMax = 0;
@@ -545,7 +548,7 @@ export function createHd2dScene(
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
     const distance = cameraDistance;
-    const offset = cameraOrbitOffset(cameraYaw, distance, CAMERA.pitch);
+    const offset = cameraOrbitOffset(cameraYaw, distance, cameraPitch);
     camera.position.set(target.x + offset.x, target.y + offset.y, target.z + offset.z);
     camera.lookAt(target);
 
@@ -715,6 +718,12 @@ export function createHd2dScene(
       if (!Number.isFinite(radians)) return;
       cameraYaw = Math.atan2(Math.sin(radians), Math.cos(radians));
       ctx.setYaw(cameraYaw);
+      frameCamera();
+    },
+    setPitch(radians: number): void {
+      if (!Number.isFinite(radians)) return;
+      cameraPitch = THREE.MathUtils.clamp(radians, Math.PI / 36, (17 * Math.PI) / 36);
+      ctx.setPitch(cameraPitch);
       frameCamera();
     },
     setCameraShake: applyCameraShake,

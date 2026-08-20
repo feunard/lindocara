@@ -311,7 +311,7 @@ function healthBarElevation(
   const height = actor.renderHeight ?? actorHeightAtLabScale(frameHeight);
   const drawnHeight = billboardHeight({
     height,
-    pitch: HD2D_CAMERA.pitch,
+    pitch: ctx.pitch() ?? HD2D_CAMERA.pitch,
     stretch: ctx.config.spriteStretch,
   });
   const foot = actor.foot ?? ACTOR_FOOT[actor.kind];

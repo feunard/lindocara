@@ -120,8 +120,12 @@ export interface RendererLike {
   removePeasantCamp(id: string): void;
   removePeasantRation(id: string): void;
   render(sample: SceneSample, context: RenderContext): void;
+  /** Sets the followed gameplay camera zoom percentage. */
+  setCameraZoom(percent: number): void;
   /** Adds a local yaw delta around the followed hero. */
   rotateCamera(deltaRadians: number): void;
+  /** Sets the vertical viewing angle around the followed hero. */
+  setCameraPitch(radians: number): void;
   /**
    * The world GROUND point under a screen coordinate, or `null` when this renderer cannot answer.
    *

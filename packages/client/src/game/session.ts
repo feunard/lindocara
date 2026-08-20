@@ -57,7 +57,10 @@ import {
 } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import {
-  limitedCameraYaw,
+  CAMERA_PITCH_DEFAULT,
+  cameraPitchAfterDelta,
+  cameraYawAfterDelta,
+  cameraZoomAfterWheel,
   rotateMovementInput,
   trackActions,
   trackCameraOrbit,
@@ -442,6 +445,8 @@ async function startGameIdentity(
   const input = trackInput(() => interactionNearby);
   const cameraOrbit = trackCameraOrbit(canvas);
   let cameraYaw = 0;
+  let cameraPitch = CAMERA_PITCH_DEFAULT;
+  let cameraZoom = 100;
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
     chapter: "three_offerings",
@@ -1264,15 +1269,23 @@ async function startGameIdentity(
     sound.update(now);
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);
-    const nextCameraYaw = limitedCameraYaw(
-      cameraYaw,
-      paused ? 0 : cameraSample.delta,
-      !paused && cameraSample.orbiting,
-      dt,
-    );
+    const nextCameraYaw = cameraYawAfterDelta(cameraYaw, paused ? 0 : cameraSample.yawDelta);
     const cameraDelta = nextCameraYaw - cameraYaw;
     cameraYaw = nextCameraYaw;
     if (cameraDelta !== 0) renderer.rotateCamera(cameraDelta);
+    const nextCameraPitch = cameraPitchAfterDelta(
+      cameraPitch,
+      paused ? 0 : cameraSample.pitchDelta,
+    );
+    if (nextCameraPitch !== cameraPitch) {
+      cameraPitch = nextCameraPitch;
+      renderer.setCameraPitch(cameraPitch);
+    }
+    const nextCameraZoom = cameraZoomAfterWheel(cameraZoom, paused ? 0 : cameraSample.wheelPixels);
+    if (nextCameraZoom !== cameraZoom) {
+      cameraZoom = nextCameraZoom;
+      renderer.setCameraZoom(cameraZoom);
+    }
     const movementEvents = client.update(
       paused ? NO_INPUT : rotateMovementInput(input.current(), cameraYaw),
       dt,

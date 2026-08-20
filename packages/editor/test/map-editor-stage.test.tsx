@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => {
     render: vi.fn(),
     screenToWorld: vi.fn(() => ({ x: -8.5, z: -7.5 })),
     rotateCamera: vi.fn(),
+    setCameraPitch: vi.fn(),
     setCameraFocus: vi.fn(),
     setCameraZoom: vi.fn(),
     setEditorOverlay: vi.fn(),

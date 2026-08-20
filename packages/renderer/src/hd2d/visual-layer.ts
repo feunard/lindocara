@@ -1178,8 +1178,11 @@ export class Hd2dVisualLayer {
         this.#projectiles.set(projectile.id, entry);
       }
       const angle =
-        projectileBillboardAngle(projectile.direction, this.#scene.ctx.yaw()) +
-        entry.art.rotationOffset;
+        projectileBillboardAngle(
+          projectile.direction,
+          this.#scene.ctx.yaw(),
+          this.#scene.ctx.pitch() ?? HD2D_CAMERA.pitch,
+        ) + entry.art.rotationOffset;
       const terrainY = this.#scene.query.heightAt(projectile.x, projectile.z);
       entry.object.position.set(
         projectile.x,

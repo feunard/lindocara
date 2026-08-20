@@ -17,8 +17,12 @@ import {
 const GAMEPAD_AXIS_DEADZONE = 0.2;
 const CAMERA_MOUSE_RADIANS_PER_PIXEL = 0.006;
 const CAMERA_GAMEPAD_RADIANS_PER_SECOND = 1.8;
-export const CAMERA_YAW_RANGE = 20 * (Math.PI / 180);
-const CAMERA_YAW_RETURN = 6;
+const CAMERA_WHEEL_PERCENT_PER_PIXEL = 0.1;
+export const CAMERA_PITCH_DEFAULT = 38 * (Math.PI / 180);
+export const CAMERA_PITCH_MIN = 20 * (Math.PI / 180);
+export const CAMERA_PITCH_MAX = 70 * (Math.PI / 180);
+export const CAMERA_ZOOM_MIN = 50;
+export const CAMERA_ZOOM_MAX = 180;
 
 const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
   moveUp: "up",
@@ -68,20 +72,26 @@ export function cameraOrbitDelta(mousePixels: number, gamepadAxis: number, dt: n
   );
 }
 
-/** Applies the lab camera's bounded glance and exponential return to its default heading. */
-export function limitedCameraYaw(
-  currentYaw: number,
-  orbitDelta: number,
-  orbiting: boolean,
-  dt: number,
-): number {
+/** Applies an unrestricted horizontal orbit and keeps the stored angle numerically stable. */
+export function cameraYawAfterDelta(currentYaw: number, orbitDelta: number): number {
   const yaw = Number.isFinite(currentYaw) ? currentYaw : 0;
   const delta = Number.isFinite(orbitDelta) ? orbitDelta : 0;
-  const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
-  if (orbiting) {
-    return Math.max(-CAMERA_YAW_RANGE, Math.min(CAMERA_YAW_RANGE, yaw + delta));
-  }
-  return yaw * Math.exp(-CAMERA_YAW_RETURN * safeDt);
+  return Math.atan2(Math.sin(yaw + delta), Math.cos(yaw + delta));
+}
+
+export function cameraPitchAfterDelta(currentPitch: number, orbitDelta: number): number {
+  const pitch = Number.isFinite(currentPitch) ? currentPitch : CAMERA_PITCH_DEFAULT;
+  const delta = Number.isFinite(orbitDelta) ? orbitDelta : 0;
+  return Math.max(CAMERA_PITCH_MIN, Math.min(CAMERA_PITCH_MAX, pitch + delta));
+}
+
+export function cameraZoomAfterWheel(currentZoom: number, wheelPixels: number): number {
+  const zoom = Number.isFinite(currentZoom) ? currentZoom : 100;
+  const wheel = Number.isFinite(wheelPixels) ? wheelPixels : 0;
+  return Math.max(
+    CAMERA_ZOOM_MIN,
+    Math.min(CAMERA_ZOOM_MAX, zoom - wheel * CAMERA_WHEEL_PERCENT_PER_PIXEL),
+  );
 }
 
 /** Converts screen-relative movement into the world axes used by `stepHero`. */
@@ -115,30 +125,38 @@ export function rotateMovementInput(input: Input, cameraYaw: number): Input {
 }
 
 export interface CameraOrbitTracker {
-  takeSample(dt: number): { delta: number; orbiting: boolean };
+  takeSample(dt: number): { yawDelta: number; pitchDelta: number; wheelPixels: number };
   stop(): void;
 }
 
-/** Right-drag and the standard gamepad's right horizontal stick, scoped to the game canvas. */
+/** Right-drag, wheel and the standard gamepad's right stick, scoped to the game canvas. */
 export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   let dragging = false;
   let lastX = 0;
-  let mousePixels = 0;
+  let lastY = 0;
+  let mousePixelsX = 0;
+  let mousePixelsY = 0;
+  let wheelPixels = 0;
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 2) return;
     dragging = true;
     lastX = event.clientX;
+    lastY = event.clientY;
     setInputMode("keyboard");
     element.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
   const onPointerMove = (event: PointerEvent): void => {
     if (!dragging) return;
-    const fallback = event.clientX - lastX;
-    mousePixels +=
-      Number.isFinite(event.movementX) && event.movementX !== 0 ? event.movementX : fallback;
+    const fallbackX = event.clientX - lastX;
+    const fallbackY = event.clientY - lastY;
+    mousePixelsX +=
+      Number.isFinite(event.movementX) && event.movementX !== 0 ? event.movementX : fallbackX;
+    mousePixelsY +=
+      Number.isFinite(event.movementY) && event.movementY !== 0 ? event.movementY : fallbackY;
     lastX = event.clientX;
+    lastY = event.clientY;
     event.preventDefault();
   };
   const stopDrag = (event?: PointerEvent): void => {
@@ -146,9 +164,16 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
     dragging = false;
   };
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
+  const onWheel = (event: WheelEvent): void => {
+    wheelPixels += event.deltaY;
+    setInputMode("keyboard");
+    event.preventDefault();
+  };
   const onBlur = (): void => {
     dragging = false;
-    mousePixels = 0;
+    mousePixelsX = 0;
+    mousePixelsY = 0;
+    wheelPixels = 0;
   };
 
   element.addEventListener("pointerdown", onPointerDown);
@@ -156,17 +181,27 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   element.addEventListener("pointerup", stopDrag);
   element.addEventListener("pointercancel", stopDrag);
   element.addEventListener("contextmenu", onContextMenu);
+  element.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("blur", onBlur);
 
   return {
     takeSample(dt) {
-      const mouse = mousePixels;
-      mousePixels = 0;
-      const axis = firstConnectedGamepad()?.axes[2] ?? 0;
-      if (Math.abs(axis) > GAMEPAD_AXIS_DEADZONE) setInputMode("gamepad");
+      const mouseX = mousePixelsX;
+      const mouseY = mousePixelsY;
+      const wheel = wheelPixels;
+      mousePixelsX = 0;
+      mousePixelsY = 0;
+      wheelPixels = 0;
+      const gamepad = firstConnectedGamepad();
+      const axisX = gamepad?.axes[2] ?? 0;
+      const axisY = gamepad?.axes[3] ?? 0;
+      if (Math.abs(axisX) > GAMEPAD_AXIS_DEADZONE || Math.abs(axisY) > GAMEPAD_AXIS_DEADZONE)
+        setInputMode("gamepad");
+      const pitchDelta = -cameraOrbitDelta(mouseY, axisY, dt);
       return {
-        delta: cameraOrbitDelta(mouse, axis, dt),
-        orbiting: dragging || mouse !== 0 || Math.abs(axis) > GAMEPAD_AXIS_DEADZONE,
+        yawDelta: cameraOrbitDelta(mouseX, axisX, dt),
+        pitchDelta: pitchDelta === 0 ? 0 : pitchDelta,
+        wheelPixels: wheel,
       };
     },
     stop() {
@@ -175,6 +210,7 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       element.removeEventListener("pointerup", stopDrag);
       element.removeEventListener("pointercancel", stopDrag);
       element.removeEventListener("contextmenu", onContextMenu);
+      element.removeEventListener("wheel", onWheel);
       window.removeEventListener("blur", onBlur);
     },
   };

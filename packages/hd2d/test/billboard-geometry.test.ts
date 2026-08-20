@@ -84,6 +84,32 @@ describe("makeBillboard — customProgramCacheKey", () => {
   });
 });
 
+describe("makeBillboard — plongée dynamique", () => {
+  it("recompense sa géométrie sans décoller ses pieds du sol", () => {
+    const ctx = createHd2dContext({ pitch: PITCH });
+    const billboard = makeBillboard(ctx, {
+      texture: new THREE.Texture(),
+      height: 2,
+      foot: 0.25,
+      stretch: 1,
+      graftCloudShadow: () => undefined,
+    });
+    billboard.placeAt(1, 5, 2);
+    const initialFoot = billboard.footOffset;
+
+    const steeperPitch = Math.PI / 3;
+    ctx.setPitch(steeperPitch);
+    billboard.mesh.geometry.computeBoundingBox();
+    const bounds = billboard.mesh.geometry.boundingBox;
+
+    expect(bounds?.max.y).toBeCloseTo(2 / Math.cos(steeperPitch));
+    expect(billboard.footOffset).toBeGreaterThan(initialFoot);
+    expect(billboard.mesh.position.y + billboard.footOffset).toBeCloseTo(5);
+    expect(ctx.litBillboards()[0]?.mid).toBeCloseTo(1 / Math.cos(steeperPitch));
+    billboard.dispose();
+  });
+});
+
 // Revue finale (point G2) : `play()` ne comparait que `row`/`frames`, jamais `fps` — deux clips de
 // même ligne et même longueur mais de vitesses différentes ne changeaient donc jamais de cadence,
 // le second `play()` étant pris pour une redemande du même clip.

@@ -1,9 +1,14 @@
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { cameraOrbitOffset } from "@lindocara/renderer/hd2d/scene.js";
 import {
-  CAMERA_YAW_RANGE,
+  CAMERA_PITCH_MAX,
+  CAMERA_PITCH_MIN,
+  CAMERA_ZOOM_MAX,
+  CAMERA_ZOOM_MIN,
   cameraOrbitDelta,
-  limitedCameraYaw,
+  cameraPitchAfterDelta,
+  cameraYawAfterDelta,
+  cameraZoomAfterWheel,
   rotateMovementInput,
   trackCameraOrbit,
 } from "@lindocara/renderer/input.js";
@@ -16,31 +21,42 @@ describe("camera orbit input", () => {
     expect(cameraOrbitDelta(Number.NaN, Number.NaN, Number.NaN)).toBe(0);
   });
 
-  it("consumes a right-button drag once and suppresses the context menu", () => {
+  it("consumes a two-axis right-button drag and wheel once", () => {
     const canvas = document.createElement("canvas");
     const tracker = trackCameraOrbit(canvas);
     canvas.dispatchEvent(
-      new MouseEvent("pointerdown", { button: 2, clientX: 10, cancelable: true }),
+      new MouseEvent("pointerdown", { button: 2, clientX: 10, clientY: 10, cancelable: true }),
     );
-    canvas.dispatchEvent(new MouseEvent("pointermove", { clientX: 40, cancelable: true }));
+    canvas.dispatchEvent(
+      new MouseEvent("pointermove", { clientX: 40, clientY: 30, cancelable: true }),
+    );
     canvas.dispatchEvent(new MouseEvent("pointerup", { button: 2 }));
+    const wheel = new WheelEvent("wheel", { deltaY: 120, cancelable: true });
+    canvas.dispatchEvent(wheel);
     const contextMenu = new MouseEvent("contextmenu", { cancelable: true });
     canvas.dispatchEvent(contextMenu);
 
     const drag = tracker.takeSample(0);
-    expect(drag.delta).toBeCloseTo(0.18);
-    expect(drag.orbiting).toBe(true);
-    expect(tracker.takeSample(0)).toEqual({ delta: 0, orbiting: false });
+    expect(drag.yawDelta).toBeCloseTo(0.18);
+    expect(drag.pitchDelta).toBeCloseTo(-0.12);
+    expect(drag.wheelPixels).toBe(120);
+    expect(tracker.takeSample(0)).toEqual({ yawDelta: 0, pitchDelta: 0, wheelPixels: 0 });
     expect(contextMenu.defaultPrevented).toBe(true);
+    expect(wheel.defaultPrevented).toBe(true);
     tracker.stop();
   });
 
-  it("matches the lab's bounded glance and exponential return", () => {
-    expect(limitedCameraYaw(0, Math.PI, true, 1 / 60)).toBeCloseTo(CAMERA_YAW_RANGE);
-    expect(limitedCameraYaw(0, -Math.PI, true, 1 / 60)).toBeCloseTo(-CAMERA_YAW_RANGE);
-    expect(limitedCameraYaw(CAMERA_YAW_RANGE, 0, false, 0.5)).toBeCloseTo(
-      CAMERA_YAW_RANGE * Math.exp(-3),
-    );
+  it("keeps a full horizontal orbit instead of returning to the default heading", () => {
+    expect(cameraYawAfterDelta(0, Math.PI)).toBeCloseTo(Math.PI);
+    expect(cameraYawAfterDelta(Math.PI, Math.PI / 2)).toBeCloseTo(-Math.PI / 2);
+    expect(cameraYawAfterDelta(-1.2, 0)).toBeCloseTo(-1.2);
+  });
+
+  it("clamps the vertical viewing angle and wheel zoom to playable ranges", () => {
+    expect(cameraPitchAfterDelta(CAMERA_PITCH_MIN, -1)).toBe(CAMERA_PITCH_MIN);
+    expect(cameraPitchAfterDelta(CAMERA_PITCH_MAX, 1)).toBe(CAMERA_PITCH_MAX);
+    expect(cameraZoomAfterWheel(100, 10_000)).toBe(CAMERA_ZOOM_MIN);
+    expect(cameraZoomAfterWheel(100, -10_000)).toBe(CAMERA_ZOOM_MAX);
   });
 });
 

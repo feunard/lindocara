@@ -514,9 +514,9 @@ export const en = {
   "settings.controls.connected": "Connected: {name}",
   "settings.controls.disconnected": "No controller detected — connect one, then press a button.",
   "settings.controls.keyboard_hint":
-    "Choose an action, then press the key you want to use. WASD moves; arrow keys use quick items and open the bag. Right-drag rotates the camera.",
+    "Choose an action, then press the key you want to use. WASD moves; arrow keys use quick items and open the bag. Right-drag horizontally or vertically to rotate and tilt the camera; use the wheel to zoom.",
   "settings.controls.gamepad_hint":
-    "Choose an action, then press a button or move a stick. The left stick moves, the D-pad is reserved for actions, and the right stick rotates the camera. The south face button interacts in range and jumps otherwise. Standard Xbox, PS5, Switch and generic controllers are supported.",
+    "Choose an action, then press a button or move a stick. The left stick moves, the D-pad is reserved for actions, and the right stick rotates and tilts the camera. The south face button interacts in range and jumps otherwise. Standard Xbox, PS5, Switch and generic controllers are supported.",
   "settings.controls.press_key": "Press a key…",
   "settings.controls.press_button": "Press a button…",
   "settings.controls.group.movement": "Movement",

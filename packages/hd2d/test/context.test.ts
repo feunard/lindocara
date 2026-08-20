@@ -44,6 +44,25 @@ describe("createHd2dContext", () => {
     expect(late.mesh.rotation.y).toBeCloseTo(-0.25);
   });
 
+  it("propage la plongée aux billboards inscrits et oublie ceux qui sont retirés", () => {
+    const ctx = createHd2dContext({ pitch: 0.4 });
+    const sprite = fakeSprite();
+    const pitches: number[] = [];
+    ctx.registerBillboard(sprite.mesh, {
+      lit: true,
+      material: sprite.material,
+      mid: 1,
+      onPitch: (pitch) => pitches.push(pitch),
+    });
+
+    ctx.setPitch(0.7);
+    ctx.unregisterBillboard(sprite.mesh);
+    ctx.setPitch(0.9);
+
+    expect(pitches).toEqual([0.4, 0.7]);
+    expect(ctx.pitch()).toBe(0.9);
+  });
+
   it("laisse surcharger la configuration sans muter les valeurs par défaut", () => {
     const ctx = createHd2dContext({ config: { spriteStretch: 0.5 } });
     const autre = createHd2dContext();

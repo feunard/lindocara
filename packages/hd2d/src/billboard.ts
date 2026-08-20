@@ -216,7 +216,7 @@ function finishBillboard(
   map: THREE.Texture,
   cols: number,
   rows: number,
-  footOffset: number,
+  placement: { footOffset: number; groundY: number | null },
   uvRect?: TextureUvRect,
 ): Billboard {
   const sheet = bindSheet(map, cols, rows, uvRect);
@@ -230,9 +230,12 @@ function finishBillboard(
     },
     // Pose le sprite au sol : les pieds tombent pile sur la hauteur donnée.
     placeAt(x, y, z) {
-      mesh.position.set(x, y - footOffset, z);
+      placement.groundY = y;
+      mesh.position.set(x, y - placement.footOffset, z);
     },
-    footOffset,
+    get footOffset() {
+      return placement.footOffset;
+    },
     dispose() {
       // Sans ce retrait, un billboard disposé reste dans les registres du contexte pour toujours :
       // `setYaw` continuerait de tourner un mesh détruit à chaque rotation de caméra, et un futur
@@ -280,38 +283,56 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     foot = 0.1,
     lit = true,
     stretch = ctx.config.spriteStretch,
-    pitch = 0,
+    pitch = ctx.pitch() ?? 0,
     graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
     uvRect,
   } = opts;
 
   const w = height * aspect;
-  const h = billboardHeight({ height, pitch, stretch });
-  const geo = new THREE.PlaneGeometry(w, h);
-  geo.translate(0, h / 2, 0); // pivot au bas du plan
+  const initialHeight = billboardHeight({ height, pitch, stretch });
+  const geo = new THREE.PlaneGeometry(w, 1);
+  geo.translate(0, 0.5, 0); // pivot au bas du plan
+  const positions = geo.getAttribute("position");
+  const normalizedY = Array.from({ length: positions.count }, (_, index) => positions.getY(index));
 
   if (lit) bombNormals(geo);
 
   const map = cloneSheetMap(texture, cols, rows);
-  const footOffset = foot * h;
-  // Mi-hauteur du corps : c'est de là qu'on mesure la distance à une source, et pas des pieds,
-  // sinon un arbre de 3,6 m est réputé collé au foyer.
-  const mid = h * 0.5;
+  const placement = { footOffset: foot * initialHeight, groundY: null as number | null };
+  let drawnHeight = initialHeight;
+  let mesh: THREE.Mesh;
+  const applyPitch = (nextPitch: number): void => {
+    drawnHeight = billboardHeight({ height, pitch: nextPitch, stretch });
+    for (let index = 0; index < positions.count; index += 1) {
+      positions.setY(index, (normalizedY[index] ?? 0) * drawnHeight);
+    }
+    positions.needsUpdate = true;
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    placement.footOffset = foot * drawnHeight;
+    if (placement.groundY !== null) mesh.position.y = placement.groundY - placement.footOffset;
+  };
+  applyPitch(pitch);
 
   if (lit) {
     const material = makeLitMaterial(map, graftCloudShadow);
-    const mesh = new THREE.Mesh(geo, material);
+    mesh = new THREE.Mesh(geo, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.layers.enable(RIM_LAYER);
-    ctx.registerBillboard(mesh, { lit: true, material, mid });
-    return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset, uvRect);
+    ctx.registerBillboard(mesh, {
+      lit: true,
+      material,
+      mid: () => drawnHeight * 0.5,
+      onPitch: applyPitch,
+    });
+    return finishBillboard(ctx, mesh, material, map, cols, rows, placement, uvRect);
   }
 
   const material = makeUnlitMaterial(map);
-  const mesh = new THREE.Mesh(geo, material);
-  ctx.registerBillboard(mesh, { lit: false });
-  return finishBillboard(ctx, mesh, material, map, cols, rows, footOffset, uvRect);
+  mesh = new THREE.Mesh(geo, material);
+  ctx.registerBillboard(mesh, { lit: false, onPitch: applyPitch });
+  return finishBillboard(ctx, mesh, material, map, cols, rows, placement, uvRect);
 }
 
 export interface FlatSpriteOptions {
