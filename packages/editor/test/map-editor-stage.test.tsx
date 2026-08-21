@@ -705,7 +705,7 @@ describe("HD-2D map editor stage", () => {
     expect(entrance).toMatchObject({ col: 1, row: 2, linkedEventId: exit?.id });
     expect(exit).toMatchObject({ col: 5, row: 6, linkedEventId: entrance?.id });
     expect(entrance?.pages[0]?.commands).toEqual([
-      { t: "teleport", mapId, col: 5, row: 6, category: "geographic" },
+      { t: "teleport", mapId, col: 5, row: 6, category: "geographic", eventId: exit?.id },
     ]);
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),

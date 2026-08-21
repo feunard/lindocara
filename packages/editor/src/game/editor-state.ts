@@ -81,6 +81,12 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import {
+  BODY_RADIUS,
+  canStand,
+  groundUnder,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
+import {
   type ElevationStep,
   elevationStepTarget,
   eraseRect,
@@ -1409,6 +1415,19 @@ function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
  * both clicks before calling this function, so neither history nor persistence can ever observe a
  * half-authored link.
  */
+function linkedTeleportEvent(event: MapEvent, linkedEventId: string): MapEvent {
+  return {
+    ...event,
+    linkedEventId,
+    pages: event.pages.map((page) => ({
+      ...page,
+      commands: page.commands.map((command) =>
+        command.t === "teleport" ? { ...command, eventId: linkedEventId } : command,
+      ),
+    })),
+  };
+}
+
 export function placeLinkedTeleporters(
   map: EditorMap,
   tool: EditorEventTool,
@@ -1426,30 +1445,32 @@ export function placeLinkedTeleporters(
   const sourceId = crypto.randomUUID();
   const destinationId = crypto.randomUUID();
   const ordinal = nextEventOrdinal(map.events);
-  const sourceEvent: MapEvent = {
-    ...presetEvent({
+  const name =
+    tool.presetName === undefined ? undefined : numberedPresetName(tool.presetName, map.events);
+  const sourceEvent = linkedTeleportEvent(
+    presetEvent({
       id: sourceId,
       ...source,
       ordinal,
       preset: "teleporter",
       selfMapId: tool.selfMapId ?? "",
       selfSpawn: destination,
-      ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+      ...(name === undefined ? {} : { name }),
     }),
-    linkedEventId: destinationId,
-  };
-  const destinationEvent: MapEvent = {
-    ...presetEvent({
+    destinationId,
+  );
+  const destinationEvent = linkedTeleportEvent(
+    presetEvent({
       id: destinationId,
       ...destination,
       ordinal: ordinal + 1,
       preset: "teleporter",
       selfMapId: tool.selfMapId ?? "",
       selfSpawn: source,
-      ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+      ...(name === undefined ? {} : { name }),
     }),
-    linkedEventId: sourceId,
-  };
+    sourceId,
+  );
   return { ...map, events: [...map.events, sourceEvent, destinationEvent] };
 }
 
@@ -1603,6 +1624,14 @@ function doorLandingCell(
   row: number,
 ): { col: number; row: number } | null {
   const { cols, rows } = editorMapSize(map);
+  // A visible raised surface is a deliberate destination, not a blocked ground cell inside the
+  // building. This is what lets a roof click stay on the roof for both door links and teleporters.
+  const heightfield = compileAuthoredMap(toMapData(map), map.events);
+  const terrain = zoneTerrainFromHeightfield(heightfield);
+  const [x, z] = terrain.query.cellCenter(col, row);
+  const base = terrain.query.heightAt(x, z) ?? terrain.waterLevel;
+  const landing = groundUnder(terrain, x, z, Number.POSITIVE_INFINITY);
+  if (landing > base && canStand(terrain, x, z, BODY_RADIUS, landing)) return { col, row };
   const candidates = [
     { col, row: row + 1 },
     { col: col + 1, row },
@@ -1635,6 +1664,8 @@ export function canLinkDoorAt(map: EditorMap, col: number, row: number): boolean
  *  doors on one map. Everything else comes from the preset, so the command program a link writes and
  *  the one the palette's Teleporter writes cannot drift. */
 function doorLinkEvent(params: {
+  id: string;
+  linkedEventId: string;
   col: number;
   row: number;
   ordinal: number;
@@ -1643,7 +1674,7 @@ function doorLinkEvent(params: {
   name: string;
 }): MapEvent {
   const event = presetEvent({
-    id: crypto.randomUUID(),
+    id: params.id,
     col: params.col,
     row: params.row,
     ordinal: params.ordinal,
@@ -1654,10 +1685,16 @@ function doorLinkEvent(params: {
   });
   return {
     ...event,
+    linkedEventId: params.linkedEventId,
     pages: event.pages.map((page) => ({
       ...page,
       commands: page.commands.map((command) =>
-        command.t === "teleport" ? { ...command, category: "shortcut" as const } : command,
+        command.t === "teleport"
+          ? {
+              ...command,
+              category: "shortcut" as const,
+            }
+          : command,
       ),
     })),
   };
@@ -1825,11 +1862,10 @@ export function applyTool(
      * Both ends are refused together. A half link, one door teleporting into a wall or a return leg
      * silently skipped, is worse than no link at all, because it looks authored.
      *
-     * AFTERWARDS the two are ordinary, independent events, and deliberately so: there is no pair
-     * object in the map model, and inventing one would mean a second identity to persist, migrate
-     * and keep in step with two freely editable events. So deleting one end leaves the other as a
-     * one-way door the author can retarget or delete, and moving one end does not follow the other.
-     * The tool is authoring sugar, not a relationship.
+     * Afterwards each endpoint remains an ordinary editable event, but reciprocal `linkedEventId`
+     * fields keep deletion atomic. Door commands retain their safe landing coordinate in front of
+     * an ordinary ground-level door; roof destinations deliberately use the clicked roof cell.
+     * Authors may still open either endpoint after the pair exists and customize its program.
      */
     case "link": {
       const from = tool.from;
@@ -1845,6 +1881,8 @@ export function applyTool(
       if (!fromLanding || !toLanding) return null;
       if (map.events.length + 2 > MAX_EVENTS_PER_MAP) return null;
       const ordinal = nextEventOrdinal(map.events);
+      const fromId = crypto.randomUUID();
+      const toId = crypto.randomUUID();
       // ONE number for the pair: two doors of the same link are one thing an author names, so
       // `Liaison de portes 1` appears at both ends rather than numbering them 1 and 2.
       const name = numberedPresetName(tool.name ?? "", map.events);
@@ -1853,6 +1891,8 @@ export function applyTool(
         events: [
           ...map.events,
           doorLinkEvent({
+            id: fromId,
+            linkedEventId: toId,
             col: from.col,
             row: from.row,
             ordinal,
@@ -1861,6 +1901,8 @@ export function applyTool(
             name,
           }),
           doorLinkEvent({
+            id: toId,
+            linkedEventId: fromId,
             col,
             row,
             ordinal: ordinal + 1,
