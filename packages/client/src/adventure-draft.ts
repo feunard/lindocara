@@ -10,8 +10,10 @@
 import {
   ADVENTURE_TITLE_MAX,
   type AdventureCameraMode,
+  type AdventureGameMode,
   type AdventureInput,
   DEFAULT_ADVENTURE_CAMERA_MODE,
+  DEFAULT_ADVENTURE_GAME_MODE,
   MAX_ADVENTURE_MAPS,
 } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
@@ -49,6 +51,8 @@ export interface AdventureDraft {
   maxPlayers: number;
   /** Optional only so older in-memory/test drafts remain readable; every new/loaded draft sets it. */
   cameraMode?: AdventureCameraMode;
+  /** Optional only for compatibility with drafts created before rulesets were authored. */
+  gameMode?: AdventureGameMode;
   /** Adventure-wide defaults inherited by maps unless a map explicitly overrides a channel. */
   audio: AdventureAudioConfig;
   members: DraftMemberInfo[];
@@ -63,6 +67,7 @@ export function emptyDraft(): AdventureDraft {
     title: "",
     maxPlayers: 4,
     cameraMode: DEFAULT_ADVENTURE_CAMERA_MODE,
+    gameMode: DEFAULT_ADVENTURE_GAME_MODE,
     audio: { ...DEFAULT_ADVENTURE_AUDIO },
     members: [],
     registry: EMPTY_REGISTRY,
@@ -132,6 +137,7 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
     title: draft.title.trim(),
     maxPlayers: draft.maxPlayers,
     cameraMode: draft.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE,
+    gameMode: draft.gameMode ?? DEFAULT_ADVENTURE_GAME_MODE,
     audio: draft.audio,
     registry: draft.registry,
     startMapId: draft.startMapId,
@@ -145,6 +151,7 @@ export function draftFromAdventure(
     mapIds: readonly string[];
     audio?: AdventureAudioConfig;
     cameraMode?: AdventureCameraMode;
+    gameMode?: AdventureGameMode;
     /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
      *  a payload without one rebuilds an empty registry. */
     registry?: AdventureRegistry;
@@ -163,6 +170,7 @@ export function draftFromAdventure(
     title: payload.title,
     maxPlayers: payload.maxPlayers,
     cameraMode: payload.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE,
+    gameMode: payload.gameMode ?? DEFAULT_ADVENTURE_GAME_MODE,
     audio: payload.audio ?? { ...DEFAULT_ADVENTURE_AUDIO },
     members,
     registry: payload.registry ?? EMPTY_REGISTRY,

@@ -274,6 +274,10 @@ export const en = {
   "death.fallen_copy":
     "Your body lies where you fell. A priest may still call you back — or you can let go.",
   "death.release": "Release spirit [R]",
+  "hardcore.game_over.title": "Run over",
+  "hardcore.game_over.copy":
+    "The nightmare caught you. Retry from the course entrance and leave nothing behind.",
+  "hardcore.retry": "Retry from zero [R]",
   "death.ghost_title": "Your spirit walks",
   "death.ghost_copy": "Find your body and reclaim it.",
   "death.ghost_distance": "Your body lies {distance}m away. Walk back to it.",
@@ -989,6 +993,7 @@ export const en = {
   // Server events (wired in Task 9; declared now so the dictionaries are written once)
   "event.combat.hit": "You hit {species} for {damage}.",
   "event.combat.hurt": "{species} hits you for {damage}.",
+  "event.hazard.hit": "A trap hits you for {damage} damage.",
   "event.monster.defeated": "Defeated {species}: +{xp} XP.",
   "event.level_up": "Level up! You are now level {level}.",
   "event.interact.nothing": "There is nothing close enough to interact with.",
@@ -1097,6 +1102,7 @@ export const en = {
   "editor.generator.genre.archipelago": "Archipelago",
   "editor.generator.genre.highlands": "Highlands",
   "editor.generator.genre.tundra": "Frozen tundra",
+  "editor.generator.genre.runner": "Nightmare runner",
   "editor.generator.genre.forest.hint":
     "A wooded province with a river, village roads, defended goblin camps and layered groves.",
   "editor.generator.genre.archipelago.hint":
@@ -1105,6 +1111,8 @@ export const en = {
     "Layered ridges around a fortified settlement, mountain roads, bridges and hostile keeps.",
   "editor.generator.genre.tundra.hint":
     "A lived-in frozen territory with an icebound village, crossings and fortified enemy zones.",
+  "editor.generator.genre.runner.hint":
+    "A seeded escape course with a relentless pursuer, traps, barricades and a finish line.",
   "editor.generator.size": "Size",
   "editor.generator.size.compact": "Compact",
   "editor.generator.size.standard": "Standard",
@@ -1230,6 +1238,12 @@ export const en = {
   "editor.monster.respawnMode": "After defeat",
   "editor.monster.respawnMode.timed": "Respawn after the configured delay",
   "editor.monster.respawnMode.never": "Permanent death for this party",
+  "editor.monster.pursuitMode": "Pursuit",
+  "editor.monster.pursuitMode.standard": "Standard aggro and leash",
+  "editor.monster.pursuitMode.relentless": "Relentless — follows every living hero",
+  "editor.monster.acceleration": "Acceleration (tiles/s²)",
+  "editor.monster.maxSpeed": "Maximum speed (tiles/s)",
+  "editor.monster.oneHitKill": "One landed hit ends the run",
   "editor.monster.respawnDelay": "Respawn delay (seconds)",
   "editor.monster.hp": "Health points",
   "editor.monster.damage": "Attack power",
@@ -1836,6 +1850,7 @@ export const en = {
   "editor.event.cmd.new.exitRun": "Stop this event",
   "editor.event.cmd.new.wait": "Wait",
   "editor.event.cmd.new.teleport": "Teleport hero",
+  "editor.event.cmd.new.damage": "Damage hero",
   "editor.event.cmd.new.endAdventure": "End adventure",
   "editor.event.cmd.new.openShop": "Open the shop",
   "editor.event.cmd.new.changeGold": "Change gold",
@@ -1853,6 +1868,8 @@ export const en = {
   "editor.event.cmd.exitRun": "Stop this event",
   "editor.event.cmd.wait": "Wait {frames} ticks",
   "editor.event.cmd.teleport": "{category} transition: {map} — width X {col}, height Y {row}",
+  "editor.event.cmd.damage": "Inflict {amount} damage",
+  "editor.event.cmd.damage.lethal": "Lethal trap ({amount} configured damage)",
   "editor.event.cmd.transition.geographic": "geographic",
   "editor.event.cmd.transition.interior": "building entrance",
   "editor.event.cmd.transition.shortcut": "shortcut",
@@ -1896,6 +1913,8 @@ export const en = {
   "editor.event.cmd.field.min": "Threshold",
   "editor.event.cmd.field.selfSwitch": "Local state",
   "editor.event.cmd.field.frames": "Duration (ticks, 20 = 1 second)",
+  "editor.event.cmd.field.damage": "Damage",
+  "editor.event.cmd.field.lethal": "Always lethal",
   "editor.event.cmd.field.transitionCategory": "Passage type",
   "editor.event.cmd.field.destination": "Arrive at",
   "editor.event.cmd.field.destination.cell": "A cell (below)",
@@ -2010,6 +2029,8 @@ export const en = {
     "Turn this off to hide the small ring automatically drawn beneath this event in game.",
   "editor.event.preset.sign": "Sign / Dialogue",
   "editor.event.preset.chest": "Chest (gold)",
+  "editor.event.preset.trap": "Spike trap",
+  "editor.event.preset.pursuer": "Nightmare pursuer",
   "editor.event.preset.endgame": "Adventure goal (ending)",
   "editor.event.preset.doorLink": "Door link",
   "editor.event.preset.doorLink.disabled": "Save the map first to link two of its doors.",
@@ -2094,6 +2115,9 @@ export const en = {
   "adventure.camera.orbit": "360° camera with tilt",
   "adventure.camera.hint":
     "Off keeps the fixed HD-2D side view. On lets players orbit all around the hero and tilt the camera.",
+  "adventure.mode.hardcore": "Hardcore endless runner",
+  "adventure.mode.hardcore.hint":
+    "Death ends the run. Retry returns the hero and the relentless pursuer to the course entrance; standard adventures are unchanged.",
   "adventure.edit": "Edit",
   "adventure.test": "Test adventure",
   "adventure.refresh": "Refresh",

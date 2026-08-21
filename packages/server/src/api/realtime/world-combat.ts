@@ -633,10 +633,27 @@ export function damagePlayer(
   monsterId: string,
   now: number,
   technique?: Exclude<MonsterSpecialTechnique, "none">,
+  oneHitKill = false,
 ): void {
   if (isPlayerInvulnerable(player, now)) return;
   const hpBefore = player.hp;
   const stealthEnded = exitRogueStealth(player, now);
+  if (oneHitKill) {
+    player.hp = 0;
+    generateResource(player.class, player.resource, "damage_taken", hpBefore);
+    player.dirty = true;
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "combat.hurt",
+      params: { species, damage: hpBefore, monsterId, ...(technique ? { technique } : {}) },
+      tone: "bad",
+      x: player.x,
+      z: player.z,
+    });
+    killPlayer(w, connectionId, player);
+    sendStateTo(w, connectionId, player);
+    return;
+  }
   const protectedDamage = damageAfterWarriorProtection(
     player,
     damage,
@@ -758,6 +775,34 @@ export function damagePlayer(
     z: player.z,
   });
   if (result.killed) killPlayer(w, connectionId, player);
+  sendStateTo(w, connectionId, player);
+}
+
+/** Server-authored environmental damage used by event traps. It has no fake monster identity. */
+export function damagePlayerFromEvent(
+  w: WorldGlue,
+  connectionId: string,
+  player: PlayerRuntime,
+  amount: number,
+  lethal: boolean,
+  now: number,
+): void {
+  if (isPlayerInvulnerable(player, now) || player.life !== "alive") return;
+  exitRogueStealth(player, now);
+  const appliedDamage = lethal ? player.hp : Math.min(player.hp, Math.max(0, amount));
+  if (appliedDamage <= 0) return;
+  player.hp = Math.max(0, player.hp - appliedDamage);
+  generateResource(player.class, player.resource, "damage_taken", appliedDamage);
+  player.dirty = true;
+  w.deps.send(connectionId, {
+    t: "event",
+    code: "hazard.hit",
+    params: { damage: appliedDamage },
+    tone: "bad",
+    x: player.x,
+    z: player.z,
+  });
+  if (player.hp <= 0) killPlayer(w, connectionId, player);
   sendStateTo(w, connectionId, player);
 }
 
@@ -943,6 +988,7 @@ export function resolveMonsterAction(
       monster.id,
       now,
       specialTechnique ?? undefined,
+      monster.oneHitKill,
     );
     drainedDamage += damage;
   }

@@ -163,11 +163,12 @@ interface Playable {
 async function newPlayableHero(
   prefix: string,
   cameraMode: "hd2d" | "orbit" = "hd2d",
+  gameMode: "standard" | "hardcore_runner" = "standard",
 ): Promise<Playable> {
   const { token, cookie, userId } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
     method: "POST",
-    body: JSON.stringify({ title: "Donjon", maxPlayers: 4, cameraMode }),
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4, cameraMode, gameMode }),
   });
   expect(adventureResponse.status).toBe(201);
   const adventure = (await adventureResponse.json()) as { id: string; defaultMap: { id: string } };
@@ -344,6 +345,18 @@ describe("world room admission", () => {
     const welcome = await probe.waitFor("welcome");
     if (welcome.t !== "welcome") throw new Error("unreachable");
     expect(welcome.world.cameraMode).toBe("orbit");
+  });
+
+  test("the welcome carries the adventure's game mode", async () => {
+    const { token, partyId, mapId, heroId } = await newPlayableHero(
+      "admode",
+      "hd2d",
+      "hardcore_runner",
+    );
+    const probe = openWorldSocket(`${partyId}:${mapId}`, heroId, token);
+    const welcome = await probe.waitFor("welcome");
+    if (welcome.t !== "welcome") throw new Error("unreachable");
+    expect(welcome.world.gameMode).toBe("hardcore_runner");
   });
 
   test("a roomId naming a map the hero is not on closes 4007", async () => {

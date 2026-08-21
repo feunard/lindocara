@@ -76,6 +76,9 @@ export const DIALOGUE_CLOSE_RADIUS = 3;
 export const WAIT_FRAMES_MIN = 1;
 export const WAIT_FRAMES_MAX = 600;
 
+/** Bounded authored environmental damage. `lethal` is an explicit separate rule. */
+export const EVENT_DAMAGE_LIMITS = { min: 1, max: 100_000 } as const;
+
 /**
  * An item id an authored `changeItems` grants or removes. `changeItems` only ever grants a
  * consumable — a lowercase snake_case slug from the shared `CONSUMABLE_IDS` catalogue
@@ -130,6 +133,7 @@ export type EventCommand =
   | { readonly t: "breakLoop" }
   | { readonly t: "exitRun" }
   | { readonly t: "wait"; readonly frames: number }
+  | { readonly t: "damage"; readonly amount: number; readonly lethal: boolean }
   | {
       readonly t: "teleport";
       readonly mapId: string;
@@ -304,6 +308,13 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       const frames = record.frames as number;
       if (frames < WAIT_FRAMES_MIN || frames > WAIT_FRAMES_MAX) return null;
       return { t: "wait", frames };
+    }
+    case "damage": {
+      if (!Number.isSafeInteger(record.amount)) return null;
+      const amount = record.amount as number;
+      if (amount < EVENT_DAMAGE_LIMITS.min || amount > EVENT_DAMAGE_LIMITS.max) return null;
+      if (typeof record.lethal !== "boolean") return null;
+      return { t: "damage", amount, lethal: record.lethal };
     }
     case "teleport": {
       if (!isUuid(record.mapId)) return null;

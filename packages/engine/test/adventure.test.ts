@@ -81,6 +81,15 @@ describe("parseAdventureInput", () => {
     expect(parseAdventureInput({ ...shell, cameraMode: "orbit" })?.cameraMode).toBe("orbit");
     expect(parseAdventureInput({ ...shell, cameraMode: "free" })).toBeNull();
   });
+
+  it("accepts only the standard and hardcore runner rulesets", () => {
+    const shell = { title: "Donjon", maxPlayers: 4 };
+    expect(parseAdventureInput({ ...shell, gameMode: "standard" })?.gameMode).toBe("standard");
+    expect(parseAdventureInput({ ...shell, gameMode: "hardcore_runner" })?.gameMode).toBe(
+      "hardcore_runner",
+    );
+    expect(parseAdventureInput({ ...shell, gameMode: "permadeath" })).toBeNull();
+  });
 });
 
 describe("parseAdventureGraph", () => {

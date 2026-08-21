@@ -1,0 +1,1 @@
+ALTER TABLE `adventures` ADD `game_mode` text DEFAULT 'standard' NOT NULL;

@@ -1659,6 +1659,32 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("an authored lethal damage action kills only the hero who triggered it", async () => {
+    const trap = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [
+      { t: "damage", amount: 25, lethal: true },
+    ]);
+    const fixture = await newPlayableParty("eventtrap", [trap]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+    const centre = authoredCellCentreGround(trap, gridSizeOf(state));
+    player.x = centre.x;
+    player.z = centre.z;
+
+    await engine.message(socket.id, { t: "interact" });
+    await advanceTickSettled(clock);
+
+    expect(player.hp).toBe(0);
+    expect(player.life).toBe("corpse");
+    expect(messagesOf(socket)).toContainEqual(
+      expect.objectContaining({ t: "event", code: "hazard.hit" }),
+    );
+    engine.dispose();
+  });
+
   test("an authored infinite loop consumes at most its 16-command slice per drain; the room keeps ticking", async () => {
     const eventId = crypto.randomUUID();
     const runaway = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [

@@ -410,6 +410,17 @@ describe("EventDialog", () => {
     expect(
       screen.queryByRole("spinbutton", { name: t("editor.monster.respawnDelay") }),
     ).not.toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.monster.pursuitMode") }),
+      "relentless",
+    );
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.acceleration") }), {
+      target: { value: "0.8" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.monster.maxSpeed") }), {
+      target: { value: "6" },
+    });
+    await user.click(screen.getByRole("checkbox", { name: t("editor.monster.oneHitKill") }));
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
@@ -424,6 +435,10 @@ describe("EventDialog", () => {
     expect(committed.monsterAttackProfile).toBe("arrow");
     expect(committed.monsterRespawnMode).toBe("never");
     expect(committed.monsterRespawnDelayMs).toBe(75_000);
+    expect(committed.monsterPursuitMode).toBe("relentless");
+    expect(committed.monsterAcceleration).toBe(0.8);
+    expect(committed.monsterMaxSpeed).toBe(6);
+    expect(committed.monsterOneHitKill).toBe(true);
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);
   });

@@ -25,8 +25,8 @@ import { encodeElementTransform } from "@lindocara/engine/element-orientation.js
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   defaultMonsterTuning,
+  isMonsterSpecies,
   type MonsterAttackProfile,
-  type MonsterSpecies,
 } from "@lindocara/engine/game.js";
 import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
@@ -93,10 +93,11 @@ export const MAP_ELEMENT_COLUMNS = 11;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
  *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
- *  harvestProfile, linkedEventId, showMarker.
+ *  harvestProfile, linkedEventId, showMarker, monsterPursuitMode, monsterAcceleration,
+ *  monsterMaxSpeed, monsterOneHitKill.
  *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 24;
+export const MAP_EVENT_COLUMNS = 28;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
  *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
@@ -833,6 +834,10 @@ export class MapService {
         monsterAttackProfile: event.monsterAttackProfile ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
         monsterRespawnDelayMs: event.monsterRespawnDelayMs ?? undefined,
+        monsterPursuitMode: event.monsterPursuitMode ?? undefined,
+        monsterAcceleration: event.monsterAcceleration ?? undefined,
+        monsterMaxSpeed: event.monsterMaxSpeed ?? undefined,
+        monsterOneHitKill: event.monsterOneHitKill ?? false,
         harvestProfile:
           event.harvestProfile === undefined ? undefined : JSON.stringify(event.harvestProfile),
       })),
@@ -930,13 +935,13 @@ export class MapService {
       const isHarvestable = row.kind === "harvestable";
       const harvestProfile = isHarvestable ? decodeHarvestProfileColumn(row.harvestProfile) : null;
       if (
-        (isMonster && (row.species == null || row.patrolRadius == null)) ||
+        (isMonster && (!isMonsterSpecies(row.species) || row.patrolRadius == null)) ||
         ((isGuard || isNpc) && row.patrolRadius == null) ||
         (isHarvestable && harvestProfile === null)
       ) {
         return [];
       }
-      const species = isMonster ? (row.species as MonsterSpecies) : null;
+      const species = isMonster && isMonsterSpecies(row.species) ? row.species : null;
       const tuning = isTuned ? defaultMonsterTuning(species ?? "spear_goblin") : null;
       return [
         {
@@ -971,6 +976,16 @@ export class MapService {
           ...(isMonster && row.monsterRespawnDelayMs != null
             ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
             : {}),
+          ...(isMonster && row.monsterPursuitMode != null
+            ? { monsterPursuitMode: row.monsterPursuitMode }
+            : {}),
+          ...(isMonster && row.monsterAcceleration != null
+            ? { monsterAcceleration: row.monsterAcceleration }
+            : {}),
+          ...(isMonster && row.monsterMaxSpeed != null
+            ? { monsterMaxSpeed: row.monsterMaxSpeed }
+            : {}),
+          ...(isMonster ? { monsterOneHitKill: row.monsterOneHitKill } : {}),
           ...(harvestProfile === null ? {} : { harvestProfile }),
           pages,
         } as MapEvent,

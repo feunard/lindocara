@@ -67,6 +67,7 @@ describe("adventure draft", () => {
       title: "Donjon",
       maxPlayers: 2,
       cameraMode: "hd2d",
+      gameMode: "standard",
       audio: DEFAULT_ADVENTURE_AUDIO,
       registry: { switches: [], variables: [] },
       startMapId: null,
@@ -83,6 +84,16 @@ describe("adventure draft", () => {
     );
     expect(orbit.cameraMode).toBe("orbit");
     expect(toAdventureInput(orbit)?.cameraMode).toBe("orbit");
+  });
+
+  it("defaults to standard rules and round-trips hardcore runner", () => {
+    expect(emptyDraft().gameMode).toBe("standard");
+    const hardcore = draftFromAdventure(
+      { title: "A", maxPlayers: 4, mapIds: [], gameMode: "hardcore_runner" },
+      new Map(),
+    );
+    expect(hardcore.gameMode).toBe("hardcore_runner");
+    expect(toAdventureInput(hardcore)?.gameMode).toBe("hardcore_runner");
   });
 
   it("removing a member drops it from the member list", () => {

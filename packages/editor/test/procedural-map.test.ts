@@ -18,7 +18,11 @@ import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
-import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  type EditorAssetId,
+  editorAsset,
+  LINDOCARA_RUNNER_ASSET_IDS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 const BASE_OPTIONS: ProceduralMapOptions = {
@@ -182,6 +186,38 @@ describe("procedural map authoring", () => {
     expect(dense.events.length).toBeGreaterThanOrEqual(light.events.length);
   });
 
+  it("builds a deterministic editable runner course", () => {
+    const options: ProceduralMapOptions = {
+      ...BASE_OPTIONS,
+      genre: "runner",
+      complexity: "dense",
+    };
+    const first = generateProceduralMap(blankMap("Escape", 20, 15), options);
+    const second = generateProceduralMap(blankMap("Escape", 20, 15), options);
+
+    expect(first).toEqual(second);
+    expect(first.audio).toMatchObject({
+      explorationProfile: "runner",
+      combatProfile: "runner",
+      bossProfile: "runner",
+    });
+    expect(
+      first.elements.some((element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade),
+    ).toBe(true);
+    expect(first.events.some((event) => event.monsterPursuitMode === "relentless")).toBe(true);
+    expect(
+      first.events.some((event) =>
+        event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
+      ),
+    ).toBe(true);
+    expect(
+      first.events.some((event) =>
+        event.pages.some((page) => page.commands.some((command) => command.t === "endAdventure")),
+      ),
+    ).toBe(true);
+    expect(parseMapData(toSaveInput(first))).not.toBeNull();
+  });
+
   it("serializes every genre, size and density through the shared map parsers", () => {
     for (const genre of PROCEDURAL_MAP_GENRES) {
       for (const size of Object.keys(PROCEDURAL_MAP_SIZES) as Array<
@@ -203,39 +239,52 @@ describe("procedural map authoring", () => {
               generated.elements.some((element) => isForbiddenGeneratedResource(element.assetId)),
               context,
             ).toBe(false);
-            expect(
-              generated.elements.some(
-                (element) => editorAsset(element.assetId)?.editor.category === "buildings",
-              ),
-              context,
-            ).toBe(true);
-            expect(
-              generated.elements.some(
-                (element) => editorAsset(element.assetId)?.editor.category === "bridges",
-              ),
-              context,
-            ).toBe(true);
-            for (const category of ["trees", "small-decor", "rocks"]) {
+            if (genre === "runner") {
+              expect(
+                generated.events.some((event) => event.monsterPursuitMode === "relentless"),
+                context,
+              ).toBe(true);
               expect(
                 generated.elements.some(
-                  (element) => editorAsset(element.assetId)?.editor.category === category,
+                  (element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade,
                 ),
-                `${context}/${category}`,
+                context,
+              ).toBe(true);
+            } else {
+              expect(
+                generated.elements.some(
+                  (element) => editorAsset(element.assetId)?.editor.category === "buildings",
+                ),
+                context,
+              ).toBe(true);
+              expect(
+                generated.elements.some(
+                  (element) => editorAsset(element.assetId)?.editor.category === "bridges",
+                ),
+                context,
+              ).toBe(true);
+              for (const category of ["trees", "small-decor", "rocks"]) {
+                expect(
+                  generated.elements.some(
+                    (element) => editorAsset(element.assetId)?.editor.category === category,
+                  ),
+                  `${context}/${category}`,
+                ).toBe(true);
+              }
+              expect(
+                generated.events.some((event) => event.kind === "monster"),
+                context,
+              ).toBe(true);
+              expect(
+                generated.events.some(
+                  (event) =>
+                    event.kind === "npc" &&
+                    event.pages[0]?.moveType === "custom" &&
+                    (event.pages[0]?.moveRoute?.length ?? 0) >= 4,
+                ),
+                context,
               ).toBe(true);
             }
-            expect(
-              generated.events.some((event) => event.kind === "monster"),
-              context,
-            ).toBe(true);
-            expect(
-              generated.events.some(
-                (event) =>
-                  event.kind === "npc" &&
-                  event.pages[0]?.moveType === "custom" &&
-                  (event.pages[0]?.moveRoute?.length ?? 0) >= 4,
-              ),
-              context,
-            ).toBe(true);
             expect(
               generated.elements.some((element, index) =>
                 generated.elements.slice(0, index).some((other) => sameElementSlot(other, element)),

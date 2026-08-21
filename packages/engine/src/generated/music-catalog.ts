@@ -177,6 +177,19 @@ export const MUSIC_PROFILES = [
     transitionMs: 450,
     fallbackTrackIds: ["boss-1"],
   },
+  {
+    id: "runner",
+    title: "Nightmare Run",
+    description: "Relentless forward momentum for obstacle courses and nightmare pursuits.",
+    biomes: ["generic", "ruins", "nightmare"],
+    moods: ["urgent", "driving", "tense", "defiant"],
+    bpm: 142,
+    intensity: 0.94,
+    duration: 120,
+    loopable: false,
+    transitionMs: 350,
+    fallbackTrackIds: ["boss-1"],
+  },
 ] as const;
 
 export const GENERATED_MUSIC_TRACKS = [

@@ -10,16 +10,21 @@ export function DeathOverlay() {
   useLocale();
   const self = useUiStore((state) => state.self);
   const game = useUiStore((state) => state.game);
+  const hardcore = useUiStore((state) => state.gameMode === "hardcore_runner");
 
   if (!self || self.life === "alive") return null;
 
   if (self.life === "corpse") {
     return (
       <div className="death-overlay" role="status">
-        <p className="death-title">{t("death.fallen_title")}</p>
-        <p className="death-copy">{t("death.fallen_copy")}</p>
+        <p className="death-title">
+          {t(hardcore ? "hardcore.game_over.title" : "death.fallen_title")}
+        </p>
+        <p className="death-copy">
+          {t(hardcore ? "hardcore.game_over.copy" : "death.fallen_copy")}
+        </p>
         <TinyButton type="button" className="death-release" onClick={() => game?.release()}>
-          {t("death.release")}
+          {t(hardcore ? "hardcore.retry" : "death.release")}
         </TinyButton>
       </div>
     );

@@ -7,6 +7,7 @@ import {
   editorAsset,
   editorAssetCollisionElevation,
   LINDOCARA_BUILDING_ASSET_IDS,
+  LINDOCARA_RUNNER_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
@@ -88,6 +89,16 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(2);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(1);
+  });
+
+  it("offers the runner obstacle while keeping actor and trap in the event appearance catalogue", () => {
+    const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
+    expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.barricade);
+    expect(placeableIds).not.toContain(LINDOCARA_RUNNER_ASSET_IDS.nightmareHound);
+    expect(placeableIds).not.toContain(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
+    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.nightmareHound)?.domain).toBe("enemy");
+    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.role).toBe("event-state");
   });
 
   it("offers one palette card for every native 3D building archetype", () => {

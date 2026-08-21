@@ -24,6 +24,7 @@
  */
 import {
   type AdventureCameraMode,
+  type AdventureGameMode,
   type AdventureGraph,
   type AdventureInput,
   type CreateAdventureInput,
@@ -68,6 +69,7 @@ export interface StoredAdventure {
   title: string;
   maxPlayers: number;
   cameraMode: AdventureCameraMode;
+  gameMode: AdventureGameMode;
   version: number;
   mapIds: string[];
   graph: AdventureGraph;
@@ -162,6 +164,7 @@ export class AdventureService {
       title,
       maxPlayers: input.maxPlayers,
       ...(input.cameraMode !== undefined ? { cameraMode: input.cameraMode } : {}),
+      ...(input.gameMode !== undefined ? { gameMode: input.gameMode } : {}),
       graph: JSON.stringify(EMPTY_GRAPH),
       ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
@@ -253,6 +256,7 @@ export class AdventureService {
       title,
       maxPlayers: input.maxPlayers,
       ...(input.cameraMode !== undefined ? { cameraMode: input.cameraMode } : {}),
+      ...(input.gameMode !== undefined ? { gameMode: input.gameMode } : {}),
       ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
       ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(proposedRegistry !== undefined ? { registry: JSON.stringify(proposedRegistry) } : {}),
@@ -372,6 +376,7 @@ export class AdventureService {
       title: row.title,
       maxPlayers: row.maxPlayers,
       cameraMode: row.cameraMode,
+      gameMode: row.gameMode,
       version: row.version,
       mapIds,
       graph,

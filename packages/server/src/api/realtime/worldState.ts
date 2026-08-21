@@ -9,7 +9,9 @@
 
 import {
   type AdventureCameraMode,
+  type AdventureGameMode,
   DEFAULT_ADVENTURE_CAMERA_MODE,
+  DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
 import {
   type AdventureRegistry,
@@ -398,6 +400,8 @@ export interface WorldRoomState {
   location: ZoneLocation | null;
   /** Adventure-wide presentation setting copied when this memory-only room is created. */
   cameraMode: AdventureCameraMode;
+  /** Adventure-wide gameplay rules copied when this memory-only room is created. */
+  gameMode: AdventureGameMode;
   players: Map<string, PlayerRuntime>;
   connectionIdByHeroId: Map<string, string>;
   playerGrid: SpatialGrid<PlayerRuntime>;
@@ -501,6 +505,7 @@ export function createWorldRoomState(
   parsed: ParsedWorldRoomId | null,
   location: ZoneLocation | null,
   cameraMode: AdventureCameraMode = DEFAULT_ADVENTURE_CAMERA_MODE,
+  gameMode: AdventureGameMode = DEFAULT_ADVENTURE_GAME_MODE,
 ): WorldRoomState {
   // Zone-runtime init, the port of legacy `#configure`: bake the navigation grid and seed the
   // zone's authored monsters/guards into runtime collections. `$room` discards this state when the
@@ -530,6 +535,7 @@ export function createWorldRoomState(
     roomKey,
     location,
     cameraMode,
+    gameMode,
     players: new Map(),
     connectionIdByHeroId: new Map(),
     playerGrid: new SpatialGrid<PlayerRuntime>(SPATIAL_CELL_SIZE),

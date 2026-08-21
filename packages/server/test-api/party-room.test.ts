@@ -322,6 +322,36 @@ describe("applyStateChanges", () => {
     expect(row?.version).toBe(1);
     expect(JSON.parse(row?.switches ?? "{}")).toEqual({ "0001": true });
   });
+
+  test("hardcore restart clears the durable run state in one new version", async () => {
+    const { partyId } = await newPartyOnly("hardcorerestart");
+    const monsterId = "11111111-1111-4111-8111-111111111111";
+
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+      { type: "setVariable", variableId: "0001", value: 42 },
+    ]);
+    await partyRoom.room.call(partyId, "markPermanentMonsterDefeated", monsterId);
+    const reset = (await partyRoom.room.call(partyId, "restartAdventure")) as {
+      state: {
+        switches: Record<string, boolean>;
+        variables: Record<string, number>;
+        defeatedMonsters?: Record<string, boolean>;
+      };
+      version: number;
+    };
+
+    expect(reset).toMatchObject({
+      version: 3,
+      state: { switches: {}, variables: {} },
+    });
+    expect(reset.state.defeatedMonsters).toBeUndefined();
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(JSON.parse(row?.switches ?? "null")).toEqual({});
+    expect(JSON.parse(row?.variables ?? "null")).toEqual({});
+    expect(JSON.parse(row?.defeatedMonsters ?? "null")).toEqual({});
+    expect(JSON.parse(row?.supportSpends ?? "null")).toEqual({});
+  });
 });
 
 describe("shared party materials and harvest nodes", () => {

@@ -65,6 +65,7 @@ import {
   advanceMonsters,
   forgetPlayerFromMonsters,
   type MonsterSystemContext,
+  resetMonsterAtSpawn,
 } from "@lindocara/server/world/monster-system.js";
 import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
@@ -533,6 +534,52 @@ describe("monster navigation on the heightfield", () => {
       abandonReason: "target_hidden",
     });
     expect(monster.vx).toBe(0);
+  });
+
+  it("keeps a relentless pursuer on an invisible distant hero and accelerates to its ceiling", () => {
+    const monster = chasingMonster();
+    monster.pursuitMode = "relentless";
+    monster.baseSpeed = 2;
+    monster.speed = 2;
+    monster.acceleration = 10;
+    monster.maxSpeed = 2.75;
+    const player = targetPlayer(tile(600), tile(220));
+    player.invisibleUntil = 10_000;
+    player.forgottenUntil = 10_000;
+    const socket = { id: "runner-socket" } as unknown as WebSocket;
+    const context = monsterContext([monster], new Map([[socket, player]]));
+
+    advanceMonsters(context, 1_000);
+    expect(monster.threat.has(player.id)).toBe(true);
+    expect(monster.navigation.targetId).toBe(player.id);
+    expect(monster.speed).toBeCloseTo(2 + 10 * TICK_DT);
+
+    for (let tick = 0; tick < 10; tick += 1) advanceMonsters(context, 1_050 + tick * 50);
+    expect(monster.speed).toBe(2.75);
+    forgetPlayerFromMonsters([monster], player.id);
+    expect(monster.threat.has(player.id)).toBe(true);
+  });
+
+  it("restores a relentless pursuer to its authored start and base speed", () => {
+    const monster = chasingMonster();
+    const context = monsterContext([monster], new Map());
+    monster.pursuitMode = "relentless";
+    monster.baseSpeed = 2;
+    monster.speed = 7;
+    monster.x += 2;
+    monster.hp = 1;
+    monster.threat.set("runner", { playerId: "runner", amount: 1, updatedAt: 0 });
+
+    resetMonsterAtSpawn(monster, terrain, context.monsterGrid, 5_000);
+
+    expect(monster).toMatchObject({
+      x: monster.spawnX,
+      z: monster.spawnZ,
+      hp: monster.maxHp,
+      speed: 2,
+      deadUntil: 0,
+    });
+    expect(monster.threat.size).toBe(0);
   });
 
   it("cannot acquire a stealthed Rogue but can target them after the window ends", () => {

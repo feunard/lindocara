@@ -27,6 +27,7 @@ import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.j
 import {
   defaultMonsterTuning,
   type MonsterAttackProfile,
+  type MonsterPursuitMode,
   type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
@@ -927,6 +928,7 @@ export function setEventDraftMonster(
     monsterMaxHp: tuning.maxHp,
     monsterDamage: tuning.damage,
     monsterSpeed: tuning.speed,
+    monsterMaxSpeed: Math.max(draft.monsterMaxSpeed ?? tuning.speed, tuning.speed),
     monsterXp: tuning.xp,
     monsterWeakness: tuning.weakness,
     monsterWeaknessPercent: tuning.weaknessPercent,
@@ -959,6 +961,25 @@ export function setEventDraftMonsterRespawnDelay(
   monsterRespawnDelayMs: number,
 ): MapEvent {
   return draft.kind === "monster" ? { ...draft, monsterRespawnDelayMs } : draft;
+}
+
+/** Draft mutator for runner-style pursuit. All values remain server-validated on save. */
+export function setEventDraftMonsterPursuit(
+  draft: MapEvent,
+  monsterPursuitMode: MonsterPursuitMode,
+  monsterAcceleration: number,
+  monsterMaxSpeed: number,
+  monsterOneHitKill: boolean,
+): MapEvent {
+  return draft.kind === "monster"
+    ? {
+        ...draft,
+        monsterPursuitMode,
+        monsterAcceleration,
+        monsterMaxSpeed,
+        monsterOneHitKill,
+      }
+    : draft;
 }
 
 /** Draft mutator for an authored allied guard's authoritative movement leash. */

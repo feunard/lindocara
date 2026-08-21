@@ -1,3 +1,4 @@
+import type { AdventureGameMode } from "@lindocara/engine/adventure.js";
 import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { LifeState } from "@lindocara/engine/death.js";
@@ -195,6 +196,8 @@ interface UiState {
    *  Verdant Reach's 16:9. */
   /** The world's extent in TILE units — a square, grid-centred heightfield. */
   worldSize: { size: number } | null;
+  /** Current adventure ruleset, refreshed only on a world welcome. */
+  gameMode: AdventureGameMode;
   mapHeroSettings: MapHeroSettings | null;
   reconnect: ReconnectState | null;
   heroLoading: HeroLoadingState | null;
@@ -240,6 +243,7 @@ interface UiState {
   /** The world's extent, in TILE units: a heightfield grid is square and centred on the origin,
    *  so one number describes it. */
   setWorldSize(size: { size: number } | null): void;
+  setGameMode(mode: AdventureGameMode): void;
   setMapHeroSettings(settings: MapHeroSettings | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setHeroLoading(heroLoading: HeroLoadingState | null): void;
@@ -341,6 +345,7 @@ function clearedGameSessionFields() {
     merchantOpen: false,
     zoneNameKey: null,
     worldSize: null,
+    gameMode: "standard" as const,
     mapHeroSettings: null,
     reconnect: null,
     heroLoading: null,
@@ -376,6 +381,7 @@ export const useUiStore = create<UiState>((set) => ({
   merchantOpen: false,
   zoneNameKey: null,
   worldSize: null,
+  gameMode: "standard",
   mapHeroSettings: null,
   reconnect: null,
   heroLoading: null,
@@ -463,6 +469,7 @@ export const useUiStore = create<UiState>((set) => ({
   setMerchantOpen: (open) => set({ merchantOpen: open }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
+  setGameMode: (gameMode) => set({ gameMode }),
   setMapHeroSettings: (mapHeroSettings) => set({ mapHeroSettings }),
   setReconnect: (reconnect) => set({ reconnect }),
   setHeroLoading: (heroLoading) => set({ heroLoading }),

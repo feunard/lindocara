@@ -191,7 +191,38 @@ export function forgetPlayerFromMonsters(
   monsters: Iterable<MonsterRuntime>,
   playerId: string,
 ): void {
-  for (const monster of monsters) abandonMonsterTarget(monster, playerId, "target_hidden");
+  for (const monster of monsters) {
+    if (monster.pursuitMode !== "relentless")
+      abandonMonsterTarget(monster, playerId, "target_hidden");
+  }
+}
+
+/** Restores an encounter to its authored start. Hardcore retries use the same reset as a respawn. */
+export function resetMonsterAtSpawn(
+  monster: MonsterRuntime,
+  terrain: ZoneTerrain,
+  monsterGrid: SpatialGrid<MonsterRuntime>,
+  now: number,
+): void {
+  const previousPosition = { x: monster.x, z: monster.z };
+  monster.deadUntil = 0;
+  monster.hp = monster.maxHp;
+  monster.x = monster.spawnX;
+  monster.z = monster.spawnZ;
+  monster.y = groundUnder(terrain, monster.spawnX, monster.spawnZ, 0);
+  monster.vx = 0;
+  monster.vz = 0;
+  monster.speed = monster.baseSpeed;
+  monster.slowUntil = 0;
+  monster.slowMultiplier = 1;
+  monster.revealedUntil = 0;
+  monster.threat.clear();
+  monster.contributions.clear();
+  monster.rewardsGranted = false;
+  monster.action = null;
+  monster.nextSpecialAt = now + 2_000;
+  resetMonsterNavigation(monster);
+  monsterGrid.update(monster, previousPosition);
 }
 
 export function advanceMonsters<TSocket>(
@@ -199,14 +230,15 @@ export function advanceMonsters<TSocket>(
   now: number,
 ): void {
   const terrain = context.zone.terrain;
-  const players = Array.from(context.players.entries()).filter(([, player]) => {
+  const allLivingPlayers = Array.from(context.players.entries()).filter(
+    ([, player]) => player.authorized && player.life === "alive" && !player.transitioning,
+  );
+  const visiblePlayers = allLivingPlayers.filter(([, player]) => {
     if (player.rogueSilhouette && player.rogueSilhouette.expiresAt <= now)
       player.rogueSilhouette = null;
     const activeSilhouette = player.rogueSilhouette && player.rogueSilhouette.expiresAt > now;
     return Boolean(
-      player.authorized &&
-        player.life === "alive" &&
-        player.forgottenUntil <= now &&
+      player.forgottenUntil <= now &&
         ((player.invisibleUntil <= now && !isRogueStealthed(player, now)) || activeSilhouette),
     );
   });
@@ -214,28 +246,13 @@ export function advanceMonsters<TSocket>(
     const monster = context.monsters[index];
     if (!monster || monster.deadUntil > now) continue;
     if (monster.deadUntil > 0) {
-      const previousPosition = { x: monster.x, z: monster.z };
-      monster.deadUntil = 0;
-      monster.hp = monster.maxHp;
-      monster.x = monster.spawnX;
-      monster.z = monster.spawnZ;
-      monster.y = groundUnder(terrain, monster.spawnX, monster.spawnZ, 0);
-      monster.vx = 0;
-      monster.vz = 0;
-      monster.slowUntil = 0;
-      monster.slowMultiplier = 1;
-      monster.revealedUntil = 0;
-      monster.threat.clear();
-      monster.contributions.clear();
-      monster.rewardsGranted = false;
-      monster.action = null;
-      monster.nextSpecialAt = now + 2_000;
-      resetMonsterNavigation(monster);
-      context.monsterGrid.update(monster, previousPosition);
+      resetMonsterAtSpawn(monster, terrain, context.monsterGrid, now);
     }
     if (monster.slowUntil <= now) monster.slowMultiplier = 1;
+    const relentless = monster.pursuitMode === "relentless";
+    const players = relentless ? allLivingPlayers : visiblePlayers;
 
-    for (const [playerId, entry] of monster.threat) {
+    for (const [playerId, entry] of relentless ? [] : monster.threat) {
       const socket = [...context.players.entries()].find(([, player]) => player.id === playerId);
       const player = socket?.[1];
       const activeSilhouette =
@@ -263,36 +280,48 @@ export function advanceMonsters<TSocket>(
 
     for (const candidate of players) {
       const player = candidate[1];
-      if (player.invisibleUntil > now || isRogueStealthed(player, now)) continue;
+      if (!relentless && (player.invisibleUntil > now || isRogueStealthed(player, now))) continue;
       if (
         monster.navigation.unreachableTargetId === player.id &&
         monster.navigation.unreachableUntil > now
       )
         continue;
       const distance = groundDistance(monster, player);
-      if (distance < MONSTER_AGGRO_RANGE && !monster.threat.has(player.id)) {
+      if ((relentless || distance < MONSTER_AGGRO_RANGE) && !monster.threat.has(player.id)) {
         addThreat(
           monster.threat,
           player.id,
-          initialProximityThreat(distance, MONSTER_AGGRO_RANGE),
+          relentless ? 1 : initialProximityThreat(distance, MONSTER_AGGRO_RANGE),
           now,
         );
       }
     }
 
-    const selected = highestThreat(
-      monster.threat,
-      (id) =>
-        players.some(([, player]) => player.id === id) &&
-        (monster.navigation.unreachableTargetId !== id ||
-          monster.navigation.unreachableUntil <= now),
-    );
-    const target = selected
-      ? players.find(([, player]) => player.id === selected.playerId)
-      : undefined;
+    const selected = relentless
+      ? players
+          .map((candidate) => ({ candidate, distance: groundDistance(monster, candidate[1]) }))
+          .sort(
+            (left, right) =>
+              left.distance - right.distance ||
+              left.candidate[1].id.localeCompare(right.candidate[1].id),
+          )[0]?.candidate
+      : (() => {
+          const threat = highestThreat(
+            monster.threat,
+            (id) =>
+              players.some(([, player]) => player.id === id) &&
+              (monster.navigation.unreachableTargetId !== id ||
+                monster.navigation.unreachableUntil <= now),
+          );
+          return threat ? players.find(([, player]) => player.id === threat.playerId) : undefined;
+        })();
+    const target = selected;
 
     if (target) {
       const [, player] = target;
+      if (relentless) {
+        monster.speed = Math.min(monster.maxSpeed, monster.speed + monster.acceleration * TICK_DT);
+      }
       refreshThreat(monster.threat, player.id, now);
       const afterimage =
         player.rangerAfterimage && player.rangerAfterimage.expiresAt > now

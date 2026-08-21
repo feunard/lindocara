@@ -20,7 +20,7 @@ import { cancelCombatAction } from "../../world/combat-action-system.js";
 import { removeDamageOverTimeBySource } from "../../world/damage-over-time-system.js";
 import { abortRunsForHero } from "../../world/event-run-system.js";
 import { collectLoot } from "../../world/loot-system.js";
-import { forgetPlayerFromMonsters } from "../../world/monster-system.js";
+import { forgetPlayerFromMonsters, resetMonsterAtSpawn } from "../../world/monster-system.js";
 import { cancelPeasantHarvestJob } from "../../world/peasant-harvest-system.js";
 import {
   refundPeasantCampGold,
@@ -304,12 +304,20 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
   const terrain = definition.terrain;
   const entry = mapEntryPosition(terrain, definition.spawns?.[0]);
   const previousPosition = { x: player.x, y: player.y, z: player.z };
+  const now = w.deps.now();
   player.life = "alive";
   player.corpse = null;
   player.hp = resurrectHp(player.level);
   displacePlayer(player, entry);
   w.state.playerGrid.update(player, previousPosition);
-  grantReviveGrace(w, player, w.deps.now());
+  if (w.state.gameMode === "hardcore_runner") {
+    for (const monster of w.state.monsters) {
+      if (monster.pursuitMode === "relentless") {
+        resetMonsterAtSpawn(monster, terrain, w.state.monsterGrid, now);
+      }
+    }
+  }
+  grantReviveGrace(w, player, now);
   freeze(w, player);
   w.deps.send(connectionId, {
     t: "event",

@@ -223,6 +223,16 @@ export function isMonsterRespawnMode(value: unknown): value is MonsterRespawnMod
   return typeof value === "string" && (MONSTER_RESPAWN_MODES as readonly string[]).includes(value);
 }
 
+export const MONSTER_PURSUIT_MODES = ["standard", "relentless"] as const;
+export type MonsterPursuitMode = (typeof MONSTER_PURSUIT_MODES)[number];
+
+export function isMonsterPursuitMode(value: unknown): value is MonsterPursuitMode {
+  return typeof value === "string" && (MONSTER_PURSUIT_MODES as readonly string[]).includes(value);
+}
+
+/** Tiles per second squared. Relentless monsters use it until their authored maximum speed. */
+export const MONSTER_ACCELERATION_LIMITS = { min: 0, max: 20 } as const;
+
 /** Authorable timed-respawn bounds. Stored in milliseconds; the editor exposes whole seconds. */
 export const MONSTER_RESPAWN_DELAY_LIMITS = {
   min: 1_000,
@@ -285,6 +295,14 @@ export interface MonsterSpawn extends WorldPosition {
   respawnMode?: MonsterRespawnMode;
   /** Authoritative delay for timed respawns. Missing catalogue values keep the common default. */
   respawnDelayMs?: number;
+  /** Relentless pursuers ignore stealth, aggro range, threat expiry and the ordinary leash. */
+  pursuitMode?: MonsterPursuitMode;
+  /** Tiles per second squared while a relentless pursuer has a living target. */
+  acceleration?: number;
+  /** Speed ceiling for acceleration; never lower than the authored base speed. */
+  maxSpeed?: number;
+  /** A landed attack bypasses ordinary mitigation and ends the run immediately. */
+  oneHitKill?: boolean;
   /** Catalogue-backed appearance selected by an authored map. Combat identity and tuning still
    * come exclusively from `species`; this field is presentation only. */
   graphicAssetId?: EditorAssetId | null;

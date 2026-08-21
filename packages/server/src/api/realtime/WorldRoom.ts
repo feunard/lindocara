@@ -35,7 +35,9 @@
 
 import {
   type AdventureCameraMode,
+  type AdventureGameMode,
   DEFAULT_ADVENTURE_CAMERA_MODE,
+  DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
 import type {
   AdventureRegistry,
@@ -113,6 +115,7 @@ import { AdventureStateService } from "../services/AdventureStateService.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
 import { type HeroSaveResult, HeroSaveService } from "../services/HeroSaveService.ts";
+import { HeroService } from "../services/HeroService.ts";
 import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
@@ -229,6 +232,7 @@ export class WorldRoom {
   admissionService = $inject(AdmissionService);
   heroEpochService = $inject(HeroEpochService);
   heroSaveService = $inject(HeroSaveService);
+  heroService = $inject(HeroService);
   adventureStateService = $inject(AdventureStateService);
   adventureService = $inject(AdventureService);
   mapService = $inject(MapService);
@@ -308,6 +312,7 @@ export class WorldRoom {
     const parsed = parseWorldRoomId(roomId);
     let location: ZoneLocation | null = null;
     let cameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
+    let gameMode = DEFAULT_ADVENTURE_GAME_MODE;
     if (parsed) {
       try {
         const [payload, presentation] = await Promise.all([
@@ -316,11 +321,12 @@ export class WorldRoom {
         ]);
         location = locationFromMapPayload(payload, roomId, presentation.audio);
         cameraMode = presentation.cameraMode;
+        gameMode = presentation.gameMode;
       } catch (error) {
         this.logError("world_room_map_load_failed", error, { roomId });
       }
     }
-    const state = createWorldRoomState(roomId, parsed, location, cameraMode);
+    const state = createWorldRoomState(roomId, parsed, location, cameraMode, gameMode);
     if (parsed && location) {
       try {
         const held = (await this.partyRoom.room.call(parsed.partyId, "getAdventureState")) as {
@@ -338,16 +344,23 @@ export class WorldRoom {
     return state;
   }
 
-  protected async adventurePresentationForParty(
-    partyId: string,
-  ): Promise<{ audio: AdventureAudioConfig; cameraMode: AdventureCameraMode }> {
+  protected async adventurePresentationForParty(partyId: string): Promise<{
+    audio: AdventureAudioConfig;
+    cameraMode: AdventureCameraMode;
+    gameMode: AdventureGameMode;
+  }> {
     const party = await this.parties.findById(partyId);
     const adventureRow = party ? await this.adventures.findById(party.adventureId) : null;
     return adventureRow
-      ? { audio: decodeAdventureAudio(adventureRow.audio), cameraMode: adventureRow.cameraMode }
+      ? {
+          audio: decodeAdventureAudio(adventureRow.audio),
+          cameraMode: adventureRow.cameraMode,
+          gameMode: adventureRow.gameMode,
+        }
       : {
           audio: { ...DEFAULT_ADVENTURE_AUDIO },
           cameraMode: DEFAULT_ADVENTURE_CAMERA_MODE,
+          gameMode: DEFAULT_ADVENTURE_GAME_MODE,
         };
   }
 
@@ -678,6 +691,18 @@ export class WorldRoom {
       return;
     }
     if (message.t === "release") {
+      if (
+        state.gameMode === "hardcore_runner" &&
+        player.life === "corpse" &&
+        !player.transitioning
+      ) {
+        player.transitioning = true;
+        void this.retryHardcoreRun(room, state, connectionId, player).catch((error) => {
+          player.transitioning = false;
+          this.logError("hardcore_retry_failed", error, { heroId: player.id });
+        });
+        return;
+      }
       handleRelease(w, connectionId, player);
       return;
     }
@@ -1465,6 +1490,49 @@ export class WorldRoom {
   // -----------------------------------------------------------------------------------------------
 
   /**
+   * A hardcore release resets the party-owned run, revives the hero, then returns that hero to the
+   * adventure's authoritative first map. The ordinary release path remains the single owner of
+   * resurrection health, grace and local monster resets; this method only adds the cross-map handoff
+   * and run-state reset that "retry from zero" requires.
+   */
+  protected async retryHardcoreRun(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+  ): Promise<void> {
+    let claimedAuthorization = false;
+    try {
+      if (player.identityKind !== "hero" || !player.partyId || player.life !== "corpse") return;
+      const party = await this.parties.findById(player.partyId);
+      if (!party || !player.authorized) return;
+      const start = await this.heroService.resolveHeroStart(party.adventureId);
+      if (!start) return;
+
+      await this.partyRoom.room.call(player.partyId, "restartAdventure");
+      handleRelease(this.glue(room), connectionId, player);
+      if (start.mapId === state.mapId) return;
+
+      player.lastTransitionAt = Date.now();
+      claimedAuthorization = true;
+      player.authorized = false;
+      await this.performHandoff(
+        room,
+        state,
+        connectionId,
+        player,
+        start.mapId,
+        start.position,
+        { t: "event", code: "zone.transition", tone: "good" },
+        "hardcore retry",
+      );
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
+    }
+  }
+
+  /**
    * Port of legacy `#transitionAdventureExit` (`world.ts:3616-3739`): a hero standing on an
    * authored `exit` event (detection already ran in `detectAdventureExits`, `worldTick.ts:4257`,
    * which re-checks `player.transitioning` and dedupes on `state.occupiedExitByPlayerId` before
@@ -1981,6 +2049,7 @@ export class WorldRoom {
       buildings: state.buildings.map(buildingSnapshot),
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       cameraMode: state.cameraMode,
+      gameMode: state.gameMode,
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
       ...(definition.dayNightCycle === undefined
         ? {}

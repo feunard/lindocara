@@ -131,17 +131,19 @@ describe("stepEventRun — the per-opcode table", () => {
     expect(result.context.resumeAtTick).toBeNull();
   });
 
-  it("teleport, changeGold and changeItems each emit their effect and keep running", () => {
+  it("teleport, inventory and damage commands each emit their effect and keep running", () => {
     const program: EventCommand[] = [
       { t: "teleport", mapId: MAP_ID, col: 4, row: 5 },
       { t: "changeGold", amount: -10 },
       { t: "changeItems", itemId: "health_potion", count: 2 },
+      { t: "damage", amount: 25, lethal: true },
     ];
     const drained = drain(run(program), state());
     expect(drained.effects.filter((e) => e.kind !== "closeDialogue")).toEqual([
       { kind: "teleport", mapId: MAP_ID, col: 4, row: 5, category: "geographic" },
       { kind: "changeGold", amount: -10 },
       { kind: "changeItems", itemId: "health_potion", count: 2 },
+      { kind: "damage", amount: 25, lethal: true },
     ]);
     expect(drained.context.status).toBe("done");
   });

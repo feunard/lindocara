@@ -19,16 +19,19 @@ import { type EventCommand, parseEventCommands } from "./event-commands.js";
 import {
   defaultMonsterTuning,
   isMonsterAttackProfile,
+  isMonsterPursuitMode,
   isMonsterRank,
   isMonsterRespawnMode,
   isMonsterSpecialTechnique,
   isMonsterSpecialTechniqueForSpecies,
   isMonsterSpecies,
   isMonsterWeakness,
+  MONSTER_ACCELERATION_LIMITS,
   MONSTER_RESPAWN_DELAY_LIMITS,
   MONSTER_RESPAWN_MS,
   MONSTER_TUNING_LIMITS,
   type MonsterAttackProfile,
+  type MonsterPursuitMode,
   type MonsterRank,
   type MonsterRespawnMode,
   type MonsterSpecialTechnique,
@@ -270,6 +273,14 @@ export interface MapEvent {
   monsterRespawnMode?: MonsterRespawnMode | null;
   /** Timed respawn delay in milliseconds. Ignored while permanent death is selected. */
   monsterRespawnDelayMs?: number | null;
+  /** Relentless encounters ignore the ordinary visibility, aggro and leash rules. */
+  monsterPursuitMode?: MonsterPursuitMode | null;
+  /** Tiles per second squared; meaningful only for relentless pursuit. */
+  monsterAcceleration?: number | null;
+  /** Tiles per second; must be at least the monster's authored base speed. */
+  monsterMaxSpeed?: number | null;
+  /** A successful hit immediately kills the hero. */
+  monsterOneHitKill?: boolean | null;
   /** Required only for `harvestable`; never derived from a page's graphic asset. */
   harvestProfile?: HarvestProfile;
   pages: readonly MapEventPage[];
@@ -416,6 +427,10 @@ interface FunctionalEventBase {
   monsterTuning?: Partial<MonsterTuning> | undefined;
   monsterRespawnMode?: MonsterRespawnMode | undefined;
   monsterRespawnDelayMs?: number | undefined;
+  monsterPursuitMode?: MonsterPursuitMode | undefined;
+  monsterAcceleration?: number | undefined;
+  monsterMaxSpeed?: number | undefined;
+  monsterOneHitKill?: boolean | undefined;
 }
 
 export type FunctionalEventParams = FunctionalEventBase &
@@ -469,6 +484,10 @@ export function functionalEvent(params: FunctionalEventParams): MapEvent {
       ? {
           monsterRespawnMode: params.monsterRespawnMode ?? "timed",
           monsterRespawnDelayMs: params.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS,
+          monsterPursuitMode: params.monsterPursuitMode ?? "standard",
+          monsterAcceleration: params.monsterAcceleration ?? 0,
+          monsterMaxSpeed: params.monsterMaxSpeed ?? tuning.speed,
+          monsterOneHitKill: params.monsterOneHitKill ?? false,
         }
       : {}),
     ...(isHarvestable ? { harvestProfile: params.harvestProfile } : {}),
@@ -520,6 +539,17 @@ function boundedMonsterSpeed(
   // tile-scaled fallback and modern authored values pass through unchanged.
   const tileCeiling = limits.max / TILE_SIZE;
   return value > tileCeiling ? value / TILE_SIZE : value;
+}
+
+/** New runner ceilings were introduced after tile-unit storage and therefore have no pixel rows. */
+function boundedModernMonsterSpeed(
+  value: unknown,
+  fallback: number,
+  limits: { readonly min: number; readonly max: number },
+): number | null {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value >= limits.min && value <= limits.max ? value : null;
 }
 
 function parseEventPage(raw: unknown): MapEventPage | null {
@@ -691,6 +721,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     let monsterAttackProfile: MonsterAttackProfile | undefined;
     let monsterRespawnMode: MonsterRespawnMode | undefined;
     let monsterRespawnDelayMs: number | undefined;
+    let monsterPursuitMode: MonsterPursuitMode | undefined;
+    let monsterAcceleration: number | undefined;
+    let monsterMaxSpeed: number | undefined;
+    let monsterOneHitKill: boolean | undefined;
     let harvestProfile: HarvestProfile | undefined;
     let legacyHarvestProfile = false;
     let legacyHarvestDurationMs: number | null = null;
@@ -733,6 +767,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       const attackProfile = record.monsterAttackProfile ?? null;
       const respawnMode = record.monsterRespawnMode;
       const respawnDelayMs = record.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS;
+      const pursuitMode = record.monsterPursuitMode ?? "standard";
+      const acceleration = record.monsterAcceleration ?? 0;
+      const oneHitKill = record.monsterOneHitKill ?? false;
       if (
         !isMonsterRank(rank) ||
         !isMonsterWeakness(weakness) ||
@@ -744,11 +781,20 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         (isMonster
           ? respawnMode !== undefined && !isMonsterRespawnMode(respawnMode)
           : (respawnMode !== undefined && respawnMode !== null) ||
-            (record.monsterRespawnDelayMs !== undefined &&
-              record.monsterRespawnDelayMs !== null)) ||
+            (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null) ||
+            (record.monsterPursuitMode !== undefined && record.monsterPursuitMode !== null) ||
+            (record.monsterAcceleration !== undefined && record.monsterAcceleration !== null) ||
+            (record.monsterMaxSpeed !== undefined && record.monsterMaxSpeed !== null) ||
+            (record.monsterOneHitKill !== undefined && record.monsterOneHitKill !== null)) ||
         !Number.isSafeInteger(respawnDelayMs) ||
         (respawnDelayMs as number) < MONSTER_RESPAWN_DELAY_LIMITS.min ||
-        (respawnDelayMs as number) > MONSTER_RESPAWN_DELAY_LIMITS.max
+        (respawnDelayMs as number) > MONSTER_RESPAWN_DELAY_LIMITS.max ||
+        (isMonster ? !isMonsterPursuitMode(pursuitMode) : pursuitMode !== "standard") ||
+        typeof acceleration !== "number" ||
+        !Number.isFinite(acceleration) ||
+        (acceleration as number) < MONSTER_ACCELERATION_LIMITS.min ||
+        (acceleration as number) > MONSTER_ACCELERATION_LIMITS.max ||
+        typeof oneHitKill !== "boolean"
       )
         return null;
       monsterRank = rank;
@@ -775,6 +821,11 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         defaults.speed,
         MONSTER_TUNING_LIMITS.speed,
       );
+      const maxSpeed = boundedModernMonsterSpeed(
+        record.monsterMaxSpeed,
+        monsterSpeed ?? defaults.speed,
+        MONSTER_TUNING_LIMITS.speed,
+      );
       monsterXp = boundedMonsterInteger(record.monsterXp, defaults.xp, MONSTER_TUNING_LIMITS.xp);
       monsterWeaknessPercent = boundedMonsterInteger(
         record.monsterWeaknessPercent,
@@ -785,10 +836,22 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         monsterMaxHp === null ||
         monsterDamage === null ||
         monsterSpeed === null ||
+        maxSpeed === null ||
+        maxSpeed < monsterSpeed ||
         monsterXp === null ||
         monsterWeaknessPercent === null
       )
         return null;
+      if (isMonster) {
+        if (record.monsterPursuitMode !== undefined && record.monsterPursuitMode !== null)
+          monsterPursuitMode = pursuitMode as MonsterPursuitMode;
+        if (record.monsterAcceleration !== undefined && record.monsterAcceleration !== null)
+          monsterAcceleration = acceleration as number;
+        if (record.monsterMaxSpeed !== undefined && record.monsterMaxSpeed !== null)
+          monsterMaxSpeed = maxSpeed;
+        if (record.monsterOneHitKill !== undefined && record.monsterOneHitKill !== null)
+          monsterOneHitKill = oneHitKill;
+      }
     } else if (kind === "guard") {
       if (!Number.isSafeInteger(record.patrolRadius)) return null;
       const radius = record.patrolRadius as number;
@@ -806,7 +869,11 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null) ||
         (record.monsterAttackProfile !== undefined && record.monsterAttackProfile !== null) ||
         (record.monsterRespawnMode !== undefined && record.monsterRespawnMode !== null) ||
-        (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null)
+        (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null) ||
+        (record.monsterPursuitMode !== undefined && record.monsterPursuitMode !== null) ||
+        (record.monsterAcceleration !== undefined && record.monsterAcceleration !== null) ||
+        (record.monsterMaxSpeed !== undefined && record.monsterMaxSpeed !== null) ||
+        (record.monsterOneHitKill !== undefined && record.monsterOneHitKill !== null)
       ) {
         return null;
       }
@@ -823,7 +890,11 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null) ||
       (record.monsterAttackProfile !== undefined && record.monsterAttackProfile !== null) ||
       (record.monsterRespawnMode !== undefined && record.monsterRespawnMode !== null) ||
-      (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null)
+      (record.monsterRespawnDelayMs !== undefined && record.monsterRespawnDelayMs !== null) ||
+      (record.monsterPursuitMode !== undefined && record.monsterPursuitMode !== null) ||
+      (record.monsterAcceleration !== undefined && record.monsterAcceleration !== null) ||
+      (record.monsterMaxSpeed !== undefined && record.monsterMaxSpeed !== null) ||
+      (record.monsterOneHitKill !== undefined && record.monsterOneHitKill !== null)
     ) {
       return null;
     }
@@ -950,6 +1021,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       ...(monsterAttackProfile === undefined ? {} : { monsterAttackProfile }),
       ...(monsterRespawnMode === undefined ? {} : { monsterRespawnMode }),
       ...(monsterRespawnDelayMs === undefined ? {} : { monsterRespawnDelayMs }),
+      ...(monsterPursuitMode === undefined ? {} : { monsterPursuitMode }),
+      ...(monsterAcceleration === undefined ? {} : { monsterAcceleration }),
+      ...(monsterMaxSpeed === undefined ? {} : { monsterMaxSpeed }),
+      ...(monsterOneHitKill === undefined ? {} : { monsterOneHitKill }),
       ...(harvestProfile === undefined ? {} : { harvestProfile }),
       pages: normalizedPages,
     });

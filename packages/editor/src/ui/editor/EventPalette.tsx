@@ -29,6 +29,8 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   teleporter: "editor.event.preset.teleporter",
   sign: "editor.event.preset.sign",
   chest: "editor.event.preset.chest",
+  trap: "editor.event.preset.trap",
+  pursuer: "editor.event.preset.pursuer",
   endgame: "editor.event.preset.endgame",
 };
 

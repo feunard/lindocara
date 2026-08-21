@@ -278,6 +278,10 @@ export const fr: Record<keyof typeof en, string> = {
   "death.fallen_copy":
     "Votre corps gît là où vous êtes tombé. Un prêtre peut encore vous rappeler — ou vous pouvez lâcher prise.",
   "death.release": "Libérer l'esprit [R]",
+  "hardcore.game_over.title": "Course terminée",
+  "hardcore.game_over.copy":
+    "Le cauchemar vous a rattrapé. Recommencez à l’entrée du parcours sans rien conserver de la tentative.",
+  "hardcore.retry": "Recommencer de zéro [R]",
   "death.ghost_title": "Votre esprit erre",
   "death.ghost_copy": "Retrouvez votre corps et reprenez-le.",
   "death.ghost_distance": "Votre corps gît à {distance} m. Retournez-y.",
@@ -998,6 +1002,7 @@ export const fr: Record<keyof typeof en, string> = {
   // Événements serveur
   "event.combat.hit": "Vous frappez {species} : {damage} dégâts.",
   "event.combat.hurt": "{species} vous inflige {damage} dégâts.",
+  "event.hazard.hit": "Un piège vous inflige {damage} dégâts.",
   "event.monster.defeated": "{species} vaincu : +{xp} XP.",
   "event.level_up": "Niveau supérieur ! Vous êtes maintenant niveau {level}.",
   "event.interact.nothing": "Rien d'assez proche pour interagir.",
@@ -1111,6 +1116,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.generator.genre.archipelago": "Archipel",
   "editor.generator.genre.highlands": "Hautes terres",
   "editor.generator.genre.tundra": "Toundra gelée",
+  "editor.generator.genre.runner": "Runner cauchemardesque",
   "editor.generator.genre.forest.hint":
     "Une province boisée avec rivière, routes de village, camps gobelins fortifiés et bosquets étagés.",
   "editor.generator.genre.archipelago.hint":
@@ -1119,6 +1125,8 @@ export const fr: Record<keyof typeof en, string> = {
     "Des crêtes autour d'un village fortifié, avec routes de montagne, ponts et bastions hostiles.",
   "editor.generator.genre.tundra.hint":
     "Un territoire gelé habité, avec village pris dans les glaces, passages et zones ennemies fortifiées.",
+  "editor.generator.genre.runner.hint":
+    "Un parcours de fuite à graine avec poursuivant implacable, pièges, barricades et arrivée.",
   "editor.generator.size": "Taille",
   "editor.generator.size.compact": "Compacte",
   "editor.generator.size.standard": "Standard",
@@ -1246,6 +1254,12 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.monster.respawnMode": "Après la défaite",
   "editor.monster.respawnMode.timed": "Réapparition après le délai configuré",
   "editor.monster.respawnMode.never": "Mort définitive pour ce groupe",
+  "editor.monster.pursuitMode": "Poursuite",
+  "editor.monster.pursuitMode.standard": "Aggro et distance d'abandon standards",
+  "editor.monster.pursuitMode.relentless": "Implacable — poursuit tout héros vivant",
+  "editor.monster.acceleration": "Accélération (cases/s²)",
+  "editor.monster.maxSpeed": "Vitesse maximale (cases/s)",
+  "editor.monster.oneHitKill": "Un coup porté met fin à la course",
   "editor.monster.respawnDelay": "Délai de réapparition (secondes)",
   "editor.monster.hp": "Points de vie",
   "editor.monster.damage": "Puissance d’attaque",
@@ -1856,6 +1870,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.new.exitRun": "Arrêter cet événement",
   "editor.event.cmd.new.wait": "Attendre",
   "editor.event.cmd.new.teleport": "Téléporter le héros",
+  "editor.event.cmd.new.damage": "Blesser le héros",
   "editor.event.cmd.new.endAdventure": "Terminer l’aventure",
   "editor.event.cmd.new.openShop": "Ouvrir la boutique",
   "editor.event.cmd.new.changeGold": "Modifier l’or",
@@ -1873,6 +1888,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.exitRun": "Arrêter cet événement",
   "editor.event.cmd.wait": "Attendre {frames} cycles",
   "editor.event.cmd.teleport": "Transition {category} : {map} — largeur X {col}, hauteur Y {row}",
+  "editor.event.cmd.damage": "Infliger {amount} dégâts",
+  "editor.event.cmd.damage.lethal": "Piège mortel ({amount} dégâts configurés)",
   "editor.event.cmd.transition.geographic": "géographique",
   "editor.event.cmd.transition.interior": "entrée de bâtiment",
   "editor.event.cmd.transition.shortcut": "raccourci",
@@ -1916,6 +1933,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.field.min": "Seuil",
   "editor.event.cmd.field.selfSwitch": "État local",
   "editor.event.cmd.field.frames": "Durée (cycles, 20 = 1 seconde)",
+  "editor.event.cmd.field.damage": "Dégâts",
+  "editor.event.cmd.field.lethal": "Toujours mortel",
   "editor.event.cmd.field.transitionCategory": "Nature du passage",
   "editor.event.cmd.field.destination": "Arrivée",
   "editor.event.cmd.field.destination.cell": "Une case (ci-dessous)",
@@ -2033,6 +2052,8 @@ export const fr: Record<keyof typeof en, string> = {
     "Décochez cette option pour masquer en jeu le petit anneau généré automatiquement sous cet événement.",
   "editor.event.preset.sign": "Panneau / Dialogue",
   "editor.event.preset.chest": "Coffre (or)",
+  "editor.event.preset.trap": "Piège à pointes",
+  "editor.event.preset.pursuer": "Poursuivant cauchemardesque",
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
   "editor.event.preset.doorLink": "Liaison de portes",
   "editor.event.preset.doorLink.disabled":
@@ -2120,6 +2141,9 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.camera.orbit": "Caméra 360° avec inclinaison",
   "adventure.camera.hint":
     "Désactivé, conserve la vue latérale HD-2D fixe. Activé, permet aux joueurs de tourner autour du héros et d’incliner la caméra.",
+  "adventure.mode.hardcore": "Endless runner hardcore",
+  "adventure.mode.hardcore.hint":
+    "La mort termine la course. Recommencer replace le héros et le poursuivant implacable à l’entrée ; les aventures standard ne changent pas.",
   "adventure.edit": "Modifier",
   "adventure.test": "Tester l’aventure",
   "adventure.refresh": "Actualiser",

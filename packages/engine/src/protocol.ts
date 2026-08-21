@@ -23,7 +23,12 @@
  *   it has done no more than a client that never reports a position.
  */
 
-import { type AdventureCameraMode, isAdventureCameraMode } from "./adventure.js";
+import {
+  type AdventureCameraMode,
+  type AdventureGameMode,
+  isAdventureCameraMode,
+  isAdventureGameMode,
+} from "./adventure.js";
 import {
   type AuthoredQuestMarker,
   type AuthoredQuestTracker,
@@ -748,6 +753,8 @@ export interface WorldInfo {
   audio?: AdventureAudioConfig;
   /** Adventure-wide camera policy. Missing frames use the fixed HD-2D side view. */
   cameraMode?: AdventureCameraMode;
+  /** Adventure-wide gameplay rules. Missing frames use ordinary RPG rules. */
+  gameMode?: AdventureGameMode;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
   /** Missing preserves compatibility with rooms created before maps could disable their clock. */
@@ -879,6 +886,7 @@ export type EventTone = "info" | "good" | "bad";
 export const EVENT_CODES = [
   "combat.hit",
   "combat.hurt",
+  "hazard.hit",
   "monster.defeated",
   "level_up",
   "interact.nothing",
@@ -1942,6 +1950,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
       (Array.isArray(value.buildings) && value.buildings.every(isWorldBuildingSnapshot))) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     (value.cameraMode === undefined || isAdventureCameraMode(value.cameraMode)) &&
+    (value.gameMode === undefined || isAdventureGameMode(value.gameMode)) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
     (value.fixedLighting === undefined || parseMapFixedLighting(value.fixedLighting) !== null) &&

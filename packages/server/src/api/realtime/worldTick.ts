@@ -511,6 +511,8 @@ export function advanceWorldTick(w: WorldGlue): void {
             attacker.species,
             attacker.id,
             impactAt,
+            undefined,
+            attacker.oneHitKill,
           );
       },
       damageRogueSilhouette: (projectile, target, impactAt) => {

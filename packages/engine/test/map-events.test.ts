@@ -601,6 +601,28 @@ describe("parseMapEvents: authored monster tuning", () => {
     ).toBeNull();
   });
 
+  it("accepts bounded relentless pursuit only on monster events", () => {
+    const pursuer = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 64,
+      monsterSpeed: 2,
+      monsterPursuitMode: "relentless",
+      monsterAcceleration: 0.75,
+      monsterMaxSpeed: 6,
+      monsterOneHitKill: true,
+    });
+    expect(parseMapEvents([pursuer], COLS, ROWS)?.[0]).toMatchObject({
+      monsterPursuitMode: "relentless",
+      monsterAcceleration: 0.75,
+      monsterMaxSpeed: 6,
+      monsterOneHitKill: true,
+    });
+    expect(parseMapEvents([event({ monsterPursuitMode: "relentless" })], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([{ ...pursuer, monsterMaxSpeed: 1 }], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([{ ...pursuer, monsterAcceleration: 21 }], COLS, ROWS)).toBeNull();
+  });
+
   it("round-trips a fully authored boss", () => {
     const boss = event({
       kind: "monster",
