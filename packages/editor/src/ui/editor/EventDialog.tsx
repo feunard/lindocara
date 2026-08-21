@@ -108,17 +108,21 @@ const NPC_MOVE_FREQUENCIES = [0, 1, 2, 3, 4] as const;
  * buttons moved out from under the pointer. A fixed height cannot do that, whichever panel is
  * open and whatever is in it.
  *
- * `clamp` rather than a flat `rem`, because the right height is the viewport's business: 46vh
+ * `clamp` rather than a flat `rem`, because the right height is the viewport's business: 40vh
  * fills a tall window without ever reaching the dialog's own `max-h-[88vh]`, and the two bounds
  * keep a laptop from squeezing the panel into a slot and a large display from stretching one
  * checkbox over half the screen.
+ *
+ * The numbers came down once (20/46/32 -> 18/40/28) on the author's own report that the dialog was
+ * simply too tall to work in: the panel is what scrolls, so a shorter one costs a longer action
+ * list nothing but a scroll, while every tab pays for the extra height on every open.
  *
  * `flex-none` is load-bearing, not decoration. `TabsContent` ships `flex-1` — `flex: 1 1 0%` — and
  * a flex-basis of 0 beats `height` outright, so the panel was sized by whatever the flex container
  * had left rather than by the number above. Measured in the browser it came out ~100px short of
  * the floor. `tailwind-merge` resolves the two against each other, and the later one is this one.
  */
-const TAB_PANEL = "h-[clamp(20rem,46vh,32rem)] flex-none overflow-y-auto pr-1";
+const TAB_PANEL = "h-[clamp(18rem,40vh,28rem)] flex-none overflow-y-auto pr-1";
 
 type EventStatField =
   | "patrolRadius"
