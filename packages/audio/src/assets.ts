@@ -85,6 +85,21 @@ export function skidLoopUrl(): string {
   return audioAssetUrl("glisse.ogg");
 }
 
+/** The rain bed: held like the skid, and for the same reason. Weather is a STATE, not an event. */
+export function rainLoopUrl(): string {
+  return audioAssetUrl("rain-loop.ogg");
+}
+
+/**
+ * Where `rain-loop.ogg` turns around, ahead of its own end.
+ *
+ * Two separate reasons, and both are why the file is longer than this number. The seam itself is an
+ * equal-power crossfade of the take's tail over its head, so the loop point is a level match rather
+ * than a splice; and Opus mangles the last samples of an encoded stream (see `SKID_LOOP_END_SECONDS`
+ * for where that was first measured), so the margin past this point is never played.
+ */
+export const RAIN_LOOP_END_SECONDS = 3.4;
+
 /** The two wooden-door takes first selected for the lab, now shared with building transitions. */
 export function doorOpenSampleUrls(): readonly string[] {
   return takes("door-open", 2);

@@ -43,6 +43,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
@@ -149,6 +150,8 @@ export interface MapPayload {
   name: string;
   revision: number;
   environment: MapEnvironment;
+  /** The authored weather, read back out of the heightfield the same way `environment` is. */
+  weather: MapWeather;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -520,6 +523,7 @@ export class MapService {
       name: data.name,
       revision: updated.revision,
       environment: data.environment ?? "exterior",
+      weather: data.weather ?? "none",
       tilesetId: data.tilesetId,
       cols: data.cols,
       rows: data.rows,
@@ -902,6 +906,9 @@ export class MapService {
         name: row.name,
         revision: row.revision,
         environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
+        // Weather rides in the heightfield beside `environment` and is read back the same way: it
+        // is authored map-level presentation, so it needs no column of its own.
+        weather: heightfield ? (decodeMap(heightfield)?.weather ?? "none") : "none",
         tilesetId: row.tilesetId,
         cols: row.cols,
         rows: row.rows,

@@ -38,6 +38,7 @@ import {
   type MapEnvironment,
   parseMapEnvironment,
 } from "./map-environment.js";
+import type { MapWeather } from "./map-weather.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
@@ -142,6 +143,9 @@ export function element3dRotationDegrees(
 export interface MapData {
   /** Exterior maps end in water; interior maps end in an unlit void. */
   environment?: MapEnvironment;
+  /** The authored weather. Absent on every map written before it existed, which reads as `none`.
+   *  Appearance only, like `environment`: nothing here may reach collision. */
+  weather?: MapWeather;
   tilesetId: string;
   cols: number;
   rows: number;

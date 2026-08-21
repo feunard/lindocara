@@ -1,12 +1,14 @@
 import {
   doorOpenSampleUrls,
   movementSampleKeys,
+  RAIN_LOOP_END_SECONDS,
+  rainLoopUrl,
   SKID_LOOP_END_SECONDS,
   skidLoopUrl,
 } from "@lindocara/audio/assets.js";
 import { createSampleBank, type SampleBank } from "@lindocara/audio/bank.js";
 import type { HeldLoop } from "@lindocara/audio/held-loop.js";
-import { SKID_MAX_GAIN } from "@lindocara/audio/movement.js";
+import { RAIN_MAX_GAIN, SKID_MAX_GAIN } from "@lindocara/audio/movement.js";
 import {
   type AdventureAudioConfig,
   ambienceTrack,
@@ -112,6 +114,9 @@ export class GameSound {
   #movementLoad: Promise<void> | null = null;
   #skidIntensity = 0;
   #skid: HeldLoop | null = null;
+  /** The weather bed. Held exactly like the skid: a state, driven by gain, never re-triggered. */
+  #rainIntensity = 0;
+  #rain: HeldLoop | null = null;
 
   constructor() {
     this.#music = new DynamicMusicPlayer(
@@ -425,6 +430,7 @@ export class GameSound {
       // Re-opening it here rather than only on the first load is the difference between a skid that
       // works for one map and a skid that works for the session — and nothing would have failed.
       this.#openSkid();
+      this.#openRain();
       return this.#movementLoad;
     }
     const context = this.#context;
@@ -432,8 +438,9 @@ export class GameSound {
     const bank = createSampleBank({ context });
     for (const [key, urls] of Object.entries(movementSampleKeys())) bank.define(key, urls);
     this.#movement = bank;
-    this.#movementLoad = bank.load([...bank.sources(), skidLoopUrl()]).then(() => {
+    this.#movementLoad = bank.load([...bank.sources(), skidLoopUrl(), rainLoopUrl()]).then(() => {
       this.#openSkid();
+      this.#openRain();
     });
     return this.#movementLoad;
   }
@@ -446,6 +453,37 @@ export class GameSound {
         loopEnd: SKID_LOOP_END_SECONDS,
       }) ?? null;
     this.#syncSkidVolume();
+  }
+
+  /**
+   * The map's weather, as a bed under everything else.
+   *
+   * Takes an INTENSITY rather than a weather value, so this file never learns the vocabulary of
+   * `MapWeather`: the caller decides that rain means 1 and a clear sky means 0, and a state added
+   * beside rain changes one call site instead of this class.
+   */
+  setRainIntensity(intensity: number): void {
+    this.#rainIntensity = Math.max(0, Math.min(1, intensity));
+    this.#syncRainVolume();
+  }
+
+  #openRain(): void {
+    if (this.#rain || !this.#movement) return;
+    this.#rain =
+      this.#movement.loop(rainLoopUrl(), {
+        loopEnd: RAIN_LOOP_END_SECONDS,
+      }) ?? null;
+    this.#syncRainVolume();
+  }
+
+  #syncRainVolume(): void {
+    const rain = this.#rain;
+    if (!rain) return;
+    const { muted, sfxVolume } = getAudioSettings();
+    const audible = this.#unlocked && !document.hidden && !muted;
+    // A slower ramp than the skid's 25 ms: weather changes when a hero walks through a door, and a
+    // bed that snaps on reads as a glitch where one that swells reads as the other side.
+    rain.setGain(audible ? this.#rainIntensity * sfxVolume * RAIN_MAX_GAIN : 0, 0.6);
   }
 
   #setSkidIntensity(intensity: number): void {

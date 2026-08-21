@@ -26,6 +26,7 @@ import {
   type MapEnvironment,
   parseMapEnvironment,
 } from "../map-environment.js";
+import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
@@ -80,6 +81,17 @@ export interface MapData {
   version: 1;
   /** Exterior maps expose water around land; interior maps expose an unlit void. */
   environment?: MapEnvironment;
+  /**
+   * The authored weather. Optional for every heightfield written before it existed, which read as
+   * `none` and still do.
+   *
+   * It travels HERE, inside the terrain string, for the same reason `environment` does: both are
+   * map-level presentation an author sets once, and the heightfield is the one authored document
+   * that already reaches every consumer -- the room, the client and the editor preview -- with no
+   * column, no migration and no second place to forget to copy it to. It is still appearance only:
+   * nothing may read it into collision.
+   */
+  weather?: MapWeather;
   /** Grid side, in cells. At most `MAX_HEIGHTFIELD_SIZE`. */
   size: number;
   levelHeight: number;
@@ -292,6 +304,9 @@ export function decodeMap(s: string): MapData | null {
   const environment = parseMapEnvironment(value.environment ?? DEFAULT_MAP_ENVIRONMENT);
   if (!environment) return null;
 
+  const weather = parseMapWeather(value.weather ?? DEFAULT_MAP_WEATHER);
+  if (!weather) return null;
+
   const { size, levelHeight, waterLevel, levels, materials, colliders, spawns } = value;
   if (!Number.isInteger(size) || (size as number) <= 0 || (size as number) > MAX_HEIGHTFIELD_SIZE)
     return null;
@@ -335,6 +350,10 @@ export function decodeMap(s: string): MapData | null {
   return {
     version: 1,
     environment,
+    // Present only when the source declared one, exactly like `ramps` below and unlike
+    // `environment`: a heightfield written before weather existed must decode to the same object it
+    // encoded from, or every round-trip fixture in the suite gains a key it never had.
+    ...(value.weather === undefined ? {} : { weather }),
     size: size as number,
     levelHeight,
     waterLevel,

@@ -75,6 +75,11 @@ import {
   type MapInput,
 } from "@lindocara/engine/map-template.js";
 import {
+  DEFAULT_MAP_WEATHER,
+  MAP_WEATHERS,
+  parseMapWeather,
+} from "@lindocara/engine/map-weather.js";
+import {
   emptyLayer,
   encodeTileLayer,
   parseTileLayer,
@@ -137,8 +142,11 @@ export function validateMapInput(input: MapInput): MapData & {
   }
   const environment = parseMapEnvironment(input.environment ?? DEFAULT_MAP_ENVIRONMENT);
   if (!environment) throw new Error("environment: must be exterior or interior");
+  const weather = parseMapWeather(input.weather ?? DEFAULT_MAP_WEATHER);
+  if (!weather) throw new Error(`weather: must be one of ${MAP_WEATHERS.join(", ")}`);
   const data: MapData = {
     environment,
+    weather,
     tilesetId: input.tilesetId,
     cols,
     rows,
@@ -230,9 +238,14 @@ export function parseMapBody(body: unknown): MapInput | null {
     (body as { environment?: unknown } | null)?.environment ?? DEFAULT_MAP_ENVIRONMENT,
   );
   if (!environment) return null;
+  const weather = parseMapWeather(
+    (body as { weather?: unknown } | null)?.weather ?? DEFAULT_MAP_WEATHER,
+  );
+  if (!weather) return null;
   return {
     name,
     environment,
+    weather,
     tilesetId: data.tilesetId,
     cols: data.cols,
     rows: data.rows,

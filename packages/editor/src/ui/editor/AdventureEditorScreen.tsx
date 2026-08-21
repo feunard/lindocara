@@ -82,6 +82,7 @@ import {
   DEFAULT_MAP_FIXED_LIGHTING,
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
@@ -218,6 +219,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     {
       name: map.name,
       environment: map.environment ?? "exterior",
+      weather: map.weather ?? "none",
       audio: map.audio ?? EMPTY_MAP_AUDIO,
       heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
       dayNightCycle: map.dayNightCycle ?? true,
@@ -1164,6 +1166,10 @@ function AdventureEditorInner({
     handle.setLighting(value === "cycle", value === "cycle" ? current.fixedLighting : value);
   }
 
+  function selectWeather(weather: MapWeather): void {
+    handleRef.current?.setWeather(weather);
+  }
+
   function setEditorZoom(percent: number): void {
     handleRef.current?.setZoom(percent);
   }
@@ -1899,6 +1905,8 @@ function AdventureEditorInner({
           dayNightCycle={currentMap?.dayNightCycle ?? true}
           fixedLighting={currentMap?.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING}
           dayNightCycleAvailable={currentMap !== null}
+          weather={currentMap?.weather ?? "none"}
+          onSelectWeather={selectWeather}
           zoom={zoom}
           onNewMap={() => setNewMapOpen(true)}
           canGenerateMap={stageStatus === "ready" && currentMap !== null && !savingMap}

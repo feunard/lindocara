@@ -56,6 +56,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { inferStairsPlacement, type RampDirection } from "@lindocara/engine/tile-brush.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -127,6 +128,9 @@ export interface MapEditorStageHandle {
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
   setLighting(dayNightCycle: boolean, fixedLighting: MapFixedLighting): void;
+  /** The map's authored weather. An edit like any other: it joins the undo history and pushes
+   *  itself into the live scene, so the author sees the rain they just chose. */
+  setWeather(weather: MapWeather): void;
   undo(): void;
   redo(): void;
   markSaved(saved?: EditorMap): void;
@@ -1754,6 +1758,14 @@ export function openMapEditorStage(
         history = commitEditorHistory({ ...history, present: map }, next);
         map = next;
         renderer.setDayCycleOverride(dayNightCycle ? null : fixedLightingOverride(fixedLighting));
+        notify();
+      },
+      setWeather(weather) {
+        if (weather === (map.weather ?? "none")) return;
+        const next = { ...map, weather };
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        renderer.setWeather?.(weather);
         notify();
       },
       undo() {

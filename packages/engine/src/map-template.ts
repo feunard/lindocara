@@ -18,6 +18,7 @@ import { defaultMapHeroSettings, type MapHeroSettings } from "./map-hero-setting
 import { DEFAULT_MAP_FIXED_LIGHTING, type MapFixedLighting } from "./map-lighting.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_MIN_COLS, MAP_MIN_ROWS } from "./map-limits.js";
 import { layersFromBlocks } from "./map-migrate.js";
+import type { MapWeather } from "./map-weather.js";
 import type { TileLayer } from "./tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "./tilesets/tiny-swords.js";
 
@@ -28,6 +29,8 @@ export interface MapInput {
   name: string;
   /** Missing keeps legacy maps on the exterior presentation. */
   environment?: MapEnvironment | undefined;
+  /** Missing keeps legacy maps under a clear sky. */
+  weather?: MapWeather | undefined;
   tilesetId: string;
   cols: number;
   rows: number;

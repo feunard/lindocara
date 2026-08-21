@@ -18,6 +18,7 @@ import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatActionSnapshot,
@@ -941,6 +942,8 @@ export class Hd2dRenderer implements RendererLike {
   #worldBuildings: readonly WorldBuildingSnapshot[] = [];
   #map: MapData | null = null;
   #visuals: Hd2dVisualLayer | null = null;
+  /** `null` until an author pushes one: a scene built from a map already knows its own weather. */
+  #weather: MapWeather | null = null;
   #merchant: MerchantDefinition | null = null;
   #questMarkers: readonly AuthoredQuestMarker[] = [];
   #actorPositions = new Map<string, ActorPosition>();
@@ -1078,6 +1081,7 @@ export class Hd2dRenderer implements RendererLike {
       this.#water = scene.water;
       this.#waterKey = waterKey;
       scene.setDayCycleOverride(this.#dayCycleOverride);
+      if (this.#weather !== null) scene.setWeather(this.#weather);
       scene.setZoom(this.#cameraZoom);
       scene.setYaw(this.#cameraYaw);
       scene.setPitch(this.#cameraPitch);
@@ -1138,6 +1142,18 @@ export class Hd2dRenderer implements RendererLike {
   setDayCycleOverride(override: DayCycleOverride): void {
     this.#dayCycleOverride = override;
     this.#scene?.setDayCycleOverride(override);
+  }
+
+  /**
+   * The authored weather, live.
+   *
+   * Remembered as well as pushed, for the same reason `#dayCycleOverride` is: a terrain edit
+   * rebuilds the scene from the map, and a scene rebuilt from a map whose weather the author has
+   * changed but not yet saved would come back under a clear sky.
+   */
+  setWeather(weather: MapWeather): void {
+    this.#weather = weather;
+    this.#scene?.setWeather(weather);
   }
 
   /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */

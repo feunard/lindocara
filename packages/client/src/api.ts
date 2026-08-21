@@ -15,6 +15,7 @@ import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { t } from "./i18n.js";
@@ -157,6 +158,8 @@ export interface MapPayload {
   revision: number;
   /** Missing only on legacy/test payloads; the server always returns an explicit value. */
   environment?: MapEnvironment;
+  /** The authored weather. Missing on a legacy or test payload, which reads as a clear sky. */
+  weather?: MapWeather;
   tilesetId: string;
   cols: number;
   rows: number;

@@ -677,6 +677,7 @@ export function compileAuthoredMap(
   return {
     version: 1,
     environment: authored.environment ?? "exterior",
+    weather: authored.weather ?? "none",
     size,
     levelHeight: AUTHORED_LEVEL_HEIGHT,
     waterLevel: AUTHORED_WATER_LEVEL,

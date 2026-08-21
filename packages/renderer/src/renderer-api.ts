@@ -16,6 +16,7 @@ import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatAnimation,
@@ -77,6 +78,9 @@ export interface RendererLike {
   ): void;
   /** Used only by an editor test session; null restores the map's own running clock. */
   setDayCycleOverride?(override: DayCycleOverride): void;
+  /** The authored weather, pushed live. Optional like the override above: a renderer that does not
+   *  draw weather is a renderer the editor may still drive. */
+  setWeather?(weather: MapWeather): void;
   configureMerchant(merchant: MerchantDefinition | null): void;
   destroy(): void;
   diagnostics(): Record<string, number>;

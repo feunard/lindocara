@@ -13,9 +13,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/u
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import {
   Blocks,
   CircleHelp,
+  CloudRain,
   Eraser,
   FilePlus,
   Grid3x3,
@@ -63,6 +65,11 @@ const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
   { key: "eraser", icon: Eraser },
 ];
 
+const WEATHER_OPTIONS: { value: MapWeather; label: MessageKey }[] = [
+  { value: "none", label: "editor.weather.mode.none" },
+  { value: "rain", label: "editor.weather.mode.rain" },
+];
+
 const LIGHTING_OPTIONS: { value: EditorLightingSelection; label: MessageKey }[] = [
   { value: "cycle", label: "editor.dayNightCycle.mode.cycle" },
   { value: "day", label: "editor.dayNightCycle.mode.day" },
@@ -80,6 +87,10 @@ interface EditorToolbarProps {
    *  colliders. Off by default, threaded to the stage exactly like `showGrid`/`showDim`. */
   showCollisions: boolean;
   dayNightCycle: boolean;
+  /** The map's authored weather, and the callback that changes it. Beside the lighting control
+   *  because they are the same kind of decision: what the sky is doing over this map. */
+  weather: MapWeather;
+  onSelectWeather(weather: MapWeather): void;
   fixedLighting: MapFixedLighting;
   dayNightCycleAvailable: boolean;
   zoom: number;
@@ -135,6 +146,8 @@ export function EditorToolbar({
   showDim,
   showCollisions,
   dayNightCycle,
+  weather,
+  onSelectWeather,
   fixedLighting,
   dayNightCycleAvailable,
   zoom,
@@ -216,6 +229,41 @@ export function EditorToolbar({
             onValueChange={(value) => onSelectLighting(value as EditorLightingSelection)}
           >
             {LIGHTING_OPTIONS.map((option) => (
+              <DropdownMenuRadioItem key={option.value} value={option.value}>
+                {t(option.label)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label={t("editor.weather.settings")}
+                  variant={weather === "none" ? "outline" : "secondary"}
+                  size="icon"
+                  disabled={!dayNightCycleAvailable}
+                />
+              }
+            >
+              <CloudRain />
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t("editor.weather.settings")}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("editor.weather.settings")}</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioGroup
+            value={weather}
+            onValueChange={(value) => onSelectWeather(value as MapWeather)}
+          >
+            {WEATHER_OPTIONS.map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>
                 {t(option.label)}
               </DropdownMenuRadioItem>

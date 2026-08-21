@@ -19,6 +19,7 @@ import {
   DEFAULT_MAP_FIXED_LIGHTING,
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
+import { weatherRains } from "@lindocara/engine/map-weather.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import {
   PARTY_MATERIAL_TYPES,
@@ -578,6 +579,12 @@ async function startGameIdentity(
           tilesetId: world.tilesetId,
           layers: world.layers,
         });
+        // Weather rides in the heightfield beside `environment`, so it arrives with the terrain and
+        // changes on a map transition without a message of its own. The renderer reads it from the
+        // map it was just handed; only the SOUND has to be told, because the bank knows nothing
+        // about maps. `weatherRains` rather than a comparison, so a state added beside rain that
+        // also falls water cannot forget to open the bed.
+        sound.setRainIntensity(weatherRains(heightfield.weather ?? "none") ? 1 : 0);
       }
       currentMerchant = world.merchant;
       renderer.configureMerchant(world.merchant);

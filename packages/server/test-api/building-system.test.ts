@@ -113,6 +113,7 @@ describe("building system", () => {
       adventureId: "adventure-1",
       name: input.name,
       revision: 1,
+      weather: "none",
       environment: input.environment ?? "exterior",
       tilesetId: input.tilesetId,
       cols: input.cols,

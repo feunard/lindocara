@@ -262,3 +262,31 @@ The generated elevations are deliberately palette/reference art only. Projecting
 front plane would recreate the flat-card mismatch when the camera moves. Runtime geometry instead
 uses the generated masonry plus the retained timber and shingle materials directly on its real
 faces, with pixel filtering, Lambert lighting, cast/received shadows and inked edges.
+
+## Rain ambience (audio) - 2026-08-21
+
+`packages/audio/assets/rain-loop.ogg`, the bed the `rain` map weather holds open.
+
+Generated with the studio's sfx lane, **`--no-theme`**, and that flag is the whole trick: the
+theme suffix ends with "no background ambience", which is precisely what a weather bed is. With
+the theme on, the model keeps trying to make rain into a single dry event.
+
+```
+python3 studio/studio.py sfx --no-theme --seed 21 --duration 10 --variants 2 \
+  --prompt "constant unchanging rainfall ambience, uniform hiss of thousands of raindrops, no build-up, no fade, same intensity from start to end, distant outdoor rain, no thunder"
+```
+
+Take 1 (`rainb_1`) was kept. **Neither take is usable raw**, and the reason is worth recording:
+the model writes an EVENT, so every take ramps. Measured in 250 ms windows, the first prompt
+("steady rain falling...") drifted from 0.11 to 3.8 times its own mean; this prompt still ramps
+for the first five seconds and then settles, and the flattest four-second stretch (from 5.75 s)
+measures a standard deviation of 0.076 of its mean. That stretch is the loop.
+
+Post: 3.4 s body plus a 0.4 s equal-power crossfade of the tail over the head (equal power, not
+linear: two uncorrelated noise beds summed linearly dip 3 dB mid-fade), then a smoothed per-100 ms
+gain to flatten the residual drift, then normalisation to 0.89 peak. Flattening is legitimate here
+and would not be on a transient: rain is stationary noise. 0.15 s of continuation is left past the
+loop point, because Opus mangles the last samples of an encoded stream - the same margin
+`glisse.ogg` carries, and why `RAIN_LOOP_END_SECONDS` is 3.4 on a 3.55 s file.
+
+Encoded `libopus -b:a 64k -ar 48000 -ac 1`, 26 KB.

@@ -47,3 +47,12 @@ export const MOVEMENT_GAINS = {
 
 /** The skid's level at full intensity. Always multiplied by the 0..1 slide, never used raw. */
 export const SKID_MAX_GAIN = 0.6;
+
+/**
+ * The rain bed's ceiling, well under the skid's.
+ *
+ * Weather is the one loop that plays for as long as an author leaves it on, so it is mixed to sit
+ * UNDER footsteps and combat rather than beside them: a bed at the skid's level is the loudest
+ * thing in a quiet scene and the first thing a player mutes.
+ */
+export const RAIN_MAX_GAIN = 0.28;

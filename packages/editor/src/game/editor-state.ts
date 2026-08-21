@@ -81,6 +81,7 @@ import {
   DEFAULT_MAP_FIXED_LIGHTING,
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
+import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -131,6 +132,8 @@ export interface EditorMap {
   name: string;
   /** Exterior maps end in water; interior maps end in black void and use the room palette. */
   environment?: MapEnvironment;
+  /** The authored weather. Missing reads as a clear sky, which is every map written before it. */
+  weather?: MapWeather;
   /** Per-channel map overrides. Missing values inherit the adventure defaults. */
   audio: MapAudioConfig;
   /** Authoritative class balance and ability availability for this map. */
@@ -1111,6 +1114,7 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   return {
     name,
     environment: "exterior",
+    weather: "none",
     audio: EMPTY_MAP_AUDIO,
     heroSettings: defaultMapHeroSettings(),
     // Permanent day, matching the engine's `defaultMapInput` template a stored blank map is minted
@@ -1226,6 +1230,7 @@ export function toMapData(map: EditorMap): MapData {
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
     environment: map.environment ?? "exterior",
+    weather: map.weather ?? "none",
     cols,
     rows,
     layers: map.layers,
@@ -1247,6 +1252,7 @@ export function toSaveInput(
 ): {
   name: string;
   environment: MapEnvironment;
+  weather: MapWeather;
   tilesetId: string;
   cols: number;
   rows: number;
@@ -1266,6 +1272,7 @@ export function toSaveInput(
   return {
     name: map.name,
     environment: map.environment ?? "exterior",
+    weather: map.weather ?? "none",
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
     dayNightCycle: map.dayNightCycle,

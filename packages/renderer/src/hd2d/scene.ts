@@ -26,12 +26,14 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { type MapWeather, weatherRains } from "@lindocara/engine/map-weather.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { MoodConfig } from "@lindocara/hd2d/mood.js";
 import { createMoodBlend } from "@lindocara/hd2d/mood.js";
 import { createPipeline } from "@lindocara/hd2d/pipeline.js";
+import { createRainfall } from "@lindocara/hd2d/rainfall.js";
 import { createSky } from "@lindocara/hd2d/sky.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
@@ -250,6 +252,14 @@ export function cameraFocusSurface(
 }
 
 const WATER = { roughness: 0.46, segment: 2, depthRange: 7 } as const;
+/**
+ * The rain curtain's reach, in world units.
+ *
+ * A radius wide enough to fill the frame at the game's zoom and no wider: the drops travel with
+ * the camera, so what is off screen is waste, and 14 units of height is the top of the frame at
+ * the shipped pitch. Both are presentation, unlike everything the map declares.
+ */
+const RAIN = { radius: 26, height: 14 } as const;
 
 /**
  * Daylight, and only daylight. The lab crossfades a second `night` mood on a key press; the game
@@ -363,6 +373,9 @@ export interface Hd2dScene {
   fireIntensity(): number;
   /** Test-only fixed lighting; null restores this map's independent 24-minute clock. */
   setDayCycleOverride(override: DayCycleOverride): void;
+  /** The map's authored weather, pushed live so the editor shows what it just authored without
+   *  rebuilding the scene. Presentation only: nothing downstream of this reaches collision. */
+  setWeather(weather: MapWeather): void;
   /**
    * Ask the camera to follow a point — the local player, in practice. `x`/`z` are the two GROUND
    * axes in tile units. The optional third argument is the followed body's ELEVATION; it bounds the
@@ -530,6 +543,13 @@ export function createHd2dScene(
   let foam = foamFor(map, field);
   foam.group.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(foam.group);
+
+  // Weather. The curtain exists whatever the map declares and is simply silent under a clear sky:
+  // building it lazily would mean building it mid-frame the first time an author flips the control
+  // in the editor, which is exactly when a hitch is most visible.
+  const rain = createRainfall(ctx, { radius: RAIN.radius, height: RAIN.height });
+  rain.setIntensity(weatherRains(map.weather ?? "none") ? 1 : 0);
+  scene.add(rain.group);
 
   const sky = createSky(ctx);
   sky.mesh.visible = (map.environment ?? "exterior") === "exterior";
@@ -761,6 +781,9 @@ export function createHd2dScene(
       cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
       mood.set(cycle.nightWeight);
     },
+    setWeather(weather): void {
+      rain.setIntensity(weatherRains(weather) ? 1 : 0);
+    },
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
@@ -873,6 +896,10 @@ export function createHd2dScene(
       pushMood();
       water.update(dt);
       foam.update(dt);
+      // The curtain follows what the camera looks at, not the hero: they are the same point while
+      // the camera is settled, and during a fly-in it is the frame that must stay full of rain.
+      rain.setCentre(target.x, target.z);
+      rain.update(dt);
       sky.update(dt, camera, mood.value.aurora);
       // Copied EVERY frame, not only on a mood crossfade: `sky.horizon` also moves with effects
       // that follow their own timing.
@@ -895,6 +922,7 @@ export function createHd2dScene(
       // scene is about to be handed, and cost 17-23 ms to rebuild for nothing.
       water.mesh.removeFromParent();
       foam.dispose();
+      rain.dispose();
       sky.dispose();
       pipeline.dispose();
       ctx.dispose();
