@@ -15,8 +15,15 @@ time once each:
   BELOW the cliff, not a band and its repeat. `mesh.ts` picks per wall segment. Foam
   (`foam.ts`) is placed on a shore cell at any level for the same reason: half a waterline is worse
   than none.
-- **A ramp is real sloped geometry, and it opens the wall it meets.** `meshStairs` builds the same
-  slope `rampSampleAt` walks the hero up, off the same `progress` convention — they cannot disagree.
+- **A ramp is drawn as STEPS over a smooth collision slope, and it opens the wall it meets.**
+  `meshStairs` cuts the climb into `TREADS_PER_CELL` treads and risers, off the same `progress`
+  convention `rampSampleAt` uses, but `rampSampleAt` itself stays continuous: stepping the collision
+  too would make every ramp a stutter and put `MAX_STEP` in the middle of ordinary walking. So the
+  two DO disagree here, by at most one riser (`levelHeight / TREADS_PER_CELL`), one-sided because a
+  tread is drawn at the higher of its two ends, which keeps both ends flush with the bank and the
+  plateau. It is the one place the render is allowed to lead the collision, and that bound is the
+  whole permission. The continuous wedge this replaced matched the collision exactly and read as a
+  flat green slab, because a slope wearing the interior fill tile says nothing about being climbable.
   Pass the ramps to `meshTerrain` too (`MeshTerrainOptions.ramps`) or the height field draws a cliff
   across the ramp's mouth. Do NOT go back to slicing Pixel Frog's 64x128 ramp strip across box tops:
   it is a side ELEVATION, half transparent, and horizontal slices of it draw neither tread nor slope.

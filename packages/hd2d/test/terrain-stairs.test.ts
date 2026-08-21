@@ -44,13 +44,61 @@ function heightsAtX(mesh: THREE.Mesh, x: number): number[] {
   return ys;
 }
 
+/** Every distinct Y in the mesh, rounded to the micron so float noise does not invent levels. */
+function heightBands(mesh: THREE.Mesh): number[] {
+  const pos = mesh.geometry.getAttribute("position");
+  const bands = new Set<number>();
+  for (let v = 0; v < pos.count; v++) bands.add(Math.round(pos.getY(v) * 1e6) / 1e6);
+  return [...bands].sort((a, b) => a - b);
+}
+
 describe("meshStairs", () => {
-  it("builds one continuous slope rather than a stack of treads", () => {
-    // Eight boxes wearing a side-view sprite across their tops was the old shape: the strip is an
-    // elevation, half of it transparent, so slicing it horizontally drew neither a tread nor a
-    // slope. The collision under it (`rampSampleAt`) was a smooth ramp the whole time.
+  it("builds ONE volume, still, however many treads it is cut into", () => {
+    // Eight boxes wearing a side-view sprite across their tops was the shape before last: the
+    // strip is an elevation, half of it transparent, so slicing it horizontally drew neither a
+    // tread nor a slope. Treads are cut into one mesh here, not stacked as objects.
     const built = meshStairs([RAMP], { levelHeight: LEVEL_HEIGHT, lift: 0, atlasFor: atlas });
     expect(onlyMesh(built.group)).toBeInstanceOf(THREE.Mesh);
+    built.dispose();
+  });
+
+  it("cuts the climb into flat treads at evenly spaced heights", () => {
+    // A one-cell ramp: three treads, so four heights counting the bank it leaves and the plateau
+    // it joins. The wedge this replaced had a height at every vertex of the slope instead.
+    const oneCell: StairRampGeometry = { ...RAMP, width: 1 };
+    const built = meshStairs([oneCell], {
+      levelHeight: LEVEL_HEIGHT,
+      lift: 0,
+      atlasFor: atlas,
+    });
+    const bands = heightBands(onlyMesh(built.group));
+    const riser = LEVEL_HEIGHT / 3;
+    expect(bands).toHaveLength(4);
+    for (const [index, y] of bands.entries()) {
+      expect(y).toBeCloseTo(oneCell.lowLevel * LEVEL_HEIGHT + riser * index, 6);
+    }
+    built.dispose();
+  });
+
+  it("keeps every drawn surface within one riser of the ramp the hero actually walks", () => {
+    // The documented price of drawing steps over a continuous collision slope. A tread sits at the
+    // HIGHER of its two ends, so the error is one-sided and bounded by a single riser; anything
+    // larger would put the hero visibly inside the staircase.
+    const oneCell: StairRampGeometry = { ...RAMP, width: 1 };
+    const built = meshStairs([oneCell], { levelHeight: LEVEL_HEIGHT, lift: 0, atlasFor: atlas });
+    const pos = onlyMesh(built.group).geometry.getAttribute("position");
+    const riser = LEVEL_HEIGHT / 3;
+    const low = oneCell.lowLevel * LEVEL_HEIGHT;
+    for (let v = 0; v < pos.count; v++) {
+      // `east` climbs toward +x across one cell: the collision height is a straight line over it.
+      const progress = (pos.getX(v) - oneCell.x) / oneCell.width;
+      const walked = low + LEVEL_HEIGHT * progress;
+      expect(pos.getY(v)).toBeGreaterThanOrEqual(low - 1e-6);
+      expect(pos.getY(v)).toBeLessThanOrEqual(low + LEVEL_HEIGHT + 1e-6);
+      // Cheek quads reach down to the bank, so only the surfaces at or above the walked line are
+      // bounded from above by one riser.
+      if (pos.getY(v) >= walked) expect(pos.getY(v) - walked).toBeLessThanOrEqual(riser + 1e-6);
+    }
     built.dispose();
   });
 

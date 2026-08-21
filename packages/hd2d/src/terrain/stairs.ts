@@ -41,6 +41,15 @@ function cheekUV(atlas: TerrainAtlas) {
   return tileUV(atlas, CLIFF_EDGE_COL + 1, atlas.wallRow);
 }
 
+/**
+ * Treads per cell, and therefore the riser height: `levelHeight / TREADS_PER_CELL`.
+ *
+ * Three is the number where a one-cell ramp reads as a flight rather than as a single kerb, while
+ * each tread stays deep enough (a third of a tile, ~21px at the pack's 64px scale) to show its own
+ * fill tile instead of collapsing into a stripe.
+ */
+const TREADS_PER_CELL = 3;
+
 type Vec2 = readonly [number, number];
 type Vec3 = readonly [number, number, number];
 
@@ -90,19 +99,42 @@ function quadBuilder() {
 }
 
 /**
- * Une rampe : une pente CONTINUE, pas une pile de marches.
+ * A ramp: a flight of STEPS drawn over the smooth slope the collision samples.
  *
- * L'asset officiel (`Tilemap_color*.png`, colonnes 0 et 3, lignes 4-5) est un ruban 64x128 dessiné
- * DE PROFIL, moitié transparent — une élévation, faite pour être collée contre une paroi dans un
- * jeu en 2D. La version précédente le découpait en huit et l'étalait sur le dessus de huit boîtes :
- * mauvaise projection, d'où le résultat. Et la collision, elle, échantillonnait déjà une pente
- * lisse (`rampSampleAt`, `engine/hd2d/terrain-query.ts`) — le rendu contredisait le sol sur lequel
- * le héros marchait vraiment.
+ * Three shapes have been tried here, and the reasons the first two lost are what keeps the third
+ * honest.
  *
- * On construit donc la pente que la collision décrit déjà, avec la MÊME convention de progression :
- * `east` monte vers +x, `west` vers -x. Le dessus porte la tuile de remplissage de sa berge, les
- * deux flancs la paroi de falaise, et l'ensemble reçoit la teinte et l'assombrissement de pied du
- * terrain qui l'entoure — sinon la rampe se lit comme une pièce rapportée.
+ * The original sliced the official strip (`Tilemap_color*.png`, columns 0 and 3, rows 4-5) over
+ * eight boxes. That strip is a 64x128 SIDE ELEVATION, half of it transparent, drawn to be pasted
+ * against a wall in a 2D game: laid over the tops of boxes it drew neither a tread nor a slope.
+ *
+ * The second was one continuous wedge, which matched `rampSampleAt` (`engine/hd2d/terrain-query.ts`)
+ * exactly and still read as a flat green slab: it samples the same interior fill tile a flat ground
+ * cell gets, so nothing about it says "ground you climb" rather than "ground that leans".
+ *
+ * So the surface is now cut into `TREADS_PER_CELL` treads and risers per cell. A tread is flat and
+ * a riser is vertical, which is what makes the eye read stairs at any camera angle, and each riser
+ * wears the same cliff-wall tile every other vertical face in the terrain wears, so the flight
+ * belongs to the ground it cuts through.
+ *
+ * **The collision stays the smooth ramp, deliberately.** `rampSampleAt` is a continuous slope and
+ * every mover reads it, so a hero climbing this walks up the ramp rather than bumping tread to
+ * tread. Stepping the collision too would make every ramp a stutter and would put `MAX_STEP` in
+ * the middle of ordinary walking.
+ *
+ * The price is that what is drawn and what is walked disagree, by at most ONE riser
+ * (`levelHeight / TREADS_PER_CELL`, 0.3 world units at the shipped level height): each tread is
+ * drawn at the HIGHER of its two ends, so a hero at the start of a tread stands up to a riser
+ * below the surface under them. Both ends stay flush that way -- the first riser leaves the low
+ * bank exactly, the last tread meets the plateau exactly -- and that is what the alternative
+ * costs: dropping the flight half a riser to straddle the ramp would centre the error and leave a
+ * visible lip at the top and a buried step at the bottom.
+ *
+ * That trade is the one thing here worth re-opening after seeing it in a real scene rather than in
+ * a test.
+ *
+ * The progression convention is unchanged: `east` climbs toward +x, `west` toward -x, and each ramp
+ * asks for the atlas of the bank it climbs TO, because grass reads its sheet from its altitude.
  */
 export function meshStairs(
   ramps: readonly StairRampGeometry[],
@@ -128,9 +160,7 @@ export function meshStairs(
     const startY = climbsPositive ? lowY : highY;
     const endY = climbsPositive ? highY : lowY;
     const x0 = ramp.x;
-    const x1 = ramp.x + ramp.width;
     const z0 = ramp.z;
-    const z1 = ramp.z + ramp.depth;
     const alongSpan = alongX ? ramp.width : ramp.depth;
     const alongOrigin = alongX ? x0 : z0;
     const acrossSpan = alongX ? ramp.depth : ramp.width;
@@ -145,51 +175,84 @@ export function meshStairs(
     const top = fillUV(atlas);
     const cheek = cheekUV(atlas);
 
-    // --- le dessus : la surface que le héros parcourt --------------------------------------------
-    // UNE TUILE PAR CASE, pas un seul quad tendu sur toute la rampe. L'atlas est échantillonné en
-    // ClampToEdge (voir `textures.ts`), donc une seule cellule d'UV étirée sur deux cases dessine
-    // une herbe deux fois trop grande — la rampe se lit alors comme une surface étrangère posée sur
-    // un sol dont elle ne partage plus la densité.
     const rise = endY - startY;
-    const slope = alongX
-      ? new THREE.Vector3(-rise, alongSpan, 0).normalize()
-      : new THREE.Vector3(0, alongSpan, -rise).normalize();
-    const yAt = (alongValue: number): number =>
-      startY + (rise * (alongValue - alongOrigin)) / Math.max(alongSpan, 1e-9);
-    for (let across = 0; across < Math.max(1, Math.round(acrossSpan)); across += 1) {
-      for (let along = 0; along < Math.max(1, Math.round(alongSpan)); along += 1) {
-        const a0 = alongOrigin + along;
-        const a1 = Math.min(a0 + 1, alongOrigin + alongSpan);
-        const b0 = (alongX ? z0 : x0) + across;
-        const b1 = Math.min(b0 + 1, alongX ? z1 : x1);
-        const yA = yAt(a0);
-        const yB = yAt(a1);
-        // Written in along/across and projected back to world x/z at the last moment, so the two
-        // orientations share one piece of arithmetic instead of two that can drift apart.
-        const at = (alongValue: number, acrossValue: number): Vec3 =>
-          alongX
-            ? [alongValue, yAt(alongValue), acrossValue]
-            : [acrossValue, yAt(alongValue), alongValue];
+    const alongStart = alongOrigin;
+    const alongEnd = alongOrigin + alongSpan;
+    const acrossOrigin = alongX ? z0 : x0;
+    // Written in along/across and projected back to world x/z at the last moment, so the two
+    // orientations share one piece of arithmetic instead of two that can drift apart.
+    const at = (alongValue: number, acrossValue: number, y: number): Vec3 =>
+      alongX ? [alongValue, y, acrossValue] : [acrossValue, y, alongValue];
+
+    // --- treads and risers: the flight the hero walks up ----------------------------------------
+    // ONE TILE PER CELL, never a single cell of UV stretched over the whole ramp: the atlas is
+    // sampled ClampToEdge (see `textures.ts`), so a stretched cell draws grass at twice the size
+    // and the ramp stops sharing the density of the ground it cuts through. A tread is a third of
+    // a cell, so it takes a third of the fill tile, keeping every texel the size of flat ground's.
+    const steps = Math.max(1, Math.round(alongSpan * TREADS_PER_CELL));
+    const stepAlong = alongSpan / steps;
+    const stepRise = rise / steps;
+    const acrossCells = Math.max(1, Math.round(acrossSpan));
+    for (let across = 0; across < acrossCells; across += 1) {
+      const b0 = acrossOrigin + across;
+      const b1 = Math.min(b0 + 1, acrossOrigin + acrossSpan);
+      for (let step = 0; step < steps; step += 1) {
+        const a0 = alongStart + stepAlong * step;
+        const a1 = step === steps - 1 ? alongEnd : alongStart + stepAlong * (step + 1);
+        const y0 = startY + stepRise * step;
+        const y1 = startY + stepRise * (step + 1);
+        // The tread is at the HIGHER of the step's two heights and the riser climbs to it from the
+        // lower one, which is the same statement whichever way the flight runs.
+        const tread = Math.max(y0, y1);
+        const riserFoot = Math.min(y0, y1);
+        // A tread's slice of the fill tile, so three treads walk across one tile exactly as three
+        // thirds of a flat cell would.
+        const slice = step % TREADS_PER_CELL;
+        const u0 = top.u0 + ((top.u1 - top.u0) * slice) / TREADS_PER_CELL;
+        const u1 = top.u0 + ((top.u1 - top.u0) * (slice + 1)) / TREADS_PER_CELL;
         builder.quad(
-          [at(a0, b0), at(a0, b1), at(a1, b1), at(a1, b0)],
-          [slope.x, slope.y, slope.z],
+          [at(a0, b0, tread), at(a0, b1, tread), at(a1, b1, tread), at(a1, b0, tread)],
+          [0, 1, 0],
           [
-            [top.u0, top.v1],
-            [top.u0, top.v0],
-            [top.u1, top.v0],
-            [top.u1, top.v1],
+            [u0, top.v1],
+            [u0, top.v0],
+            [u1, top.v0],
+            [u1, top.v1],
           ],
-          [pied(yA), pied(yA), pied(yB), pied(yB)],
+          [pied(tread), pied(tread), pied(tread), pied(tread)],
+        );
+
+        // The riser stands at the step's LOW end and faces down the flight: one full cliff-wall
+        // cell per drop, the same convention every wall in `mesh.ts` follows.
+        const riserAlong = climbsPositive ? a0 : a1;
+        const facing = climbsPositive ? -1 : 1;
+        const riserNormal: Vec3 = alongX ? [facing, 0, 0] : [0, 0, facing];
+        builder.quad(
+          [
+            at(riserAlong, b0, riserFoot),
+            at(riserAlong, b1, riserFoot),
+            at(riserAlong, b1, tread),
+            at(riserAlong, b0, tread),
+          ],
+          riserNormal,
+          [
+            [cheek.u0, cheek.v0],
+            [cheek.u1, cheek.v0],
+            [cheek.u1, cheek.v1],
+            [cheek.u0, cheek.v1],
+          ],
+          [pied(riserFoot), pied(riserFoot), pied(tread), pied(tread)],
         );
       }
     }
 
-    // --- les flancs : deux triangles, dégénérés du côté bas --------------------------------------
-    // Émis comme des quads dont deux sommets coïncident : le même accumulateur sert, et une arête
-    // de longueur nulle ne dessine rien.
-    const alongStart = alongOrigin;
-    const alongEnd = alongOrigin + alongSpan;
-    const acrossOrigin = alongX ? z0 : x0;
+    // --- the cheeks: the flight's stepped silhouette, seen from the side -------------------------
+    // One quad per step rather than one triangle over the whole ramp. The triangle carried a single
+    // cliff tile stretched over its hypotenuse, which is the "ugly front faces" of the report: at
+    // ten levels that tile was smeared over nine world units. Here the ONE cheek cell is mapped
+    // across the whole flank by position, so each step samples its own sub-rectangle of it and no
+    // texel is stretched further than its neighbour's.
+    const topY = Math.max(startY, endY);
     const cheekSides = [
       { across: acrossOrigin, normal: alongX ? ([0, 0, -1] as const) : ([-1, 0, 0] as const) },
       {
@@ -197,25 +260,29 @@ export function meshStairs(
         normal: alongX ? ([0, 0, 1] as const) : ([1, 0, 0] as const),
       },
     ];
+    const cheekU = (alongValue: number): number =>
+      cheek.u0 + ((cheek.u1 - cheek.u0) * (alongValue - alongStart)) / Math.max(alongSpan, 1e-9);
+    const cheekV = (y: number): number =>
+      cheek.v0 + ((cheek.v1 - cheek.v0) * (y - lowY)) / Math.max(topY - lowY, 1e-9);
     for (const side of cheekSides) {
       const corner = (alongValue: number, y: number): Vec3 =>
         alongX ? [alongValue, y, side.across] : [side.across, y, alongValue];
-      builder.quad(
-        [
-          corner(alongStart, lowY),
-          corner(alongEnd, lowY),
-          corner(alongEnd, endY),
-          corner(alongStart, startY),
-        ],
-        [side.normal[0], side.normal[1], side.normal[2]],
-        [
-          [cheek.u0, cheek.v0],
-          [cheek.u1, cheek.v0],
-          [cheek.u1, cheek.v1],
-          [cheek.u0, cheek.v1],
-        ],
-        [pied(lowY), pied(lowY), pied(endY), pied(startY)],
-      );
+      for (let step = 0; step < steps; step += 1) {
+        const a0 = alongStart + stepAlong * step;
+        const a1 = step === steps - 1 ? alongEnd : alongStart + stepAlong * (step + 1);
+        const tread = Math.max(startY + stepRise * step, startY + stepRise * (step + 1));
+        builder.quad(
+          [corner(a0, lowY), corner(a1, lowY), corner(a1, tread), corner(a0, tread)],
+          [side.normal[0], side.normal[1], side.normal[2]],
+          [
+            [cheekU(a0), cheekV(lowY)],
+            [cheekU(a1), cheekV(lowY)],
+            [cheekU(a1), cheekV(tread)],
+            [cheekU(a0), cheekV(tread)],
+          ],
+          [pied(lowY), pied(lowY), pied(tread), pied(tread)],
+        );
+      }
     }
 
     const geometry = builder.build();
