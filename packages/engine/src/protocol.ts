@@ -23,6 +23,7 @@
  *   it has done no more than a client that never reports a position.
  */
 
+import { type AdventureCameraMode, isAdventureCameraMode } from "./adventure.js";
 import {
   type AuthoredQuestMarker,
   type AuthoredQuestTracker,
@@ -743,6 +744,8 @@ export interface WorldInfo {
   buildings?: readonly WorldBuildingSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
   audio?: AdventureAudioConfig;
+  /** Adventure-wide camera policy. Missing frames use the fixed HD-2D side view. */
+  cameraMode?: AdventureCameraMode;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
   /** Missing preserves compatibility with rooms created before maps could disable their clock. */
@@ -1936,6 +1939,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     (value.buildings === undefined ||
       (Array.isArray(value.buildings) && value.buildings.every(isWorldBuildingSnapshot))) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
+    (value.cameraMode === undefined || isAdventureCameraMode(value.cameraMode)) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
     (value.fixedLighting === undefined || parseMapFixedLighting(value.fixedLighting) !== null) &&

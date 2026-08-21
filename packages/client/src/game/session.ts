@@ -1,3 +1,7 @@
+import {
+  type AdventureCameraMode,
+  DEFAULT_ADVENTURE_CAMERA_MODE,
+} from "@lindocara/engine/adventure.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { type ConsumableId, isConsumableId } from "@lindocara/engine/consumables.js";
@@ -447,6 +451,7 @@ async function startGameIdentity(
   let cameraYaw = 0;
   let cameraPitch = CAMERA_PITCH_DEFAULT;
   let cameraZoom = 100;
+  let cameraMode: AdventureCameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
     chapter: "three_offerings",
@@ -544,6 +549,16 @@ async function startGameIdentity(
       renderer.preloadWorldEventAssets(world.events, world.buildings ?? []);
       activeZoneId = world.zoneId;
       activeWorldSize = world.size;
+      cameraMode = world.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE;
+      // The default HD-2D mode is a fixed authored composition. Returning from an orbit-enabled
+      // adventure (or receiving a newer policy on reconnect) must also return the renderer itself
+      // to that baseline, not only stop consuming future orbit deltas.
+      if (cameraMode === "hd2d") {
+        if (cameraYaw !== 0) renderer.rotateCamera(-cameraYaw);
+        cameraYaw = 0;
+        cameraPitch = CAMERA_PITCH_DEFAULT;
+        renderer.setCameraPitch(cameraPitch);
+      }
       dayNightCycleEnabled = world.dayNightCycle ?? true;
       fixedLighting = world.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING;
       renderer.setDayCycleOverride?.(effectiveDayCycleOverride());
@@ -1269,13 +1284,17 @@ async function startGameIdentity(
     sound.update(now);
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);
-    const nextCameraYaw = cameraYawAfterDelta(cameraYaw, paused ? 0 : cameraSample.yawDelta);
+    const orbitEnabled = cameraMode === "orbit";
+    const nextCameraYaw = cameraYawAfterDelta(
+      cameraYaw,
+      paused || !orbitEnabled ? 0 : cameraSample.yawDelta,
+    );
     const cameraDelta = nextCameraYaw - cameraYaw;
     cameraYaw = nextCameraYaw;
     if (cameraDelta !== 0) renderer.rotateCamera(cameraDelta);
     const nextCameraPitch = cameraPitchAfterDelta(
       cameraPitch,
-      paused ? 0 : cameraSample.pitchDelta,
+      paused || !orbitEnabled ? 0 : cameraSample.pitchDelta,
     );
     if (nextCameraPitch !== cameraPitch) {
       cameraPitch = nextCameraPitch;

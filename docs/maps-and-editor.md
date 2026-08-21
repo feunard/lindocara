@@ -79,6 +79,13 @@ and `client/game/catalog-element-render.ts`, with explicit loading/empty/error s
 history, dirty navigation guards, selection/inspectors, stable marker ids with optional labels and
 complete marker preview.
 
+The gameplay camera policy is adventure metadata too. New and legacy adventures default to the
+fixed HD-2D side view (`cameraMode: "hd2d"`). Authors may opt an adventure into `"orbit"`, which
+enables unrestricted horizontal orbit plus the existing bounded pitch control. The room copies that
+policy into every welcome frame; clients treat an absent field as `"hd2d"` for compatibility and
+reset yaw/pitch to the authored fixed composition whenever that mode is active. The editor's own
+authoring camera remains freely orbitable independently of this player-facing setting.
+
 `shared/tile-brush.ts` grew a rectangle (`paintRectAutotile`/`eraseRect`), a flood fill
 (`floodFill`) and a stairs stamp (`paintStairs`) â€” each re-resolves neighbours the same way the
 pencil always did, and `resolveWholeLayer` is still the oracle they're tested against. The old

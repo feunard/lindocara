@@ -66,12 +66,23 @@ describe("adventure draft", () => {
     expect(toAdventureInput(fullDraft())).toEqual({
       title: "Donjon",
       maxPlayers: 2,
+      cameraMode: "hd2d",
       audio: DEFAULT_ADVENTURE_AUDIO,
       registry: { switches: [], variables: [] },
       startMapId: null,
     });
     // An empty draft has no title, so it is not saveable and yields no input.
     expect(toAdventureInput(emptyDraft())).toBeNull();
+  });
+
+  it("defaults to HD-2D and round-trips the adventure camera mode", () => {
+    expect(emptyDraft().cameraMode).toBe("hd2d");
+    const orbit = draftFromAdventure(
+      { title: "A", maxPlayers: 4, mapIds: [], cameraMode: "orbit" },
+      new Map(),
+    );
+    expect(orbit.cameraMode).toBe("orbit");
+    expect(toAdventureInput(orbit)?.cameraMode).toBe("orbit");
   });
 
   it("removing a member drops it from the member list", () => {

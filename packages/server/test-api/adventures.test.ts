@@ -262,7 +262,12 @@ describe("create: atomic with a default map", () => {
       graph: { start: unknown; links: unknown[] };
       defaultMap: { id: string; events: unknown[] };
     };
-    expect(created).toMatchObject({ title: "Donjon", maxPlayers: 4, version: 1 });
+    expect(created).toMatchObject({
+      title: "Donjon",
+      maxPlayers: 4,
+      cameraMode: "hd2d",
+      version: 1,
+    });
     // Atomic: exactly one default map, born genuinely blank (no auto-seeded entry/exit events), so
     // the born adventure is a draft (no start, no links).
     expect(created.mapIds).toHaveLength(1);
@@ -270,6 +275,22 @@ describe("create: atomic with a default map", () => {
     expect(created.defaultMap.events).toEqual([]);
     expect(created.graph.start).toBeNull();
     expect(created.graph.links).toEqual([]);
+  });
+
+  test("creates and updates the adventure-wide camera mode", async () => {
+    const { token } = await registerAndLogin("advcamera");
+    const createdResponse = await createAdventure(token, {
+      title: "Orbit",
+      maxPlayers: 4,
+      cameraMode: "orbit",
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()) as { id: string; cameraMode: string };
+    expect(created.cameraMode).toBe("orbit");
+
+    const updated = await putAdventure(created.id, token, { cameraMode: "hd2d" });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ cameraMode: "hd2d" });
   });
 
   // The editor opens an unsaved local sandbox and only creates a row at the author's first save, so

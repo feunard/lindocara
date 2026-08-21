@@ -2086,6 +2086,9 @@ export const en = {
   "adventure.name": "Title",
   "adventure.players": "Max players",
   "adventure.players.count": "{count} players max",
+  "adventure.camera.orbit": "360° camera with tilt",
+  "adventure.camera.hint":
+    "Off keeps the fixed HD-2D side view. On lets players orbit all around the hero and tilt the camera.",
   "adventure.edit": "Edit",
   "adventure.test": "Test adventure",
   "adventure.refresh": "Refresh",

@@ -9,7 +9,9 @@
  */
 import {
   ADVENTURE_TITLE_MAX,
+  type AdventureCameraMode,
   type AdventureInput,
+  DEFAULT_ADVENTURE_CAMERA_MODE,
   MAX_ADVENTURE_MAPS,
 } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
@@ -45,6 +47,8 @@ export interface DraftMemberInfo {
 export interface AdventureDraft {
   title: string;
   maxPlayers: number;
+  /** Optional only so older in-memory/test drafts remain readable; every new/loaded draft sets it. */
+  cameraMode?: AdventureCameraMode;
   /** Adventure-wide defaults inherited by maps unless a map explicitly overrides a channel. */
   audio: AdventureAudioConfig;
   members: DraftMemberInfo[];
@@ -58,6 +62,7 @@ export function emptyDraft(): AdventureDraft {
   return {
     title: "",
     maxPlayers: 4,
+    cameraMode: DEFAULT_ADVENTURE_CAMERA_MODE,
     audio: { ...DEFAULT_ADVENTURE_AUDIO },
     members: [],
     registry: EMPTY_REGISTRY,
@@ -126,6 +131,7 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
   return {
     title: draft.title.trim(),
     maxPlayers: draft.maxPlayers,
+    cameraMode: draft.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE,
     audio: draft.audio,
     registry: draft.registry,
     startMapId: draft.startMapId,
@@ -138,6 +144,7 @@ export function draftFromAdventure(
     maxPlayers: number;
     mapIds: readonly string[];
     audio?: AdventureAudioConfig;
+    cameraMode?: AdventureCameraMode;
     /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
      *  a payload without one rebuilds an empty registry. */
     registry?: AdventureRegistry;
@@ -155,6 +162,7 @@ export function draftFromAdventure(
   return {
     title: payload.title,
     maxPlayers: payload.maxPlayers,
+    cameraMode: payload.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE,
     audio: payload.audio ?? { ...DEFAULT_ADVENTURE_AUDIO },
     members,
     registry: payload.registry ?? EMPTY_REGISTRY,

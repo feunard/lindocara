@@ -249,6 +249,22 @@ function EditForm({
       </div>
 
       <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="adventure-camera-orbit"
+            checked={(draft.cameraMode ?? "hd2d") === "orbit"}
+            onCheckedChange={(checked) =>
+              onUpdate({ ...draft, cameraMode: checked === true ? "orbit" : "hd2d" })
+            }
+          />
+          <div className="grid gap-1">
+            <Label htmlFor="adventure-camera-orbit">{t("adventure.camera.orbit")}</Label>
+            <p className="text-xs text-muted-foreground">{t("adventure.camera.hint")}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
         <div>
           <h3 className="text-sm font-medium">{t("editor.audio.heading")}</h3>
           <p className="text-xs text-muted-foreground">{t("editor.audio.adventureHint")}</p>
