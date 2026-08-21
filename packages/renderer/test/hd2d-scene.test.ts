@@ -162,6 +162,61 @@ function topVertices(group: THREE.Group): { x: number; y: number; z: number }[] 
   return out;
 }
 
+/**
+ * The half of quest #26's M1 that the pure-function tests take on faith: that a cliff really is a
+ * vertical quad whose outward normal points at the low side, that a ray striking it high really
+ * does report a high `y`, and that the rule then answers the plateau rather than the foot.
+ *
+ * Raycasting is CPU geometry, so this runs in jsdom against the SAME mesh the editor picks against.
+ * What it does not cover is `pickGround`'s own intersect ordering, which needs a live scene.
+ */
+describe("picking a real cliff face", () => {
+  const SIZE = 8;
+  const LEVEL_HEIGHT = 0.9;
+  const PLATEAU = 10;
+  /** Cols 0-3 sit on the ground, cols 4-7 stand ten levels up: one 9.0-tall face at world x = 0. */
+  const hillside = (): MapData =>
+    mapOf(
+      SIZE,
+      Array.from(
+        { length: SIZE * SIZE },
+        (_unused, index) => [index % SIZE >= 4 ? PLATEAU : 0, "herbe"] as const,
+      ),
+    );
+
+  /** Fire at a point on the face and resolve it the way `pickGround` does. */
+  const pickAt = (group: THREE.Group, faceY: number): { x: number; z: number } | null => {
+    const origin = new THREE.Vector3(-4, faceY + 2, 0.5);
+    const raycaster = new THREE.Raycaster(origin, new THREE.Vector3(4, -2, 0).normalize(), 0, 100);
+    for (const hit of raycaster.intersectObject(group, true)) {
+      const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
+      if (!normal) continue;
+      return editorGroundPickPoint(hit.point, normal, false, (x) =>
+        x < 0 ? 0 : PLATEAU * LEVEL_HEIGHT,
+      );
+    }
+    return null;
+  };
+
+  it("answers the plateau high on the face and the foot low on it", () => {
+    const ctx = createHd2dContext();
+    const { group } = terrainGroupFor(ctx, hillside(), allAtlases());
+    group.updateMatrixWorld(true);
+
+    // The face spans y 0..9. Both rays reach x = 0 without meeting the low ground first.
+    const high = pickAt(group, 8);
+    const low = pickAt(group, 0.5);
+    if (!high || !low) throw new Error("the pointer ray missed the cliff entirely");
+
+    // World x maps to a column as `floor(x + size / 2)`, so 4 is the plateau and 3 is the bank.
+    expect(Math.floor(high.x + SIZE / 2)).toBe(4);
+    expect(Math.floor(low.x + SIZE / 2)).toBe(3);
+    // Both used to answer 3, whatever height the ray struck: that is the bug, and the gap between
+    // the two answers here is the whole 9.0 of drawn face the ghost used to fall through.
+    expect(high.x).not.toBeCloseTo(low.x, 6);
+  });
+});
+
 describe("the HD-2D scene's terrain", () => {
   it("meshes one group per material atlas present in the map", () => {
     const ctx = createHd2dContext();
