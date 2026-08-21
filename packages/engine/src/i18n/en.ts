@@ -1102,6 +1102,7 @@ export const en = {
   "editor.generator.genre.archipelago": "Archipelago",
   "editor.generator.genre.highlands": "Highlands",
   "editor.generator.genre.tundra": "Frozen tundra",
+  "editor.generator.genre.runner": "Nightmare runner",
   "editor.generator.genre.forest.hint":
     "A wooded province with a river, village roads, defended goblin camps and layered groves.",
   "editor.generator.genre.archipelago.hint":
@@ -1110,6 +1111,8 @@ export const en = {
     "Layered ridges around a fortified settlement, mountain roads, bridges and hostile keeps.",
   "editor.generator.genre.tundra.hint":
     "A lived-in frozen territory with an icebound village, crossings and fortified enemy zones.",
+  "editor.generator.genre.runner.hint":
+    "A seeded escape course with a relentless pursuer, traps, barricades and a finish line.",
   "editor.generator.size": "Size",
   "editor.generator.size.compact": "Compact",
   "editor.generator.size.standard": "Standard",
@@ -2026,6 +2029,8 @@ export const en = {
     "Turn this off to hide the small ring automatically drawn beneath this event in game.",
   "editor.event.preset.sign": "Sign / Dialogue",
   "editor.event.preset.chest": "Chest (gold)",
+  "editor.event.preset.trap": "Spike trap",
+  "editor.event.preset.pursuer": "Nightmare pursuer",
   "editor.event.preset.endgame": "Adventure goal (ending)",
   "editor.event.preset.doorLink": "Door link",
   "editor.event.preset.doorLink.disabled": "Save the map first to link two of its doors.",

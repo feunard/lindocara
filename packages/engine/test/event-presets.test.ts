@@ -4,6 +4,7 @@ import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
+  LINDOCARA_RUNNER_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
@@ -38,6 +39,13 @@ describe("presetPageContent", () => {
       commands: [{ t: "say", text: "", name: null }],
     });
     expect(presetPageContent("chest", MAP_ID).commands).toEqual([{ t: "changeGold", amount: 10 }]);
+  });
+
+  it("trap carries a touch-triggered editable damage command", () => {
+    expect(presetPageContent("trap", MAP_ID)).toEqual({
+      trigger: "player-touch",
+      commands: [{ t: "damage", amount: 25, lethal: false }],
+    });
   });
 });
 
@@ -97,6 +105,48 @@ describe("presetEvent", () => {
       selfMapId: MAP_ID,
     });
     expect(anonymous.name).toBe("");
+  });
+
+  it("creates ready-to-edit nightmare trap and pursuer events", () => {
+    const trap = presetEvent({
+      id: crypto.randomUUID(),
+      col: 2,
+      row: 3,
+      ordinal: 1,
+      preset: "trap",
+      selfMapId: MAP_ID,
+    });
+    expect(trap).toMatchObject({
+      kind: "normal",
+      showMarker: false,
+      pages: [
+        {
+          trigger: "player-touch",
+          graphicAssetId: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
+          commands: [{ t: "damage", amount: 25, lethal: false }],
+        },
+      ],
+    });
+
+    const pursuer = presetEvent({
+      id: crypto.randomUUID(),
+      col: 4,
+      row: 3,
+      ordinal: 2,
+      preset: "pursuer",
+      selfMapId: MAP_ID,
+    });
+    expect(pursuer).toMatchObject({
+      kind: "monster",
+      species: "war_pig",
+      showMarker: false,
+      monsterAttackProfile: "melee",
+      monsterPursuitMode: "relentless",
+      monsterAcceleration: 0.08,
+      monsterMaxSpeed: 6,
+      monsterOneHitKill: true,
+      pages: [{ graphicAssetId: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound }],
+    });
   });
 
   it("every preset produces an event the wire parser accepts (a real scripted event)", () => {

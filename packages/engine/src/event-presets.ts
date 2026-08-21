@@ -17,15 +17,25 @@ import type { EventCommand } from "./event-commands.js";
 import {
   defaultEventPage,
   type EventTrigger,
+  functionalEvent,
   type MapEvent,
   type MapEventPage,
 } from "./map-events.js";
 import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
+  LINDOCARA_RUNNER_ASSET_IDS,
 } from "./tiny-swords-catalog.js";
 
-export const EVENT_PRESETS = ["raw", "teleporter", "sign", "chest", "endgame"] as const;
+export const EVENT_PRESETS = [
+  "raw",
+  "teleporter",
+  "sign",
+  "chest",
+  "trap",
+  "pursuer",
+  "endgame",
+] as const;
 export type EventPreset = (typeof EVENT_PRESETS)[number];
 
 /** The default gold a `chest` preset grants until the author edits it — a positive, non-zero amount
@@ -65,6 +75,10 @@ export function presetPageContent(
       return { trigger: "action", commands: [{ t: "say", text: "", name: null }] };
     case "chest":
       return { trigger: "action", commands: [{ t: "changeGold", amount: CHEST_DEFAULT_GOLD }] };
+    case "trap":
+      return { trigger: "player-touch", commands: [{ t: "damage", amount: 25, lethal: false }] };
+    case "pursuer":
+      return { trigger: "action", commands: [] };
     case "endgame":
       // The optional adventure goal: stepping on this cell marks the party's save complete. The
       // author retargets the trigger or adds an epilogue `say` in the dialog.
@@ -93,16 +107,50 @@ export function presetEvent(params: {
    *  authored prose in a `say`. Absent means the historical unnamed event. */
   name?: string;
 }): MapEvent {
+  if (params.preset === "pursuer") {
+    const event = functionalEvent({
+      id: params.id,
+      col: params.col,
+      row: params.row,
+      ordinal: params.ordinal,
+      kind: "monster",
+      name: params.name ?? "",
+      species: "war_pig",
+      patrolRadius: 256,
+      monsterTuning: { speed: 2.2, damage: 1, xp: 0 },
+      monsterRespawnMode: "timed",
+      monsterPursuitMode: "relentless",
+      monsterAcceleration: 0.08,
+      monsterMaxSpeed: 6,
+      monsterOneHitKill: true,
+    });
+    return {
+      ...event,
+      showMarker: false,
+      monsterAttackProfile: "melee",
+      pages: [
+        {
+          ...(event.pages[0] ?? defaultEventPage()),
+          graphicAssetId: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound,
+        },
+      ],
+    };
+  }
   const { trigger, commands } = presetPageContent(
     params.preset,
     params.selfMapId,
     params.selfSpawn,
   );
   const chest = params.preset === "chest";
+  const trap = params.preset === "trap";
   const page: MapEventPage = {
     ...defaultEventPage(),
     trigger,
-    graphicAssetId: chest ? LINDOCARA_CHEST_CLOSED_ASSET_ID : null,
+    graphicAssetId: chest
+      ? LINDOCARA_CHEST_CLOSED_ASSET_ID
+      : trap
+        ? LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
+        : null,
     commands: chest
       ? [...commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
       : commands,
@@ -126,6 +174,7 @@ export function presetEvent(params: {
     kind: "normal",
     species: null,
     patrolRadius: null,
+    ...(trap ? { showMarker: false } : {}),
     pages,
   };
 }

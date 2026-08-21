@@ -215,6 +215,11 @@ export const LINDOCARA_INTERIOR_ASSET_IDS = {
   cupboard: "decoration.lindocara-interior.cupboard",
   rug: "decoration.lindocara-interior.rug",
 } as const;
+export const LINDOCARA_RUNNER_ASSET_IDS = {
+  nightmareHound: "enemy.lindocara-runner.nightmare-hound",
+  spikeTrap: "decoration.lindocara-runner.spike-trap",
+  barricade: "decoration.lindocara-runner.barricade",
+} as const;
 
 function lindocaraBuilding<const Id extends string>(
   id: Id,
@@ -281,6 +286,72 @@ function lindocaraInteriorProp<const Id extends string>(
 }
 
 const LINDOCARA_LAB_EDITOR_ASSETS = [
+  {
+    id: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound,
+    sourcePath: "/assets/lindocara/hd2d/runner/nightmare-hound.png",
+    pack: "LindoCara Lab",
+    domain: "enemy",
+    category: "Lindocara/Runner",
+    role: "monster-appearance",
+    tags: ["runner", "nightmare", "hound", "pursuer", "generated", "hd2d"],
+    width: 304,
+    height: 178,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "runner",
+      allowedTerrain: ["grass"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+    },
+  },
+  {
+    id: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
+    sourcePath: "/assets/lindocara/hd2d/runner/spike-trap.png",
+    pack: "LindoCara Lab",
+    domain: "decoration",
+    category: "Lindocara/Runner",
+    role: "event-state",
+    tags: ["runner", "trap", "spikes", "generated", "hd2d"],
+    width: 105,
+    height: 94,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "runner",
+      allowedTerrain: ["grass"],
+      renderLayer: "ground",
+      visualFootprint: [{ col: 0, row: 0 }],
+    },
+  },
+  {
+    id: LINDOCARA_RUNNER_ASSET_IDS.barricade,
+    sourcePath: "/assets/lindocara/hd2d/runner/barricade.png",
+    pack: "LindoCara Lab",
+    domain: "decoration",
+    category: "Lindocara/Runner",
+    role: "world-obstacle",
+    tags: ["runner", "obstacle", "barricade", "wood", "generated", "hd2d"],
+    width: 142,
+    height: 122,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "runner",
+      allowedTerrain: ["grass"],
+      renderLayer: "object",
+      visualFootprint: [
+        { col: -1, row: 0 },
+        { col: 0, row: 0 },
+        { col: 1, row: 0 },
+      ],
+      collider: { x: -58, y: -48, width: 116, height: 48 },
+      collisionElevation: 1,
+    },
+  },
   {
     id: LINDOCARA_CAMPFIRE_ASSET_ID,
     sourcePath: "/assets/lindocara/hd2d/campfire-base.png",
