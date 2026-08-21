@@ -232,6 +232,10 @@ describe("the HD-2D scene's terrain", () => {
     expect(terrainAtlasKey("herbe", 1)).toBe("lvl1");
     expect(terrainAtlasKey("herbe", 3)).toBe("lvl3");
     expect(terrainAtlasKey("sable", 0)).toBe("sable");
+    // A pit floor takes a RAISED sheet: level 0's group carries the painted shore line, because
+    // level 0 is what borders the sea, and a dry pit borders its own walls on every side.
+    expect(terrainAtlasKey("herbe", -1)).toBe("lvl1");
+    expect(terrainAtlasKey("herbe", -3)).toBe("lvl1");
 
     const { group } = terrainGroupFor(ctx, map, allAtlases());
     const meshes = group.children.filter(

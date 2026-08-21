@@ -100,6 +100,11 @@ export function setHd2dGroundPalette(palette: string): boolean {
 export function terrainAtlasKey(material: string, level: number): string {
   if (material === "sable" || material === "neige") return material;
   if (material === "glace") return "glace";
+  // A SUNKEN level takes a raised sheet, not level 0's. Level 0's group is the water-edge one
+  // because level 0 is what borders the sea, and its white shore line is painted in; a pit floor
+  // borders the wall of the pit it sits in on every side, so that line would draw surf around a
+  // dry hole. The clamp below would have sent it there, silently, since `max(0, -2)` is 0.
+  if (level < 0) return "lvl1";
   return `lvl${Math.min(3, Math.max(0, Math.round(level)))}`;
 }
 
