@@ -25,6 +25,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 
@@ -82,7 +83,8 @@ async function main(): Promise<void> {
 
   const port = await freePort();
   const dataDir = await mkdtemp(path.join(tmpdir(), "lindocara-smoke-"));
-  const databaseUrl = `file:${path.join(dataDir, "smoke.db")}`;
+  const databasePath = path.join(dataDir, "smoke.db");
+  const databaseUrl = `file:${databasePath}`;
 
   /**
    * `NODE_ENV=production` is what makes this a smoke of the DEPLOYED shape rather than of dev:
@@ -168,6 +170,34 @@ async function main(): Promise<void> {
     await die("migrations were skipped — the process cannot see apps/main/migrations/");
   }
 
+  // A green boot is not enough to prove that every statement inside a migration ran. Drizzle's
+  // node:sqlite runner can journal a migration after executing only the first statement when a
+  // hand-written file contains several statements without breakpoints. That shipped once: the
+  // server stayed healthy, while every complete map read failed because `show_marker` was absent.
+  // Inspect the production-shaped database itself so CI catches that half-migrated state.
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  const missingColumns: string[] = [];
+  try {
+    const requireColumns = (table: string, expected: readonly string[]): void => {
+      const columns = database
+        .prepare(`PRAGMA table_info("${table}")`)
+        .all()
+        .flatMap((row) => {
+          const name = (row as { name?: unknown }).name;
+          return typeof name === "string" ? [name] : [];
+        });
+      const missing = expected.filter((column) => !columns.includes(column));
+      missingColumns.push(...missing.map((column) => `${table}.${column}`));
+    };
+    requireColumns("adventures", ["camera_mode"]);
+    requireColumns("mapEvents", ["linked_event_id", "show_marker"]);
+  } finally {
+    database.close();
+  }
+  if (missingColumns.length > 0) {
+    await die(`migration schema is missing ${missingColumns.join(", ")}`);
+  }
+
   // 3. The SPA shell is served. `GET /` is answered by the client's `$page` tree registered in
   //    `apps/main/src/main.ts`; with nothing composing it, this route 404s while every `/api/*`
   //    route above still answers, so health alone would not notice.
@@ -244,7 +274,7 @@ async function main(): Promise<void> {
 
   await rm(dataDir, { recursive: true, force: true });
   console.log(
-    `Boot smoke OK — migrations applied, /api/health, SPA shell, /ws/world fenced, clean SIGTERM (port ${port}).`,
+    `Boot smoke OK — migrations applied and schema verified, /api/health, SPA shell, /ws/world fenced, clean SIGTERM (port ${port}).`,
   );
 }
 
