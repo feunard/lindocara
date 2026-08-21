@@ -265,7 +265,12 @@ export interface AdventurePayload {
   startMapId: string | null;
 }
 
+/** The editor's list: every adventure for an `admin` session, the caller's own otherwise, most
+ *  recently worked on first. */
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
+/** The caller's OWN adventures, whatever roles they hold. This is what "the adventure I was last
+ *  working on" has to read, so an admin resuming a bare `/editor` cannot land in someone else's. */
+export const fetchMyAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=mine");
 /** Server-wide playable adventures (any author) — the "New adventure" carousel. */
 export const fetchPlayableAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=play");
 /** Every adventure on the server, drafts included — the collaborative editor's picker. */

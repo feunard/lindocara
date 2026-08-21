@@ -99,11 +99,15 @@ function stageHandle() {
 }
 
 /** The listing a bare `/editor` reads to decide whether there is anything to resume. Empty is the
- *  fresh-account case and the one the sandbox tests want; `withAdventure` is the resume case. */
+ *  fresh-account case and the one the sandbox tests want; `withAdventure` is the resume case.
+ *  `scope=mine` is the owner-scoped listing, not the default one: an admin's default listing is
+ *  every author's adventures, and resume must stay on the caller's own. */
+const RESUME_LISTING = "/api/adventures?scope=mine";
+
 function emptyListing() {
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/adventures" && method === "GET") return Promise.resolve(jsonResponse([]));
+    if (url === RESUME_LISTING && method === "GET") return Promise.resolve(jsonResponse([]));
     return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
   });
 }
@@ -150,7 +154,7 @@ function withAdventure() {
   };
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/adventures" && method === "GET")
+    if (url === RESUME_LISTING && method === "GET")
       return Promise.resolve(
         jsonResponse([
           { id: "adv-resume", title: "Resumed", maxPlayers: 4, mapCount: 1, playable: true },
@@ -217,7 +221,7 @@ describe("AdventureEditorScreen sandbox entry", () => {
     expect(session?.titleUntouched).toBe(true);
     // Entry now ASKS whether there is anything to resume: one GET, and nothing written. An empty
     // account is not a failure, so the answer "none" opens the sandbox exactly as before.
-    expect(mock.mock.calls.map(([url]) => url)).toEqual(["/api/adventures"]);
+    expect(mock.mock.calls.map(([url]) => url)).toEqual([RESUME_LISTING]);
     expect(writes(mock)).toHaveLength(0);
     // Strict mode double-invokes the mount effect; a second sandbox would discard this one's map.
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalled());
@@ -238,7 +242,7 @@ describe("AdventureEditorScreen sandbox entry", () => {
     expect(opened.name).toBe(alepha.store.get(adventureEditorSessionAtom)?.sandboxMap?.name);
     // No `/api/maps?adventure=…` list and no map fetch: there is nothing stored to fetch. The
     // resume lookup is the only request entry makes.
-    expect(mock.mock.calls.map(([url]) => url)).toEqual(["/api/adventures"]);
+    expect(mock.mock.calls.map(([url]) => url)).toEqual([RESUME_LISTING]);
   });
 
   it("resumes the account's most recent adventure and puts it in the URL", async () => {

@@ -10,7 +10,7 @@
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
-import { UserController } from "alepha/api/users";
+import { UserController, UserService } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -138,7 +138,15 @@ afterEach(async () => {
   await alepha.stop();
 });
 
-async function registerAndLogin(prefix: string): Promise<{ userId: string; token: string }> {
+/**
+ * Registers an account and exchanges its credentials for a token. `roles` promotes the account
+ * BEFORE that exchange on purpose: a session freezes the roles it was issued with, so an account
+ * promoted after login carries the old set until it logs in again.
+ */
+async function registerAndLogin(
+  prefix: string,
+  roles?: string[],
+): Promise<{ userId: string; token: string }> {
   userCount += 1;
   const username = `${prefix}${userCount}`;
   const users = alepha.inject(UserController);
@@ -148,6 +156,7 @@ async function registerAndLogin(prefix: string): Promise<{ userId: string; token
   const registered = await users.createUserFromIntent.fetch({
     body: { intentId: intent.data.intentId },
   });
+  if (roles) await alepha.inject(UserService).updateUser(registered.data.id, { roles });
   const login = await fetch(`${hostname}/_auth/token?provider=credentials`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -466,6 +475,45 @@ describe("the owner listing is ordered by what was last worked on", () => {
     expect(saved.status).toBe(200);
 
     expect(await listedIds()).toEqual([older, newer]);
+  });
+});
+
+describe("the default listing widens for an admin", () => {
+  test("an admin sees another account's adventure in the default listing; a plain account does not, and scope=mine hides it from both", async () => {
+    const owner = await registerAndLogin("advadminowner");
+    const advId = ((await (await createAdventure(owner.token)).json()) as { id: string }).id;
+
+    const plain = await registerAndLogin("advadminplain");
+    const plainList = (await (await authedFetch("/api/adventures", plain.token)).json()) as {
+      id: string;
+    }[];
+    expect(plainList.some((entry) => entry.id === advId)).toBe(false);
+
+    const admin = await registerAndLogin("advadmin", ["admin", "user"]);
+    const adminList = (await (await authedFetch("/api/adventures", admin.token)).json()) as {
+      id: string;
+      author?: string;
+    }[];
+    // Seeing it is the point; carrying the author is what makes a list of several authors readable.
+    expect(adminList.find((entry) => entry.id === advId)?.author).toMatch(/^advadminowner\d+$/);
+
+    // The resume path's listing. An admin who opens a bare `/editor` must land on their OWN last
+    // adventure, never on whatever another author happened to touch most recently.
+    const mine = (await (await authedFetch("/api/adventures?scope=mine", admin.token)).json()) as {
+      id: string;
+    }[];
+    expect(mine.some((entry) => entry.id === advId)).toBe(false);
+  });
+
+  test("a plain account's own adventures still come back unauthored and owner-scoped", async () => {
+    const { token } = await registerAndLogin("advadminself");
+    const advId = ((await (await createAdventure(token)).json()) as { id: string }).id;
+    const list = (await (await authedFetch("/api/adventures", token)).json()) as {
+      id: string;
+      author?: string;
+    }[];
+    expect(list.map((entry) => entry.id)).toContain(advId);
+    expect(list.find((entry) => entry.id === advId)?.author).toBeUndefined();
   });
 });
 

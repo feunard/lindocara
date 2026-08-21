@@ -32,7 +32,8 @@ export const adminRoleEnvSchema = z.object({
     ),
 });
 
-const ADMIN_ROLE = "admin";
+/** The one spelling of the role, shared with every route that reads it off a session. */
+export const ADMIN_ROLE = "admin";
 
 /**
  * Page size used while walking every account. `UserService.findUsers` pagination is bounded to

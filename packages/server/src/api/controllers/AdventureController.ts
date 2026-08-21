@@ -18,6 +18,7 @@ import {
   MAX_ADVENTURE_JSON_BYTES,
   MAX_MAP_JSON_BYTES,
 } from "../bodySizeCap.ts";
+import { ADMIN_ROLE } from "../providers/AdminRoleProvider.ts";
 import { AdventureService } from "../services/AdventureService.ts";
 import { rethrowAsAdventureError } from "../services/adventureAuthoring.ts";
 import { type MapInput, parseMapBody, rethrowAsMapError } from "../services/mapAuthoring.ts";
@@ -50,9 +51,12 @@ function rethrowAsCreateAdventureError(error: unknown): never {
 export class AdventureController {
   adventureService = $inject(AdventureService);
 
-  /** `GET /api/adventures?scope=play|all` -> `AdventureSummary[]`. Default (no `scope`) is the
-   *  owner-scoped editor listing; `scope=all` is the collaborative picker; `scope=play` is the
-   *  play-flow "New adventure" carousel — both collaborative listings carry `author`. */
+  /** `GET /api/adventures?scope=play|all|mine` -> `AdventureSummary[]`. Default (no `scope`) is the
+   *  editor listing: every adventure for an `admin` caller, the caller's own otherwise. `scope=mine`
+   *  is that listing always owner-scoped, whatever roles the caller holds; the editor's resume path
+   *  asks for it so a bare `/editor` cannot drop an admin into someone else's adventure. `scope=all`
+   *  is the collaborative picker, `scope=play` is the play-flow "New adventure" carousel, and every
+   *  listing that can hold more than one author carries `author`. */
   getAdventures = $action({
     path: "/adventures",
     use: [$secure({})],
@@ -63,7 +67,10 @@ export class AdventureController {
     handler: async ({ query, user }) => {
       if (query.scope === "play") return this.adventureService.listPlayableAdventures();
       if (query.scope === "all") return this.adventureService.listAllAdventures();
-      return this.adventureService.listAdventures(user.id);
+      if (query.scope === "mine") return this.adventureService.listAdventures(user.id);
+      return this.adventureService.listAdventures(user.id, {
+        everyAuthor: user.roles?.includes(ADMIN_ROLE) === true,
+      });
     },
   });
 

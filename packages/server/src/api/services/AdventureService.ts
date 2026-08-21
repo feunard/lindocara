@@ -6,8 +6,9 @@
  * PUT (the editor no longer authors one).
  *
  * **Read is open, write is owned.** Listing and reading are open to every authenticated account —
- * only the default listing (`GET /api/adventures`, no `scope`) filters by `userId` — while editing
- * and deletion require owning the row and answer a foreign caller 403 `adventure_forbidden`.
+ * the default listing (`GET /api/adventures`, no `scope`) filters by `userId` unless the caller
+ * holds `admin`, and `scope=mine` filters by it whatever the caller holds. Editing and deletion
+ * require owning the row and answer a foreign caller 403 `adventure_forbidden`.
  *
  * Writing used to be as open as reading, inherited from legacy (`deleteAdventure`'s own
  * `_accountId` parameter was accepted and never read). That was not a considered position so much
@@ -104,7 +105,7 @@ export class AdventureService {
   adventureTestSessions = $repository(adventureTestSessions);
 
   /**
-   * The owner-scoped editor listing (default, no `scope`), MOST RECENTLY WORKED ON FIRST.
+   * The editor listing (default, no `scope`), MOST RECENTLY WORKED ON FIRST.
    *
    * The order is load-bearing, not presentation: a bare `/editor` resumes `[0]` rather than opening
    * an empty sandbox, so this endpoint is what "the adventure I was last working on" means. It
@@ -114,13 +115,26 @@ export class AdventureService {
    * made first, forever.
    *
    * File → Open shows the same order, which is the right one there too.
+   *
+   * `everyAuthor` drops the owner filter for an ADMIN caller, so File → Open shows the whole
+   * instance rather than one account's corner of it. It is not `listAllAdventures` under another
+   * name: that one orders by `createdAt` because the play carousel wants a stable order, and this
+   * one keeps "what I was working on" first, which is the only ordering the editor's list and its
+   * resume can both live with. The rows carry `author` in that mode, since a list that can hold
+   * more than one author has to say whose each row is.
    */
-  async listAdventures(userId: string): Promise<AdventureSummary[]> {
-    const rows = await this.adventures.findMany({
-      where: { userId: { eq: userId } },
-      orderBy: { column: "updatedAt", direction: "desc" },
-    });
-    return Promise.all(rows.map((row) => this.toSummary(row)));
+  async listAdventures(
+    userId: string,
+    options: { everyAuthor?: boolean } = {},
+  ): Promise<AdventureSummary[]> {
+    // Two calls rather than one with `where: undefined`: `exactOptionalPropertyTypes` is on, so an
+    // explicit `undefined` is not the same as an absent key.
+    const orderBy = { column: "updatedAt", direction: "desc" } as const;
+    const everyAuthor = options.everyAuthor === true;
+    const rows = everyAuthor
+      ? await this.adventures.findMany({ orderBy })
+      : await this.adventures.findMany({ where: { userId: { eq: userId } }, orderBy });
+    return Promise.all(rows.map((row) => this.toSummary(row, { withAuthor: everyAuthor })));
   }
 
   /** The collaborative editor's picker: EVERY adventure, drafts included, with author. Ported from
