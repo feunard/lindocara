@@ -50,6 +50,7 @@ import type {
   RogueShadowDanceSequence,
   SelfState,
   WorldBuildingSnapshot,
+  WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { SEA_GUARDIAN_AMBIENCE_RADIUS } from "@lindocara/engine/sea-guardian.js";
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
@@ -99,7 +100,11 @@ import {
 } from "./cooldown-sync.js";
 import { escapeIntent } from "./escape-intent.js";
 import { shouldLogEvent } from "./event-log-policy.js";
-import { hasNearbyInteraction, nearestInteractiveBuilding } from "./interaction-context.js";
+import {
+  hasNearbyInteraction,
+  nearestInteractiveBuilding,
+  nearestInteractiveEvent,
+} from "./interaction-context.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { SessionCombatAudio } from "./session-combat-audio.js";
@@ -161,6 +166,12 @@ function interiorOpen(): boolean {
 
 function settingsOpen(): boolean {
   return useUiStore.getState().settingsOpen;
+}
+
+/** A say page or a quest conversation is on screen: an event is mid-run, not waiting to be run. */
+function dialogueOpen(): boolean {
+  const store = useUiStore.getState();
+  return store.eventDialogue !== null || store.questDialogue !== null;
 }
 
 function talentsOpen(): boolean {
@@ -320,6 +331,7 @@ function updatePrompt(
   zoneId: ZoneId,
   merchant: MerchantDefinition | null,
   building: WorldBuildingSnapshot | undefined,
+  interactiveEvent: WorldEventSnapshot | undefined,
 ): void {
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
@@ -332,6 +344,20 @@ function updatePrompt(
     result = { key: "prompt.merchant" };
   } else if (building) {
     result = { key: "prompt.enter_building" };
+  } else if (interactiveEvent && !dialogueOpen()) {
+    // An authored event whose active page takes the action trigger. Deliberately unnamed: an event
+    // carries an AUTHORING label ("EV4", "Teleporter 2"), not a name written for a player to read,
+    // and putting that in front of one is worse than saying nothing. The day an event carries a
+    // display name of its own, this is the branch that shows it.
+    //
+    // After the building on purpose: where a door and an event overlap, the prompt keeps promising
+    // what it already promised, rather than inventing a new answer the interact path never gave.
+    //
+    // And never while the event is actually RUNNING: a hero mid-dialogue is still standing in range
+    // of the thing it is talking to, so without this the panel would sit over an invitation to
+    // press the key that opened it. The other prompts keep their own behaviour here; this is the
+    // only one that can be true of a conversation already in progress.
+    result = { key: "prompt.interact_event" };
   } else if (!isKnownZone(zoneId)) {
     result = null;
   } else {
@@ -1434,7 +1460,15 @@ async function startGameIdentity(
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse, movementStatus);
-    updatePrompt(self, questState, door, activeZoneId, currentMerchant, buildingDoor);
+    updatePrompt(
+      self,
+      questState,
+      door,
+      activeZoneId,
+      currentMerchant,
+      buildingDoor,
+      nearestInteractiveEvent(self, sample.events, activeWorldSize),
+    );
     const interactionStore = useUiStore.getState();
     interactionNearby = hasNearbyInteraction({
       self,

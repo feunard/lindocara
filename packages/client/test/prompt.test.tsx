@@ -33,6 +33,19 @@ describe("Prompt", () => {
     expect(screen.getByText("[A] Trade with Bramble")).toBeInTheDocument();
   });
 
+  it("labels the authored-event prompt with the player's own interact key", () => {
+    // The floating prompt is what feedback #27 asked for, and the [E] rewrite is what makes it
+    // right for a rebound keyboard or a pad without the branch knowing anything about bindings.
+    useUiStore.setState({ prompt: { key: "prompt.interact_event" } });
+    const { unmount } = render(<Prompt />);
+    expect(screen.getByText("[E] Interact")).toBeInTheDocument();
+    unmount();
+
+    setInputMode("gamepad");
+    render(<Prompt />);
+    expect(screen.getByText("[A] Interact")).toBeInTheDocument();
+  });
+
   it("renders nothing when prompt is null", () => {
     useUiStore.setState({
       prompt: null,

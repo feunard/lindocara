@@ -1,4 +1,7 @@
-import { hasNearbyInteraction } from "@lindocara/client/game/interaction-context.js";
+import {
+  hasNearbyInteraction,
+  nearestInteractiveEvent,
+} from "@lindocara/client/game/interaction-context.js";
 import type {
   PeasantCampVisual,
   PlayerSnapshot,
@@ -97,6 +100,24 @@ describe("contextual controller interaction", () => {
     };
     expect(hasNearbyInteraction(context({ camps: [camp] }))).toBe(true);
     expect(hasNearbyInteraction(context({ camps: [{ ...camp, expiresAt: 999 }] }))).toBe(false);
+  });
+
+  it("picks the nearest interactive event, and only an interactive one in range", () => {
+    const near = { ...event, id: "near", col: 5, row: 5, interactive: true as const };
+    const far = { ...event, id: "far", col: 6, row: 5, interactive: true as const };
+    const hero = { ...self, x: 0.4, z: 0.4 };
+
+    // Nearest rather than first: array order must not decide which event the prompt names.
+    expect(nearestInteractiveEvent(hero, [far, near], 10)?.id).toBe("near");
+    expect(nearestInteractiveEvent(hero, [near, far], 10)?.id).toBe("near");
+
+    // A page the server did not mark interactive is decoration, whatever it looks like.
+    expect(nearestInteractiveEvent(hero, [event], 10)).toBeUndefined();
+    // Out of reach, a spirit, and a world that has not been sized yet.
+    expect(nearestInteractiveEvent(hero, [{ ...near, col: 9, row: 9 }], 10)).toBeUndefined();
+    expect(nearestInteractiveEvent({ ...hero, life: "ghost" }, [near], 10)).toBeUndefined();
+    expect(nearestInteractiveEvent(hero, [near], 0)).toBeUndefined();
+    expect(nearestInteractiveEvent(undefined, [near], 10)).toBeUndefined();
   });
 
   it("recognizes an intact building only at its visible doorway", () => {

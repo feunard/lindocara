@@ -435,6 +435,7 @@ export const fr: Record<keyof typeof en, string> = {
   "prompt.approach": "Approchez du repère de quête doré [E]",
   "prompt.quest_site": "[E] Interagir : {name}",
   "prompt.enter_building": "[E] Entrer dans le bâtiment",
+  "prompt.interact_event": "[E] Interagir",
 
   // Discussion, aide, statut
   "chat.title": "Local",

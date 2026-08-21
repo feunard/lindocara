@@ -430,6 +430,7 @@ export const en = {
   "prompt.approach": "Approach the golden quest marker [E]",
   "prompt.quest_site": "[E] Interact: {name}",
   "prompt.enter_building": "[E] Enter the building",
+  "prompt.interact_event": "[E] Interact",
 
   // Chat, help, status
   "chat.title": "Local",

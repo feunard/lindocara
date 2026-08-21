@@ -22,6 +22,7 @@ const INTERACTIVE_PROMPTS = new Set([
   "prompt.speak",
   "prompt.quest_site",
   "prompt.enter_building",
+  "prompt.interact_event",
 ]);
 
 export interface InteractionContext {
@@ -68,6 +69,35 @@ export function nearestInteractiveBuilding(
 }
 
 /**
+ * The nearest authored event whose ACTIVE page takes the interact action, and only within reach.
+ *
+ * `interactive` is server-selected from that active page, so a decorative or automatic event never
+ * qualifies, and the range is the same `INTERACTION_RANGE` the room re-checks when the intent
+ * actually arrives. Like everything in this file it decides what to SHOW and never what happens.
+ *
+ * Nearest rather than first: two events can overlap a hero, and the prompt has to name one of them
+ * the same way twice rather than following array order.
+ */
+export function nearestInteractiveEvent(
+  self: PlayerSnapshot | undefined,
+  events: readonly WorldEventSnapshot[],
+  worldSize: number,
+): WorldEventSnapshot | undefined {
+  if (self?.life !== "alive" || worldSize <= 0) return undefined;
+  let nearest: WorldEventSnapshot | undefined;
+  let shortest = INTERACTION_RANGE;
+  for (const event of events) {
+    if (event.interactive !== true) continue;
+    const distance = groundDistance(self, authoredCellCentreGround(event, worldSize));
+    if (distance <= shortest) {
+      nearest = event;
+      shortest = distance;
+    }
+  }
+  return nearest;
+}
+
+/**
  * Client-side context for sharing the south face button between jump and interact. This never
  * decides an outcome: the room still rechecks range, page, party, line-of-sight and availability
  * when the interact intent arrives. The wire's `interactive` bit is server-selected from the
@@ -83,17 +113,7 @@ export function hasNearbyInteraction(context: InteractionContext): boolean {
   ) {
     return true;
   }
-  if (
-    context.worldSize > 0 &&
-    context.events.some(
-      (event) =>
-        event.interactive === true &&
-        groundDistance(self, authoredCellCentreGround(event, context.worldSize)) <=
-          INTERACTION_RANGE,
-    )
-  ) {
-    return true;
-  }
+  if (nearestInteractiveEvent(self, context.events, context.worldSize)) return true;
   if (context.corpses.some((corpse) => groundDistance(self, corpse) <= INTERACTION_RANGE)) {
     return true;
   }
