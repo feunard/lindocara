@@ -15,22 +15,79 @@ import {
 } from "../src/hd2d/scene.js";
 
 describe("editor ground picking", () => {
+  /** A cliff at x = 2 whose west foot stands on the ground and whose east top is `top` up. */
+  const cliff =
+    (top: number) =>
+    (x: number): number | null =>
+      x < 2 ? 0 : top;
+
   it("keeps roof clicks in place and pulls wall clicks into the building footprint", () => {
-    expect(editorGroundPickPoint({ x: 2.25, z: 3.5 }, { x: 0, y: 1, z: 0 }, true)).toEqual({
+    expect(editorGroundPickPoint({ x: 2.25, y: 3, z: 3.5 }, { x: 0, y: 1, z: 0 }, true)).toEqual({
       x: 2.25,
       z: 3.5,
     });
-    expect(editorGroundPickPoint({ x: 2, z: 3.5 }, { x: -1, y: 0, z: 0 }, true)).toEqual({
+    expect(editorGroundPickPoint({ x: 2, y: 1.5, z: 3.5 }, { x: -1, y: 0, z: 0 }, true)).toEqual({
       x: 2.5,
       z: 3.5,
     });
   });
 
-  it("keeps terrain cliff clicks on the low exterior cell", () => {
-    expect(editorGroundPickPoint({ x: 2, z: 3.5 }, { x: -1, y: 0, z: 0 }, false)).toEqual({
+  it("keeps terrain cliff clicks on the low exterior cell when no terrain is offered", () => {
+    // The pure form, and the fallback inside `pickGround` when the query has nothing to say: the
+    // foot is the answer that has always been given, so a caller with no heightfield keeps it.
+    expect(editorGroundPickPoint({ x: 2, y: 1.5, z: 3.5 }, { x: -1, y: 0, z: 0 }, false)).toEqual({
       x: 1.5,
       z: 3.5,
     });
+  });
+
+  /**
+   * A face is one vertical quad on a cell boundary, so its whole height used to answer with the
+   * cell at its FOOT. That is right in map coordinates and wrong on screen: the answer is DRAWN at
+   * the bottom of the wall, so pointing near the top of a ten-level cliff put the ghost nine world
+   * units below the pointer, and sliding up and down the face never changed the answer at all.
+   *
+   * The hit's height is what disambiguates, and it needs no threshold constant: ask which of the
+   * two neighbouring grounds the cursor is actually closer to.
+   */
+  it("reads a tall face as the plateau near its top and as the foot near its bottom", () => {
+    const tall = cliff(9);
+    const wall = { x: 2, z: 3.5 };
+    const outward = { x: -1, y: 0, z: 0 };
+
+    expect(editorGroundPickPoint({ ...wall, y: 0.4 }, outward, false, tall)).toEqual({
+      x: 1.5,
+      z: 3.5,
+    });
+    expect(editorGroundPickPoint({ ...wall, y: 8.6 }, outward, false, tall)).toEqual({
+      x: 2.5,
+      z: 3.5,
+    });
+  });
+
+  it("still answers the foot across a one-level cliff, where the whole face is 0.9 tall", () => {
+    // The regression this must not cause: shallow terrain is most of every map, and a rule that
+    // flipped to the plateau halfway up a 0.9 wall would move an answer nobody complained about.
+    // It does flip at the midpoint here too, which is correct and barely reachable.
+    const shallow = cliff(0.9);
+    expect(
+      editorGroundPickPoint({ x: 2, y: 0.1, z: 3.5 }, { x: -1, y: 0, z: 0 }, false, shallow),
+    ).toEqual({ x: 1.5, z: 3.5 });
+  });
+
+  it("prefers the foot on an exact tie, keeping the historical answer", () => {
+    const tall = cliff(9);
+    expect(
+      editorGroundPickPoint({ x: 2, y: 4.5, z: 3.5 }, { x: -1, y: 0, z: 0 }, false, tall),
+    ).toEqual({ x: 1.5, z: 3.5 });
+  });
+
+  it("leaves a building wall alone even with terrain to consult", () => {
+    // `onBuilding` means "select the architecture you clicked", which is a different question from
+    // "which ground did you mean" and must not start depending on the terrain behind it.
+    expect(
+      editorGroundPickPoint({ x: 2, y: 8.6, z: 3.5 }, { x: -1, y: 0, z: 0 }, true, cliff(9)),
+    ).toEqual({ x: 2.5, z: 3.5 });
   });
 });
 

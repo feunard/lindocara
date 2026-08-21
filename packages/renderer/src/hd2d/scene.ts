@@ -310,21 +310,44 @@ export const AUTHORED_PICK_SURFACE = "authoredPickSurface";
 
 /**
  * Convert the visible face hit by the editor pointer into the ground coordinate the author meant.
- * Terrain cliffs lead to the low cell in front of them. A building wall instead leads inward,
- * because its roof and footprint are valid authored destinations rather than empty ground behind
- * the mesh.
+ *
+ * A horizontal surface is its own answer. A building wall leads INWARD, because its roof and
+ * footprint are valid authored destinations rather than empty ground behind the mesh, and that
+ * stays true whatever height it was clicked at: "select the architecture you pointed at" is a
+ * different question from "which ground did you mean".
+ *
+ * A terrain cliff is the interesting one, and the height of the hit is what decides it.
+ *
+ * The face is one vertical quad on a cell boundary, so it borders exactly two grounds: the low cell
+ * it drops into, and the plateau it holds up. Answering with the foot every time is correct in map
+ * coordinates and wrong on screen, because the answer is DRAWN at the bottom of the wall: on a
+ * ten-level cliff, pointing near the top put the preview nine world units below the pointer, and
+ * sliding up and down the face never changed the answer at all. That was invisible while terrain
+ * stopped at level 2 and became the loudest half of feedback #18 the day the range opened to +10.
+ *
+ * `groundAt` resolves it without a threshold constant: ask which of the two neighbouring grounds
+ * the cursor is actually nearer to in height. A tie, and a caller with no heightfield to offer,
+ * both keep the historical foot.
  */
 export function editorGroundPickPoint(
-  point: Pick<THREE.Vector3, "x" | "z">,
+  point: Pick<THREE.Vector3, "x" | "y" | "z">,
   normal: Pick<THREE.Vector3, "x" | "y" | "z">,
   onBuilding: boolean,
+  groundAt?: (x: number, z: number) => number | null,
 ): { x: number; z: number } {
   if (normal.y >= 0.5) return { x: point.x, z: point.z };
-  const direction = onBuilding ? -1 : 1;
-  return {
+  const step = (direction: number): { x: number; z: number } => ({
     x: point.x + normal.x * 0.5 * direction,
     z: point.z + normal.z * 0.5 * direction,
-  };
+  });
+  const foot = step(1);
+  if (onBuilding) return step(-1);
+  if (!groundAt) return foot;
+  const plateau = step(-1);
+  const footGround = groundAt(foot.x, foot.z);
+  const plateauGround = groundAt(plateau.x, plateau.z);
+  if (footGround === null || plateauGround === null) return foot;
+  return Math.abs(plateauGround - point.y) < Math.abs(footGround - point.y) ? plateau : foot;
 }
 
 // --- the scene ----------------------------------------------------------------------------------
@@ -805,7 +828,9 @@ export function createHd2dScene(
         // FOOT instead: step a half cell along the outward normal, which lands in the low cell the
         // wall drops into rather than on the plateau it holds up. Native building walls use the
         // opposite direction so clicking visible architecture selects its footprint/roof.
-        const point = editorGroundPickPoint(hit.point, normal, onBuilding);
+        const point = editorGroundPickPoint(hit.point, normal, onBuilding, (x, z) =>
+          query.heightAt(x, z),
+        );
         if (point.x < -half || point.x > half || point.z < -half || point.z > half) {
           continue;
         }
