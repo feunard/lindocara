@@ -224,6 +224,28 @@
       "transitionMs": 450,
       "fallbackTrackIds": ["boss-1"],
       "prompt": "Major singular confrontation; broader orchestration and the motif in a grave transformed form; rare choir may appear only as an accent, never constantly."
+    },
+    {
+      "id": "runner",
+      "title": "Nightmare Run",
+      "description": "Relentless forward momentum for obstacle courses and nightmare pursuits.",
+      "biomes": ["generic", "ruins", "nightmare"],
+      "moods": ["urgent", "driving", "tense", "defiant"],
+      "instruments": [
+        "rapid low string ostinato",
+        "wooden flute motif fragments",
+        "cellos",
+        "French horn stabs",
+        "frame drums",
+        "acoustic war percussion"
+      ],
+      "bpm": 142,
+      "intensity": 0.94,
+      "duration": 120,
+      "loopable": false,
+      "transitionMs": 350,
+      "fallbackTrackIds": ["boss-1"],
+      "prompt": "Endless pursuit at a breathless running pace; rapid acoustic pulse, short urgent Lindocara motif fragments and mounting pressure; dark storybook nightmare energy, forceful but never modern EDM or trailer bombast."
     }
   ]
 }

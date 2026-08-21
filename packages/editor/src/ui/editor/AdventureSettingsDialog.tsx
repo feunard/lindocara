@@ -269,12 +269,24 @@ function EditForm({
           <Checkbox
             id="adventure-hardcore-runner"
             checked={(draft.gameMode ?? "standard") === "hardcore_runner"}
-            onCheckedChange={(checked) =>
+            onCheckedChange={(checked) => {
+              const hardcore = checked === true;
               onUpdate({
                 ...draft,
-                gameMode: checked === true ? "hardcore_runner" : "standard",
-              })
-            }
+                gameMode: hardcore ? "hardcore_runner" : "standard",
+                audio: hardcore
+                  ? {
+                      ...draft.audio,
+                      explorationProfile: "runner",
+                      nightProfile: "runner",
+                      discoveryProfile: "runner",
+                      dangerProfile: "runner",
+                      combatProfile: "runner",
+                      bossProfile: "runner",
+                    }
+                  : draft.audio,
+              });
+            }}
           />
           <div className="grid gap-1">
             <Label htmlFor="adventure-hardcore-runner">{t("adventure.mode.hardcore")}</Label>

@@ -193,7 +193,15 @@ describe("AdventureSettingsDialog", () => {
       };
       expect(body.title).toBe("Renamed");
       expect(body.maxPlayers).toBe(3);
-      expect(body.audio).toEqual(DEFAULT_ADVENTURE_AUDIO);
+      expect(body.audio).toEqual({
+        ...DEFAULT_ADVENTURE_AUDIO,
+        explorationProfile: "runner",
+        nightProfile: "runner",
+        discoveryProfile: "runner",
+        dangerProfile: "runner",
+        combatProfile: "runner",
+        bossProfile: "runner",
+      });
       expect(body.cameraMode).toBe("orbit");
       expect(body.gameMode).toBe("hardcore_runner");
     });
