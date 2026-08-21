@@ -458,6 +458,37 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
+  test("drops a persisted monster whose retired species has no runtime tuning", async () => {
+    const { userId, token } = await registerAndLogin("mapretired");
+    const id = await newMapId(await newAdventure(userId), token, "Old bestiary");
+    const eventId = crypto.randomUUID();
+    const authored = await putMap(
+      id,
+      token,
+      mapBody({
+        events: [
+          {
+            id: eventId,
+            col: 5,
+            row: 5,
+            name: "Retired wolf",
+            ordinal: 1,
+            kind: "monster",
+            species: "spear_goblin",
+            patrolRadius: 3,
+            pages: [wirePage()],
+          },
+        ],
+      }),
+    );
+    expect(authored.status).toBe(200);
+
+    await probe.mapEvents.updateById(eventId, { species: "retired_wolf" });
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    expect(await fetched.json()).toMatchObject({ events: [] });
+  });
+
   test("round-trips multiple sea guardians when each one is explicitly anchored on water", async () => {
     const { userId, token } = await registerAndLogin("mapguardian");
     const id = await newMapId(await newAdventure(userId), token, "Guardian waters");

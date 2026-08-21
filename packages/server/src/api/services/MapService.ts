@@ -25,8 +25,8 @@ import { encodeElementTransform } from "@lindocara/engine/element-orientation.js
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   defaultMonsterTuning,
+  isMonsterSpecies,
   type MonsterAttackProfile,
-  type MonsterSpecies,
 } from "@lindocara/engine/game.js";
 import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
@@ -935,13 +935,13 @@ export class MapService {
       const isHarvestable = row.kind === "harvestable";
       const harvestProfile = isHarvestable ? decodeHarvestProfileColumn(row.harvestProfile) : null;
       if (
-        (isMonster && (row.species == null || row.patrolRadius == null)) ||
+        (isMonster && (!isMonsterSpecies(row.species) || row.patrolRadius == null)) ||
         ((isGuard || isNpc) && row.patrolRadius == null) ||
         (isHarvestable && harvestProfile === null)
       ) {
         return [];
       }
-      const species = isMonster ? (row.species as MonsterSpecies) : null;
+      const species = isMonster && isMonsterSpecies(row.species) ? row.species : null;
       const tuning = isTuned ? defaultMonsterTuning(species ?? "spear_goblin") : null;
       return [
         {
