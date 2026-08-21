@@ -353,14 +353,35 @@ export const SKID_FADE_MS = 180;
  * street without ever becoming the brightest thing on screen, and a slow turn does that where a
  * static shape does not. One turn every `SPIN_MS`, which is slow enough to read as drifting dust
  * and not as a loading spinner.
+ *
+ * The first cut was motes ALONE, and on a green field it disappeared (feedback #22): fourteen
+ * additive specks of 0.13 shrink to a pixel or two at the game's camera height, additive light over
+ * mid-green lifts the grass towards white rather than towards gold, and points with nothing between
+ * them never close into a circle the eye can complete. The fix is in three parts and each one
+ * matters: a soft halo UNDER the motes to carry the shape, bigger and fewer-but-brighter motes, and
+ * a gold saturated enough to survive being added to grass.
  */
-const EVENT_MARKER_MOTES = 14;
-const EVENT_MARKER_RADIUS = 0.32;
+const EVENT_MARKER_MOTES = 16;
+const EVENT_MARKER_RADIUS = 0.34;
 const EVENT_MARKER_SPIN_MS = 5200;
 /** Warm gold, deliberately under 1.0 in blue so additive blending stays golden over grass. */
-const EVENT_MARKER_GOLD = { r: 1, g: 0.82, b: 0.42 } as const;
+const EVENT_MARKER_GOLD = { r: 1, g: 0.78, b: 0.34 } as const;
 /** Edge of one mote's sprite, in texels. Small: it is a point of light, not a texture. */
 const MOTE_TEXTURE_SIZE = 16;
+/** World size of one mote at the camera's own distance, before `sizeAttenuation` shrinks it. */
+const MOTE_SIZE = 0.19;
+/**
+ * The halo the motes orbit over: one flat quad, one tile across, carrying a soft annulus.
+ *
+ * TINTED rather than additive, and that is the whole point of it. Additive light is what made the
+ * motes vanish over grass, so the shape underneath has to work the other way: it lays warm colour
+ * ON the ground the way a lamp's pool does, which reads at any brightness of terrain. The motes
+ * stay additive on top, so the marker is a warm mark with sparkle rather than a painted ring.
+ */
+const HALO_TEXTURE_SIZE = 64;
+const EVENT_MARKER_HALO_TILES = 1;
+const EVENT_MARKER_HALO_GOLD = 0xf6b833;
+const EVENT_MARKER_HALO_OPACITY = 0.34;
 
 /** Dynamic presentation parented to the same scene graph as terrain and billboards. */
 export class Hd2dVisualLayer {
@@ -384,6 +405,9 @@ export class Hd2dVisualLayer {
   #moteGeometry: THREE.BufferGeometry | null = null;
   #moteMaterial: THREE.PointsMaterial | null = null;
   #moteTexture: THREE.DataTexture | null = null;
+  #haloGeometry: THREE.PlaneGeometry | null = null;
+  #haloMaterial: THREE.MeshBasicMaterial | null = null;
+  #haloTexture: THREE.DataTexture | null = null;
   readonly #camps = new Map<string, CampEntry>();
   readonly #rations = new Map<string, RationEntry>();
   readonly #powerBuffs = new Map<string, PowerBuffEntry>();
@@ -1421,6 +1445,63 @@ export class Hd2dVisualLayer {
   }
 
   /**
+   * The halo's annulus, as pixel data for the same reason `#dustTexture` is: no 2D context is
+   * guaranteed here. A gaussian ring peaking where the motes orbit, over a faint fill that lifts
+   * the middle just enough to read as one mark rather than as a hoop, and hard zero past the
+   * inscribed circle so the quad's corners never show.
+   */
+  #haloAnnulusTexture(): THREE.DataTexture {
+    if (this.#haloTexture) return this.#haloTexture;
+    const size = HALO_TEXTURE_SIZE;
+    const data = new Uint8Array(size * size * 4);
+    const centre = (size - 1) / 2;
+    // The motes orbit at `EVENT_MARKER_RADIUS` tiles and the quad is `EVENT_MARKER_HALO_TILES`
+    // across, so the ring belongs at that fraction of the quad's half-extent.
+    const peak = EVENT_MARKER_RADIUS / (EVENT_MARKER_HALO_TILES / 2);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const dx = (x - centre) / centre;
+        const dy = (y - centre) / centre;
+        const radius = Math.sqrt(dx * dx + dy * dy);
+        // Width and fill were picked against a render of this exact profile over grass, squashed
+        // to the camera's own 38 degrees: wider than this and the halo reads as a yellow blob,
+        // narrower and it stops carrying the shape the motes are too sparse to draw.
+        const ring = Math.exp(-(((radius - peak) / 0.26) ** 2));
+        const fill = Math.max(0, 1 - radius / peak) * 0.14;
+        const alpha = radius > 1 ? 0 : Math.min(1, ring + fill);
+        const index = (y * size + x) * 4;
+        data[index] = 255;
+        data[index + 1] = 255;
+        data[index + 2] = 255;
+        data[index + 3] = Math.round(alpha * 255);
+      }
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    texture.needsUpdate = true;
+    this.#haloTexture = texture;
+    return texture;
+  }
+
+  /** The halo quad, laid flat once IN THE GEOMETRY so every marker can share the same buffers:
+   *  a per-mesh `rotation.x` would be undone by the spin the group carries. */
+  #eventMarkerHalo(): THREE.Mesh {
+    if (!this.#haloGeometry) {
+      const geometry = new THREE.PlaneGeometry(EVENT_MARKER_HALO_TILES, EVENT_MARKER_HALO_TILES);
+      geometry.rotateX(-Math.PI / 2);
+      this.#haloGeometry = geometry;
+    }
+    this.#haloMaterial ??= new THREE.MeshBasicMaterial({
+      map: this.#haloAnnulusTexture(),
+      color: EVENT_MARKER_HALO_GOLD,
+      transparent: true,
+      opacity: EVENT_MARKER_HALO_OPACITY,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    return new THREE.Mesh(this.#haloGeometry, this.#haloMaterial);
+  }
+
+  /**
    * The dust ring itself. Every mote's position, height and brightness is BAKED into the shared
    * geometry from its index, so the ring is varied without being random: the same marker draws the
    * same dust in every session, and animating it costs one rotation per frame rather than a buffer
@@ -1451,7 +1532,7 @@ export class Hd2dVisualLayer {
     }
     if (!this.#moteMaterial) {
       this.#moteMaterial = new THREE.PointsMaterial({
-        size: 0.13,
+        size: MOTE_SIZE,
         map: this.#dustTexture(),
         transparent: true,
         depthWrite: false,
@@ -1461,7 +1542,7 @@ export class Hd2dVisualLayer {
         vertexColors: true,
         sizeAttenuation: true,
         toneMapped: false,
-        opacity: 0.85,
+        opacity: 1,
       });
     }
     return new THREE.Points(this.#moteGeometry, this.#moteMaterial);
@@ -1478,7 +1559,11 @@ export class Hd2dVisualLayer {
       present.add(event.id);
       let object = this.#eventMarkers.get(event.id);
       if (!object) {
-        object = this.#eventMarkerDust();
+        // Halo first so the motes draw over it, both on shared buffers: a marker costs one group
+        // and two transforms, never a buffer of its own.
+        object = new THREE.Group();
+        object.name = "event-marker";
+        object.add(this.#eventMarkerHalo(), this.#eventMarkerDust());
         this.#root.add(object);
         this.#eventMarkers.set(event.id, object);
       }
@@ -2184,14 +2269,21 @@ export class Hd2dVisualLayer {
     this.#loot.clear();
     this.#projectiles.clear();
     this.#eventMarkers.clear();
-    // The three shared marker resources, freed exactly once: no marker owns them, so nothing else
-    // ever will.
+    // The shared marker resources, freed exactly once: no marker owns them, so nothing else ever
+    // will. Six now rather than three, since the halo brought a geometry, a material and a texture
+    // of its own.
     this.#moteGeometry?.dispose();
     this.#moteGeometry = null;
     this.#moteMaterial?.dispose();
     this.#moteMaterial = null;
     this.#moteTexture?.dispose();
     this.#moteTexture = null;
+    this.#haloGeometry?.dispose();
+    this.#haloGeometry = null;
+    this.#haloMaterial?.dispose();
+    this.#haloMaterial = null;
+    this.#haloTexture?.dispose();
+    this.#haloTexture = null;
     this.#camps.clear();
     this.#rations.clear();
     this.#powerBuffs.clear();

@@ -200,6 +200,22 @@ describe("Hd2dVisualLayer event marker dust", () => {
     return found;
   }
 
+  /** The marker is the GROUP: a halo quad with the motes orbiting over it, and the spin lives on
+   *  the group so both children turn together. */
+  function markersIn(root: THREE.Scene): THREE.Object3D[] {
+    const found: THREE.Object3D[] = [];
+    root.traverse((object) => {
+      if (object.name === "event-marker") found.push(object);
+    });
+    return found;
+  }
+
+  function halosIn(root: THREE.Scene): THREE.Mesh[] {
+    return markersIn(root).flatMap((marker) =>
+      marker.children.filter((child): child is THREE.Mesh => child instanceof THREE.Mesh),
+    );
+  }
+
   it("draws each interactable as a dust ring sharing one geometry, material and texture", () => {
     const { layer, root } = harness();
     layer.sync(
@@ -222,6 +238,22 @@ describe("Hd2dVisualLayer event marker dust", () => {
     expect(colors.count).toBe(first.geometry.getAttribute("position").count);
     expect(colors.getX(0)).not.toBe(colors.getX(1));
 
+    // The halo is what makes the ring READ over grass (feedback #22): additive specks alone lift
+    // green towards white, so the shape underneath is tinted instead, and it is shared like
+    // everything else here.
+    const halos = halosIn(root);
+    expect(halos).toHaveLength(2);
+    const [firstHalo, secondHalo] = halos;
+    if (!firstHalo || !secondHalo) throw new Error("expected two halos");
+    expect(firstHalo.geometry).toBe(secondHalo.geometry);
+    expect(firstHalo.material).toBe(secondHalo.material);
+    expect((firstHalo.material as THREE.MeshBasicMaterial).blending).toBe(THREE.NormalBlending);
+    // Laid flat in the GEOMETRY, not per mesh: the spin the group carries would undo a mesh
+    // rotation and stand the halo up on its edge.
+    expect(firstHalo.rotation.x).toBe(0);
+    const y = firstHalo.geometry.getAttribute("position");
+    expect(y.getY(0)).toBeCloseTo(0, 5);
+
     layer.dispose();
   });
 
@@ -232,13 +264,16 @@ describe("Hd2dVisualLayer event marker dust", () => {
       0,
     );
     const [first, second] = motesIn(root);
-    if (!first || !second) throw new Error("expected two markers");
+    const [firstMarker, secondMarker] = markersIn(root);
+    if (!first || !second || !firstMarker || !secondMarker) {
+      throw new Error("expected two markers");
+    }
 
     layer.update(0);
-    const start = first.rotation.y;
+    const start = firstMarker.rotation.y;
     layer.update(1300);
-    expect(first.rotation.y).toBeGreaterThan(start);
-    expect(second.rotation.y).toBe(first.rotation.y);
+    expect(firstMarker.rotation.y).toBeGreaterThan(start);
+    expect(secondMarker.rotation.y).toBe(firstMarker.rotation.y);
 
     // One marker leaves. Detaching it must not free the buffers its neighbour is still drawing
     // from, and three.js will not tell us afterwards: `dispose()` frees GPU resources and leaves
@@ -246,10 +281,11 @@ describe("Hd2dVisualLayer event marker dust", () => {
     const freed = vi.spyOn(first.geometry, "dispose");
     layer.sync({ ...empty, events: [markerEvent] }, 1);
     expect(motesIn(root)).toHaveLength(1);
+    expect(halosIn(root)).toHaveLength(1);
     expect(freed).not.toHaveBeenCalled();
-    const survived = first.rotation.y;
+    const survived = firstMarker.rotation.y;
     layer.update(2600);
-    expect(first.rotation.y).not.toBe(survived);
+    expect(firstMarker.rotation.y).not.toBe(survived);
 
     // The layer owns them, so tearing it down is what frees them, exactly once.
     layer.dispose();
