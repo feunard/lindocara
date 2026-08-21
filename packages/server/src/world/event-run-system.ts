@@ -44,6 +44,9 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 export type DialogueMessage =
   | { readonly kind: "say"; readonly text: string; readonly name: string | null }
   | { readonly kind: "offerChoices"; readonly prompt: string; readonly options: readonly string[] }
+  /** An authored cue. It rides this buffer rather than the dispatch list because it needs no
+   *  authority at all: it is presentation for the one hero running the page, exactly like a say. */
+  | { readonly kind: "playSound"; readonly soundId: string }
   | { readonly kind: "closeDialogue" };
 
 export interface BufferedDialogue {
@@ -215,6 +218,7 @@ export function drainRuns(
         if (
           effect.kind === "say" ||
           effect.kind === "offerChoices" ||
+          effect.kind === "playSound" ||
           effect.kind === "closeDialogue"
         ) {
           runtime.dialogue.push({ heroId: context.heroId, runId: context.runId, message: effect });

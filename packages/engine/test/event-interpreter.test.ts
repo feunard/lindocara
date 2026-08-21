@@ -99,6 +99,14 @@ describe("stepEventRun — the per-opcode table", () => {
     ]);
   });
 
+  it("playSound emits its cue and keeps running, unlike a say", () => {
+    // A cue is a beat UNDER a page, not a page of its own: parking on it would make an author
+    // write a sound and a line as two presses of the advance key.
+    const result = stepEventRun(run([{ t: "playSound", soundId: "chest" }]), state());
+    expect(result.effects).toEqual([{ kind: "playSound", soundId: "chest" }]);
+    expect(result.context.status).toBe("running");
+  });
+
   it("choices offers the labels, stores the count and parks without advancing pc", () => {
     const result = stepEventRun(
       run([

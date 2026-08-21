@@ -83,3 +83,20 @@ gains.
 - **`sfx/ui-back.ogg`** (back) — seed **42**, duration 2, kept 0–1.15 s.
   Prompt: *a small muted glass chime struck once, two quick descending notes, soft attack,
   quick decay*.
+
+### Authored cue sounds
+
+The two cues the authored `playSound` command needed and the game did not already have. Same lane
+and same recipe as the menu sounds above: MOSS-SoundEffect v2.0 through
+`python3 studio/studio.py sfx`, default theme suffix, three takes each, judged by RMS in 200 ms
+windows (an early peak decaying to silence, which is what a one-shot is), then trimmed, faded,
+loudness-normalised to -18 LUFS and encoded to Opus at 24 kHz mono.
+
+Every other id in the catalogue (`packages/engine/src/sfx-catalog.ts`) points at a file that was
+already shipped for combat, the UI or the world, so these are the only two new files it needed.
+
+- **`sfx/authored-hurt.ogg`** (`hurt`): duration 2, take 3 of 3, kept 0.15 to 0.90 s.
+  Prompt: *a short pained human grunt with a dull body impact, sharp attack, quick decay*.
+- **`sfx/authored-cheer.ogg`** (`cheer`): duration 2, take 3 of 3, kept 0.15 to 1.60 s.
+  Prompt: *a small crowd of villagers cheering hooray once, short and bright, sharp attack,
+  quick decay*.

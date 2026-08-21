@@ -16,6 +16,12 @@ import {
 } from "@lindocara/engine/event-commands.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
+import {
+  SOUND_EFFECT_FAMILIES,
+  SOUND_EFFECT_IDS,
+  SOUND_EFFECTS,
+  soundEffect,
+} from "@lindocara/engine/sfx-catalog.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 import {
@@ -71,6 +77,7 @@ type CategoryKey =
   | "control"
   | "character"
   | "party"
+  | "audio"
   | "other";
 
 const COMMAND_CATEGORIES: readonly {
@@ -86,6 +93,7 @@ const COMMAND_CATEGORIES: readonly {
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   { key: "character", kinds: ["teleport", "wait", "damage"] },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
+  { key: "audio", kinds: ["playSound"] },
   { key: "other", kinds: ["comment"] },
 ];
 
@@ -113,6 +121,12 @@ function defaultCommand(
       return { t: "say", text: "" };
     case "choices":
       return { t: "choices", prompt: "", options: [{ label: "", body: [] }] };
+    case "playSound": {
+      // The first catalogue entry rather than a hardcoded id: the picker is right there, and a
+      // default that names a cue the catalogue no longer ships would be a parse failure.
+      const soundId = SOUND_EFFECT_IDS[0];
+      return soundId === undefined ? null : { t: "playSound", soundId };
+    }
     case "setSwitch": {
       const switchId = firstId(ctx.switches);
       return switchId ? { t: "setSwitch", switchId, value: true } : null;
@@ -332,6 +346,8 @@ function commandLine(
     }
     case "choices":
       return t("editor.event.cmd.choices", { prompt: command.prompt });
+    case "playSound":
+      return t("editor.event.cmd.playSound", { sound: command.soundId });
     case "setSwitch":
       return t("editor.event.cmd.setSwitch", {
         id: namedEntry(switches, command.switchId),
@@ -805,6 +821,8 @@ function ParamBody({
       );
     case "choices":
       return <ChoicesParams command={command} onChange={onChange} />;
+    case "playSound":
+      return <PlaySoundParams command={command} onChange={onChange} />;
     case "setSwitch":
       return (
         <div className="flex flex-wrap items-end gap-2">
@@ -1242,6 +1260,66 @@ function SayParams({
       <span className="text-right text-[10px] text-zinc-400 tabular-nums">
         {t("editor.event.cmd.field.charCount", { n: command.text.length, max: COMMAND_TEXT_MAX })}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The cue picker, grouped by family, with a button that actually plays it.
+ *
+ * The preview is a plain `Audio` element rather than the game's own sound layer: the editor has no
+ * `GameSound` (that belongs to a running session), the catalogue carries a public URL and a level,
+ * and one element per press is exactly the lifetime a preview needs.
+ */
+function PlaySoundParams({
+  command,
+  onChange,
+}: {
+  command: Extract<EventCommand, { t: "playSound" }>;
+  onChange(command: EventCommand): void;
+}) {
+  const families = SOUND_EFFECT_FAMILIES.map((family) => ({
+    family,
+    effects: SOUND_EFFECTS.filter((effect) => effect.family === family),
+  })).filter((group) => group.effects.length > 0);
+  const preview = (): void => {
+    const effect = soundEffect(command.soundId);
+    if (!effect || typeof Audio === "undefined") return;
+    const element = new Audio(effect.src);
+    element.volume = Math.min(1, effect.volume * 2);
+    void element.play().catch(() => undefined);
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label={t("editor.event.cmd.field.sound")}>
+          <FieldSelect
+            aria-label={t("editor.event.cmd.field.sound")}
+            className="w-56"
+            value={command.soundId}
+            onChange={(e) => onChange({ ...command, soundId: e.currentTarget.value })}
+          >
+            {families.map((group) => (
+              <optgroup
+                key={group.family}
+                label={t(`editor.event.cmd.sound.family.${group.family}` as MessageKey)}
+              >
+                {group.effects.map((effect) => (
+                  <option key={effect.id} value={effect.id}>
+                    {effect.id}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </FieldSelect>
+        </Field>
+        <Button type="button" size="sm" variant="secondary" onClick={preview}>
+          {t("editor.event.cmd.field.sound.preview")}
+        </Button>
+      </div>
+      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+        {t("editor.event.cmd.field.sound.hint")}
+      </p>
     </div>
   );
 }

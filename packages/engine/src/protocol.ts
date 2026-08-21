@@ -106,6 +106,7 @@ import type { MerchantDefinition } from "./merchant.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
+import { isSoundEffectId } from "./sfx-catalog.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
@@ -1070,6 +1071,9 @@ export type ServerMessage =
   | { t: "event.say"; runId: string; text: string; name?: string }
   | { t: "event.choices"; runId: string; prompt: string; options: string[] }
   | { t: "event.close"; runId: string }
+  /** An authored cue for the run's triggerer. `soundId` is a CATALOGUE key, never a path, so this
+   *  is a code like every other server message rather than an exception to the rule. */
+  | { t: "event.sound"; runId: string; soundId: string }
   | {
       t: "quest.open";
       conversationId: string;
@@ -2579,6 +2583,11 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     }
     if (value.t === "event.close" && isWireId(value.runId)) {
+      return value as unknown as ServerMessage;
+    }
+    // The id is checked against the catalogue, not merely typed: a frame naming a cue this build
+    // does not ship is a frame the client could not play anyway.
+    if (value.t === "event.sound" && isWireId(value.runId) && isSoundEffectId(value.soundId)) {
       return value as unknown as ServerMessage;
     }
     if (

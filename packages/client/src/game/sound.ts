@@ -20,6 +20,7 @@ import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
+import { SOUND_EFFECTS, soundEffect } from "@lindocara/engine/sfx-catalog.js";
 import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
@@ -321,6 +322,19 @@ export class GameSound {
     if (src) void this.#playSpec({ src, volume: 0.7 });
   }
 
+  /**
+   * An authored `playSound`, resolved from the catalogue here and nowhere else.
+   *
+   * The wire carries an id; this is the only place that turns one into a file and a level, which is
+   * what lets a cue be re-recorded without touching a stored map. An id the parser somehow let
+   * through and the catalogue does not know is silence rather than a throw: a missing sound must
+   * never take a dialogue down with it.
+   */
+  authoredCue(soundId: string): void {
+    const effect = soundEffect(soundId);
+    if (effect) void this.#playSpec({ src: effect.src, volume: effect.volume });
+  }
+
   chest(open: boolean): void {
     const variants = open ? CHEST_OPEN : CHEST_CLOSE;
     const src = variants[Math.floor(Math.random() * variants.length)];
@@ -532,6 +546,7 @@ export class GameSound {
           ...CHEST_OPEN,
           ...CHEST_CLOSE,
           ...DOOR_OPEN,
+          ...SOUND_EFFECTS.map((effect) => effect.src),
           SEA_GUARDIAN_DEVOUR,
         ]),
       ].map(async (src) => {

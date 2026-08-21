@@ -877,6 +877,12 @@ export function flushDialogue(w: WorldGlue): void {
           ? { t: "event.say", runId: buffered.runId, text: message.text }
           : { t: "event.say", runId: buffered.runId, text: message.text, name: message.name },
       );
+    } else if (message.kind === "playSound") {
+      w.deps.send(connectionId, {
+        t: "event.sound",
+        runId: buffered.runId,
+        soundId: message.soundId,
+      });
     } else if (message.kind === "offerChoices") {
       w.deps.send(connectionId, {
         t: "event.choices",

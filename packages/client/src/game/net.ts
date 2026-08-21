@@ -178,6 +178,8 @@ export interface ConnectionHandlers {
   onEventSay(runId: string, text: string, name?: string): void;
   onEventChoices(runId: string, prompt: string, options: string[]): void;
   onEventClose(runId: string): void;
+  /** An authored cue: a catalogue id, resolved to a file by the sound layer. */
+  onEventSound(soundId: string): void;
   onQuestOpen(
     conversationId: string,
     entries: import("@lindocara/engine/protocol.js").QuestDialogueEntry[],
@@ -810,6 +812,10 @@ export class WorldClient {
     }
     if (message.t === "event.choices") {
       handlers.onEventChoices(message.runId, message.prompt, message.options);
+      return;
+    }
+    if (message.t === "event.sound") {
+      handlers.onEventSound(message.soundId);
       return;
     }
     if (message.t === "event.close") {

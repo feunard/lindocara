@@ -219,6 +219,8 @@ export function applyStateMutation(
  */
 export type EventEffect =
   | { readonly kind: "say"; readonly text: string; readonly name: string | null }
+  /** Play a catalogue cue for the hero running this page. Presentation, like `say`'s prose. */
+  | { readonly kind: "playSound"; readonly soundId: string }
   | { readonly kind: "offerChoices"; readonly prompt: string; readonly options: readonly string[] }
   | { readonly kind: "mutateState"; readonly op: StateMutation }
   | {
@@ -369,6 +371,13 @@ function executeCommand(
             name: command.name === undefined ? context.speaker : command.name,
           },
         ],
+      };
+    case "playSound":
+      // Unlike `say` this does NOT park the run: a cue is a beat under the page, not a page of its
+      // own, so the next command runs on the same tick's budget.
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "playSound", soundId: command.soundId }],
       };
     case "choices":
       return {

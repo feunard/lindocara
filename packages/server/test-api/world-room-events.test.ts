@@ -1618,6 +1618,46 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("an authored cue reaches the triggerer, and only the triggerer", async () => {
+    const eventId = crypto.randomUUID();
+    const bell = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
+      { t: "playSound", soundId: "chest" },
+      { t: "say", text: "Le coffre s'ouvre." },
+    ]);
+    const host = await newPlayableParty("cuehost", [bell]);
+    const guest = await joinPartyWithHero("cueguest", host.partyId);
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const s1 = fakeSocket(host.userId, host.heroId, "c-1");
+    const s2 = fakeSocket(guest.userId, guest.heroId, "c-2");
+    await engine.join(s1);
+    await engine.join(s2);
+    const state = roomState(engine);
+    const centre = authoredCellCentreGround(bell, gridSizeOf(state));
+    const p1 = playerOf(state, host.heroId);
+    const p2 = playerOf(state, guest.heroId);
+    p1.x = centre.x - 40 / TILE_SIZE;
+    p1.z = centre.z;
+    p2.x = centre.x + 20 / TILE_SIZE;
+    p2.z = centre.z;
+
+    await engine.message(s1.id, { t: "interact" });
+    await advanceTickSettled(clock);
+
+    // The cue is presentation for the hero who ran the page, exactly like the line under it: the
+    // party member standing beside them hears nothing, which is the decision this test pins.
+    expect(messagesOf(s1).find((message) => message.t === "event.sound")).toMatchObject({
+      soundId: "chest",
+    });
+    expect(messagesOf(s2).some((message) => message.t === "event.sound")).toBe(false);
+    // And it did not park the run: the line after it arrived in the same drain.
+    expect(messagesOf(s1).find((message) => message.t === "event.say")).toMatchObject({
+      text: "Le coffre s'ouvre.",
+      name: "Script",
+    });
+    engine.dispose();
+  });
+
   test("two heroes triggering one gold chest the same tick yield exactly ONE grant", async () => {
     const eventId = crypto.randomUUID();
     const chest = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [

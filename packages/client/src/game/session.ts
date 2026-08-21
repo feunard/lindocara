@@ -745,6 +745,9 @@ async function startGameIdentity(
       input.reset();
       useUiStore.getState().setEventDialogue({ kind: "choices", runId, prompt, options });
     },
+    onEventSound: (soundId) => {
+      sound.authoredCue(soundId);
+    },
     onEventClose: (runId) => {
       const store = useUiStore.getState();
       if (store.eventDialogue?.runId === runId) {

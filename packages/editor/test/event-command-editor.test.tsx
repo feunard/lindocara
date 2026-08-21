@@ -406,15 +406,33 @@ describe("EventCommandEditor", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
-    // The core event language plus the authored quest/fact commands, the endAdventure beat and the
-    // `openShop` counter and reusable damage trap; deferred common-event/audio and screen commands
-    // remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(22);
+    // The core event language plus the authored quest/fact commands, the endAdventure beat, the
+    // `openShop` counter, the reusable damage trap and the authored cue; deferred common-event and
+    // screen commands remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(23);
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
     ).toBeEnabled();
+    expect(
+      within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.playSound") }),
+    ).toBeEnabled();
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
+  });
+
+  it("authors a cue from the catalogue, grouped by what it is for", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness latest={latest} />);
+
+    await insertVia(user, "playSound")();
+    // A catalogue id, never a path: that is what lets a cue be re-recorded without touching a map.
+    expect(latest.current).toEqual([{ t: "playSound", soundId: "hurt" }]);
+
+    const picker = screen.getByRole("combobox", { name: t("editor.event.cmd.field.sound") });
+    await user.selectOptions(picker, "coins");
+    expect(latest.current).toEqual([{ t: "playSound", soundId: "coins" }]);
+    expect(screen.getByRole("button", { name: /coins/ })).toBeInTheDocument();
   });
 
   it("disables the teleport command when the adventure has no maps", async () => {

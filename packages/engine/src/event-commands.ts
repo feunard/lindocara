@@ -17,6 +17,7 @@
  */
 import { isUuid } from "./identifiers.js";
 import { CONDITION_ID_PATTERN, isSelfSwitch, type SelfSwitch } from "./map-events.js";
+import { isSoundEffectId } from "./sfx-catalog.js";
 
 /**
  * The command-model limits, the single source for every consumer (the parser here, the interpreter,
@@ -195,7 +196,16 @@ export type EventCommand =
       readonly amount: number;
     }
   | { readonly t: "completeQuest"; readonly questId: string }
-  | { readonly t: "comment"; readonly text: string };
+  | { readonly t: "comment"; readonly text: string }
+  /**
+   * Play one shipped cue for the hero running this page.
+   *
+   * The id is a catalogue key (`sfx-catalog.ts`), never a path: a cue can be re-recorded or moved
+   * without touching a stored map, and a page can never be stored asking for a sound that does not
+   * exist. Presentation only, like `say`'s prose: the room decides WHEN it happens, the client owns
+   * the file and the mixing.
+   */
+  | { readonly t: "playSound"; readonly soundId: string };
 
 function isConditionId(value: unknown): value is string {
   return typeof value === "string" && CONDITION_ID_PATTERN.test(value);
@@ -259,6 +269,12 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       const name = parseText(record.name);
       if (name === null) return null;
       return { t: "say", text, name };
+    }
+    case "playSound": {
+      // Gated against the catalogue rather than merely typed: an unknown id is a page that would
+      // fall silent at run time with nothing to say why.
+      if (!isSoundEffectId(record.soundId)) return null;
+      return { t: "playSound", soundId: record.soundId };
     }
     case "choices": {
       const prompt = parseText(record.prompt);
