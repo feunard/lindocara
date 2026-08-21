@@ -567,6 +567,10 @@ function AdventureEditorInner({
   // `placementRejectedAt` counter rather than a boolean, so retrying the same illegal cell while the
   // previous hint is still fading restarts its timer instead of silently doing nothing.
   const [placementHint, setPlacementHint] = useState(false);
+  const [pendingTeleportOrigin, setPendingTeleportOrigin] = useState<{
+    col: number;
+    row: number;
+  } | null>(null);
   const lastRejectionRef = useRef<number | null>(null);
   const placementHintTimeoutRef = useRef<number | null>(null);
   // The kind the EV tool places (normal / entry / exit / monster), and the monster kind's default
@@ -777,6 +781,7 @@ function AdventureEditorInner({
         // first door lives in the stage between the two clicks, and the palette has to say whether
         // that click registered instead of leaving the author to guess.
         setLinkPending(state.linkAnchor !== null);
+        setPendingTeleportOrigin(state.pendingTeleportOrigin ?? null);
         // C7: a new rejection count flashes the "can't place here" hint, restarting its timer even
         // if the previous flash is still fading (see the `placementHint` state declaration above).
         const rejectedAt = state.placementRejectedAt ?? null;
@@ -1992,6 +1997,17 @@ function AdventureEditorInner({
                   role="status"
                 >
                   {t("editor.error.placement")}
+                </p>
+              )}
+              {pendingTeleportOrigin && (
+                <p
+                  className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-sky-700/95 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
+                  role="status"
+                >
+                  {t("editor.event.teleporter.placeExit", {
+                    col: pendingTeleportOrigin.col + 1,
+                    row: pendingTeleportOrigin.row + 1,
+                  })}
                 </p>
               )}
               {stageStatus === "error" && (

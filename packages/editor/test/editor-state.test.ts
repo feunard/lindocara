@@ -21,6 +21,7 @@ import {
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
+  placeLinkedTeleporters,
   placementLegalAt,
   redoEditorHistory,
   selectionAt,
@@ -1490,26 +1491,44 @@ describe("applyTool: event placement", () => {
   it("pre-fills a preset event's page 1 with its command program and trigger (D13)", () => {
     const base = blankMap("m", 20, 15);
     const mapId = crypto.randomUUID();
-    // Teleporter: a player-touch trigger + a same-map teleport command the author retargets. Its
-    // destination placeholder is the map's OWN spawn, not the (0, 0) corner: the runtime silently
-    // refuses a teleport onto unwalkable ground, and a spawn is the one cell kept clear.
-    const tp = place(
+    // Teleporter: the two clicks create reciprocal player-touch events as one atomic map change.
+    // There is no half-authored endpoint and either side is immediately usable in play.
+    const tp = placeLinkedTeleporters(
       base,
       { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
-      3,
-      4,
+      { col: 3, row: 4 },
+      { col: 8, row: 9 },
     ) as EditorMap;
     expect(tp.events[0]?.kind).toBe("normal");
     expect(tp.events[0]?.pages[0]?.trigger).toBe("player-touch");
+    expect(tp.events[0]?.linkedEventId).toBe(tp.events[1]?.id);
+    expect(tp.events[1]?.linkedEventId).toBe(tp.events[0]?.id);
     expect(tp.events[0]?.pages[0]?.commands).toEqual([
       {
         t: "teleport",
         mapId,
-        col: base.spawn.col,
-        row: base.spawn.row,
+        col: 8,
+        row: 9,
         category: "geographic",
       },
     ]);
+    expect(tp.events[1]?.pages[0]?.commands).toEqual([
+      {
+        t: "teleport",
+        mapId,
+        col: 3,
+        row: 4,
+        category: "geographic",
+      },
+    ]);
+    expect(
+      place(
+        base,
+        { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
+        3,
+        4,
+      ),
+    ).toBeNull();
 
     // Sign: an interact-triggered say. Chest: a changeGold. Raw (default): the blank program.
     const sign = place(
@@ -1918,6 +1937,20 @@ describe("event serialization", () => {
     ) as EditorMap;
     const id = map.events[0]?.id ?? "";
     expect(deleteSelection(map, { kind: "event", id }).events).toEqual([]);
+  });
+
+  it("deletes both endpoints of a linked teleporter from either side", () => {
+    const mapId = crypto.randomUUID();
+    const map = placeLinkedTeleporters(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
+      { col: 3, row: 4 },
+      { col: 8, row: 9 },
+    );
+    if (!map) throw new Error("linked pair was not placed");
+
+    expect(deleteSelection(map, { kind: "event", id: map.events[0]?.id ?? "" }).events).toEqual([]);
+    expect(deleteSelection(map, { kind: "event", id: map.events[1]?.id ?? "" }).events).toEqual([]);
   });
 });
 

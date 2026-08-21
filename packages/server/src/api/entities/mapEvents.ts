@@ -35,6 +35,10 @@ export const mapEvents = $entity({
     name: z.string(),
     /** Creation order, per map. Display only. */
     ordinal: z.integer(),
+    /** Reciprocal same-map authoring link. Validated as a pair at the wire boundary. */
+    linkedEventId: z.uuid().optional(),
+    /** Small authored-event ground marker; old rows remain visible. */
+    showMarker: db.default(z.boolean(), true),
     /** Scripted, anchor, actor or explicitly configured harvestable event. */
     kind: db.default(z.enum(EVENT_KINDS), "normal"),
     /** Monster spawn, set iff `kind = 'monster'`. Typed as `MonsterSpecies` at the app layer. */

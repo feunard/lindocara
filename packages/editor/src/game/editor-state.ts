@@ -496,8 +496,15 @@ export function deleteSelection(map: EditorMap, selection: EditorSelection): Edi
         ...map,
         elements: map.elements.filter((element) => !sameElementSlot(element, selection)),
       };
-    case "event":
-      return { ...map, events: map.events.filter((event) => event.id !== selection.id) };
+    case "event": {
+      const selectedEvent = map.events.find((event) => event.id === selection.id);
+      const linkedIds = new Set([selection.id]);
+      if (selectedEvent?.linkedEventId) linkedIds.add(selectedEvent.linkedEventId);
+      for (const event of map.events) {
+        if (event.linkedEventId === selection.id) linkedIds.add(event.id);
+      }
+      return { ...map, events: map.events.filter((event) => !linkedIds.has(event.id)) };
+    }
     case "spawn":
       return map;
   }
@@ -1393,7 +1400,57 @@ function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
 function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
   const index = map.events.findIndex((event) => event.col === col && event.row === row);
   if (index === -1) return map;
-  return { ...map, events: map.events.filter((_event, i) => i !== index) };
+  const event = map.events[index];
+  return event ? deleteSelection(map, { kind: "event", id: event.id }) : map;
+}
+
+/**
+ * Place a reciprocal same-map teleporter pair as one document change. The editor stage waits for
+ * both clicks before calling this function, so neither history nor persistence can ever observe a
+ * half-authored link.
+ */
+export function placeLinkedTeleporters(
+  map: EditorMap,
+  tool: EditorEventTool,
+  source: { col: number; row: number },
+  destination: { col: number; row: number },
+): EditorMap | null {
+  if (tool.eventKind !== "normal" || tool.preset !== "teleporter") return null;
+  if (source.col === destination.col && source.row === destination.row) return null;
+  if (map.events.length > MAX_EVENTS_PER_MAP - 2) return null;
+  if (runtimeEventCount(map.events) > MAX_RUNTIME_EVENTS_PER_MAP - 2) return null;
+  for (const point of [source, destination]) {
+    if (map.events.some((event) => event.col === point.col && event.row === point.row)) return null;
+    if (!functionalEventPlacementOk(map, "normal", point.col, point.row)) return null;
+  }
+  const sourceId = crypto.randomUUID();
+  const destinationId = crypto.randomUUID();
+  const ordinal = nextEventOrdinal(map.events);
+  const sourceEvent: MapEvent = {
+    ...presetEvent({
+      id: sourceId,
+      ...source,
+      ordinal,
+      preset: "teleporter",
+      selfMapId: tool.selfMapId ?? "",
+      selfSpawn: destination,
+      ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+    }),
+    linkedEventId: destinationId,
+  };
+  const destinationEvent: MapEvent = {
+    ...presetEvent({
+      id: destinationId,
+      ...destination,
+      ordinal: ordinal + 1,
+      preset: "teleporter",
+      selfMapId: tool.selfMapId ?? "",
+      selfSpawn: source,
+      ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
+    }),
+    linkedEventId: sourceId,
+  };
+  return { ...map, events: [...map.events, sourceEvent, destinationEvent] };
 }
 
 /** `syncElevationWalls` for one cell, widened to a rectangle. Each call already checks the cell and
@@ -1904,6 +1961,7 @@ export function applyTool(
      * their own payload (species, patrol radius, profile) and the exit/spawn graph invariant.
      */
     case "event": {
+      if (tool.eventKind === "normal" && tool.preset === "teleporter") return null;
       if (map.events.some((event) => event.col === col && event.row === row)) return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
       if (

@@ -1540,7 +1540,7 @@ export const en = {
     "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend. Painting water over either occupied cell removes the whole staircase automatically.",
   "editor.help.maps.multimap.title": "Create multiple maps",
   "editor.help.maps.multimap.body":
-    "Add each place in the Maps panel. Put a Teleporter event at the first place’s exit, choose the destination map and cell, then create a return path if needed. A single Start event defines the global opening.",
+    "Add each place in the Maps panel. Place both endpoints of a Teleporter, then open the event to retarget its destination map when the passage leaves the current map. A single Start event defines the global opening.",
   "editor.help.maps.collision.title": "Understand collisions",
   "editor.help.maps.collision.body":
     "Turn on Collisions in the toolbar: red or outlined areas block the hero. Use the quick preview to walk immediately. A map fallback/test point does not replace the adventure’s global Start.",
@@ -1555,7 +1555,7 @@ export const en = {
     "Gives a reward only once through a state local to that chest. Edit its gold, items, messages and appearance.",
   "editor.help.story.preset.teleporter": "Teleporter",
   "editor.help.story.preset.teleporter.body":
-    "Moves the hero to a chosen map and cell. Use it for doors, exits, secret passages and chapter changes.",
+    "Click the entrance, then the exit: the editor creates and links both endpoints immediately. Open either event afterward to change its behavior or destination.",
   "editor.help.story.preset.end": "Adventure goal",
   "editor.help.story.preset.end.body":
     "Ends the party when activated. Place it after the final dialogue or battle, and test that it remains reachable.",
@@ -1665,7 +1665,7 @@ export const en = {
   "editor.help.test.checklist.start":
     "A new party starts at the correct Start event, in a traversable location.",
   "editor.help.test.checklist.maps":
-    "Every teleporter arrives on the correct map and a return path exists when the story needs one.",
+    "Every teleporter arrives at the intended endpoint and both linked events still describe the desired passage.",
   "editor.help.test.checklist.quests":
     "Every quest can be accepted, every objective progresses from its real source, and turn-in works.",
   "editor.help.test.checklist.dialogue":
@@ -2003,6 +2003,11 @@ export const en = {
   "editor.event.preset.raw": "Blank custom event",
   "editor.event.preset.teleporter": "Teleporter",
   "editor.event.preset.teleporter.disabled": "Open a map first to place a teleporter.",
+  "editor.event.teleporter.placeExit":
+    "Entrance placed at ({col}, {row}). Now click the exit cell.",
+  "editor.event.marker.visible": "Show the ground locator ring",
+  "editor.event.marker.visible.hint":
+    "Turn this off to hide the small ring automatically drawn beneath this event in game.",
   "editor.event.preset.sign": "Sign / Dialogue",
   "editor.event.preset.chest": "Chest (gold)",
   "editor.event.preset.endgame": "Adventure goal (ending)",

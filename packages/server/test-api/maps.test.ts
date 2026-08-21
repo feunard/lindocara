@@ -332,6 +332,60 @@ describe("list, get, update, delete", () => {
     expect(await afterDelete.json()).toMatchObject({ error: "map_not_found" });
   });
 
+  test("round-trips reciprocal teleporter links and the locator-ring preference", async () => {
+    const { userId, token } = await registerAndLogin("maplinkedtp");
+    const id = await newMapId(await newAdventure(userId), token, "Linked passage");
+    const firstId = crypto.randomUUID();
+    const secondId = crypto.randomUUID();
+    const first = {
+      id: firstId,
+      col: 3,
+      row: 4,
+      name: "Passage A",
+      ordinal: 1,
+      linkedEventId: secondId,
+      showMarker: false,
+      kind: "normal",
+      pages: [
+        wirePage({
+          trigger: "player-touch",
+          commands: [{ t: "teleport", mapId: id, col: 8, row: 9, category: "geographic" }],
+        }),
+      ],
+    };
+    const second = {
+      id: secondId,
+      col: 8,
+      row: 9,
+      name: "Passage B",
+      ordinal: 2,
+      linkedEventId: firstId,
+      kind: "normal",
+      pages: [
+        wirePage({
+          trigger: "player-touch",
+          commands: [{ t: "teleport", mapId: id, col: 3, row: 4, category: "geographic" }],
+        }),
+      ],
+    };
+
+    expect((await putMap(id, token, mapBody({ events: [first, second] }))).status).toBe(200);
+    const payload = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      events: Array<Record<string, unknown>>;
+    };
+    expect(payload.events).toEqual([
+      expect.objectContaining({ id: firstId, linkedEventId: secondId, showMarker: false }),
+      expect.objectContaining({ id: secondId, linkedEventId: firstId, showMarker: true }),
+    ]);
+    const rows = await probe.mapEvents.findMany({ where: { mapId: { eq: id } } });
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: firstId, linkedEventId: secondId, showMarker: false }),
+        expect.objectContaining({ id: secondId, linkedEventId: firstId, showMarker: true }),
+      ]),
+    );
+  });
+
   test("round-trips an authored monster event (with its tuning) through GET -> PUT", async () => {
     const { userId, token } = await registerAndLogin("mapevent");
     const adventureId = await newAdventure(userId);

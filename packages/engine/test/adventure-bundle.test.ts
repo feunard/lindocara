@@ -18,6 +18,8 @@ const NPC = "11111111-0000-4000-8000-000000000001";
 const EXIT_A = "22222222-0000-4000-8000-000000000002";
 const ENTRY_B = "33333333-0000-4000-8000-000000000003";
 const BOSS = "44444444-0000-4000-8000-000000000004";
+const TELEPORT_A = "55555555-0000-4000-8000-000000000005";
+const TELEPORT_B = "66666666-0000-4000-8000-000000000006";
 
 function layers(): string[] {
   const layer = encodeTileLayer(emptyLayer(20, 15));
@@ -125,6 +127,26 @@ function fixture(): AdventureBundle {
         events: [
           npcEvent(),
           functionalEvent({ id: EXIT_A, col: 5, row: 5, ordinal: 2, kind: "exit" }),
+          {
+            ...npcEvent(),
+            id: TELEPORT_A,
+            col: 7,
+            row: 7,
+            name: "Passage A",
+            ordinal: 3,
+            linkedEventId: TELEPORT_B,
+            pages: [defaultEventPage()],
+          },
+          {
+            ...npcEvent(),
+            id: TELEPORT_B,
+            col: 8,
+            row: 8,
+            name: "Passage B",
+            ordinal: 4,
+            linkedEventId: TELEPORT_A,
+            pages: [defaultEventPage()],
+          },
         ],
       },
       {
@@ -219,9 +241,13 @@ describe("adventure bundle", () => {
 
     // Maps and events carry the new ids; no old id survives anywhere in the document.
     const text = JSON.stringify(rewritten);
-    for (const old of [MAP_A, MAP_B, NPC, EXIT_A, ENTRY_B, BOSS]) {
+    for (const old of [MAP_A, MAP_B, NPC, EXIT_A, ENTRY_B, BOSS, TELEPORT_A, TELEPORT_B]) {
       expect(text).not.toContain(old);
     }
+
+    const linked = rewritten.maps[0]?.events.slice(2, 4);
+    expect(linked?.[0]?.linkedEventId).toBe(eventIds.get(TELEPORT_B));
+    expect(linked?.[1]?.linkedEventId).toBe(eventIds.get(TELEPORT_A));
 
     // The nested teleport inside the choices branch follows the map mapping.
     const npc = rewritten.maps[0]?.events[0];

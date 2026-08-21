@@ -244,6 +244,10 @@ export interface MapEvent {
   name: string;
   /** Creation order, per map. Display only (the wireframe's `EV{ordinal}`); never identity. */
   ordinal: number;
+  /** Reciprocal same-map event link used by authoring tools for indivisible teleport pairs. */
+  linkedEventId?: string;
+  /** Whether the renderer draws the small authored-event ground marker. Legacy omission means on. */
+  showMarker?: boolean;
   /** `normal` and `npc` are scripted world events; the other kinds have dedicated runtime roles. */
   kind: EventKind;
   /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */
@@ -653,6 +657,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     const parsedName = validateEventName(name);
     if (parsedName === null) return null;
     if (!Number.isSafeInteger(ordinal) || (ordinal as number) < 0) return null;
+    const linkedEventId = record.linkedEventId;
+    if (linkedEventId !== undefined && !isUuid(linkedEventId)) return null;
+    const showMarker = record.showMarker;
+    if (showMarker !== undefined && typeof showMarker !== "boolean") return null;
 
     // A stored spawn event is dropped, not rejected — see `RETIRED_SPAWN_KIND`'s docblock. This
     // must run before the `isEventKind` check below, which would otherwise reject the whole list.
@@ -926,6 +934,8 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       row: r,
       name: parsedName,
       ordinal: ordinal as number,
+      ...(linkedEventId === undefined ? {} : { linkedEventId }),
+      ...(showMarker === undefined ? {} : { showMarker }),
       kind,
       species,
       patrolRadius,
@@ -943,6 +953,20 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       ...(harvestProfile === undefined ? {} : { harvestProfile }),
       pages: normalizedPages,
     });
+  }
+  const byId = new Map(events.map((event) => [event.id, event]));
+  for (const event of events) {
+    if (event.linkedEventId === undefined) continue;
+    const partner = byId.get(event.linkedEventId);
+    if (
+      partner === undefined ||
+      partner.id === event.id ||
+      partner.kind !== "normal" ||
+      event.kind !== "normal" ||
+      partner.linkedEventId !== event.id
+    ) {
+      return null;
+    }
   }
   return events;
 }
