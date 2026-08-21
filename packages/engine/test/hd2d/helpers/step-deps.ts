@@ -1,5 +1,9 @@
 import type { ColliderQuery, StepDeps } from "@lindocara/engine/hd2d/hero-state.js";
-import type { TerrainMaterial, TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import type {
+  TerrainMaterial,
+  TerrainQuery,
+  TerrainRampSample,
+} from "@lindocara/engine/hd2d/terrain-query.js";
 
 interface Options {
   /** `true` where an obstacle blocks. Default: nowhere. */
@@ -11,6 +15,14 @@ interface Options {
   /** World height of the water surface at a point. Default: 0 everywhere, which is what every map
    *  without water at elevation answers. */
   eau?: (x: number, z: number) => number;
+  /** The slope under a point, for the tests that care what a ramp may and may not lift a body
+   *  over. Default: no ramps anywhere. */
+  rampe?: (x: number, z: number) => TerrainRampSample | null;
+  /** Whether one segment follows a stair corridor. Default: never. */
+  franchit?: (fromX: number, fromZ: number, toX: number, toZ: number, r: number) => boolean;
+  /** The highest ground the body's DISC touches. Default: the height under the point itself, which
+   *  is what a fixture with no relief beside the hero wants. */
+  maxAutour?: (x: number, z: number, r: number, ceilingY?: number) => number;
 }
 
 /** Flat, obstacle-free terrain, every part of which can be overridden — every
@@ -21,11 +33,12 @@ export function depsPlates(o: Options = {}): StepDeps {
   const query: TerrainQuery = {
     heightAt: (x, z) => hauteur(x, z),
     surfaceAt: (x, z, ceilingY) => o.surface?.(x, z, ceilingY) ?? hauteur(x, z),
-    maxHeightAround: (x, z) => hauteur(x, z) ?? 0,
+    maxHeightAround: (x, z, r, ceilingY) => o.maxAutour?.(x, z, r, ceilingY) ?? hauteur(x, z) ?? 0,
     levelAt: (x, z) => (hauteur(x, z) === null ? null : 0),
     kindAt: (x, z) => matiere(x, z),
-    rampAt: () => null,
-    canTraverseRamp: () => false,
+    rampAt: (x, z) => o.rampe?.(x, z) ?? null,
+    canTraverseRamp: (fromX, fromZ, toX, toZ, r) =>
+      o.franchit?.(fromX, fromZ, toX, toZ, r) ?? false,
     cellCenter: (i, j) => [i + 0.5, j + 0.5],
     // A world with no elevated water answers the same surface everywhere, which is what every
     // map but the lab's summit spring does. `eau` lets a test place water higher when it wants to.

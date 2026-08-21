@@ -259,16 +259,26 @@ export function canStand(
   groundY: number,
 ): boolean {
   const ceiling = standingCeiling(terrain, groundY);
+  const ramp = terrain.query.rampAt(x, z);
   const surface = terrain.query.surfaceAt?.(x, z, ceiling) ?? terrain.query.heightAt(x, z);
   // `null` is water or off the grid. Neither is ground a server-simulated body may stand on.
   if (surface === null) return false;
 
-  const onRamp = terrain.query.rampAt(x, z) !== null;
+  // A ramp is the one place ground may rise under a walking body, so on one the ceiling becomes
+  // the RAMP'S OWN TOP rather than the flat `groundY + MAX_STEP`.
+  //
+  // Both tests below used to be skipped outright on a ramp cell, which made every ramp a hole in
+  // the rule rather than an exception to it: a body whose centre was on the slope could stand with
+  // its disc buried in a wall of any height at all, and at the head of a flight of stairs that is
+  // exactly where the plateau's edge is. Raising the ceiling instead keeps the climb (the ground
+  // the ramp delivers you onto is at its top, by construction) and refuses everything above it.
+  const rampCeiling = ramp === null ? null : ramp.highHeight + HEIGHT_EPSILON;
+  const reach = rampCeiling === null ? ceiling : Math.max(ceiling, rampCeiling);
   // The ground under the CENTRE decides where a foot lands, and it is a hard rule in `canEnter`
   // too: relax it and a body climbs a cliff by leaning into it.
-  if (surface > ceiling && !onRamp) return false;
+  if (surface > reach) return false;
   // Then the body's whole footprint, so a cliff stops it at its edge rather than at its middle.
-  if (terrain.query.maxHeightAround(x, z, radius, ceiling) > ceiling && !onRamp) return false;
+  if (terrain.query.maxHeightAround(x, z, radius, reach) > reach) return false;
 
   return !terrain.colliders.blocked(x, z, radius, surface);
 }

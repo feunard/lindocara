@@ -85,7 +85,19 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
         hero.radius,
         state.groundY,
       ) ?? null);
-  const traversingSurface = traversingRamp || platformHeight !== null;
+  // How high a ramp may lift a body that is on one: its own top, and not a step further.
+  //
+  // `traversingSurface` used to switch the height tests OFF entirely, which made a ramp cell a
+  // hole in the rule rather than an exception to it: while the corridor test keeps the disc inside
+  // the ramp ACROSS the slope, nothing kept it out of whatever stands at the head of the stairs,
+  // so a hero could finish a climb with its body inside the plateau's edge. Raising the ceiling to
+  // the ramp's top keeps every climb (the ground a ramp delivers you onto is at its top, by
+  // construction) and refuses anything above it. Roofs keep the old behaviour: `platformHeight` is
+  // the height the body is being carried at, and its own tests live in `platformHeightAlong`.
+  const rampSample = traversingRamp
+    ? (query.rampAt(x, footprintZ) ?? query.rampAt(state.x, currentFootprintZ))
+    : null;
+  const rampCeiling = rampSample === null ? null : rampSample.highHeight + 1e-3;
 
   // Indoors, terrain relief and props no longer apply: the room is a plain rectangle, sitting
   // outside the terrain grid.
@@ -115,7 +127,10 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     // swimmer cannot climb out. Both were live bugs; with one global water level neither could
     // happen, because every lookup returned the same number.
     if (state.swimming) return h - state.y <= climb;
-    return state.airborne ? h <= state.y + 0.02 : traversingSurface || h - state.groundY <= maxStep;
+    if (state.airborne) return h <= state.y + 0.02;
+    if (platformHeight !== null) return true;
+    if (rampCeiling !== null && h <= rampCeiling) return true;
+    return h - state.groundY <= maxStep;
   };
   if (!centreOk(x, z)) return false;
 
@@ -127,7 +142,13 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     : state.airborne
       ? state.y + 0.02
       : state.groundY + maxStep;
-  if (h > plafond && !traversingSurface) {
+  const reach =
+    platformHeight !== null
+      ? Number.POSITIVE_INFINITY
+      : rampCeiling === null
+        ? plafond
+        : Math.max(plafond, rampCeiling);
+  if (h > reach) {
     // Already overlapping something too tall — the case right after falling at the foot of a
     // cliff, the disc still biting into the cell above. Without this escape hatch, NO movement at
     // all is allowed, not even to move away from it, and the hero stays cemented in place.
@@ -137,7 +158,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
       hero.radius,
       state.y + 0.02,
     );
-    if (!(ici > plafond && h <= ici)) return false;
+    if (!(ici > reach && h <= ici)) return false;
   }
 
   const collisionY = platformHeight ?? state.y;
