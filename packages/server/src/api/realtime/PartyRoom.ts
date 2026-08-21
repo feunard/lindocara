@@ -548,6 +548,7 @@ export class PartyRoom {
     }),
     methods: {
       getAdventureState: (room) => this.getAdventureState(room.roomId, room.state),
+      restartAdventure: (room) => this.restartAdventure(room.roomId, room.state),
       applyStateChanges: (room, mutations: readonly StateMutation[]) =>
         this.applyStateChanges(room.roomId, room.state, mutations),
       markPermanentMonsterDefeated: (room, eventId: string) =>
@@ -625,6 +626,30 @@ export class PartyRoom {
   ): Promise<Omit<VersionedState, "supportSpends">> {
     const current = await this.ensureState(partyId, state);
     return { state: current.state, version: current.version, registry: current.registry };
+  }
+
+  /**
+   * Start a hardcore attempt from a clean party-owned adventure state. Hero progression and
+   * equipment deliberately remain hero data; authored switches, quests, defeated encounters,
+   * gathered materials and harvest depletion belong to the run and are cleared together.
+   */
+  protected async restartAdventure(
+    partyId: string,
+    state: PartyRoomState,
+  ): Promise<Omit<VersionedState, "supportSpends">> {
+    return this.enqueueStateWrite(state, async () => {
+      state.harvestReservations.clear();
+      state.materialReservations.clear();
+      const nextState: PartyAdventureState = {
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        materials: { ...EMPTY_PARTY_MATERIALS },
+        harvestNodes: {},
+      };
+      const next = await this.commitStateWithSupportSpends(partyId, state, nextState, {});
+      return { state: next.state, version: next.version, registry: next.registry };
+    });
   }
 
   /**

@@ -115,6 +115,7 @@ import { AdventureStateService } from "../services/AdventureStateService.ts";
 import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
 import { type HeroSaveResult, HeroSaveService } from "../services/HeroSaveService.ts";
+import { HeroService } from "../services/HeroService.ts";
 import { MapService } from "../services/MapService.ts";
 import { AdmissionService } from "./AdmissionService.ts";
 import { RealtimeChannels } from "./channels.ts";
@@ -231,6 +232,7 @@ export class WorldRoom {
   admissionService = $inject(AdmissionService);
   heroEpochService = $inject(HeroEpochService);
   heroSaveService = $inject(HeroSaveService);
+  heroService = $inject(HeroService);
   adventureStateService = $inject(AdventureStateService);
   adventureService = $inject(AdventureService);
   mapService = $inject(MapService);
@@ -342,9 +344,7 @@ export class WorldRoom {
     return state;
   }
 
-  protected async adventurePresentationForParty(
-    partyId: string,
-  ): Promise<{
+  protected async adventurePresentationForParty(partyId: string): Promise<{
     audio: AdventureAudioConfig;
     cameraMode: AdventureCameraMode;
     gameMode: AdventureGameMode;
@@ -691,6 +691,18 @@ export class WorldRoom {
       return;
     }
     if (message.t === "release") {
+      if (
+        state.gameMode === "hardcore_runner" &&
+        player.life === "corpse" &&
+        !player.transitioning
+      ) {
+        player.transitioning = true;
+        void this.retryHardcoreRun(room, state, connectionId, player).catch((error) => {
+          player.transitioning = false;
+          this.logError("hardcore_retry_failed", error, { heroId: player.id });
+        });
+        return;
+      }
       handleRelease(w, connectionId, player);
       return;
     }
@@ -1476,6 +1488,49 @@ export class WorldRoom {
   // -----------------------------------------------------------------------------------------------
   // Map transitions (Task 8)
   // -----------------------------------------------------------------------------------------------
+
+  /**
+   * A hardcore release resets the party-owned run, revives the hero, then returns that hero to the
+   * adventure's authoritative first map. The ordinary release path remains the single owner of
+   * resurrection health, grace and local monster resets; this method only adds the cross-map handoff
+   * and run-state reset that "retry from zero" requires.
+   */
+  protected async retryHardcoreRun(
+    room: WorldRoomHandle,
+    state: WorldRoomState,
+    connectionId: string,
+    player: PlayerRuntime,
+  ): Promise<void> {
+    let claimedAuthorization = false;
+    try {
+      if (player.identityKind !== "hero" || !player.partyId || player.life !== "corpse") return;
+      const party = await this.parties.findById(player.partyId);
+      if (!party || !player.authorized) return;
+      const start = await this.heroService.resolveHeroStart(party.adventureId);
+      if (!start) return;
+
+      await this.partyRoom.room.call(player.partyId, "restartAdventure");
+      handleRelease(this.glue(room), connectionId, player);
+      if (start.mapId === state.mapId) return;
+
+      player.lastTransitionAt = Date.now();
+      claimedAuthorization = true;
+      player.authorized = false;
+      await this.performHandoff(
+        room,
+        state,
+        connectionId,
+        player,
+        start.mapId,
+        start.position,
+        { t: "event", code: "zone.transition", tone: "good" },
+        "hardcore retry",
+      );
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
+    }
+  }
 
   /**
    * Port of legacy `#transitionAdventureExit` (`world.ts:3616-3739`): a hero standing on an
