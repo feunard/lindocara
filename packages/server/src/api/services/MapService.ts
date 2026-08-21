@@ -54,7 +54,7 @@ import {
 } from "../../adventure-registry.js";
 import { adventures } from "../entities/adventures.ts";
 import { heroes } from "../entities/heroes.ts";
-import { mapElements } from "../entities/mapElements.ts";
+import { type MapElement as MapElementRow, mapElements } from "../entities/mapElements.ts";
 import { type MapEventPage as MapEventPageRow, mapEventPages } from "../entities/mapEventPages.ts";
 import { mapEvents } from "../entities/mapEvents.ts";
 import { type MapRow, maps } from "../entities/maps.ts";
@@ -879,33 +879,47 @@ export class MapService {
   }
 
   private async toPayload(row: MapRow): Promise<MapPayload> {
-    const elementRows = await this.mapElements.findMany({ where: { mapId: { eq: row.id } } });
-    const events = await this.loadEvents(row.id);
-    const heightfield = heightfieldOfRow(row.heightfield);
-    return {
-      id: row.id,
-      accountId: row.userId,
-      adventureId: row.adventureId,
-      name: row.name,
-      revision: row.revision,
-      environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
-      tilesetId: row.tilesetId,
-      cols: row.cols,
-      rows: row.rows,
-      layers: decodeLayers(row.id, row.layers, row.cols, row.rows).map(encodeTileLayer),
-      elements: elementRows.flatMap((element): MapElement[] => {
-        const wire = elementToWire(element);
-        return wire ? [wire] : [];
-      }),
-      spawn: { col: row.spawnCol, row: row.spawnRow },
-      markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
-      events,
-      audio: decodeMapAudio(row.audio),
-      heroSettings: decodeMapHeroSettings(row.heroSettings),
-      dayNightCycle: row.dayNightCycle,
-      fixedLighting: row.fixedLighting,
-      heightfield,
-    };
+    let elementRows: MapElementRow[];
+    try {
+      elementRows = await this.mapElements.findMany({ where: { mapId: { eq: row.id } } });
+    } catch (error) {
+      throw mapReadError("elements", error);
+    }
+    let events: MapEvent[];
+    try {
+      events = await this.loadEvents(row.id);
+    } catch (error) {
+      throw mapReadError("events", error);
+    }
+    try {
+      const heightfield = heightfieldOfRow(row.heightfield);
+      return {
+        id: row.id,
+        accountId: row.userId,
+        adventureId: row.adventureId,
+        name: row.name,
+        revision: row.revision,
+        environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
+        tilesetId: row.tilesetId,
+        cols: row.cols,
+        rows: row.rows,
+        layers: decodeLayers(row.id, row.layers, row.cols, row.rows).map(encodeTileLayer),
+        elements: elementRows.flatMap((element): MapElement[] => {
+          const wire = elementToWire(element);
+          return wire ? [wire] : [];
+        }),
+        spawn: { col: row.spawnCol, row: row.spawnRow },
+        markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
+        events,
+        audio: decodeMapAudio(row.audio),
+        heroSettings: decodeMapHeroSettings(row.heroSettings),
+        dayNightCycle: row.dayNightCycle,
+        fixedLighting: row.fixedLighting,
+        heightfield,
+      };
+    } catch (error) {
+      throw mapReadError("payload", error);
+    }
   }
 
   /** Ported from `eventsOf`: events ordered by ordinal, each carrying its pages ordered by
@@ -1073,6 +1087,10 @@ function chunkArray<T>(items: readonly T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+function mapReadError(phase: "elements" | "events" | "payload", cause: unknown): Error {
+  return new Error(`read_${phase}: stored map content could not be reconstructed`, { cause });
 }
 
 function pageToWire(page: MapEventPageRow): MapEventPage {
