@@ -165,6 +165,72 @@ describe("compileAuthoredMap", () => {
     ]);
   });
 
+  /**
+   * Quest #13 / #26's third mechanism: the collider's base and the art's base must be the SAME
+   * ground.
+   *
+   * `elementFootPixel` puts an element's foot on its cell's far Z edge, so the foot is always at
+   * least a row south of `levels[row * size + col]`. The art has always grounded at the foot
+   * (`placeArt` samples `heightAt` there); the collider read the storage cell. On flat ground the
+   * two agree and nothing showed. Across a step they differ by the whole level difference, which is
+   * how a castle came to be DRAWN on a plateau while its colliders were built from the valley two
+   * levels below, and why walking that plateau met a wall with nothing on it.
+   *
+   * Stated as an invariant rather than as numbers: how far a roof stands above the ground it is
+   * drawn on cannot depend on where the terrain happens to step.
+   */
+  it("bases a building on the ground its art is drawn on, not on its storage cell", () => {
+    const COLS = 16;
+    const build = (levelAt: (col: number, row: number) => number): MapData => {
+      const ids: number[] = [];
+      for (let row = 0; row < COLS; row += 1) {
+        for (let col = 0; col < COLS; col += 1) {
+          const slots = TERRAIN_MATERIAL_SLOTS.herbe;
+          ids.push(autotileId(slots[levelAt(col, row)] ?? slots[0], 0));
+        }
+      }
+      return {
+        ...authored(),
+        cols: COLS,
+        rows: COLS,
+        layers: [
+          { ...emptyLayer(COLS, COLS), ids },
+          emptyLayer(COLS, COLS),
+          emptyLayer(COLS, COLS),
+        ],
+        elements: [
+          {
+            col: 6,
+            row: 8,
+            offsetX: 0,
+            offsetY: 0,
+            assetId: LINDOCARA_BUILDING_ASSET_IDS.castle,
+          },
+        ],
+        spawn: { col: 0, row: 0 },
+      };
+    };
+
+    /** The roof's height above whatever ground the compiled ART stands on. */
+    const clearance = (source: MapData): number => {
+      const compiled = compileAuthoredMap(source);
+      const terrain = zoneTerrainFromHeightfield(compiled);
+      const element = compiled.elements[0];
+      const roof = compiled.colliders[0];
+      if (!element || !roof?.top) throw new Error("castle fixture missing");
+      return roof.top - (terrain.query.heightAt(element.x, element.z) ?? 0);
+    };
+
+    // Storage cell is row 8 and the foot lands in row 9, so a step between them is exactly the
+    // disagreement: level 0 under the anchor, level 2 under the art.
+    expect(clearance(build(() => 0))).toBeCloseTo(
+      clearance(build((_c, row) => (row >= 9 ? 2 : 0))),
+      6,
+    );
+    // And it survives a step the other way, and one running east to west.
+    expect(clearance(build(() => 2))).toBeCloseTo(clearance(build((col) => (col >= 7 ? 2 : 0))), 6);
+  });
+
   it.each([
     [LINDOCARA_BUILDING_ASSET_IDS.house, 2.68, "gable", 1],
     [LINDOCARA_BUILDING_ASSET_IDS.archeryGuild, 2.6, "gable", 1],
@@ -175,7 +241,11 @@ describe("compileAuthoredMap", () => {
     [LINDOCARA_BUILDING_ASSET_IDS.windmill, 3.57, "cone", 1],
   ])("authors %s with its native %s roof at %s", (assetId, roofTop, roofShape, colliderCount) => {
     const source = authored();
-    source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId, orientation: 1 }];
+    // `col: 1`, not 0, and the reason is the point of the quest above: an element's foot lands a
+    // row south of its storage cell, and this fixture's cell (0,1) is `neige` at LEVEL 2. Anchoring
+    // at column 0 therefore bases the building 1.8 up and every roof number below stops reading as
+    // "above its own ground". Column 1's foot lands on (1,1), which is level 0.
+    source.elements = [{ col: 1, row: 0, offsetX: 0, offsetY: 0, assetId, orientation: 1 }];
     const compiled = compileAuthoredMap(source);
     expect(compiled.elements[0]?.orientation).toBe(1);
     expect(compiled.colliders).toHaveLength(colliderCount);
@@ -221,7 +291,8 @@ describe("compileAuthoredMap", () => {
     "turns %s's visible roof edge into collision while keeping its deck walkable",
     (assetId, roofTop, parapetTop, edgeCount) => {
       const source = authored();
-      source.elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId }];
+      // See the note on the roof table above: column 0's foot lands on a level-2 cell.
+      source.elements = [{ col: 1, row: 0, offsetX: 0, offsetY: 0, assetId }];
       const compiled = compileAuthoredMap(source);
       const roof = compiled.colliders[0];
       const edges = compiled.colliders.slice(1);
@@ -246,7 +317,8 @@ describe("compileAuthoredMap", () => {
     const source = authored();
     source.elements = [
       {
-        col: 0,
+        // Column 1 for the same reason as the roof table: a foot from column 0 lands on level 2.
+        col: 1,
         row: 0,
         offsetX: 0,
         offsetY: 0,

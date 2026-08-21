@@ -304,12 +304,35 @@ function orientedSubCollider(
   return { x: cx - w / 2, z: cz - h / 2, w, h, ...(rotation ? { rotation } : {}), ...extra };
 }
 
+/**
+ * The ground an element stands on: the terrain under its FOOT, which is the same point its art is
+ * grounded at.
+ *
+ * It used to read `levels[element.row * size + element.col]`, the storage cell, and that is quest
+ * #13. A foot sits on its cell's far Z edge (`elementFootPixel`), so it is ALWAYS at least a row
+ * south of that cell, and `heightAt` floors a boundary into the row it opens. On flat ground the
+ * two answers agree and nothing showed; across a step they differ by the whole level difference.
+ * That is how a castle came to be drawn standing on a plateau while its colliders were built from
+ * the valley two levels below, leaving a wall on ground with nothing on it.
+ *
+ * The floor rule is `terrain-query.ts`'s `toCell` deliberately, and out of bounds falls to the
+ * water level for the same reason: `placeArt` grounds at `heightAt(...) ?? waterLevel`, so matching
+ * it here is what keeps the art and the collision on one surface at the map's border too.
+ *
+ * Known gap, and it is narrow: `heightAt` consults ramps before the grid and this does not, so a
+ * prop whose foot lands ON a ramp is still based on the cell under it. Nothing authored puts a
+ * building on a slope today.
+ */
 function elementBaseTop(
-  element: Pick<MapElement, "col" | "row">,
+  element: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">,
   levels: readonly (number | null)[],
   size: number,
 ): number {
-  const level = levels[element.row * size + element.col] ?? null;
+  const foot = authoredElementGroundPoint(element, size);
+  const col = Math.floor(foot.x + size / 2);
+  const row = Math.floor(foot.z + size / 2);
+  const inside = col >= 0 && row >= 0 && col < size && row < size;
+  const level = inside ? (levels[row * size + col] ?? null) : null;
   return level === null ? AUTHORED_WATER_LEVEL : level * AUTHORED_LEVEL_HEIGHT;
 }
 
