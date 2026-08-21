@@ -669,6 +669,8 @@ export interface WorldEventSnapshot {
   interactive?: true;
   /** Server-selected rendering semantics; legacy omission means the one-cell marker treatment. */
   presentation?: "marker" | "native";
+  /** Explicit authored choice for the small ground marker. Legacy omission means visible. */
+  showMarker?: boolean;
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
   harvest?: {
     state: "intact" | "depleted";
@@ -2052,6 +2054,7 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.presentation === undefined ||
       value.presentation === "marker" ||
       value.presentation === "native") &&
+    (value.showMarker === undefined || typeof value.showMarker === "boolean") &&
     (harvest === undefined ||
       (isRecord(harvest) &&
         (harvest.state === "intact" || harvest.state === "depleted") &&

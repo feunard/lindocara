@@ -147,6 +147,21 @@ describe("Hd2dVisualLayer authored event markers", () => {
       2,
     );
     expect(layer.diagnostics().eventMarkers).toBe(1);
+    layer.sync(
+      {
+        ...sample,
+        events: [
+          {
+            ...nativeEventWithoutHarvest,
+            id: "marker",
+            presentation: "marker",
+            showMarker: false,
+          },
+        ],
+      },
+      3,
+    );
+    expect(layer.diagnostics().eventMarkers).toBe(0);
     layer.dispose();
   });
 });

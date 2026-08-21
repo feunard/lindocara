@@ -1319,6 +1319,22 @@ export function EventDialog({
           </p>
         )}
 
+        <section className="flex flex-col gap-1 rounded-lg border border-zinc-200 p-3">
+          <label className="flex items-center gap-2 text-[12.5px] font-medium text-zinc-700">
+            <input
+              type="checkbox"
+              checked={draft.showMarker !== false}
+              onChange={(change) =>
+                setDraft({ ...draft, showMarker: change.currentTarget.checked })
+              }
+            />
+            {t("editor.event.marker.visible")}
+          </label>
+          <p className="pl-6 text-[11px] text-muted-foreground">
+            {t("editor.event.marker.visible.hint")}
+          </p>
+        </section>
+
         {/* Normal events and NPCs expose complete pages. Guards reuse page conditions for presence
             and the action list for dialogue while their combat appearance/movement stays server-owned. */}
         {(draft.kind === "normal" ||

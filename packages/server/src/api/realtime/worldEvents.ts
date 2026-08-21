@@ -308,6 +308,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       directionFixed: page.optDirFix,
       ...(page.trigger === "action" ? { interactive: true as const } : {}),
       presentation: event.kind === "harvestable" ? "native" : "marker",
+      showMarker: event.showMarker !== false,
       ...(profile && harvestNode
         ? {
             harvest: {

@@ -1313,7 +1313,9 @@ export class Hd2dVisualLayer {
     const present = new Set<string>();
     for (const event of events) {
       const needsMarker =
-        !event.harvest && (event.presentation !== "native" || event.graphicAssetId === null);
+        event.showMarker !== false &&
+        !event.harvest &&
+        (event.presentation !== "native" || event.graphicAssetId === null);
       if (!needsMarker) continue;
       present.add(event.id);
       let object = this.#eventMarkers.get(event.id);
