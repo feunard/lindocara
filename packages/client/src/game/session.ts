@@ -89,6 +89,7 @@ import { questTrackerNotifications } from "../quest-presentation.js";
 import { cancelHudLayoutEdit, isHudLayoutEditing } from "../state/hud-layout.js";
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
+import { leaveAdventureTest } from "./adventure-test.js";
 import { ChestFeedbackTracker } from "./chest-feedback.js";
 import {
   activeReactivationDeadline,
@@ -96,6 +97,7 @@ import {
   clientShadowReturnDeadline,
   skillCooldownBlocksCast,
 } from "./cooldown-sync.js";
+import { escapeIntent } from "./escape-intent.js";
 import { shouldLogEvent } from "./event-log-policy.js";
 import { hasNearbyInteraction, nearestInteractiveBuilding } from "./interaction-context.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
@@ -1145,37 +1147,55 @@ async function startGameIdentity(
     nav?.setActiveParty(null);
     nav?.toMenu();
   };
+  /** Escape, and the gamepad button bound to it. `escapeIntent` owns WHICH rung of the ladder the
+   *  press lands on (`game/escape-intent.ts`); this only performs it. */
   const toggleSettings = () => {
-    if (interiorOpen()) {
-      closeInterior();
-      input.reset();
-      return;
+    const store = useUiStore.getState();
+    const intent = escapeIntent({
+      interiorOpen: interiorOpen(),
+      mapOpen: store.mapOpen,
+      talentsOpen: talentsOpen(),
+      questJournalOpen: store.questJournalOpen,
+      inventoryOpen: store.inventoryOpen,
+      merchantOpen: store.merchantOpen,
+      settingsOpen: settingsOpen(),
+      adventureTestRunning: getGameNavigation()?.getAdventureTestSession() != null,
+    });
+    switch (intent) {
+      case "close-interior":
+        closeInterior();
+        break;
+      case "close-map":
+        store.setMapOpen(false);
+        break;
+      case "close-talents":
+        store.setTalentsOpen(false);
+        break;
+      case "close-quest-journal":
+        store.setQuestJournalOpen(false);
+        break;
+      case "close-inventory":
+        store.setInventoryOpen(false);
+        store.setMerchantOpen(false);
+        break;
+      case "close-settings":
+        // The one rung that does NOT reset the input: closing the menu hands the keyboard back to
+        // a hero that is already standing there, and a reset would swallow a held direction.
+        store.setSettingsOpen(false);
+        return;
+      case "leave-adventure-test":
+        void leaveAdventureTest().then((failure) => {
+          // A key press has nowhere of its own to show an error, and falling through to the
+          // settings menu would answer a failed exit with an unrelated panel. The status line says
+          // what happened, and the creator stays in the test exactly as the button leaves them.
+          if (failure) useUiStore.getState().setStatus({ key: "editor.test.error.exit" });
+        });
+        break;
+      case "open-settings":
+        store.setSettingsOpen(true);
+        break;
     }
-    if (useUiStore.getState().mapOpen) {
-      useUiStore.getState().setMapOpen(false);
-      input.reset();
-      return;
-    }
-    if (talentsOpen()) {
-      useUiStore.getState().setTalentsOpen(false);
-      input.reset();
-      return;
-    }
-    const overlayStore = useUiStore.getState();
-    if (overlayStore.questJournalOpen) {
-      overlayStore.setQuestJournalOpen(false);
-      input.reset();
-      return;
-    }
-    if (overlayStore.inventoryOpen || overlayStore.merchantOpen) {
-      overlayStore.setInventoryOpen(false);
-      overlayStore.setMerchantOpen(false);
-      input.reset();
-      return;
-    }
-    const nextOpen = !settingsOpen();
-    useUiStore.getState().setSettingsOpen(nextOpen);
-    if (nextOpen) input.reset();
+    input.reset();
   };
 
   stopActions = trackActions(

@@ -1,24 +1,13 @@
 import { Badge } from "@alepha/ui/components/ui/badge";
 import { Button } from "@alepha/ui/components/ui/button";
 import { useStore } from "alepha/react";
-import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
-import {
-  ApiError,
-  authErrorText,
-  createAdventureTestSessionApi,
-  deleteAdventureTestSessionApi,
-  errorCode,
-} from "../api.js";
-import { startGameAsHero, stopActiveGameSession } from "../game/session.js";
+import { authErrorText, createAdventureTestSessionApi, errorCode } from "../api.js";
+import { leaveAdventureTest } from "../game/adventure-test.js";
+import { startGameAsHero } from "../game/session.js";
 import { t, useLocale } from "../i18n.js";
-import {
-  activePartyAtom,
-  adventureEditorSessionAtom,
-  adventureTestSessionAtom,
-} from "../state/atoms.js";
+import { adventureEditorSessionAtom, adventureTestSessionAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";
-import type { AppRouter } from "./AppRouter.js";
 
 /**
  * Creator controls that sit over the real game runtime. The session itself is a disposable D1
@@ -27,10 +16,8 @@ import type { AppRouter } from "./AppRouter.js";
  */
 export function AdventureTestOverlay() {
   useLocale();
-  const router = useRouter<AppRouter>();
   const [session, setTestSession] = useStore(adventureTestSessionAtom);
   const [editorSession] = useStore(adventureEditorSessionAtom);
-  const [, setActiveParty] = useStore(activePartyAtom);
   const game = useUiStore((state) => state.game);
   const [busy, setBusy] = useState<"reset" | "exit" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,25 +71,21 @@ export function AdventureTestOverlay() {
     }
   }
 
+  /**
+   * The button and the Escape key are the same exit: `leaveAdventureTest` owns the order of
+   * operations and the expired-envelope case, and hands back an error code only when the creator
+   * is still inside the test. On success this component is already unmounting, so `busy` is left
+   * as it is on purpose.
+   */
   async function exit(): Promise<void> {
     if (!session || busy) return;
     setBusy("exit");
     setError(null);
-    try {
-      await deleteAdventureTestSessionApi(session.id);
-    } catch (caught) {
-      // Expiration already achieved the desired deletion; every other failure stays visible and
-      // leaves the creator in the test rather than falsely promising a clean return.
-      if (!(caught instanceof ApiError) || caught.code !== "adventure_test_not_found") {
-        setError(authErrorText(errorCode(caught)));
-        setBusy(null);
-        return;
-      }
+    const failure = await leaveAdventureTest();
+    if (failure) {
+      setError(authErrorText(failure));
+      setBusy(null);
     }
-    stopActiveGameSession();
-    setTestSession(null);
-    setActiveParty(null);
-    void router.push("editor");
   }
 
   function toggleCycle(): void {

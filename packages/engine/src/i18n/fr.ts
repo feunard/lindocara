@@ -1762,6 +1762,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.test.exiting": "Fermeture…",
   "editor.test.error.invalid": "Le test complet est bloqué par des références ou règles invalides.",
   "editor.test.error.expired": "Cette session de test a déjà été supprimée ou a expiré.",
+  "editor.test.error.exit":
+    "Impossible de quitter le test. Utilisez le bouton Retour à l’éditeur pour savoir pourquoi.",
   "editor.shell.database": "États et compteurs…",
   "editor.shell.quests": "Quêtes…",
   "editor.shell.events.graphic.heading": "Graphique de l’événement",

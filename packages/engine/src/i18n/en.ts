@@ -1745,6 +1745,7 @@ export const en = {
   "editor.test.exiting": "Closing…",
   "editor.test.error.invalid": "The complete test is blocked by invalid references or rules.",
   "editor.test.error.expired": "This test session was already removed or has expired.",
+  "editor.test.error.exit": "Could not leave the test. Use the Return to editor button to see why.",
   "editor.shell.database": "States and counters…",
   "editor.shell.quests": "Quests…",
   "editor.shell.events.graphic.heading": "Event graphic",
