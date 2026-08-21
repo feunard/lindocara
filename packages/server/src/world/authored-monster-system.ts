@@ -57,6 +57,10 @@ export function authoredMonsterDefinition(
     ...(event.monsterRespawnDelayMs === null || event.monsterRespawnDelayMs === undefined
       ? {}
       : { respawnDelayMs: event.monsterRespawnDelayMs }),
+    pursuitMode: event.monsterPursuitMode ?? "standard",
+    acceleration: event.monsterAcceleration ?? 0,
+    maxSpeed: event.monsterMaxSpeed ?? event.monsterSpeed ?? undefined,
+    oneHitKill: event.monsterOneHitKill ?? false,
   };
 }
 
@@ -102,6 +106,13 @@ export function reconcileActiveMonsters(
       graphicAssetId: definition.graphicAssetId ?? null,
       respawnMode: definition.respawnMode ?? "timed",
       respawnDelayMs: definition.respawnDelayMs ?? existing.respawnDelayMs,
+      pursuitMode: definition.pursuitMode ?? "standard",
+      acceleration: definition.acceleration ?? 0,
+      maxSpeed: Math.max(
+        definition.speed ?? existing.baseSpeed,
+        definition.maxSpeed ?? existing.maxSpeed,
+      ),
+      oneHitKill: definition.oneHitKill ?? false,
     };
   });
 }

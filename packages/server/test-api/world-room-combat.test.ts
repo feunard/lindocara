@@ -79,7 +79,11 @@ import {
   resolvePlayerAction,
   startPlayerAction,
 } from "../src/api/realtime/world-actions.ts";
-import { resolveMonsterAction, startMonsterAttack } from "../src/api/realtime/world-combat.ts";
+import {
+  damagePlayer,
+  resolveMonsterAction,
+  startMonsterAttack,
+} from "../src/api/realtime/world-combat.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
 import { applyReportedMove } from "../src/api/realtime/world-move-life.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
@@ -1600,6 +1604,35 @@ describe("world room combat (FakeClock)", () => {
     advanceWorldTick(w);
     expect(monster.threat.has(heroId)).toBe(true);
     expect(monster.action).not.toBeNull();
+    engine.dispose();
+  });
+
+  test("a configured one-hit pursuer ends the run regardless of ordinary damage mitigation", async () => {
+    const { userId, roomId, heroId } = await newPlayableHero("runnerkill");
+    const engine = createEngine(roomId, new FakeClock());
+    await engine.join(fakeSocket(userId, heroId));
+    const state = roomState(engine);
+    const player = playerOf(state, heroId);
+    player.guarding = true;
+    player.guardUntil = Number.POSITIVE_INFINITY;
+    const now = Date.now() + 1_000;
+    const { w } = testGlue(state, () => now);
+
+    damagePlayer(
+      w,
+      `c-${heroId}`,
+      player,
+      1,
+      "torch_goblin",
+      "nightmare-hound",
+      now,
+      undefined,
+      true,
+    );
+
+    expect(player.hp).toBe(0);
+    expect(player.life).toBe("corpse");
+    expect(player.corpse).toMatchObject({ x: player.x, y: player.y, z: player.z });
     engine.dispose();
   });
 

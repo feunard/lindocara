@@ -65,6 +65,10 @@ export const mapEvents = $entity({
     monsterAttackProfile: z.string().optional(),
     monsterRespawnMode: z.string().optional(),
     monsterRespawnDelayMs: z.integer().optional(),
+    monsterPursuitMode: z.string().optional(),
+    monsterAcceleration: z.number().optional(),
+    monsterMaxSpeed: z.number().optional(),
+    monsterOneHitKill: db.default(z.boolean(), false),
     /** Validated `HarvestProfile` JSON, present only for `kind = 'harvestable'`. */
     harvestProfile: z.string().optional(),
   }),

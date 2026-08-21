@@ -13,7 +13,9 @@ import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventu
 import {
   CURATED_MONSTER_SPECIES,
   defaultMonsterTuning,
+  MONSTER_ACCELERATION_LIMITS,
   MONSTER_ATTACK_PROFILES,
+  MONSTER_PURSUIT_MODES,
   MONSTER_RANKS,
   MONSTER_RESPAWN_DELAY_LIMITS,
   MONSTER_RESPAWN_MODES,
@@ -21,6 +23,7 @@ import {
   MONSTER_TUNING_LIMITS,
   MONSTER_WEAKNESSES,
   type MonsterAttackProfile,
+  type MonsterPursuitMode,
   type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
@@ -69,6 +72,7 @@ import {
   setEventDraftHarvestProfile,
   setEventDraftMonster,
   setEventDraftMonsterAttackProfile,
+  setEventDraftMonsterPursuit,
   setEventDraftMonsterRespawnDelay,
   setEventDraftMonsterRespawnMode,
   setEventDraftName,
@@ -475,6 +479,7 @@ function MonsterEventFields({
   errors,
   onChange,
   onAttackProfileChange,
+  onPursuitChange,
 }: {
   draft: MapEvent;
   errors: EventStatErrors;
@@ -486,6 +491,12 @@ function MonsterEventFields({
     respawnDelayMs?: number,
   ): void;
   onAttackProfileChange(profile: MonsterAttackProfile | null): void;
+  onPursuitChange(
+    mode: MonsterPursuitMode,
+    acceleration: number,
+    maxSpeed: number,
+    oneHitKill: boolean,
+  ): void;
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
   const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
@@ -509,6 +520,10 @@ function MonsterEventFields({
     : [tuning.specialTechnique, ...speciesTechniques];
   const respawnMode = draft.monsterRespawnMode ?? "timed";
   const respawnDelayMs = draft.monsterRespawnDelayMs ?? MONSTER_RESPAWN_MS;
+  const pursuitMode = draft.monsterPursuitMode ?? "standard";
+  const acceleration = draft.monsterAcceleration ?? 0;
+  const maxSpeed = draft.monsterMaxSpeed ?? tuning.speed;
+  const oneHitKill = draft.monsterOneHitKill ?? false;
   return (
     <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -630,6 +645,77 @@ function MonsterEventFields({
             />
             <StatFieldError id="monster-respawn-delay-error" error={errors.respawnDelay} />
           </span>
+        )}
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.pursuitMode")}
+          <FieldSelect
+            aria-label={t("editor.monster.pursuitMode")}
+            className="h-8 text-sm"
+            value={pursuitMode}
+            onChange={(event) =>
+              onPursuitChange(
+                event.currentTarget.value as MonsterPursuitMode,
+                acceleration,
+                maxSpeed,
+                oneHitKill,
+              )
+            }
+          >
+            {MONSTER_PURSUIT_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`editor.monster.pursuitMode.${mode}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </span>
+        {pursuitMode === "relentless" && (
+          <>
+            <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+              {t("editor.monster.acceleration")}
+              <Input
+                aria-label={t("editor.monster.acceleration")}
+                type="number"
+                className="h-8 text-sm tabular-nums"
+                min={MONSTER_ACCELERATION_LIMITS.min}
+                max={MONSTER_ACCELERATION_LIMITS.max}
+                step={0.1}
+                value={acceleration}
+                onChange={(event) =>
+                  onPursuitChange(
+                    pursuitMode,
+                    Number(event.currentTarget.value),
+                    maxSpeed,
+                    oneHitKill,
+                  )
+                }
+              />
+            </span>
+            <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+              {t("editor.monster.maxSpeed")}
+              <Input
+                aria-label={t("editor.monster.maxSpeed")}
+                type="number"
+                className="h-8 text-sm tabular-nums"
+                min={tuning.speed}
+                max={MONSTER_TUNING_LIMITS.speed.max}
+                step={0.1}
+                value={maxSpeed}
+                onChange={(event) =>
+                  onPursuitChange(
+                    pursuitMode,
+                    acceleration,
+                    Number(event.currentTarget.value),
+                    oneHitKill,
+                  )
+                }
+              />
+            </span>
+            <CheckRow
+              checked={oneHitKill}
+              onToggle={(checked) => onPursuitChange(pursuitMode, acceleration, maxSpeed, checked)}
+              label={t("editor.monster.oneHitKill")}
+            />
+          </>
         )}
         {(
           [
@@ -1224,6 +1310,11 @@ export function EventDialog({
               }}
               onAttackProfileChange={(profile) =>
                 setDraft(setEventDraftMonsterAttackProfile(draft, profile))
+              }
+              onPursuitChange={(mode, acceleration, maxSpeed, oneHitKill) =>
+                setDraft(
+                  setEventDraftMonsterPursuit(draft, mode, acceleration, maxSpeed, oneHitKill),
+                )
               }
             />
             <div className="rounded-lg border border-zinc-200 p-3">

@@ -190,7 +190,14 @@ async function main(): Promise<void> {
       missingColumns.push(...missing.map((column) => `${table}.${column}`));
     };
     requireColumns("adventures", ["camera_mode"]);
-    requireColumns("mapEvents", ["linked_event_id", "show_marker"]);
+    requireColumns("mapEvents", [
+      "linked_event_id",
+      "show_marker",
+      "monster_pursuit_mode",
+      "monster_acceleration",
+      "monster_max_speed",
+      "monster_one_hit_kill",
+    ]);
   } finally {
     database.close();
   }

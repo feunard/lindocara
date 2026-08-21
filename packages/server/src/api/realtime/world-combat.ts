@@ -633,10 +633,27 @@ export function damagePlayer(
   monsterId: string,
   now: number,
   technique?: Exclude<MonsterSpecialTechnique, "none">,
+  oneHitKill = false,
 ): void {
   if (isPlayerInvulnerable(player, now)) return;
   const hpBefore = player.hp;
   const stealthEnded = exitRogueStealth(player, now);
+  if (oneHitKill) {
+    player.hp = 0;
+    generateResource(player.class, player.resource, "damage_taken", hpBefore);
+    player.dirty = true;
+    w.deps.send(connectionId, {
+      t: "event",
+      code: "combat.hurt",
+      params: { species, damage: hpBefore, monsterId, ...(technique ? { technique } : {}) },
+      tone: "bad",
+      x: player.x,
+      z: player.z,
+    });
+    killPlayer(w, connectionId, player);
+    sendStateTo(w, connectionId, player);
+    return;
+  }
   const protectedDamage = damageAfterWarriorProtection(
     player,
     damage,
@@ -943,6 +960,7 @@ export function resolveMonsterAction(
       monster.id,
       now,
       specialTechnique ?? undefined,
+      monster.oneHitKill,
     );
     drainedDamage += damage;
   }

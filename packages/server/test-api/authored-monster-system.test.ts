@@ -93,6 +93,34 @@ describe("authored monster projection", () => {
     expect(createMonsters([archer])[0]?.attackProfile).toBe("arrow");
   });
 
+  it("projects the reusable relentless one-hit pursuer settings", () => {
+    const runner = {
+      ...conditionalMonster(),
+      monsterPursuitMode: "relentless" as const,
+      monsterAcceleration: 0.8,
+      monsterMaxSpeed: 5.5,
+      monsterOneHitKill: true,
+    };
+    const definition = activeAuthoredMonsterDefinitions(
+      [runner],
+      state({ "0075": true }),
+      GRID_SIZE,
+    )[0];
+    if (!definition) throw new Error("monster definition missing");
+    expect(definition).toMatchObject({
+      pursuitMode: "relentless",
+      acceleration: 0.8,
+      maxSpeed: 5.5,
+      oneHitKill: true,
+    });
+    expect(createMonsters([definition])[0]).toMatchObject({
+      pursuitMode: "relentless",
+      acceleration: 0.8,
+      maxSpeed: 5.5,
+      oneHitKill: true,
+    });
+  });
+
   it("preserves live combat state and removes encounters whose condition is withdrawn", () => {
     const retainedDefinition = activeAuthoredMonsterDefinitions(
       [conditionalMonster()],

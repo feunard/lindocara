@@ -21,6 +21,7 @@ import {
   MONSTER_RESPAWN_MS,
   type MonsterAttackProfile,
   type MonsterKind,
+  type MonsterPursuitMode,
   type MonsterRank,
   type MonsterRespawnMode,
   type MonsterSpawn,
@@ -456,7 +457,13 @@ export interface MonsterRuntime extends WorldPosition {
   hp: number;
   maxHp: number;
   damage: number;
+  /** Authored movement speed restored whenever a new run starts. */
+  baseSpeed: number;
   speed: number;
+  pursuitMode: MonsterPursuitMode;
+  acceleration: number;
+  maxSpeed: number;
+  oneHitKill: boolean;
   /** Temporary movement penalty; reset on respawn and never serialized. */
   slowUntil: number;
   slowMultiplier: number;
@@ -947,7 +954,12 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       hp: tuning.maxHp,
       maxHp: tuning.maxHp,
       damage: tuning.damage,
+      baseSpeed: tuning.speed,
       speed: tuning.speed,
+      pursuitMode: spawn.pursuitMode ?? "standard",
+      acceleration: spawn.acceleration ?? 0,
+      maxSpeed: Math.max(tuning.speed, spawn.maxSpeed ?? tuning.speed),
+      oneHitKill: spawn.oneHitKill ?? false,
       slowUntil: 0,
       slowMultiplier: 1,
       revealedUntil: 0,

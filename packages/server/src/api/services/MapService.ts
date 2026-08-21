@@ -93,10 +93,11 @@ export const MAP_ELEMENT_COLUMNS = 11;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
  *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
- *  harvestProfile, linkedEventId, showMarker.
+ *  harvestProfile, linkedEventId, showMarker, monsterPursuitMode, monsterAcceleration,
+ *  monsterMaxSpeed, monsterOneHitKill.
  *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 24;
+export const MAP_EVENT_COLUMNS = 28;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
  *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
@@ -833,6 +834,10 @@ export class MapService {
         monsterAttackProfile: event.monsterAttackProfile ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
         monsterRespawnDelayMs: event.monsterRespawnDelayMs ?? undefined,
+        monsterPursuitMode: event.monsterPursuitMode ?? undefined,
+        monsterAcceleration: event.monsterAcceleration ?? undefined,
+        monsterMaxSpeed: event.monsterMaxSpeed ?? undefined,
+        monsterOneHitKill: event.monsterOneHitKill ?? false,
         harvestProfile:
           event.harvestProfile === undefined ? undefined : JSON.stringify(event.harvestProfile),
       })),
@@ -971,6 +976,16 @@ export class MapService {
           ...(isMonster && row.monsterRespawnDelayMs != null
             ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
             : {}),
+          ...(isMonster && row.monsterPursuitMode != null
+            ? { monsterPursuitMode: row.monsterPursuitMode }
+            : {}),
+          ...(isMonster && row.monsterAcceleration != null
+            ? { monsterAcceleration: row.monsterAcceleration }
+            : {}),
+          ...(isMonster && row.monsterMaxSpeed != null
+            ? { monsterMaxSpeed: row.monsterMaxSpeed }
+            : {}),
+          ...(isMonster ? { monsterOneHitKill: row.monsterOneHitKill } : {}),
           ...(harvestProfile === null ? {} : { harvestProfile }),
           pages,
         } as MapEvent,
