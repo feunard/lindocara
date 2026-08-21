@@ -308,6 +308,71 @@ export function quarterCellAt(
   };
 }
 
+/**
+ * The world PIXEL an element stands on: FOOT SPACE, which is the coordinate system the asset
+ * catalogue itself is authored in.
+ *
+ * THE one definition. `elementWorldColliderGeometry` below and `authoredElementGroundPoint`
+ * (`hd2d/authored-map.ts`, in tile units) both read it, so the art and the collision cannot drift
+ * into describing two different places. It used to be written out twice, once per package.
+ *
+ * **Do not "centre" this on the cell.** The horizontal centre and the far Z edge are not an
+ * arbitrary anchor: every `editor.collider` rect in the catalogue is expressed relative to this
+ * point, with negative `y` reaching back up into the cell, which is why `subcell-collision.test.ts`
+ * pins a tree's collider to end exactly on `(row + 1) * TILE_SIZE`. Moving the foot silently
+ * re-reads every authored rect and marches every collider in every stored map a cell north. Tried:
+ * it walls off 8 events in the Liin bundle.
+ *
+ * The pointer mismatch quest #26 reports is real but lives on the WRITE side, not here. See
+ * `quarterCellAt`, which answers a different question from the one placement needs.
+ */
+export function elementFootPixel(
+  element: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">,
+): { x: number; y: number } {
+  return {
+    x: element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX,
+    y: (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX,
+  };
+}
+
+/**
+ * The storage that puts an element's FOOT nearest a world pixel: the inverse of `elementFootPixel`.
+ *
+ * This is quest #26's second mechanism, and the fix is here rather than in the foot. `quarterCellAt`
+ * answers "which quarter of which cell is this pixel in", and placement used to store that answer
+ * directly. But the stored triple does not mean that: `col`/`row` locate a foot ORIGIN and the
+ * quarter counts up from it, so reading the pointer's own bucket back moved the element a constant
+ * 0.375 cells east and 0.875 cells south, and since the quarter only ever ADDS, the left half of
+ * every cell could not be expressed at all.
+ *
+ * Solving for the foot instead costs nothing in range. Over all `col` and `offsetX` in `0..3`, the
+ * reachable feet are every quarter position on the lattice, so the same set of places is
+ * expressible; only the decomposition differs. Nothing stored moves, foot space is untouched, and
+ * the ghost lands within an eighth of a cell of the pointer, which is all `ELEMENT_OFFSET_STEPS`
+ * can hold.
+ *
+ * `col`/`row` may therefore differ by one from the cell the pointer is in. That is inherent to a
+ * foot origin sitting on a cell's far edge, not a rounding bug.
+ */
+export function elementFootStorage(
+  x: number,
+  y: number,
+): { col: number; row: number; offsetX: number; offsetY: number } {
+  const quarters = (value: number, origin: number): { cell: number; offset: number } => {
+    const step = Math.round((value / TILE_SIZE - origin) * ELEMENT_OFFSET_STEPS);
+    const cell = Math.floor(step / ELEMENT_OFFSET_STEPS);
+    return { cell, offset: step - cell * ELEMENT_OFFSET_STEPS };
+  };
+  const horizontal = quarters(x, 0.5);
+  const vertical = quarters(y, 1);
+  return {
+    col: horizontal.cell,
+    row: vertical.cell,
+    offsetX: horizontal.offset,
+    offsetY: vertical.offset,
+  };
+}
+
 export function elementCells(element: MapElement): { col: number; row: number }[] {
   const bridge = bridgePlacementLayout(element);
   if (bridge) {
@@ -368,8 +433,7 @@ export function elementWorldColliderGeometry(
       }
     : editorAsset(element.assetId)?.editor.collider;
   if (!collider) return null;
-  const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
-  const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
+  const { x: footX, y: footY } = elementFootPixel(element);
   const rotation = (elementRotationDegrees(element) * Math.PI) / 180;
   const localCentreX = collider.x + collider.width / 2;
   const localCentreY = collider.y + collider.height / 2;

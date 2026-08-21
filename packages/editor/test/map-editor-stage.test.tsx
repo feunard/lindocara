@@ -640,8 +640,18 @@ describe("HD-2D map editor stage", () => {
     window.dispatchEvent(new PointerEvent("pointerup"));
     const compiledElement = compileAuthoredMap(toMapData(stage.current())).elements[0];
 
-    expect(stage.current().elements[0]).toMatchObject({ col: 1, row: 2, offsetX: 2, offsetY: 2 });
+    // The pointer is at (-8.5, -7.5) on a 20-wide grid, so its ground point is (1.5, 2.5) in
+    // authored tile units. Quest #26: the stored triple is the one whose FOOT lands there, which is
+    // NOT the quarter-cell the pointer sits in — `col`/`row` locate a foot origin on the cell's far
+    // edge, so solving for it legitimately answers one row up. Reading the pointer's own bucket
+    // back through `elementFootPixel` used to answer (2.0, 3.5): half a cell east and a full cell
+    // south of the mouse.
+    expect(stage.current().elements[0]).toMatchObject({ col: 1, row: 1, offsetX: 0, offsetY: 2 });
     expect(previewPoint).toEqual({ x: compiledElement?.x, z: compiledElement?.z });
+    // And the invariant the numbers above only illustrate: the foot is ON the pointer, within the
+    // eighth of a cell `ELEMENT_OFFSET_STEPS` can hold.
+    expect(Math.abs((compiledElement?.x ?? 0) - -8.5)).toBeLessThanOrEqual(0.125);
+    expect(Math.abs((compiledElement?.z ?? 0) - -7.5)).toBeLessThanOrEqual(0.125);
     expect(mock.renderer.configureMapTerrain).toHaveBeenCalledTimes(terrainRebuilds);
     expect(mock.renderer.updateEditorContent).toHaveBeenLastCalledWith(
       2,

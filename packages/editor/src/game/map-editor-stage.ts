@@ -42,6 +42,7 @@ import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import {
   ELEMENT_OFFSET_STEPS,
   element3dRotationDegrees,
+  elementFootStorage,
   elementWorldColliderGeometry,
   isRotatable3dElementAsset,
   type MapElement,
@@ -463,20 +464,22 @@ export function bridgeDimensionsAtDelta(
   return { ...current, [axis]: value };
 }
 
+/**
+ * The storage whose FOOT lands on a ground point. Now `elementFootStorage`'s only job, and this is
+ * the wrapper that speaks tile units.
+ *
+ * Worth knowing why quest #26 existed at all: this inverse was already correct and already here,
+ * and DRAGGING an element has always used it. Only first placement went the other way, through the
+ * pointer's own quarter-cell, which is why moving a prop felt precise and putting one down did not.
+ */
 function placementAtGroundPoint(
   point: { x: number; z: number },
   mapSize: number,
 ): Pick<MapElement, "col" | "row" | "offsetX" | "offsetY"> {
-  const quantizedX = Math.round((point.x + mapSize / 2 - 0.5) * ELEMENT_OFFSET_STEPS);
-  const quantizedZ = Math.round((point.z + mapSize / 2 - 1) * ELEMENT_OFFSET_STEPS);
-  const col = Math.floor(quantizedX / ELEMENT_OFFSET_STEPS);
-  const row = Math.floor(quantizedZ / ELEMENT_OFFSET_STEPS);
-  return {
-    col,
-    row,
-    offsetX: quantizedX - col * ELEMENT_OFFSET_STEPS,
-    offsetY: quantizedZ - row * ELEMENT_OFFSET_STEPS,
-  };
+  return elementFootStorage(
+    (point.x + mapSize / 2) * TILE_SIZE,
+    (point.z + mapSize / 2) * TILE_SIZE,
+  );
 }
 
 /** Resize one bridge edge while holding its opposite edge fixed, including after free rotation. */
@@ -1078,18 +1081,56 @@ export function openMapEditorStage(
       const col = Math.floor(localX);
       const row = Math.floor(localZ);
       if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+      // Painting asks "which cell is the pointer in", and flooring answers it. Only an ELEMENT is
+      // stored as a foot, and a foot is not the pointer's own cell.
       if (history.activeMode !== "element") return { col, row, offsetX: 0, offsetY: 0 };
+      // A BRIDGE is not stored as a foot: `elementWorldColliderGeometry` keys its deck off
+      // `startCol`/`startRow` with the quarter as a plain nudge, so the pointer's own cell is the
+      // right answer and solving for a foot would slide the whole crossing a cell north, off the
+      // bank it was aimed at.
+      const previewed = editorToolPreviewAssetId(tool);
+      if (previewed && bridgeOrientation(previewed)) {
+        return {
+          col,
+          row,
+          offsetX: Math.min(
+            ELEMENT_OFFSET_STEPS - 1,
+            Math.floor((localX - col) * ELEMENT_OFFSET_STEPS),
+          ),
+          offsetY: Math.min(
+            ELEMENT_OFFSET_STEPS - 1,
+            Math.floor((localZ - row) * ELEMENT_OFFSET_STEPS),
+          ),
+        };
+      }
+      // Quest #26: store the triple whose FOOT is nearest the pointer, rather than storing the
+      // pointer's own quarter-cell and letting `elementFootPixel` read it back from a different
+      // origin. The two are not inverses, and using one for the other put every ghost 0.375 cells
+      // east and 0.875 cells south of the mouse, with the left half of each cell unreachable.
+      const foot = placementAtGroundPoint(point, size);
+      // A foot origin sits on its cell's far edge, so solving for it can land one cell outside the
+      // map along the north and west borders. Clamping the whole quarter-step (rather than `col`
+      // alone) keeps the nearest EXPRESSIBLE foot instead of refusing a placement the author could
+      // make before, and it only ever bites in the outermost half cell.
+      const clamp = (
+        cell: number,
+        offset: number,
+        limit: number,
+      ): { cell: number; offset: number } => {
+        const step = Math.min(
+          Math.max(cell * ELEMENT_OFFSET_STEPS + offset, 0),
+          (limit - 1) * ELEMENT_OFFSET_STEPS + ELEMENT_OFFSET_STEPS - 1,
+        );
+        const clamped = Math.floor(step / ELEMENT_OFFSET_STEPS);
+        return { cell: clamped, offset: step - clamped * ELEMENT_OFFSET_STEPS };
+      };
+      const horizontal = clamp(foot.col, foot.offsetX, cols);
+      const vertical = clamp(foot.row, foot.offsetY, rows);
       return {
-        col,
-        row,
-        offsetX: Math.min(
-          ELEMENT_OFFSET_STEPS - 1,
-          Math.floor((localX - col) * ELEMENT_OFFSET_STEPS),
-        ),
-        offsetY: Math.min(
-          ELEMENT_OFFSET_STEPS - 1,
-          Math.floor((localZ - row) * ELEMENT_OFFSET_STEPS),
-        ),
+        col: horizontal.cell,
+        row: vertical.cell,
+        offsetX: horizontal.offset,
+        offsetY: vertical.offset,
       };
     };
 

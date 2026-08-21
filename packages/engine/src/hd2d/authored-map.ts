@@ -22,6 +22,7 @@ import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
+  elementFootPixel,
   elementWorldCollider,
   elementWorldColliderGeometry,
   type MapElement,
@@ -59,17 +60,16 @@ function groundCoordinate(pixels: number, size: number): number {
 
 /** Project an authored decor anchor onto the HD-2D ground.
  *
- * The element's stored cell is its visual footprint cell: its foot is centred on X and planted on
- * the cell's lower Z edge before quarter-cell offsets are applied. The compiler and the editor's
- * hover/selection overlays must share this projection or the prop jumps when it is committed. */
+ * `elementFootPixel` owns the convention (the centre of the quarter-cell the author pointed at, and
+ * why it is no longer the cell's far Z edge); this is that point in tile units, with the grid's
+ * centre as the origin. The compiler, the editor's hover/selection overlays and the collider all
+ * read the same definition, or the prop jumps when it is committed. */
 export function authoredElementGroundPoint(
   element: Pick<MapElement, "col" | "row" | "offsetX" | "offsetY">,
   size: number,
 ): { x: number; z: number } {
-  return {
-    x: element.col + 0.5 + (element.offsetX * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
-    z: element.row + 1 + (element.offsetY * ELEMENT_OFFSET_PX) / TILE_SIZE - size / 2,
-  };
+  const foot = elementFootPixel(element);
+  return { x: foot.x / TILE_SIZE - size / 2, z: foot.y / TILE_SIZE - size / 2 };
 }
 
 /** Visual centre of a compiled element. New bridge documents carry their dimensions and use the
