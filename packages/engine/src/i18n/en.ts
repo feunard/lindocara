@@ -1807,6 +1807,9 @@ export const en = {
   "editor.event.opt.dirFix": "Direction fix",
   "editor.event.opt.through": "Through",
   "editor.event.opt.onTop": "Draw in front of characters",
+  "editor.event.opt.hostile": "This character attacks",
+  "editor.event.opt.hostile.hint":
+    "While this page is the active one, the character fights the party with the health and damage set on this event. Put it on a page behind a condition and the wrong answer in a dialogue starts the fight.",
   "editor.event.trigger": "Trigger",
   "editor.event.runtime.hint":
     "Every trigger runs authoritatively under a bounded server budget. Autorun and Parallel process repeat while their page conditions remain true.",

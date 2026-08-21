@@ -102,9 +102,9 @@ export const MAP_ELEMENT_COLUMNS = 11;
 export const MAP_EVENT_COLUMNS = 28;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
- *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
- *  comment. */
-export const MAP_EVENT_PAGE_COLUMNS = 20;
+ *  optThrough, optOnTop, optHostile, trigger, moveRoute, commands. Exported — see
+ *  `MAP_ELEMENT_COLUMNS`'s comment. */
+export const MAP_EVENT_PAGE_COLUMNS = 21;
 const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
@@ -874,6 +874,9 @@ export class MapService {
         optDirFix: page.optDirFix,
         optThrough: page.optThrough,
         optOnTop: page.optOnTop,
+        // Absent stays absent: a peaceful page writes no column value rather than an explicit
+        // `false`, exactly as the parser keeps it out of the wire shape.
+        ...(page.optHostile === undefined ? {} : { optHostile: page.optHostile }),
         trigger: page.trigger,
         commands: JSON.stringify(page.commands),
       })),
@@ -1149,6 +1152,7 @@ function pageToWire(page: MapEventPageRow): MapEventPage {
     optDirFix: page.optDirFix,
     optThrough: page.optThrough,
     optOnTop: page.optOnTop,
+    ...(page.optHostile === undefined ? {} : { optHostile: page.optHostile }),
     trigger: page.trigger,
     commands: parseCommandsColumn(page.commands),
   };

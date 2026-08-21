@@ -1,0 +1,1 @@
+ALTER TABLE `mapEventPages` ADD `opt_hostile` integer;

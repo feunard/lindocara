@@ -12,8 +12,9 @@ import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   authoredCellCentreGround,
   authoredPatrolRadius,
+  canFight,
+  hostileOnPage,
   type MapEvent,
-  monsterEvents,
 } from "@lindocara/engine/map-events.js";
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
@@ -24,9 +25,14 @@ export function authoredMonsterDefinition(
   gridSize: number,
   pageIndex = 0,
 ): MonsterSpawn | null {
-  if (event.kind !== "monster" || event.species === null || event.patrolRadius === null)
-    return null;
-  const species = event.species;
+  const fights = event.kind === "monster" || hostileOnPage(event, pageIndex);
+  if (!fights || event.patrolRadius === null) return null;
+  // A `monster` names its species; a character turned hostile by a page has none, because `species`
+  // is validated only for monsters. `spear_goblin` is the tuning fallback the PARSER already uses
+  // for an npc's combat characteristics (`defaultMonsterTuning(species ?? "spear_goblin")`), so
+  // reading it here keeps the stats a hostile NPC fights with identical to the ones the editor
+  // showed its author. Its LOOK still comes from the page, below, never from the species.
+  const species = event.species ?? "spear_goblin";
   return {
     id: `${AUTHORED_MONSTER_PREFIX}${event.id}`,
     name: event.name,
@@ -69,9 +75,14 @@ export function activeAuthoredMonsterDefinitions(
   state: PartyAdventureState,
   gridSize: number,
 ): MonsterSpawn[] {
-  return monsterEvents(events).flatMap((event) => {
+  // Monster events, plus every character a page has turned hostile. The second half is what lets a
+  // dialogue start a fight: the wrong answer sets a switch, the switch selects a page, and this
+  // derivation runs again the moment the party's state is installed.
+  const candidates = events.filter((event) => event.kind === "monster" || canFight(event.kind));
+  return candidates.flatMap((event) => {
     const pageIndex = activePageIndex(event, state);
     if (pageIndex === null) return [];
+    if (event.kind !== "monster" && !hostileOnPage(event, pageIndex)) return [];
     if (
       (event.monsterRespawnMode ?? "timed") === "never" &&
       state.defeatedMonsters?.[event.id] === true

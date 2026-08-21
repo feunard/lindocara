@@ -231,6 +231,23 @@ export interface MapEventPage {
   optDirFix: boolean;
   optThrough: boolean;
   optOnTop: boolean;
+  /**
+   * While this page is the active one, the character FIGHTS.
+   *
+   * A page rather than a command, and that is the whole design: `kind` belongs to the event and no
+   * command can change what a thing IS, but a page already owns appearance, movement, trigger and
+   * program, and page selection already re-derives whenever party state changes. So the wrong
+   * answer in a dialogue sets a switch, the switch selects the page, and the guard on that page
+   * draws its sword - with a different graphic if the author wants one, because that is a page
+   * field too.
+   *
+   * Only `npc` and `guard` events can carry it: they are the kinds that already hold combat-ready
+   * characteristics (`monsterMaxHp` and friends) and a patrol radius. A `monster` event needs
+   * nothing here, it is already hostile.
+   *
+   * Missing means peaceful, which is what every page authored before this said.
+   */
+  optHostile?: boolean;
   trigger: EventTrigger;
   /** The authored command program. Normal events run it on their trigger; monster events run their
    * active page on defeat. Entry/exit anchors must keep it empty. */
@@ -342,6 +359,28 @@ export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
 
 export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
+}
+
+/**
+ * Can this KIND be turned hostile by a page?
+ *
+ * `npc` and `guard` only: they are the two that already carry combat-ready characteristics and a
+ * patrol radius, which is everything the monster projection needs. A `monster` is already hostile
+ * and an anchor or a harvest node has no body to fight with.
+ */
+export function canFight(kind: EventKind): boolean {
+  return kind === "npc" || kind === "guard";
+}
+
+/**
+ * Does this event fight, on the page currently active?
+ *
+ * The one question both projections ask, from opposite sides: the monster system includes an event
+ * this is true of, and the guard/appearance systems exclude it, so a character has exactly one body
+ * at a time rather than a peaceful sprite standing inside its own hostile copy.
+ */
+export function hostileOnPage(event: MapEvent, pageIndex: number): boolean {
+  return canFight(event.kind) && event.pages[pageIndex]?.optHostile === true;
 }
 
 /** The map's permanent, untargetable special sea monsters. */
@@ -571,6 +610,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     optDirFix,
     optThrough,
     optOnTop,
+    optHostile,
     trigger,
     commands,
   } = record;
@@ -612,7 +652,8 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     typeof optStopAnim !== "boolean" ||
     typeof optDirFix !== "boolean" ||
     typeof optThrough !== "boolean" ||
-    typeof optOnTop !== "boolean"
+    typeof optOnTop !== "boolean" ||
+    (optHostile !== undefined && typeof optHostile !== "boolean")
   )
     return null;
   if (!isEventTrigger(trigger)) return null;
@@ -640,6 +681,9 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     optDirFix,
     optThrough,
     optOnTop,
+    // Absent stays absent: every page authored before this is peaceful, and writing `false` into
+    // all of them would rewrite maps that never changed.
+    ...(optHostile === undefined ? {} : { optHostile }),
     trigger,
   };
 }

@@ -776,6 +776,62 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
+  test("a page turns a villager hostile, and the room gives it exactly one body", async () => {
+    // The whole of "make my peaceful guard unhappy if wrong choice": no command changes what a
+    // thing IS, a page does, and the switch that selects the page is the one an authored choice
+    // already writes.
+    const eventId = crypto.randomUUID();
+    const villager: MapEvent = {
+      id: eventId,
+      col: SPAWN_COL + 1,
+      row: SPAWN_ROW,
+      name: "Couillasse",
+      ordinal: 3,
+      kind: "npc",
+      species: null,
+      patrolRadius: 96,
+      monsterMaxHp: 40,
+      monsterDamage: 6,
+      pages: [
+        page({ trigger: "action", commands: [{ t: "say", text: "Bonjour." }] }),
+        page({ condSwitchId: "0001", trigger: "action", optHostile: true }),
+      ],
+    };
+    const fixture = await newPlayableParty("betrayal", [villager]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    await advanceTickSettled(clock);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+    const monsterId = `mon-${eventId}`;
+
+    // Peaceful: a villager you can talk to, and nothing in the monster simulation.
+    expect(state.activeEvents.some((event) => event.id === eventId)).toBe(true);
+    expect(state.monsters.some((monster) => monster.id === monsterId)).toBe(false);
+
+    // The wrong answer. `applyStateChanges` is the same coordinator write an authored `setSwitch`
+    // performs, so this is the real path rather than a hand-installed state.
+    await partyRoom.room.call(fixture.partyId, "applyStateChanges", [
+      { type: "setSwitch", switchId: "0001", value: true },
+    ]);
+    player.nextPresenceHeartbeatAt = clock.now();
+    await advanceTickSettled(clock);
+    await vi.waitFor(() => {
+      expect(state.adventureState.state.switches?.["0001"]).toBe(true);
+    });
+
+    // Hostile: a monster with the villager's own name and numbers, and the peaceful body is gone.
+    // Both halves are the point - two bodies would mean talking to someone who is attacking you.
+    const monster = state.monsters.find((candidate) => candidate.id === monsterId);
+    expect(monster).toBeDefined();
+    expect(monster?.name).toBe("Couillasse");
+    expect(monster?.maxHp).toBe(40);
+    expect(state.activeEvents.some((event) => event.id === eventId)).toBe(false);
+    engine.dispose();
+  });
+
   test("a heartbeat re-registration installs party state missed while the room was absent", async () => {
     const fixture = await newPlayableParty("registerreplay", []);
     const clock = new FakeClock();

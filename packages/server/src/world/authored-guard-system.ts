@@ -11,6 +11,7 @@ import {
   authoredCellCentreGround,
   authoredPatrolRadius,
   guardEvents,
+  hostileOnPage,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { createGuards, type GuardRuntime } from "./world-runtime.js";
@@ -30,6 +31,10 @@ export function activeAuthoredGuardDefinitions(
   return guardEvents(events).flatMap((event) => {
     const pageIndex = activePageIndex(event, state);
     if (pageIndex === null || event.patrolRadius === null) return [];
+    // A guard whose active page turned it hostile is projected by the MONSTER system instead. The
+    // exclusion is the other half of that rule: without it the same character would stand on the
+    // map twice, once fighting for the party and once against it.
+    if (hostileOnPage(event, pageIndex)) return [];
     const page = event.pages[pageIndex];
     if (!page) return [];
     return [

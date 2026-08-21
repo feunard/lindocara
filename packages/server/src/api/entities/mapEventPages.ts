@@ -38,6 +38,12 @@ export const mapEventPages = $entity({
     optDirFix: z.boolean(),
     optThrough: z.boolean(),
     optOnTop: z.boolean(),
+    /**
+     * While this page is active, the character fights the party. Optional rather than defaulted:
+     * every page written before this is peaceful, and the parser keeps the absence rather than
+     * folding it into `false`.
+     */
+    optHostile: z.boolean().optional(),
     trigger: z.enum(EVENT_TRIGGERS),
     /**
      * The page's authored command program, a JSON array parsed by `parseEventCommands`

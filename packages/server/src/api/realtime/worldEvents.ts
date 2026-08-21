@@ -26,6 +26,7 @@ import {
   authoredCellCentreGround,
   authoredPatrolRadius,
   type EventTrigger,
+  hostileOnPage,
   isActiveWorldEventKind,
   isInteractiveWorldEventKind,
   type MapEvent,
@@ -273,6 +274,10 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
     if (!isActiveWorldEventKind(event.kind)) continue;
     const index = activePageIndex(event, adventureState);
     if (index === null) continue;
+    // A character the active page turned hostile has a body already: the monster projected above.
+    // Drawing its peaceful sprite here too would leave the villager standing inside the thing that
+    // is attacking, and would keep its dialogue interactable mid-fight.
+    if (hostileOnPage(event, index)) continue;
     const page = event.pages[index];
     if (page === undefined) continue;
     const current = currentEvents.get(event.id);

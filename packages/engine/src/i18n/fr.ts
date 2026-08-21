@@ -1826,6 +1826,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.opt.dirFix": "Direction fixe",
   "editor.event.opt.through": "Traversable",
   "editor.event.opt.onTop": "Afficher devant les personnages",
+  "editor.event.opt.hostile": "Ce personnage attaque",
+  "editor.event.opt.hostile.hint":
+    "Tant que cette page est active, le personnage combat le groupe avec les points de vie et les dégâts réglés sur cet événement. Placez-la derrière une condition et la mauvaise réponse d’un dialogue déclenche le combat.",
   "editor.event.trigger": "Déclencheur",
   "editor.event.runtime.hint":
     "Tous les déclencheurs sont exécutés par le serveur avec un budget borné. Automatique et Processus parallèle se répètent tant que leurs conditions restent vraies.",

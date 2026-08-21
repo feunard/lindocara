@@ -1672,6 +1672,23 @@ export function EventDialog({
                         />
                         {t("editor.event.opt.onTop")}
                       </label>
+                      {draft.kind === "npc" && (
+                        <>
+                          <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
+                            <input
+                              type="checkbox"
+                              checked={page.optHostile === true}
+                              onChange={(event) =>
+                                update({ optHostile: event.currentTarget.checked })
+                              }
+                            />
+                            {t("editor.event.opt.hostile")}
+                          </label>
+                          <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+                            {t("editor.event.opt.hostile.hint")}
+                          </p>
+                        </>
+                      )}
                     </section>
                   )}
 
