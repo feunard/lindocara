@@ -418,9 +418,6 @@ export class Hd2dVisualLayer {
    *  `#gridLines` this needs no cache key — its geometry does not depend on the map at all, only
    *  its position does. */
   #spawnMarker: THREE.Group | null = null;
-  /** The marker's pulsing ground ring, named `"editor-spawn-ring"`. Kept as its own field so
-   *  `update()` can mutate its transform/material every frame without a name lookup. */
-  #spawnRing: THREE.Mesh | null = null;
   /** The marker's ghost knight, attached only once its texture resolves — see
    *  `setSpawnKnightArt()`. `null` while the load is still in flight or before it starts. */
   #spawnKnight: Billboard | null = null;
@@ -1580,31 +1577,21 @@ export class Hd2dVisualLayer {
     return new THREE.LineSegments(geometry, material);
   }
 
-  /** The hero start marker, per the author's own description after seeing the first cut in the
-   *  browser: "as start icon, just use default hero (knight) but transparent with animated circle
-   *  as base". The knight is the same catalogue warrior sheet the palette itself draws with
-   *  (`EDITOR_SPAWN_KNIGHT_ASSET_ID` in `game-renderer.ts`), held translucent so it reads as a
-   *  mark on the map rather than a placed unit: the stage already refuses to select or delete this
-   *  group (`map-editor-stage.ts`, `kind: "spawn"`), and the art must agree with that.
+  /** The hero start marker: the ghost knight, and nothing else. The knight is the same catalogue
+   *  warrior sheet the palette itself draws with (`EDITOR_SPAWN_KNIGHT_ASSET_ID` in
+   *  `game-renderer.ts`), held translucent so it reads as a mark on the map rather than a placed
+   *  unit: the stage already refuses to select or delete this group (`map-editor-stage.ts`,
+   *  `kind: "spawn"`), and the art must agree with that.
    *
-   *  The ring is built once here, named `"editor-spawn-ring"`, and pulses from `update()` by
-   *  mutating its transform and material only — `setEditorOverlay` runs on every hover, so nothing
-   *  on this path may allocate a new geometry or material. The knight attaches only once its
-   *  texture resolves (`setSpawnKnightArt`, driven by `Hd2dRenderer`'s async load): the marker
-   *  must not wait on a network round trip to appear, so the ring is what shows first. */
+   *  A pulsing green ring used to sit under it, and it was removed on the author's report that the
+   *  knight alone already says "the hero starts here" (feedback #23). The ring was also what showed
+   *  FIRST while the knight's texture was still in flight, so removing it moved that job upstream:
+   *  `Hd2dRenderer.setEditorOverlay` now starts the one-shot load on the first editor overlay of
+   *  any kind rather than on the first one carrying a spawn, so the art is already cached by the
+   *  time an author places or selects the start. */
   #buildSpawnMarker(): THREE.Group {
     const group = new THREE.Group();
     group.name = "editor-spawn";
-
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.3, 0.46, 40),
-      transparentMaterial(0x6fe08a, 0.5),
-    );
-    ring.name = "editor-spawn-ring";
-    ring.rotation.x = -Math.PI / 2;
-    group.add(ring);
-    this.#spawnRing = ring;
-
     this.#attachSpawnKnight(group);
     return group;
   }
@@ -2090,17 +2077,6 @@ export class Hd2dVisualLayer {
       );
       if (preview.art.buildingVolume) (preview.sprite as NativeStaticVisual).update(now);
     }
-    // The spawn ring's continuous pulse — a transform/material mutation on a mesh built once in
-    // `#buildSpawnMarker()`, never a rebuild here: `update()` runs every frame, 60x the hover rate
-    // that already earned `#gridLines` its cache.
-    if (this.#spawnRing) {
-      const pulse = 1 + Math.sin(now / 260) * 0.22;
-      this.#spawnRing.scale.setScalar(pulse);
-      const material = this.#spawnRing.material;
-      if (material instanceof THREE.MeshBasicMaterial) {
-        material.opacity = 0.32 + Math.sin(now / 260) * 0.18;
-      }
-    }
     this.#advanceSkid(now);
     // The dust turns. A transform per marker on shared, baked geometry: no buffer is rewritten and
     // nothing is allocated, which is what lets a map full of interactables animate for free.
@@ -2203,7 +2179,6 @@ export class Hd2dVisualLayer {
       disposeObject(this.#spawnMarker);
       this.#spawnMarker = null;
     }
-    this.#spawnRing = null;
     this.#spawnKnightArt = null;
     this.#effects.length = 0;
     this.#loot.clear();

@@ -748,23 +748,18 @@ describe("Hd2dVisualLayer spawn marker", () => {
     expect(moved?.position.x).toBeCloseTo(-6.5);
   });
 
-  it("animates the spawn ring from the frame hook without rebuilding it", () => {
+  it("marks the start with the ghost knight alone, and nothing that pulses", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });
     const marker = root.getObjectByName("editor-spawn");
-    const ring = marker?.getObjectByName("editor-spawn-ring");
-    expect(ring).toBeDefined();
-    if (!ring) throw new Error("ring missing");
-    const geometry = (ring as THREE.Mesh).geometry;
+    expect(marker).toBeDefined();
 
+    // The green ring that used to sit under the knight is gone (feedback #23), and with it the
+    // per-frame pulse: nothing on this group may animate from `update()` any more.
+    expect(marker?.getObjectByName("editor-spawn-ring")).toBeUndefined();
     layer.update(0);
-    const first = ring.scale.x;
     layer.update(400);
-    const second = ring.scale.x;
-    expect(second).not.toBeCloseTo(first);
-
-    // The pulse is a transform, not a rebuild: `update` runs every frame, and allocating ring
-    // geometry there is the per-hover defect at 60Hz.
-    expect((ring as THREE.Mesh).geometry).toBe(geometry);
+    expect(marker?.getObjectByName("editor-spawn-ring")).toBeUndefined();
+    layer.dispose();
   });
 });

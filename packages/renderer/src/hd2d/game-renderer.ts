@@ -2354,12 +2354,17 @@ export class Hd2dRenderer implements RendererLike {
 
   /** Draws creator-only grid/collision/selection guides in the real HD-2D scene.
    *
-   *  Also the trigger for the spawn marker's knight: the first overlay carrying a `spawn` starts
+   *  Also the trigger for the spawn marker's knight: the first editor overlay of ANY kind starts
    *  the one-shot load (`#spawnKnightRequested` guards repeats — this runs on every hover). Never
-   *  fires for an ordinary player, since only the editor ever calls this method at all. */
+   *  fires for an ordinary player, since only the editor ever calls this method at all.
+   *
+   *  It used to wait for an overlay carrying a `spawn`, which was enough while a pulsing ring stood
+   *  in for the knight until its texture landed. The ring is gone (feedback #23) and the knight is
+   *  now the whole marker, so the load has to be ahead of the first spawn rather than triggered by
+   *  it: an author placing the start would otherwise watch an empty cell for a round trip. */
   setEditorOverlay(overlay: Hd2dEditorOverlay | null): void {
     this.#visuals?.setEditorOverlay(overlay);
-    if (overlay?.spawn && !this.#spawnKnightRequested) {
+    if (overlay && !this.#spawnKnightRequested) {
       this.#spawnKnightRequested = true;
       void this.#loadSpawnKnightAsset().catch((error: unknown) => {
         console.warn("[hd2d] spawn marker knight could not be loaded", error);
