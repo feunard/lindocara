@@ -107,6 +107,16 @@ describe("WorldInfo.heightfield", () => {
     expect(parseServerMessage(JSON.stringify(welcomeFixture({ cameraMode: "free" })))).toBeNull();
   });
 
+  it("accepts known adventure rulesets and drops an unknown one", () => {
+    expect(parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "standard" })))?.t).toBe(
+      "welcome",
+    );
+    expect(
+      parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "hardcore_runner" })))?.t,
+    ).toBe("welcome");
+    expect(parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "roguelike" })))).toBeNull();
+  });
+
   /**
    * `heightfield` used to be nullable and an explicit `null` was accepted. It is the room's ONLY
    * geometry now — a map without one cannot produce a zone at all, so a room that is sending a

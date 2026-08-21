@@ -173,6 +173,9 @@ describe("AdventureSettingsDialog", () => {
     const orbit = screen.getByRole("checkbox", { name: t("adventure.camera.orbit") });
     expect(orbit).not.toBeChecked();
     await userEvent.click(orbit);
+    const hardcore = screen.getByRole("checkbox", { name: t("adventure.mode.hardcore") });
+    expect(hardcore).not.toBeChecked();
+    await userEvent.click(hardcore);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
 
@@ -186,11 +189,13 @@ describe("AdventureSettingsDialog", () => {
         maxPlayers: number;
         audio: unknown;
         cameraMode: string;
+        gameMode: string;
       };
       expect(body.title).toBe("Renamed");
       expect(body.maxPlayers).toBe(3);
       expect(body.audio).toEqual(DEFAULT_ADVENTURE_AUDIO);
       expect(body.cameraMode).toBe("orbit");
+      expect(body.gameMode).toBe("hardcore_runner");
     });
   });
 

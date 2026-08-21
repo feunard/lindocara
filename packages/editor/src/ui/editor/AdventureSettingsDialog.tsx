@@ -265,6 +265,25 @@ function EditForm({
       </section>
 
       <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="adventure-hardcore-runner"
+            checked={(draft.gameMode ?? "standard") === "hardcore_runner"}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                ...draft,
+                gameMode: checked === true ? "hardcore_runner" : "standard",
+              })
+            }
+          />
+          <div className="grid gap-1">
+            <Label htmlFor="adventure-hardcore-runner">{t("adventure.mode.hardcore")}</Label>
+            <p className="text-xs text-muted-foreground">{t("adventure.mode.hardcore.hint")}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
         <div>
           <h3 className="text-sm font-medium">{t("editor.audio.heading")}</h3>
           <p className="text-xs text-muted-foreground">{t("editor.audio.adventureHint")}</p>

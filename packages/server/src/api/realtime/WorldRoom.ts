@@ -35,7 +35,9 @@
 
 import {
   type AdventureCameraMode,
+  type AdventureGameMode,
   DEFAULT_ADVENTURE_CAMERA_MODE,
+  DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
 import type {
   AdventureRegistry,
@@ -308,6 +310,7 @@ export class WorldRoom {
     const parsed = parseWorldRoomId(roomId);
     let location: ZoneLocation | null = null;
     let cameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
+    let gameMode = DEFAULT_ADVENTURE_GAME_MODE;
     if (parsed) {
       try {
         const [payload, presentation] = await Promise.all([
@@ -316,11 +319,12 @@ export class WorldRoom {
         ]);
         location = locationFromMapPayload(payload, roomId, presentation.audio);
         cameraMode = presentation.cameraMode;
+        gameMode = presentation.gameMode;
       } catch (error) {
         this.logError("world_room_map_load_failed", error, { roomId });
       }
     }
-    const state = createWorldRoomState(roomId, parsed, location, cameraMode);
+    const state = createWorldRoomState(roomId, parsed, location, cameraMode, gameMode);
     if (parsed && location) {
       try {
         const held = (await this.partyRoom.room.call(parsed.partyId, "getAdventureState")) as {
@@ -340,14 +344,23 @@ export class WorldRoom {
 
   protected async adventurePresentationForParty(
     partyId: string,
-  ): Promise<{ audio: AdventureAudioConfig; cameraMode: AdventureCameraMode }> {
+  ): Promise<{
+    audio: AdventureAudioConfig;
+    cameraMode: AdventureCameraMode;
+    gameMode: AdventureGameMode;
+  }> {
     const party = await this.parties.findById(partyId);
     const adventureRow = party ? await this.adventures.findById(party.adventureId) : null;
     return adventureRow
-      ? { audio: decodeAdventureAudio(adventureRow.audio), cameraMode: adventureRow.cameraMode }
+      ? {
+          audio: decodeAdventureAudio(adventureRow.audio),
+          cameraMode: adventureRow.cameraMode,
+          gameMode: adventureRow.gameMode,
+        }
       : {
           audio: { ...DEFAULT_ADVENTURE_AUDIO },
           cameraMode: DEFAULT_ADVENTURE_CAMERA_MODE,
+          gameMode: DEFAULT_ADVENTURE_GAME_MODE,
         };
   }
 
@@ -1981,6 +1994,7 @@ export class WorldRoom {
       buildings: state.buildings.map(buildingSnapshot),
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       cameraMode: state.cameraMode,
+      gameMode: state.gameMode,
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
       ...(definition.dayNightCycle === undefined
         ? {}

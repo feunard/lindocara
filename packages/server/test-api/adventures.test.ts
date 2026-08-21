@@ -266,6 +266,7 @@ describe("create: atomic with a default map", () => {
       title: "Donjon",
       maxPlayers: 4,
       cameraMode: "hd2d",
+      gameMode: "standard",
       version: 1,
     });
     // Atomic: exactly one default map, born genuinely blank (no auto-seeded entry/exit events), so
@@ -291,6 +292,22 @@ describe("create: atomic with a default map", () => {
     const updated = await putAdventure(created.id, token, { cameraMode: "hd2d" });
     expect(updated.status).toBe(200);
     expect(await updated.json()).toMatchObject({ cameraMode: "hd2d" });
+  });
+
+  test("creates and updates the adventure-wide gameplay ruleset", async () => {
+    const { token } = await registerAndLogin("advmode");
+    const createdResponse = await createAdventure(token, {
+      title: "Night run",
+      maxPlayers: 4,
+      gameMode: "hardcore_runner",
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = (await createdResponse.json()) as { id: string; gameMode: string };
+    expect(created.gameMode).toBe("hardcore_runner");
+
+    const updated = await putAdventure(created.id, token, { gameMode: "standard" });
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ gameMode: "standard" });
   });
 
   // The editor opens an unsaved local sandbox and only creates a row at the author's first save, so

@@ -28,6 +28,8 @@ export const adventures = $entity({
     maxPlayers: db.default(z.integer().min(1).max(4), 4),
     /** Fixed HD-2D side view by default; `orbit` enables full yaw and pitch controls. */
     cameraMode: db.default(z.enum(["hd2d", "orbit"]), "hd2d"),
+    /** Ordinary RPG rules by default; hardcore runner resets a failed course at its entrance. */
+    gameMode: db.default(z.enum(["standard", "hardcore_runner"]), "standard"),
     /** Reserved seam for immutable published versions; always 1 until then. */
     version: db.default(z.integer(), 1),
     /** JSON AdventureGraph: start anchor plus one binding per placed exit. */

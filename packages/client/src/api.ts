@@ -1,5 +1,6 @@
 import type {
   AdventureCameraMode,
+  AdventureGameMode,
   AdventureGraph,
   AdventureInput,
   CreateAdventureInput,
@@ -250,6 +251,8 @@ export interface AdventurePayload {
   maxPlayers: number;
   /** Adventure-wide gameplay camera policy. Older payloads fall back to `hd2d`. */
   cameraMode?: AdventureCameraMode;
+  /** Adventure-wide gameplay ruleset. Older payloads remain standard. */
+  gameMode?: AdventureGameMode;
   version: number;
   mapIds: string[];
   graph: AdventureGraph;

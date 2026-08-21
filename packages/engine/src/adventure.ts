@@ -35,6 +35,14 @@ export function isAdventureCameraMode(value: unknown): value is AdventureCameraM
   return value === "hd2d" || value === "orbit";
 }
 
+/** Adventure-level ruleset. `hardcore_runner` keeps authored maps but turns death into a run reset. */
+export type AdventureGameMode = "standard" | "hardcore_runner";
+export const DEFAULT_ADVENTURE_GAME_MODE: AdventureGameMode = "standard";
+
+export function isAdventureGameMode(value: unknown): value is AdventureGameMode {
+  return value === "standard" || value === "hardcore_runner";
+}
+
 export type ExitDestination = { mapId: string; entryId: string } | "end";
 
 export interface AdventureLink {
@@ -65,6 +73,8 @@ export interface AdventureInput {
   maxPlayers: number;
   /** Absent preserves the stored value. */
   cameraMode?: AdventureCameraMode;
+  /** Absent preserves the stored ruleset. */
+  gameMode?: AdventureGameMode;
   /** Default music/ambience for member maps. Omitted by an older writer to preserve the stored value. */
   audio?: AdventureAudioConfig;
   /** COMPAT-only. Absent on every real authoring PUT (the stored graph is then preserved); present
@@ -85,6 +95,8 @@ export interface CreateAdventureInput {
   maxPlayers: number;
   /** Defaults to the fixed HD-2D side view. */
   cameraMode?: AdventureCameraMode;
+  /** Defaults to the ordinary cooperative RPG rules. */
+  gameMode?: AdventureGameMode;
   audio?: AdventureAudioConfig;
   registry?: AdventureRegistry;
 }
@@ -175,6 +187,13 @@ function parseOptionalCameraMode(
   return { ok: true, cameraMode };
 }
 
+function parseOptionalGameMode(value: unknown): { ok: true; gameMode?: AdventureGameMode } | null {
+  const gameMode = (value as Record<string, unknown>).gameMode;
+  if (gameMode === undefined) return { ok: true };
+  if (!isAdventureGameMode(gameMode)) return null;
+  return { ok: true, gameMode };
+}
+
 export function parseCreateAdventureInput(value: unknown): CreateAdventureInput | null {
   const shell = parseShell(value);
   if (!shell) return null;
@@ -184,9 +203,12 @@ export function parseCreateAdventureInput(value: unknown): CreateAdventureInput 
   if (!audio) return null;
   const camera = parseOptionalCameraMode(value);
   if (!camera) return null;
+  const mode = parseOptionalGameMode(value);
+  if (!mode) return null;
   return {
     ...shell,
     ...(camera.cameraMode !== undefined ? { cameraMode: camera.cameraMode } : {}),
+    ...(mode.gameMode !== undefined ? { gameMode: mode.gameMode } : {}),
     ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
@@ -213,9 +235,12 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
   if (!startMapId) return null;
   const camera = parseOptionalCameraMode(value);
   if (!camera) return null;
+  const mode = parseOptionalGameMode(value);
+  if (!mode) return null;
   return {
     ...shell,
     ...(camera.cameraMode !== undefined ? { cameraMode: camera.cameraMode } : {}),
+    ...(mode.gameMode !== undefined ? { gameMode: mode.gameMode } : {}),
     ...(graph !== undefined ? { graph } : {}),
     ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),

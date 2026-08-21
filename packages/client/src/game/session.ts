@@ -1,6 +1,7 @@
 import {
   type AdventureCameraMode,
   DEFAULT_ADVENTURE_CAMERA_MODE,
+  DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
@@ -550,6 +551,7 @@ async function startGameIdentity(
       activeZoneId = world.zoneId;
       activeWorldSize = world.size;
       cameraMode = world.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE;
+      useUiStore.getState().setGameMode(world.gameMode ?? DEFAULT_ADVENTURE_GAME_MODE);
       // The default HD-2D mode is a fixed authored composition. Returning from an orbit-enabled
       // adventure (or receiving a newer policy on reconnect) must also return the renderer itself
       // to that baseline, not only stop consuming future orbit deltas.

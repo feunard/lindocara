@@ -274,6 +274,10 @@ export const en = {
   "death.fallen_copy":
     "Your body lies where you fell. A priest may still call you back — or you can let go.",
   "death.release": "Release spirit [R]",
+  "hardcore.game_over.title": "Run over",
+  "hardcore.game_over.copy":
+    "The nightmare caught you. Retry from the course entrance and leave nothing behind.",
+  "hardcore.retry": "Retry from zero [R]",
   "death.ghost_title": "Your spirit walks",
   "death.ghost_copy": "Find your body and reclaim it.",
   "death.ghost_distance": "Your body lies {distance}m away. Walk back to it.",
@@ -2094,6 +2098,9 @@ export const en = {
   "adventure.camera.orbit": "360° camera with tilt",
   "adventure.camera.hint":
     "Off keeps the fixed HD-2D side view. On lets players orbit all around the hero and tilt the camera.",
+  "adventure.mode.hardcore": "Hardcore endless runner",
+  "adventure.mode.hardcore.hint":
+    "Death ends the run. Retry returns the hero and the relentless pursuer to the course entrance; standard adventures are unchanged.",
   "adventure.edit": "Edit",
   "adventure.test": "Test adventure",
   "adventure.refresh": "Refresh",
