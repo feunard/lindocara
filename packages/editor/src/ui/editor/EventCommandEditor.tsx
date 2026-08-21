@@ -4,6 +4,7 @@ import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/a
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
   COMMAND_TEXT_MAX,
+  EVENT_DAMAGE_LIMITS,
   type EventCommand,
   type EventCondition,
   ITEM_ID_MAX,
@@ -83,7 +84,7 @@ const COMMAND_CATEGORIES: readonly {
   },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
-  { key: "character", kinds: ["teleport", "wait"] },
+  { key: "character", kinds: ["teleport", "wait", "damage"] },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
   { key: "other", kinds: ["comment"] },
 ];
@@ -145,6 +146,8 @@ function defaultCommand(
       return { t: "openShop" };
     case "wait":
       return { t: "wait", frames: WAIT_FRAMES_MIN };
+    case "damage":
+      return { t: "damage", amount: 25, lethal: false };
     case "teleport": {
       const mapId = ctx.maps[0]?.mapId;
       return mapId === undefined
@@ -356,6 +359,10 @@ function commandLine(
       return t("editor.event.cmd.openShop");
     case "wait":
       return t("editor.event.cmd.wait", { frames: command.frames });
+    case "damage":
+      return t(command.lethal ? "editor.event.cmd.damage.lethal" : "editor.event.cmd.damage", {
+        amount: command.amount,
+      });
     case "teleport": {
       const map = maps.find((m) => m.mapId === command.mapId);
       const category = t(`editor.event.cmd.transition.${command.category ?? "geographic"}`);
@@ -898,6 +905,45 @@ function ParamBody({
             }
           />
         </Field>
+      );
+    case "damage":
+      return (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={t("editor.event.cmd.field.damage")}>
+            <NumberField
+              ariaLabel={t("editor.event.cmd.field.damage")}
+              className="w-28"
+              value={command.amount}
+              min={EVENT_DAMAGE_LIMITS.min}
+              max={EVENT_DAMAGE_LIMITS.max}
+              onChange={(amount) => onChange({ ...command, amount })}
+              onBlur={() =>
+                onChange({
+                  ...command,
+                  amount: clampInt(
+                    command.amount,
+                    EVENT_DAMAGE_LIMITS.min,
+                    EVENT_DAMAGE_LIMITS.max,
+                    25,
+                  ),
+                })
+              }
+            />
+          </Field>
+          <Field label={t("editor.event.cmd.field.lethal")}>
+            <FieldSelect
+              aria-label={t("editor.event.cmd.field.lethal")}
+              className="w-32"
+              value={command.lethal ? "on" : "off"}
+              onChange={(event) =>
+                onChange({ ...command, lethal: event.currentTarget.value === "on" })
+              }
+            >
+              <option value="off">{t("editor.event.cmd.off")}</option>
+              <option value="on">{t("editor.event.cmd.on")}</option>
+            </FieldSelect>
+          </Field>
+        </div>
       );
     case "teleport":
       return <TeleportParams command={command} maps={maps} onChange={onChange} />;

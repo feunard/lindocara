@@ -229,6 +229,7 @@ export type EventEffect =
   | { readonly kind: "openShop" }
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
+  | { readonly kind: "damage"; readonly amount: number; readonly lethal: boolean }
   | {
       readonly kind: "questFact";
       readonly fact:
@@ -437,6 +438,11 @@ function executeCommand(
           resumeAtTick: null,
         },
         effects: [{ kind: "wait", frames: command.frames }],
+      };
+    case "damage":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "damage", amount: command.amount, lethal: command.lethal }],
       };
     case "teleport":
       return {

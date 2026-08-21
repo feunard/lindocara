@@ -854,6 +854,9 @@ async function startGameIdentity(
             renderer.playMonsterImpact(params.species, x, z);
           }
           break;
+        case "hazard.hit":
+          sound.hit();
+          break;
         default:
           break;
       }

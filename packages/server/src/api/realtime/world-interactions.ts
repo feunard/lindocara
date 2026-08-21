@@ -76,6 +76,7 @@ import { nextQuestChapter, questDefinition } from "../../world/quest-system.js";
 import { CHAT_MAX_LENGTH, displacePlayer, type PlayerRuntime } from "../../world/world-runtime.js";
 import type { QuestTurnInResult } from "./PartyRoom.ts";
 import { resurrectNearbyCorpse } from "./world-actions.ts";
+import { damagePlayerFromEvent } from "./world-combat.ts";
 import type { WorldGlue } from "./world-glue.ts";
 import {
   configuredSkill,
@@ -1091,6 +1092,19 @@ export function dispatchEndAdventure(w: WorldGlue, dispatch: DispatchEffect): vo
   );
 }
 
+/** Apply one authored trap effect to its triggerer. The event program cannot select another hero. */
+export function dispatchDamage(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "damage" }>,
+  now: number,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (connectionId === undefined || !player?.authorized || player.transitioning) return;
+  damagePlayerFromEvent(w, connectionId, player, effect.amount, effect.lethal, now);
+}
+
 /**
  * Port of `#drainEventRuns` (`world.ts:4455`): step every live run its budgeted slice, then
  * dispatch the effects that need this room's authority. State mutations are batched into ONE
@@ -1128,6 +1142,8 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         dispatchGold(w, dispatch, effect);
       } else if (effect.kind === "changeItems") {
         dispatchItems(w, dispatch, effect);
+      } else if (effect.kind === "damage") {
+        dispatchDamage(w, dispatch, effect, now);
       } else {
         const player = playerById(w.state, dispatch.heroId);
         if (player) {

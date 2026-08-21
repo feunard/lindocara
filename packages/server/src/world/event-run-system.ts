@@ -70,6 +70,7 @@ export interface DispatchEffect {
     | { kind: "openShop" }
     | { kind: "changeGold" }
     | { kind: "changeItems" }
+    | { kind: "damage" }
     | { kind: "questFact" }
   >;
 }

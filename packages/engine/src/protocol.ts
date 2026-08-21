@@ -886,6 +886,7 @@ export type EventTone = "info" | "good" | "bad";
 export const EVENT_CODES = [
   "combat.hit",
   "combat.hurt",
+  "hazard.hit",
   "monster.defeated",
   "level_up",
   "interact.nothing",
