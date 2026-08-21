@@ -26,7 +26,13 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { type MapWeather, weatherRains } from "@lindocara/engine/map-weather.js";
+import {
+  type MapWeather,
+  stormFlashIntensity,
+  stormStrikeAt,
+  weatherRains,
+  weatherStorms,
+} from "@lindocara/engine/map-weather.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -260,6 +266,13 @@ const WATER = { roughness: 0.46, segment: 2, depthRange: 7 } as const;
  * the shipped pitch. Both are presentation, unlike everything the map declares.
  */
 const RAIN = { radius: 26, height: 14 } as const;
+/**
+ * What one lightning strike adds to the scene's lights at full brightness.
+ *
+ * Added to the mood rather than replacing it, so a strike at noon is a glare and the same strike at
+ * midnight is the whole sky: the flash is a light, and a light is worth more where there was less.
+ */
+const FLASH = { sun: 2.6, hemi: 1.9, tint: new THREE.Color("#dceaff") } as const;
 
 /**
  * Daylight, and only daylight. The lab crossfades a second `night` mood on a key press; the game
@@ -548,7 +561,8 @@ export function createHd2dScene(
   // building it lazily would mean building it mid-frame the first time an author flips the control
   // in the editor, which is exactly when a hitch is most visible.
   const rain = createRainfall(ctx, { radius: RAIN.radius, height: RAIN.height });
-  rain.setIntensity(weatherRains(map.weather ?? "none") ? 1 : 0);
+  let weather: MapWeather = map.weather ?? "none";
+  rain.setIntensity(weatherRains(weather) ? 1 : 0);
   scene.add(rain.group);
 
   const sky = createSky(ctx);
@@ -698,13 +712,31 @@ export function createHd2dScene(
     pipeline.setFocusY(THREE.MathUtils.clamp(1 - (projected.y * 0.5 + 0.5), 0.25, 0.8));
   }
 
+  /**
+   * The current strike's brightness, or 0 under any weather but a storm.
+   *
+   * Read from the WALL CLOCK and the map's key rather than from a message or a local timer, so
+   * every client in this map flashes on the same strike: see `stormStrikeAt` for why a decoration
+   * is derived rather than broadcast.
+   */
+  function flashIntensity(): number {
+    if (!weatherStorms(weather)) return 0;
+    return stormFlashIntensity(stormStrikeAt(Date.now(), cycleKey).sinceMs);
+  }
+
   function pushMood(): void {
     const m = mood.value;
+    // The lightning flash is applied HERE, on top of the mood, rather than as an overlay quad: it
+    // is a change in the light falling on the world, so a hero's own shadow shortens with it and a
+    // cliff face lights along its normal. A white rectangle composited over the frame does neither,
+    // and reads as a screen effect rather than as weather.
+    const flash = flashIntensity();
     sun.color.copy(m.sun.color);
-    sun.intensity = m.sun.intensity;
+    sun.intensity = m.sun.intensity + flash * FLASH.sun;
     hemi.color.copy(m.hemi.sky);
+    if (flash > 0) hemi.color.lerp(FLASH.tint, Math.min(1, flash * 0.8));
     hemi.groundColor.copy(m.hemi.ground);
-    hemi.intensity = m.hemi.intensity;
+    hemi.intensity = m.hemi.intensity + flash * FLASH.hemi;
     rim.color.copy(m.rim.color);
     rim.intensity = m.rim.intensity;
     pipeline.bloom.strength = m.bloom.strength;
@@ -781,8 +813,10 @@ export function createHd2dScene(
       cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
       mood.set(cycle.nightWeight);
     },
-    setWeather(weather): void {
-      rain.setIntensity(weatherRains(weather) ? 1 : 0);
+    setWeather(next): void {
+      weather = next;
+      rain.setIntensity(weatherRains(next) ? 1 : 0);
+      if (!weatherStorms(next)) pushMood();
     },
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.

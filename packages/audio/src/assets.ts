@@ -85,6 +85,18 @@ export function skidLoopUrl(): string {
   return audioAssetUrl("glisse.ogg");
 }
 
+/**
+ * The thunder takes, as a bank KEY rather than a single url.
+ *
+ * Three, because one sample on repeat is instantly recognisable as a loop, and a storm repeats for
+ * as long as an author leaves it on. They are deliberately different shapes rather than three of
+ * the same: a close crack, a short sharp one, and a long distant roll. The bank picks among them
+ * and jitters each shot, exactly as the footstep takes are handled.
+ */
+export function thunderSampleUrls(): readonly string[] {
+  return takes("thunder", 3);
+}
+
 /** The rain bed: held like the skid, and for the same reason. Weather is a STATE, not an event. */
 export function rainLoopUrl(): string {
   return audioAssetUrl("rain-loop.ogg");

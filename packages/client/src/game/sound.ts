@@ -5,10 +5,11 @@ import {
   rainLoopUrl,
   SKID_LOOP_END_SECONDS,
   skidLoopUrl,
+  thunderSampleUrls,
 } from "@lindocara/audio/assets.js";
 import { createSampleBank, type SampleBank } from "@lindocara/audio/bank.js";
 import type { HeldLoop } from "@lindocara/audio/held-loop.js";
-import { RAIN_MAX_GAIN, SKID_MAX_GAIN } from "@lindocara/audio/movement.js";
+import { RAIN_MAX_GAIN, SKID_MAX_GAIN, THUNDER_MAX_GAIN } from "@lindocara/audio/movement.js";
 import {
   type AdventureAudioConfig,
   ambienceTrack,
@@ -437,6 +438,9 @@ export class GameSound {
     if (!context) return;
     const bank = createSampleBank({ context });
     for (const [key, urls] of Object.entries(movementSampleKeys())) bank.define(key, urls);
+    // Weather rides the MOVEMENT bank rather than the effects one: both are held or triggered off
+    // the same context and the same unlock, and the rain bed already lives here beside the skid.
+    bank.define("thunder", thunderSampleUrls());
     this.#movement = bank;
     this.#movementLoad = bank.load([...bank.sources(), skidLoopUrl(), rainLoopUrl()]).then(() => {
       this.#openSkid();
@@ -465,6 +469,22 @@ export class GameSound {
   setRainIntensity(intensity: number): void {
     this.#rainIntensity = Math.max(0, Math.min(1, intensity));
     this.#syncRainVolume();
+  }
+
+  /**
+   * One thunder clap, jittered.
+   *
+   * Takes nothing about WHEN: the caller owns the schedule (`stormStrikeAt`), because the same
+   * schedule drives the flash and the two must agree. This class only knows how a clap sounds.
+   */
+  thunder(): void {
+    const bank = this.#movement;
+    if (!bank) return;
+    const { muted, sfxVolume } = getAudioSettings();
+    if (muted || !this.#unlocked || document.hidden) return;
+    // `vary` is the bank's own per-shot pitch/level jitter, the same one the footsteps ride. Three
+    // takes jittered beats three takes alternating, which is audible as a pattern within a minute.
+    bank.play("thunder", { gain: sfxVolume * THUNDER_MAX_GAIN });
   }
 
   #openRain(): void {

@@ -68,6 +68,7 @@ const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
 const WEATHER_OPTIONS: { value: MapWeather; label: MessageKey }[] = [
   { value: "none", label: "editor.weather.mode.none" },
   { value: "rain", label: "editor.weather.mode.rain" },
+  { value: "storm", label: "editor.weather.mode.storm" },
 ];
 
 const LIGHTING_OPTIONS: { value: EditorLightingSelection; label: MessageKey }[] = [

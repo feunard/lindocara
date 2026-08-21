@@ -1437,6 +1437,7 @@ export const en = {
   "editor.weather.settings": "Weather",
   "editor.weather.mode.none": "Clear",
   "editor.weather.mode.rain": "Rain",
+  "editor.weather.mode.storm": "Storm",
   "editor.dayNightCycle.settings": "Day/night ambience",
   "editor.dayNightCycle.mode.cycle": "Day/night cycle",
   "editor.dayNightCycle.mode.day": "Permanent day",

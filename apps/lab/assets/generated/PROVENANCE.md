@@ -290,3 +290,30 @@ loop point, because Opus mangles the last samples of an encoded stream - the sam
 `glisse.ogg` carries, and why `RAIN_LOOP_END_SECONDS` is 3.4 on a 3.55 s file.
 
 Encoded `libopus -b:a 64k -ar 48000 -ac 1`, 26 KB.
+
+## Thunder (audio) - 2026-08-21
+
+`packages/audio/assets/thunder-1.ogg`, `-2.ogg`, `-3.ogg`, the three takes the `storm` weather
+fires. Three because one sample on repeat is recognisable as a loop within a minute, and a storm
+repeats for as long as an author leaves it on.
+
+```
+python3 studio/studio.py sfx --seed 42 --duration 6 --variants 3 \
+  --prompt "a distant rolling thunder clap, deep low rumble building and fading over several seconds, no rain, no music"
+python3 studio/studio.py sfx --seed 99 --duration 5 --variants 3 \
+  --prompt "a sudden loud thunder crack followed by a long deep rumble fading into silence, sharp attack, slow decay, recorded outdoors at distance"
+```
+
+Six takes for three keepers, and the measurement that chose them was the ENERGY SHAPE in 200 ms
+windows: a clap peaks early and decays. Seed 42 take 2 peaks at 1.8 s then rolls off (kept as the
+long distant roll, `thunder-3`); its takes 1 and 3 never decay - one restarts after a gap of
+silence, the other is flat throughout - and were rejected. Seed 99 take 2 is the textbook shape,
+peak at 0.4 s decaying to silence by 3 s (`thunder-1`); take 1 holds two separate claps, of which
+the first 1.6 s is `thunder-2`; take 3 has no onset at all and was rejected.
+
+The second prompt is the lesson: naming the SHAPE over time ("sharp attack, slow decay") is what
+made the model stop writing a texture and write an event.
+
+Post per take: trim to the clap, 5 ms fade in and a long fade out (a take cut on a non-zero sample
+clicks, and the model leaves rumble under the audible end of everything), normalise to 0.92 peak.
+Encoded `libopus -b:a 64k -ar 48000 -ac 1`; 1.6 s / 3.1 s / 4.2 s, 11-31 KB.

@@ -1453,6 +1453,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.weather.settings": "Météo",
   "editor.weather.mode.none": "Ciel dégagé",
   "editor.weather.mode.rain": "Pluie",
+  "editor.weather.mode.storm": "Orage",
   "editor.dayNightCycle.settings": "Ambiance jour/nuit",
   "editor.dayNightCycle.mode.cycle": "Cycle jour/nuit",
   "editor.dayNightCycle.mode.day": "Jour permanent",

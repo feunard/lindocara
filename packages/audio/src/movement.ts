@@ -56,3 +56,6 @@ export const SKID_MAX_GAIN = 0.6;
  * thing in a quiet scene and the first thing a player mutes.
  */
 export const RAIN_MAX_GAIN = 0.28;
+
+/** A clap is an EVENT under a bed, so it sits above the rain without reaching combat's level. */
+export const THUNDER_MAX_GAIN = 0.55;

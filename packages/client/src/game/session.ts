@@ -19,7 +19,13 @@ import {
   DEFAULT_MAP_FIXED_LIGHTING,
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
-import { weatherRains } from "@lindocara/engine/map-weather.js";
+import {
+  type MapWeather,
+  STORM_THUNDER_DELAY_MS,
+  stormStrikeAt,
+  weatherRains,
+  weatherStorms,
+} from "@lindocara/engine/map-weather.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import {
   PARTY_MATERIAL_TYPES,
@@ -466,6 +472,10 @@ async function startGameIdentity(
   let selfCorpse: GroundVector | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
+  /** The running map's weather, read off the heightfield when the welcome lands. */
+  let activeWeather: MapWeather = "none";
+  /** The last strike whose clap has been fired, so one strike never claps twice. */
+  let lastThunderStrike: number | null = null;
   let activeWorldSize = 0;
   const peasantCamps = new Map<string, PeasantCampVisual>();
   let audioDayCycleOverride: DayCycleOverride = null;
@@ -585,6 +595,10 @@ async function startGameIdentity(
         // about maps. `weatherRains` rather than a comparison, so a state added beside rain that
         // also falls water cannot forget to open the bed.
         sound.setRainIntensity(weatherRains(heightfield.weather ?? "none") ? 1 : 0);
+        activeWeather = heightfield.weather ?? "none";
+        // A map change is a new sky: the strike counter belongs to the map that was flashing, and
+        // carrying it across would silence the first clap of the next storm.
+        lastThunderStrike = null;
       }
       currentMerchant = world.merchant;
       renderer.configureMerchant(world.merchant);
@@ -1289,11 +1303,31 @@ async function startGameIdentity(
     },
   });
 
+  /**
+   * The clap, on the same schedule as the flash.
+   *
+   * Both sides read `stormStrikeAt` off the wall clock and the map's own key, so neither is told
+   * about the other and they cannot drift: the scene lights the strike, this fires its sound
+   * `STORM_THUNDER_DELAY_MS` later. The window bounds a late frame AND a hero who arrives mid-roll:
+   * without it, joining a storm two seconds after a strike would clap immediately for a flash
+   * nobody saw.
+   */
+  function fireThunderDue(): void {
+    if (!weatherStorms(activeWeather)) return;
+    const strike = stormStrikeAt(Date.now(), activeZoneId);
+    if (strike.index === lastThunderStrike) return;
+    if (strike.sinceMs < STORM_THUNDER_DELAY_MS) return;
+    if (strike.sinceMs > STORM_THUNDER_DELAY_MS + 600) return;
+    lastThunderStrike = strike.index;
+    sound.thunder();
+  }
+
   renderer.onFrame((now, dt) => {
     sound.setNightWeight(
       mapDayCycleAt(Date.now(), activeZoneId, effectiveDayCycleOverride()).nightWeight,
     );
     sound.update(now);
+    fireThunderDue();
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);
     const orbitEnabled = cameraMode === "orbit";
