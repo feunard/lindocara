@@ -327,6 +327,22 @@ export function centerProjectileGeometry(geometry: THREE.BufferGeometry): void {
   geometry.translate(-(bounds.min.x + bounds.max.x) / 2, -(bounds.min.y + bounds.max.y) / 2, 0);
 }
 
+/**
+ * The dust ring that marks an interactable event.
+ *
+ * Motes ORBIT a circle rather than sitting on one: the marker has to be noticed from across a
+ * street without ever becoming the brightest thing on screen, and a slow turn does that where a
+ * static shape does not. One turn every `SPIN_MS`, which is slow enough to read as drifting dust
+ * and not as a loading spinner.
+ */
+const EVENT_MARKER_MOTES = 14;
+const EVENT_MARKER_RADIUS = 0.32;
+const EVENT_MARKER_SPIN_MS = 5200;
+/** Warm gold, deliberately under 1.0 in blue so additive blending stays golden over grass. */
+const EVENT_MARKER_GOLD = { r: 1, g: 0.82, b: 0.42 } as const;
+/** Edge of one mote's sprite, in texels. Small: it is a point of light, not a texture. */
+const MOTE_TEXTURE_SIZE = 16;
+
 /** Dynamic presentation parented to the same scene graph as terrain and billboards. */
 export class Hd2dVisualLayer {
   readonly #scene: Hd2dScene;
@@ -342,6 +358,13 @@ export class Hd2dVisualLayer {
   readonly #loot = new Map<string, LootEntry>();
   readonly #projectiles = new Map<string, ProjectileEntry>();
   readonly #eventMarkers = new Map<string, THREE.Object3D>();
+  /** One geometry, one material and one texture for EVERY event marker on the map, built on first
+   *  use and owned by this layer. A marker is then a `THREE.Points` sharing all three, so a map
+   *  carrying fifty interactables costs fifty transforms rather than fifty buffers. They are not
+   *  module-level: the game and the editor preview each open their own context. */
+  #moteGeometry: THREE.BufferGeometry | null = null;
+  #moteMaterial: THREE.PointsMaterial | null = null;
+  #moteTexture: THREE.DataTexture | null = null;
   readonly #camps = new Map<string, CampEntry>();
   readonly #rations = new Map<string, RationEntry>();
   readonly #powerBuffs = new Map<string, PowerBuffEntry>();
@@ -1309,6 +1332,83 @@ export class Hd2dVisualLayer {
     disposeObject(entry.object);
   }
 
+  /**
+   * One mote, as pixel data rather than a drawn canvas: a 2D context is not guaranteed outside a
+   * browser, and this layer is constructed in jsdom by the renderer suite. A radial falloff raised
+   * to the fourth power gives a small hot centre with a soft edge, which is what reads as a speck
+   * of light instead of a disc.
+   */
+  #dustTexture(): THREE.DataTexture {
+    if (this.#moteTexture) return this.#moteTexture;
+    const size = MOTE_TEXTURE_SIZE;
+    const data = new Uint8Array(size * size * 4);
+    const centre = (size - 1) / 2;
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const dx = (x - centre) / centre;
+        const dy = (y - centre) / centre;
+        const falloff = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy));
+        const alpha = falloff * falloff * falloff * falloff;
+        const index = (y * size + x) * 4;
+        data[index] = 255;
+        data[index + 1] = 255;
+        data[index + 2] = 255;
+        data[index + 3] = Math.round(alpha * 255);
+      }
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    texture.needsUpdate = true;
+    this.#moteTexture = texture;
+    return texture;
+  }
+
+  /**
+   * The dust ring itself. Every mote's position, height and brightness is BAKED into the shared
+   * geometry from its index, so the ring is varied without being random: the same marker draws the
+   * same dust in every session, and animating it costs one rotation per frame rather than a buffer
+   * rewrite. `sizeAttenuation` keeps a mote a speck at distance instead of a growing blob.
+   */
+  #eventMarkerDust(): THREE.Points {
+    if (!this.#moteGeometry) {
+      const positions = new Float32Array(EVENT_MARKER_MOTES * 3);
+      const colors = new Float32Array(EVENT_MARKER_MOTES * 3);
+      for (let mote = 0; mote < EVENT_MARKER_MOTES; mote += 1) {
+        const angle = (mote / EVENT_MARKER_MOTES) * Math.PI * 2;
+        // An irrational step per mote: neighbouring motes never share a wobble, and the ring never
+        // resolves into a visible pattern the way `mote % 3` would.
+        const wobble = Math.sin(mote * 2.399963);
+        const radius = EVENT_MARKER_RADIUS + wobble * 0.035;
+        const warmth = 0.7 + Math.abs(wobble) * 0.3;
+        positions[mote * 3] = Math.cos(angle) * radius;
+        positions[mote * 3 + 1] = 0.03 + Math.abs(wobble) * 0.1;
+        positions[mote * 3 + 2] = Math.sin(angle) * radius;
+        colors[mote * 3] = EVENT_MARKER_GOLD.r * warmth;
+        colors[mote * 3 + 1] = EVENT_MARKER_GOLD.g * warmth;
+        colors[mote * 3 + 2] = EVENT_MARKER_GOLD.b * warmth;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      this.#moteGeometry = geometry;
+    }
+    if (!this.#moteMaterial) {
+      this.#moteMaterial = new THREE.PointsMaterial({
+        size: 0.13,
+        map: this.#dustTexture(),
+        transparent: true,
+        depthWrite: false,
+        // Additive is what makes dust read as LIGHT on ground it is lying over. It is also why the
+        // gold is mixed under 1.0 in blue: at full white the sum washes out to a grey smear.
+        blending: THREE.AdditiveBlending,
+        vertexColors: true,
+        sizeAttenuation: true,
+        toneMapped: false,
+        opacity: 0.85,
+      });
+    }
+    return new THREE.Points(this.#moteGeometry, this.#moteMaterial);
+  }
+
   #syncEventMarkers(events: readonly WorldEventSnapshot[]): void {
     const present = new Set<string>();
     for (const event of events) {
@@ -1320,24 +1420,19 @@ export class Hd2dVisualLayer {
       present.add(event.id);
       let object = this.#eventMarkers.get(event.id);
       if (!object) {
-        object = new THREE.Mesh(
-          new THREE.TorusGeometry(0.25, 0.045, 8, 24),
-          transparentMaterial(0x73d6b2, 0.6),
-        );
-        object.rotation.x = Math.PI / 2;
+        object = this.#eventMarkerDust();
         this.#root.add(object);
         this.#eventMarkers.set(event.id, object);
       }
       const x = event.col + 0.5 - this.#size / 2;
       const z = event.row + 0.5 - this.#size / 2;
       object.position.set(x, this.#groundY(x, z, 0.06), z);
-      object.visible =
-        event.harvest?.state !== "depleted" || event.harvest.exhaustionBehavior !== "hide";
-      materialOpacity(object, event.harvest?.state === "depleted" ? 0.2 : 0.6);
     }
     for (const [id, object] of this.#eventMarkers) {
       if (present.has(id)) continue;
-      disposeObject(object);
+      // Detach only. The geometry, material and texture are SHARED by every marker and freed once
+      // in `dispose()`; `disposeObject` here would free them out from under the survivors.
+      object.removeFromParent();
       this.#eventMarkers.delete(id);
     }
   }
@@ -1945,6 +2040,12 @@ export class Hd2dVisualLayer {
         material.opacity = 0.32 + Math.sin(now / 260) * 0.18;
       }
     }
+    // The dust turns. A transform per marker on shared, baked geometry: no buffer is rewritten and
+    // nothing is allocated, which is what lets a map full of interactables animate for free.
+    if (this.#eventMarkers.size > 0) {
+      const spin = ((now % EVENT_MARKER_SPIN_MS) / EVENT_MARKER_SPIN_MS) * Math.PI * 2;
+      for (const marker of this.#eventMarkers.values()) marker.rotation.y = spin;
+    }
     if (this.#spawnKnight && this.#spawnKnightArt) {
       const frames = (this.#spawnKnightArt.cols ?? 1) * (this.#spawnKnightArt.rows ?? 1);
       this.#spawnKnight.setFrame(
@@ -2046,6 +2147,14 @@ export class Hd2dVisualLayer {
     this.#loot.clear();
     this.#projectiles.clear();
     this.#eventMarkers.clear();
+    // The three shared marker resources, freed exactly once: no marker owns them, so nothing else
+    // ever will.
+    this.#moteGeometry?.dispose();
+    this.#moteGeometry = null;
+    this.#moteMaterial?.dispose();
+    this.#moteMaterial = null;
+    this.#moteTexture?.dispose();
+    this.#moteTexture = null;
     this.#camps.clear();
     this.#rations.clear();
     this.#powerBuffs.clear();

@@ -166,6 +166,95 @@ describe("Hd2dVisualLayer authored event markers", () => {
   });
 });
 
+describe("Hd2dVisualLayer event marker dust", () => {
+  const markerEvent = {
+    id: "door",
+    col: 4,
+    row: 5,
+    graphicAssetId: null,
+    onTop: false,
+    moveSpeed: 4,
+    moveFrequency: 3,
+    moveAnimation: true,
+    directionFixed: false,
+    presentation: "marker" as const,
+  };
+  const empty = {
+    players: [],
+    seaGuardians: [],
+    monsters: [],
+    guards: [],
+    loot: [],
+    projectiles: [],
+    corpses: [],
+    events: [],
+  };
+
+  function motesIn(root: THREE.Scene): THREE.Points[] {
+    const found: THREE.Points[] = [];
+    root.traverse((object) => {
+      if (object instanceof THREE.Points) found.push(object);
+    });
+    return found;
+  }
+
+  it("draws each interactable as a dust ring sharing one geometry, material and texture", () => {
+    const { layer, root } = harness();
+    layer.sync(
+      { ...empty, events: [markerEvent, { ...markerEvent, id: "chest", col: 9, row: 2 }] },
+      0,
+    );
+
+    const motes = motesIn(root);
+    expect(motes).toHaveLength(2);
+    const [first, second] = motes;
+    if (!first || !second) throw new Error("expected two markers");
+    // The point of building them lazily on the layer: fifty interactables cost fifty transforms,
+    // not fifty buffers.
+    expect(first.geometry).toBe(second.geometry);
+    expect(first.material).toBe(second.material);
+    expect(first.geometry.getAttribute("position").count).toBeGreaterThan(1);
+    // Every mote carries its own brightness, which is what keeps the ring from reading as a solid
+    // painted circle.
+    const colors = first.geometry.getAttribute("color");
+    expect(colors.count).toBe(first.geometry.getAttribute("position").count);
+    expect(colors.getX(0)).not.toBe(colors.getX(1));
+
+    layer.dispose();
+  });
+
+  it("turns the dust, and drops a marker without freeing the geometry its neighbours share", () => {
+    const { layer, root } = harness();
+    layer.sync(
+      { ...empty, events: [markerEvent, { ...markerEvent, id: "chest", col: 9, row: 2 }] },
+      0,
+    );
+    const [first, second] = motesIn(root);
+    if (!first || !second) throw new Error("expected two markers");
+
+    layer.update(0);
+    const start = first.rotation.y;
+    layer.update(1300);
+    expect(first.rotation.y).toBeGreaterThan(start);
+    expect(second.rotation.y).toBe(first.rotation.y);
+
+    // One marker leaves. Detaching it must not free the buffers its neighbour is still drawing
+    // from, and three.js will not tell us afterwards: `dispose()` frees GPU resources and leaves
+    // the JS-side attributes readable, so the call itself is what has to be watched.
+    const freed = vi.spyOn(first.geometry, "dispose");
+    layer.sync({ ...empty, events: [markerEvent] }, 1);
+    expect(motesIn(root)).toHaveLength(1);
+    expect(freed).not.toHaveBeenCalled();
+    const survived = first.rotation.y;
+    layer.update(2600);
+    expect(first.rotation.y).not.toBe(survived);
+
+    // The layer owns them, so tearing it down is what frees them, exactly once.
+    layer.dispose();
+    expect(freed).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Hd2dVisualLayer hero movement", () => {
   const hero = {
     x: 0,
