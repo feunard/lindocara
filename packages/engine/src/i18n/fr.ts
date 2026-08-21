@@ -1556,7 +1556,7 @@ export const fr: Record<keyof typeof en, string> = {
     "On monte vers le côté haut sélectionné ; on descend par le même escalier dans le sens opposé. Repeindre l’une de ses 2 cases avec de l’eau supprime automatiquement tout l’escalier.",
   "editor.help.maps.multimap.title": "Créer plusieurs cartes",
   "editor.help.maps.multimap.body":
-    "Ajoutez chaque lieu dans le panneau Cartes. Placez un événement Téléporteur sur la sortie du premier lieu, choisissez la carte et la cellule d’arrivée, puis créez si nécessaire le trajet de retour. Un seul événement Départ définit le début global.",
+    "Ajoutez chaque lieu dans le panneau Cartes. Posez les deux extrémités d’un Téléporteur, puis ouvrez l’événement pour changer sa carte de destination lorsque le passage quitte la carte courante. Un seul événement Départ définit le début global.",
   "editor.help.maps.collision.title": "Comprendre les collisions",
   "editor.help.maps.collision.body":
     "Activez Collisions dans la barre d’outils : les zones rouges ou encadrées bloquent le héros. Utilisez l’aperçu rapide pour marcher immédiatement. Le point de repli/test d’une carte ne remplace pas le Départ global de l’aventure.",
@@ -1571,7 +1571,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Donne une récompense une seule fois grâce à un état local propre à ce coffre. Modifiez l’or, les objets, les messages et l’apparence.",
   "editor.help.story.preset.teleporter": "Téléporteur",
   "editor.help.story.preset.teleporter.body":
-    "Envoie le héros vers une carte et une cellule choisies. Utilisez-le pour les portes, sorties, passages secrets et changements de chapitre.",
+    "Cliquez sur l’entrée, puis sur la sortie : l’éditeur crée et relie immédiatement les deux extrémités. Ouvrez ensuite l’un des événements pour modifier son comportement ou sa destination.",
   "editor.help.story.preset.end": "Objectif de l’aventure",
   "editor.help.story.preset.end.body":
     "Conclut la partie lorsqu’il est activé. Placez-le après le dernier dialogue ou combat, et testez qu’il reste atteignable.",
@@ -1681,7 +1681,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.help.test.checklist.start":
     "Une nouvelle partie commence au bon événement Départ, dans un emplacement praticable.",
   "editor.help.test.checklist.maps":
-    "Chaque téléporteur arrive sur la bonne carte et un retour existe lorsque l’histoire le demande.",
+    "Chaque téléporteur arrive à l’extrémité prévue et les deux événements liés décrivent toujours le passage souhaité.",
   "editor.help.test.checklist.quests":
     "Chaque quête peut être acceptée, chaque objectif progresse depuis sa vraie source, et la remise fonctionne.",
   "editor.help.test.checklist.dialogue":
@@ -2026,6 +2026,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.preset.raw": "Événement vierge",
   "editor.event.preset.teleporter": "Téléporteur",
   "editor.event.preset.teleporter.disabled": "Ouvrez d’abord une carte pour placer un téléporteur.",
+  "editor.event.teleporter.placeExit":
+    "Entrée posée en ({col}, {row}). Cliquez maintenant sur la case de sortie.",
+  "editor.event.marker.visible": "Afficher l’anneau de repérage au sol",
+  "editor.event.marker.visible.hint":
+    "Décochez cette option pour masquer en jeu le petit anneau généré automatiquement sous cet événement.",
   "editor.event.preset.sign": "Panneau / Dialogue",
   "editor.event.preset.chest": "Coffre (or)",
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
@@ -2112,6 +2117,9 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.name": "Titre",
   "adventure.players": "Joueurs max",
   "adventure.players.count": "{count} joueurs max",
+  "adventure.camera.orbit": "Caméra 360° avec inclinaison",
+  "adventure.camera.hint":
+    "Désactivé, conserve la vue latérale HD-2D fixe. Activé, permet aux joueurs de tourner autour du héros et d’incliner la caméra.",
   "adventure.edit": "Modifier",
   "adventure.test": "Tester l’aventure",
   "adventure.refresh": "Actualiser",

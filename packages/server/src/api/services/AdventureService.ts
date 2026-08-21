@@ -23,6 +23,7 @@
  * `adventures.findById` lookup in the same transaction.
  */
 import {
+  type AdventureCameraMode,
   type AdventureGraph,
   type AdventureInput,
   type CreateAdventureInput,
@@ -66,6 +67,7 @@ export interface StoredAdventure {
   accountId: string;
   title: string;
   maxPlayers: number;
+  cameraMode: AdventureCameraMode;
   version: number;
   mapIds: string[];
   graph: AdventureGraph;
@@ -159,6 +161,7 @@ export class AdventureService {
       userId,
       title,
       maxPlayers: input.maxPlayers,
+      ...(input.cameraMode !== undefined ? { cameraMode: input.cameraMode } : {}),
       graph: JSON.stringify(EMPTY_GRAPH),
       ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
@@ -249,6 +252,7 @@ export class AdventureService {
     await this.adventures.updateById(id, {
       title,
       maxPlayers: input.maxPlayers,
+      ...(input.cameraMode !== undefined ? { cameraMode: input.cameraMode } : {}),
       ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
       ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(proposedRegistry !== undefined ? { registry: JSON.stringify(proposedRegistry) } : {}),
@@ -367,6 +371,7 @@ export class AdventureService {
       accountId: row.userId,
       title: row.title,
       maxPlayers: row.maxPlayers,
+      cameraMode: row.cameraMode,
       version: row.version,
       mapIds,
       graph,

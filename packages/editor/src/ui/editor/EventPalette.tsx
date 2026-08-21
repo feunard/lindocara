@@ -19,10 +19,11 @@ import { SEA_GUARDIAN_SWIM_TEXTURE_URL } from "@lindocara/renderer/hd2d/game-ren
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
-/** The popular one-click placements. `raw` is a blank custom event; the rest pre-fill page 1 with
+/** Popular placements. `raw` is a blank custom event; the rest pre-fill page 1 with
  * one canonical action the author then tunes in the dialog. Exported because a placement also STORES
  * its label as the fresh event's name (see `eventToolFor`), so the sidebar list can tell a teleporter
- * from a chest instead of showing five identical "Custom event" rows. */
+ * from a chest instead of showing five identical "Custom event" rows. Teleporter is the one
+ * two-click preset: its second click commits both linked endpoints. */
 export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   raw: "editor.event.preset.raw",
   teleporter: "editor.event.preset.teleporter",

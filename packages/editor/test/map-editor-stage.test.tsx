@@ -671,6 +671,53 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("places a reciprocal teleporter pair over two clicks as one undoable edit", async () => {
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -8.5, z: -7.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const mapId = crypto.randomUUID();
+
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "event",
+      eventKind: "normal",
+      preset: "teleporter",
+      selfMapId: mapId,
+    });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().events).toEqual([]);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ pendingTeleportOrigin: { col: 1, row: 2 }, canUndo: false }),
+    );
+
+    point.x = -4.5;
+    point.z = -3.5;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    const [entrance, exit] = stage.current().events;
+    expect(entrance).toMatchObject({ col: 1, row: 2, linkedEventId: exit?.id });
+    expect(exit).toMatchObject({ col: 5, row: 6, linkedEventId: entrance?.id });
+    expect(entrance?.pages[0]?.commands).toEqual([
+      { t: "teleport", mapId, col: 5, row: 6, category: "geographic", eventId: exit?.id },
+    ]);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ pendingTeleportOrigin: null, canUndo: true, dirty: true }),
+    );
+
+    stage.undo();
+    expect(stage.current().events).toEqual([]);
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
+
   it("draws and drags building resize handles as one undoable edit", async () => {
     const point = { x: 5.5, z: 2.5 };
     mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));

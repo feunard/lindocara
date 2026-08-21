@@ -152,6 +152,17 @@ describe("parseMapEvents: good payloads round-trip unchanged", () => {
     expect(parseMapEvents(events, COLS, ROWS)).toEqual(events);
   });
 
+  it("accepts only reciprocal normal-event links and preserves a hidden marker", () => {
+    const first = event({ linkedEventId: ID_B, showMarker: false });
+    const second = event({ id: ID_B, col: 2, row: 2, ordinal: 1, linkedEventId: ID_A });
+    expect(parseMapEvents([first, second], COLS, ROWS)).toEqual([first, second]);
+
+    expect(parseMapEvents([first], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([first, { ...second, linkedEventId: ID_B }], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([first, { ...second, kind: "npc" }], COLS, ROWS)).toBeNull();
+    expect(parseMapEvents([{ ...event(), showMarker: "no" }], COLS, ROWS)).toBeNull();
+  });
+
   it("round-trips a tinted NPC activity routine", () => {
     const route = [
       { offsetCol: 2, offsetRow: 0, waitMs: 1_500 },

@@ -93,10 +93,10 @@ export const MAP_ELEMENT_COLUMNS = 11;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
  *  monsterSpecialTechnique, monsterAttackProfile, monsterRespawnMode, monsterRespawnDelayMs,
- *  harvestProfile.
+ *  harvestProfile, linkedEventId, showMarker.
  *  Exported — see
  *  `MAP_ELEMENT_COLUMNS`'s comment. */
-export const MAP_EVENT_COLUMNS = 22;
+export const MAP_EVENT_COLUMNS = 24;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, graphicTint, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix,
  *  optThrough, optOnTop, trigger, moveRoute, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s
@@ -817,6 +817,8 @@ export class MapService {
         row: event.row,
         name: event.name,
         ordinal: event.ordinal,
+        linkedEventId: event.linkedEventId,
+        showMarker: event.showMarker ?? true,
         kind: event.kind,
         species: event.species ?? undefined,
         patrolRadius: event.patrolRadius ?? undefined,
@@ -943,6 +945,8 @@ export class MapService {
           row: row.row,
           name: row.name,
           ordinal: row.ordinal,
+          ...(row.linkedEventId == null ? {} : { linkedEventId: row.linkedEventId }),
+          showMarker: row.showMarker,
           kind: row.kind,
           species,
           patrolRadius: isMonster || isGuard || isNpc ? (row.patrolRadius ?? null) : null,

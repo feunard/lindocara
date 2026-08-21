@@ -294,6 +294,9 @@ export function rewriteBundleIds(
       events: map.events.map((event) => ({
         ...event,
         id: eventId(mapping, event.id),
+        ...(event.linkedEventId === undefined
+          ? {}
+          : { linkedEventId: eventId(mapping, event.linkedEventId) }),
         pages: event.pages.map((page) => ({
           ...page,
           commands: rewriteCommands(page.commands, mapping),

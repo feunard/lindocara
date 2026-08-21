@@ -74,6 +74,13 @@ describe("parseAdventureInput", () => {
     expect(parseAdventureInput(shell)).toEqual(shell);
     expect(parseAdventureInput({ ...shell, graph: undefined })).toEqual(shell);
   });
+
+  it("accepts only the two authored camera modes", () => {
+    const shell = { title: "Donjon", maxPlayers: 4 };
+    expect(parseAdventureInput({ ...shell, cameraMode: "hd2d" })?.cameraMode).toBe("hd2d");
+    expect(parseAdventureInput({ ...shell, cameraMode: "orbit" })?.cameraMode).toBe("orbit");
+    expect(parseAdventureInput({ ...shell, cameraMode: "free" })).toBeNull();
+  });
 });
 
 describe("parseAdventureGraph", () => {

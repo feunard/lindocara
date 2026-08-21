@@ -21,6 +21,20 @@ export const MAX_ADVENTURE_LINKS = 128;
 
 const MAP_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
+/**
+ * The camera policy authored once for the whole adventure.
+ *
+ * `hd2d` keeps the shipped side view fixed; `orbit` lets the player turn a full circle and tilt
+ * the view. The constant is also the compatibility fallback for adventures and welcome frames
+ * created before this setting existed.
+ */
+export type AdventureCameraMode = "hd2d" | "orbit";
+export const DEFAULT_ADVENTURE_CAMERA_MODE: AdventureCameraMode = "hd2d";
+
+export function isAdventureCameraMode(value: unknown): value is AdventureCameraMode {
+  return value === "hd2d" || value === "orbit";
+}
+
 export type ExitDestination = { mapId: string; entryId: string } | "end";
 
 export interface AdventureLink {
@@ -49,6 +63,8 @@ export const EMPTY_GRAPH: AdventureGraph = { start: null, links: [] };
 export interface AdventureInput {
   title: string;
   maxPlayers: number;
+  /** Absent preserves the stored value. */
+  cameraMode?: AdventureCameraMode;
   /** Default music/ambience for member maps. Omitted by an older writer to preserve the stored value. */
   audio?: AdventureAudioConfig;
   /** COMPAT-only. Absent on every real authoring PUT (the stored graph is then preserved); present
@@ -67,6 +83,8 @@ export interface AdventureInput {
 export interface CreateAdventureInput {
   title: string;
   maxPlayers: number;
+  /** Defaults to the fixed HD-2D side view. */
+  cameraMode?: AdventureCameraMode;
   audio?: AdventureAudioConfig;
   registry?: AdventureRegistry;
 }
@@ -148,6 +166,15 @@ function parseOptionalStartMapId(value: unknown): { ok: true; startMapId?: strin
   return { ok: true, startMapId: record.startMapId };
 }
 
+function parseOptionalCameraMode(
+  value: unknown,
+): { ok: true; cameraMode?: AdventureCameraMode } | null {
+  const cameraMode = (value as Record<string, unknown>).cameraMode;
+  if (cameraMode === undefined) return { ok: true };
+  if (!isAdventureCameraMode(cameraMode)) return null;
+  return { ok: true, cameraMode };
+}
+
 export function parseCreateAdventureInput(value: unknown): CreateAdventureInput | null {
   const shell = parseShell(value);
   if (!shell) return null;
@@ -155,8 +182,11 @@ export function parseCreateAdventureInput(value: unknown): CreateAdventureInput 
   if (!registry) return null;
   const audio = parseOptionalAudio(value);
   if (!audio) return null;
+  const camera = parseOptionalCameraMode(value);
+  if (!camera) return null;
   return {
     ...shell,
+    ...(camera.cameraMode !== undefined ? { cameraMode: camera.cameraMode } : {}),
     ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
@@ -181,8 +211,11 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
   if (!audio) return null;
   const startMapId = parseOptionalStartMapId(value);
   if (!startMapId) return null;
+  const camera = parseOptionalCameraMode(value);
+  if (!camera) return null;
   return {
     ...shell,
+    ...(camera.cameraMode !== undefined ? { cameraMode: camera.cameraMode } : {}),
     ...(graph !== undefined ? { graph } : {}),
     ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),

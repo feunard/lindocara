@@ -97,6 +97,16 @@ describe("WorldInfo.heightfield", () => {
     expect(parsed?.t).toBe("welcome");
   });
 
+  it("accepts known adventure camera modes and drops an unknown one", () => {
+    expect(parseServerMessage(JSON.stringify(welcomeFixture({ cameraMode: "hd2d" })))?.t).toBe(
+      "welcome",
+    );
+    expect(parseServerMessage(JSON.stringify(welcomeFixture({ cameraMode: "orbit" })))?.t).toBe(
+      "welcome",
+    );
+    expect(parseServerMessage(JSON.stringify(welcomeFixture({ cameraMode: "free" })))).toBeNull();
+  });
+
   /**
    * `heightfield` used to be nullable and an explicit `null` was accepted. It is the room's ONLY
    * geometry now — a map without one cannot produce a zone at all, so a room that is sending a

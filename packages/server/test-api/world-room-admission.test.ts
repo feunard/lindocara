@@ -160,11 +160,14 @@ interface Playable {
  * `createState` keeps `location: null`), so every join would close 4007. Every admission outcome
  * this file asserts — welcome, cookie auth, 4001 replacement — needs a room that CAN admit.
  */
-async function newPlayableHero(prefix: string): Promise<Playable> {
+async function newPlayableHero(
+  prefix: string,
+  cameraMode: "hd2d" | "orbit" = "hd2d",
+): Promise<Playable> {
   const { token, cookie, userId } = await registerAndLogin(prefix);
   const adventureResponse = await authedFetch("/api/adventures", token, {
     method: "POST",
-    body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4, cameraMode }),
   });
   expect(adventureResponse.status).toBe(201);
   const adventure = (await adventureResponse.json()) as { id: string; defaultMap: { id: string } };
@@ -333,6 +336,14 @@ describe("world room admission", () => {
     expect(welcome.selfId).toBe(heroId);
     expect(messages.map((message) => message.t)).toEqual(["welcome"]);
     engine.dispose();
+  });
+
+  test("the welcome carries the adventure's camera mode", async () => {
+    const { token, partyId, mapId, heroId } = await newPlayableHero("adcamera", "orbit");
+    const probe = openWorldSocket(`${partyId}:${mapId}`, heroId, token);
+    const welcome = await probe.waitFor("welcome");
+    if (welcome.t !== "welcome") throw new Error("unreachable");
+    expect(welcome.world.cameraMode).toBe("orbit");
   });
 
   test("a roomId naming a map the hero is not on closes 4007", async () => {

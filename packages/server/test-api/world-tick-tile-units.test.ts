@@ -240,6 +240,21 @@ describe("an authored teleport, in tile units", () => {
     expect(player.y).toBe(LEVEL_HEIGHT);
   });
 
+  it("lands on an authored building roof instead of treating its footprint as blocked", () => {
+    const cell = atCell(3, 5);
+    const roof = 2.25;
+    const built = terrain([
+      { x: cell.x - 0.5, z: cell.z - 0.5, w: 1, h: 1, top: roof, support: "center" },
+    ]);
+    const player = hero(0, 0);
+    const w = glue(built, player);
+
+    expect(teleportSameMap(w, player, 3, 5, "event-roof")).toBe("teleported");
+    expect(player.x).toBeCloseTo(cell.x, 10);
+    expect(player.z).toBeCloseTo(cell.z, 10);
+    expect(player.y).toBe(roof);
+  });
+
   it("refuses a cell off the grid rather than snapping a hero into the void", () => {
     const built = terrain();
     const player = hero(0, 0);

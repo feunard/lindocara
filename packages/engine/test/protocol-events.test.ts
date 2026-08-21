@@ -448,6 +448,10 @@ describe("events on the wire", () => {
   });
 
   it("validates the authored movement presentation fields", () => {
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ showMarker: false })]))),
+    ).not.toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ showMarker: "no" })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ moveSpeed: -1 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ moveSpeed: 6 })])))).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ moveFrequency: 5 })])))).toBeNull();

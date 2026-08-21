@@ -36,6 +36,7 @@ export function authoredEventPreviewSnapshots(
         moveAnimation: page.optMoveAnim,
         directionFixed: page.optDirFix,
         presentation: event.kind === "harvestable" ? "native" : "marker",
+        showMarker: event.showMarker !== false,
         ...(profile
           ? {
               harvest: {

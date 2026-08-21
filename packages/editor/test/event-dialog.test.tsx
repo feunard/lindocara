@@ -64,6 +64,18 @@ describe("EventDialog", () => {
     await user.click(screen.getByRole("tab", { name }));
   };
 
+  it("lets every event hide its generated locator ring with an explicit explanation", async () => {
+    const { onCommit } = renderDialog(seedEvent());
+    const marker = screen.getByRole("checkbox", { name: t("editor.event.marker.visible") });
+
+    expect(marker).toBeChecked();
+    expect(screen.getByText(t("editor.event.marker.visible.hint"))).toBeVisible();
+    await userEvent.click(marker);
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    expect(onCommit.mock.calls[0]?.[0]).toMatchObject({ showMarker: false });
+  });
+
   it("round-trips runtime-backed controls across two pages with explicit nulls", async () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent(), RUNTIME_REGISTRY);

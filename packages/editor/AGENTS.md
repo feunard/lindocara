@@ -63,15 +63,14 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   under the cursor, with the camera's yaw breaking a genuine tie. Both REFUSE rather than no-op:
   `applyTool` returns null and the stage counts a placement rejection, which flashes the visible
   hint. A brush that silently repaints the same slot is indistinguishable from a broken one.
-- **The door-link tool is two clicks and one undo step.** It mints the `teleporter` preset twice,
-  once per door, each aimed at the walkable cell in FRONT of the other (never the door itself: a
-  `player-touch` teleporter you land on is how a pair of doors becomes a loop). The first door lives
-  in the stage (`linkFrom`), not on the map, so the pair is one `applyTool` call; it is published on
-  `MapEditorStageState.linkAnchor` so the palette can say which click is next, and cleared whenever
-  the tool changes. After the click the two are ORDINARY independent events: there is no pair object
-  in the map model, so deleting one end leaves the other as a one-way door. That is the decision,
-  not an omission; a pair object would be a second identity to persist, migrate and keep in step
-  with two freely editable events.
+- **Teleporters and door links are two clicks and one undo step.** Their first endpoint lives only in
+  the stage until the second click creates both ordinary events. The pair stores reciprocal
+  `linkedEventId` values, so deleting either endpoint deletes both. Teleporter commands target the
+  opposite event id, which keeps their live destinations attached when an endpoint moves. Door links
+  retain their adjacent walkable destination on ordinary ground to prevent a `player-touch` loop,
+  but a click on a walkable raised surface intentionally keeps that roof/deck cell.
+  `MapEditorStageState.linkAnchor` publishes the door-link step; the teleporter preset publishes its
+  equivalent pending origin and both clear whenever the tool changes.
 
 - The authoring camera can turn: `[`/`]` step a quarter turn (snapping to the nearest quarter
   first, so they also straighten a freely-orbited view), and **right**-drag orbits to any angle with
@@ -83,6 +82,9 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
   the map sideways under the cursor. `map-editor-stage.test.tsx` guards exactly that.
 - Distance fog is off while authoring (`setFogEnabled(false)`), because the play-tuned band tightens
   as the camera pulls back and zooming out is how an author inspects a whole map.
+- `AdventureSettingsDialog` owns the player-facing camera policy. `hd2d` is the compatibility and
+  creation default (fixed yaw/pitch); `orbit` enables full yaw plus bounded pitch in gameplay. This
+  does not restrict the authoring camera described above.
 
 ## Commands
 

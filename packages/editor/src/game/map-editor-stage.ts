@@ -47,7 +47,12 @@ import {
   type MapElement,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
-import type { MapEvent } from "@lindocara/engine/map-events.js";
+import {
+  MAX_EVENTS_PER_MAP,
+  MAX_RUNTIME_EVENTS_PER_MAP,
+  type MapEvent,
+  runtimeEventCount,
+} from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
@@ -86,6 +91,7 @@ import {
   markEditorHistorySaved,
   moveSelection,
   placedAssetId,
+  placeLinkedTeleporters,
   placementLegalAt,
   redoEditorHistory,
   selectionAtMode,
@@ -154,6 +160,8 @@ export interface MapEditorStageState {
    *  palette can say which step it is on rather than leaving the author to guess whether the first
    *  click registered. */
   linkAnchor: { col: number; row: number } | null;
+  /** First cell of an in-progress reciprocal teleporter placement. */
+  pendingTeleportOrigin?: { col: number; row: number } | null;
 }
 
 export function defaultDimForMode(mode: EditorMode): boolean {
@@ -595,6 +603,7 @@ export function openMapEditorStage(
     let zoom = 100;
     let revision = 0;
     let placementRejections = 0;
+    let pendingTeleportOrigin: { col: number; row: number } | null = null;
     let hover: { col: number; row: number; offsetX: number; offsetY: number } | null = null;
     let painting = false;
     let panning = false;
@@ -839,8 +848,12 @@ export function openMapEditorStage(
       const size = Math.max(cols, rows);
       // A pending link owns the selection highlight: the first door IS what the author has picked,
       // and there is no element or event selection worth showing in the middle of the two clicks.
-      const focusSelection = linkFrom
-        ? { x: linkFrom.col + 0.5 - size / 2, z: linkFrom.row + 0.5 - size / 2 }
+      const pendingLink = pendingTeleportOrigin ?? linkFrom;
+      const focusSelection = pendingLink
+        ? {
+            x: pendingLink.col + 0.5 - size / 2,
+            z: pendingLink.row + 0.5 - size / 2,
+          }
         : highlightedEventId
           ? selectionPoint(map, { kind: "event", id: highlightedEventId })
           : selectionPoint(map, selected);
@@ -1023,6 +1036,7 @@ export function openMapEditorStage(
         selection: selected,
         placementRejectedAt: placementRejections > 0 ? placementRejections : null,
         linkAnchor: linkFrom,
+        pendingTeleportOrigin,
       });
     };
 
@@ -1100,6 +1114,47 @@ export function openMapEditorStage(
       const key = `${col},${row},${offsetX},${offsetY}`;
       if (key === lastPaintedKey) return;
       lastPaintedKey = key;
+
+      if (
+        isStrokeStart &&
+        tool.kind === "event" &&
+        tool.eventKind === "normal" &&
+        tool.preset === "teleporter"
+      ) {
+        if (pendingTeleportOrigin === null) {
+          if (
+            map.events.some((event) => event.col === col && event.row === row) ||
+            map.events.length > MAX_EVENTS_PER_MAP - 2 ||
+            runtimeEventCount(map.events) > MAX_RUNTIME_EVENTS_PER_MAP - 2
+          ) {
+            placementRejections += 1;
+            notify();
+            return;
+          }
+          pendingTeleportOrigin = { col, row };
+          selected = null;
+          drawOverlay();
+          notify();
+          return;
+        }
+        const source = pendingTeleportOrigin;
+        const next = placeLinkedTeleporters(map, tool, source, { col, row });
+        if (!next) {
+          placementRejections += 1;
+          notify();
+          return;
+        }
+        const previous = map;
+        map = next;
+        pendingTeleportOrigin = null;
+        const placed = map.events.find(
+          (event) => event.col === source.col && event.row === source.row,
+        );
+        if (placed) selected = { kind: "event", id: placed.id };
+        strokeRedraw(previous);
+        notify();
+        return;
+      }
 
       if (tool.kind === "select") {
         if (isStrokeStart) {
@@ -1566,6 +1621,7 @@ export function openMapEditorStage(
 
     const handle: MapEditorStageHandle = {
       setTool(next) {
+        pendingTeleportOrigin = null;
         tool = next;
         // A door picked under the link tool means nothing under any other tool, and a stale anchor
         // would silently pair the author's next link with a door they picked minutes ago.
@@ -1576,6 +1632,7 @@ export function openMapEditorStage(
         notify();
       },
       setActiveMode(mode) {
+        pendingTeleportOrigin = null;
         history = setActiveMode(history, mode);
         const matches =
           (mode === "field" && selected?.kind === "spawn") ||
@@ -1660,9 +1717,17 @@ export function openMapEditorStage(
       },
       undo() {
         stopStroke();
+        const cancelledTeleport = pendingTeleportOrigin !== null;
+        pendingTeleportOrigin = null;
         const previousRect = derivedRect();
         const next = undoEditorHistory(history);
-        if (next === history) return;
+        if (next === history) {
+          if (cancelledTeleport) {
+            drawOverlay();
+            notify();
+          }
+          return;
+        }
         const previous = map;
         history = next;
         map = { ...history.present, name: map.name };
@@ -1677,9 +1742,17 @@ export function openMapEditorStage(
       },
       redo() {
         stopStroke();
+        const cancelledTeleport = pendingTeleportOrigin !== null;
+        pendingTeleportOrigin = null;
         const previousRect = derivedRect();
         const next = redoEditorHistory(history);
-        if (next === history) return;
+        if (next === history) {
+          if (cancelledTeleport) {
+            drawOverlay();
+            notify();
+          }
+          return;
+        }
         const previous = map;
         history = next;
         map = { ...history.present, name: map.name };

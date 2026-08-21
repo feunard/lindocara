@@ -21,6 +21,7 @@ import {
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
+  placeLinkedTeleporters,
   placementLegalAt,
   redoEditorHistory,
   selectionAt,
@@ -1384,17 +1385,17 @@ describe("a placed preset is numbered per preset", () => {
   const CHEST = "Coffre (or)";
 
   function placePreset(map: EditorMap, preset: "teleporter" | "chest", col: number, row: number) {
-    return place(
-      map,
-      {
-        kind: "event",
-        eventKind: "normal",
-        preset,
-        selfMapId: MAP_ID,
-        presetName: preset === "teleporter" ? TELEPORTER : CHEST,
-      },
-      col,
-      row,
+    const tool = {
+      kind: "event" as const,
+      eventKind: "normal" as const,
+      preset,
+      selfMapId: MAP_ID,
+      presetName: preset === "teleporter" ? TELEPORTER : CHEST,
+    };
+    return (
+      preset === "teleporter"
+        ? placeLinkedTeleporters(map, tool, { col, row }, { col, row: row + 1 })
+        : place(map, tool, col, row)
     ) as EditorMap;
   }
   const MAP_ID = "5d2f6d5a-6f4c-4a4a-9a2e-2f1f0d3a7b11";
@@ -1407,8 +1408,11 @@ describe("a placed preset is numbered per preset", () => {
     map = placePreset(map, "teleporter", 6, 3);
     expect(map.events.map((event) => event.name)).toEqual([
       "Téléporteur 1",
+      "Téléporteur 1",
+      "Téléporteur 2",
       "Téléporteur 2",
       "Coffre (or) 1",
+      "Téléporteur 3",
       "Téléporteur 3",
     ]);
   });
@@ -1420,18 +1424,19 @@ describe("a placed preset is numbered per preset", () => {
     const first = map.events[0];
     if (!first) throw new Error("nothing placed");
     const pruned = deleteSelection(map, { kind: "event", id: first.id }) as EditorMap;
-    expect(pruned.events.map((event) => event.name)).toEqual(["Téléporteur 2"]);
+    expect(pruned.events.map((event) => event.name)).toEqual(["Téléporteur 2", "Téléporteur 2"]);
     // Counting existing events would mint `Téléporteur 2` a second time here.
-    expect(placePreset(pruned, "teleporter", 5, 3).events[1]?.name).toBe("Téléporteur 3");
+    expect(placePreset(pruned, "teleporter", 5, 3).events[2]?.name).toBe("Téléporteur 3");
   });
 
   it("does not count a name the author has rewritten", () => {
     let map = blankMap("m", 20, 15);
     map = placePreset(map, "teleporter", 3, 3);
-    const first = map.events[0];
-    if (!first) throw new Error("nothing placed");
-    map = { ...map, events: [{ ...first, name: "Vers la crypte" }] };
-    expect(placePreset(map, "teleporter", 4, 3).events[1]?.name).toBe("Téléporteur 1");
+    map = {
+      ...map,
+      events: map.events.map((event) => ({ ...event, name: "Vers la crypte" })),
+    };
+    expect(placePreset(map, "teleporter", 4, 3).events[2]?.name).toBe("Téléporteur 1");
   });
 
   it("gives both doors of one link the SAME number", () => {
@@ -1490,26 +1495,46 @@ describe("applyTool: event placement", () => {
   it("pre-fills a preset event's page 1 with its command program and trigger (D13)", () => {
     const base = blankMap("m", 20, 15);
     const mapId = crypto.randomUUID();
-    // Teleporter: a player-touch trigger + a same-map teleport command the author retargets. Its
-    // destination placeholder is the map's OWN spawn, not the (0, 0) corner: the runtime silently
-    // refuses a teleport onto unwalkable ground, and a spawn is the one cell kept clear.
-    const tp = place(
+    // Teleporter: the two clicks create reciprocal player-touch events as one atomic map change.
+    // There is no half-authored endpoint and either side is immediately usable in play.
+    const tp = placeLinkedTeleporters(
       base,
       { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
-      3,
-      4,
+      { col: 3, row: 4 },
+      { col: 8, row: 9 },
     ) as EditorMap;
     expect(tp.events[0]?.kind).toBe("normal");
     expect(tp.events[0]?.pages[0]?.trigger).toBe("player-touch");
+    expect(tp.events[0]?.linkedEventId).toBe(tp.events[1]?.id);
+    expect(tp.events[1]?.linkedEventId).toBe(tp.events[0]?.id);
     expect(tp.events[0]?.pages[0]?.commands).toEqual([
       {
         t: "teleport",
         mapId,
-        col: base.spawn.col,
-        row: base.spawn.row,
+        col: 8,
+        row: 9,
         category: "geographic",
+        eventId: tp.events[1]?.id,
       },
     ]);
+    expect(tp.events[1]?.pages[0]?.commands).toEqual([
+      {
+        t: "teleport",
+        mapId,
+        col: 3,
+        row: 4,
+        category: "geographic",
+        eventId: tp.events[0]?.id,
+      },
+    ]);
+    expect(
+      place(
+        base,
+        { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
+        3,
+        4,
+      ),
+    ).toBeNull();
 
     // Sign: an interact-triggered say. Chest: a changeGold. Raw (default): the blank program.
     const sign = place(
@@ -1919,6 +1944,20 @@ describe("event serialization", () => {
     const id = map.events[0]?.id ?? "";
     expect(deleteSelection(map, { kind: "event", id }).events).toEqual([]);
   });
+
+  it("deletes both endpoints of a linked teleporter from either side", () => {
+    const mapId = crypto.randomUUID();
+    const map = placeLinkedTeleporters(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
+      { col: 3, row: 4 },
+      { col: 8, row: 9 },
+    );
+    if (!map) throw new Error("linked pair was not placed");
+
+    expect(deleteSelection(map, { kind: "event", id: map.events[0]?.id ?? "" }).events).toEqual([]);
+    expect(deleteSelection(map, { kind: "event", id: map.events[1]?.id ?? "" }).events).toEqual([]);
+  });
 });
 
 describe("placementLegalAt (UX wave #9 hover legality)", () => {
@@ -2161,7 +2200,7 @@ describe("door links", () => {
     }, map);
   }
 
-  it("mints a round trip: each door teleports to the cell in FRONT of the other", () => {
+  it("mints a durable round trip with a safe landing in front of each door", () => {
     const linked = applyTool(
       blankMap("m", 20, 20),
       linkTool({ col: 3, row: 3 }),
@@ -2175,15 +2214,40 @@ describe("door links", () => {
     const second = linked?.events[1];
     expect(first).toMatchObject({ col: 3, row: 3, kind: "normal" });
     expect(second).toMatchObject({ col: 10, row: 12, kind: "normal" });
+    expect(first?.linkedEventId).toBe(second?.id);
+    expect(second?.linkedEventId).toBe(first?.id);
     // Never the door cell itself: landing on a `player-touch` teleporter is how a pair of doors
     // becomes a loop. South first, the side a building's threshold faces.
-    expect(teleportOf(first)).toMatchObject({ mapId: MAP_ID, col: 10, row: 13 });
-    expect(teleportOf(second)).toMatchObject({ mapId: MAP_ID, col: 3, row: 4 });
+    expect(teleportOf(first)).toMatchObject({
+      mapId: MAP_ID,
+      col: 10,
+      row: 13,
+    });
+    expect(teleportOf(second)).toMatchObject({
+      mapId: MAP_ID,
+      col: 3,
+      row: 4,
+    });
+    expect(teleportOf(first)?.eventId).toBeUndefined();
+    expect(teleportOf(second)?.eventId).toBeUndefined();
     // The trigger comes from the shared `teleporter` preset; only the category is the link's own.
     expect(first?.pages[0]?.trigger).toBe("player-touch");
     expect(second?.pages[0]?.trigger).toBe("player-touch");
     expect(teleportOf(first)?.category).toBe("shortcut");
     expect(teleportOf(second)?.category).toBe("shortcut");
+    expect(
+      deleteSelection(linked as EditorMap, { kind: "event", id: first?.id ?? "" }).events,
+    ).toEqual([]);
+  });
+
+  it("keeps a door destination on a walkable building roof", () => {
+    const base = blankMap("m", 20, 20);
+    const withHouse = applyTool(base, { kind: "element", assetId: HOUSE }, 8, 8, true, "element");
+    if (!withHouse) throw new Error("house fixture was not placed");
+    expect(canLinkDoorAt(withHouse, 8, 8)).toBe(true);
+
+    const linked = applyTool(withHouse, linkTool({ col: 3, row: 3 }), 8, 8, true, "event");
+    expect(teleportOf(linked?.events[0])).toMatchObject({ col: 8, row: 8 });
   });
 
   it("refuses both ends together rather than authoring half a link", () => {

@@ -23,6 +23,7 @@
  *   it has done no more than a client that never reports a position.
  */
 
+import { type AdventureCameraMode, isAdventureCameraMode } from "./adventure.js";
 import {
   type AuthoredQuestMarker,
   type AuthoredQuestTracker,
@@ -668,6 +669,8 @@ export interface WorldEventSnapshot {
   interactive?: true;
   /** Server-selected rendering semantics; legacy omission means the one-cell marker treatment. */
   presentation?: "marker" | "native";
+  /** Explicit authored choice for the small ground marker. Legacy omission means visible. */
+  showMarker?: boolean;
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
   harvest?: {
     state: "intact" | "depleted";
@@ -743,6 +746,8 @@ export interface WorldInfo {
   buildings?: readonly WorldBuildingSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
   audio?: AdventureAudioConfig;
+  /** Adventure-wide camera policy. Missing frames use the fixed HD-2D side view. */
+  cameraMode?: AdventureCameraMode;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
   /** Missing preserves compatibility with rooms created before maps could disable their clock. */
@@ -1936,6 +1941,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     (value.buildings === undefined ||
       (Array.isArray(value.buildings) && value.buildings.every(isWorldBuildingSnapshot))) &&
     (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
+    (value.cameraMode === undefined || isAdventureCameraMode(value.cameraMode)) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
     (value.fixedLighting === undefined || parseMapFixedLighting(value.fixedLighting) !== null) &&
@@ -2048,6 +2054,7 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.presentation === undefined ||
       value.presentation === "marker" ||
       value.presentation === "native") &&
+    (value.showMarker === undefined || typeof value.showMarker === "boolean") &&
     (harvest === undefined ||
       (isRecord(harvest) &&
         (harvest.state === "intact" || harvest.state === "depleted") &&
