@@ -106,6 +106,9 @@ export const MAP_EVENT_PAGE_COLUMNS = 20;
 const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
+// Reading pages binds one parameter per event id. Dense authored maps can carry 128 runtime events,
+// so the read path needs the same production-database discipline as writes and cascade cleanup.
+const MAP_EVENT_PAGE_READ_CHUNK = 40;
 
 /** The `heightfield` column's empty-string "no heightfield" sentinel (matching the `audio`/
  *  `heroSettings` convention on the same entity), normalised to `null` so nothing past
@@ -915,10 +918,18 @@ export class MapService {
       orderBy: "ordinal",
     });
     if (eventRows.length === 0) return [];
-    const pageRows = await this.mapEventPages.findMany({
-      where: { eventId: { inArray: eventRows.map((event) => event.id) } },
-      orderBy: "position",
-    });
+    const pageRows: MapEventPageRow[] = [];
+    for (const eventIds of chunkArray(
+      eventRows.map((event) => event.id),
+      MAP_EVENT_PAGE_READ_CHUNK,
+    )) {
+      pageRows.push(
+        ...(await this.mapEventPages.findMany({
+          where: { eventId: { inArray: eventIds } },
+          orderBy: "position",
+        })),
+      );
+    }
     const pagesByEvent = new Map<string, MapEventPage[]>();
     for (const page of pageRows) {
       const list = pagesByEvent.get(page.eventId) ?? [];
@@ -1053,6 +1064,15 @@ export class MapService {
       if (used.length > 0) throw new Error("referenced: a live party pins this adventure start");
     }
   }
+}
+
+/** Consecutive bounded slices for database predicates with one bind per item. */
+function chunkArray<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 function pageToWire(page: MapEventPageRow): MapEventPage {
