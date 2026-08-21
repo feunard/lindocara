@@ -114,7 +114,9 @@ describe("WorldInfo.heightfield", () => {
     expect(
       parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "hardcore_runner" })))?.t,
     ).toBe("welcome");
-    expect(parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "roguelike" })))).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcomeFixture({ gameMode: "roguelike" }))),
+    ).toBeNull();
   });
 
   /**

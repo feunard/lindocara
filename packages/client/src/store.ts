@@ -1,5 +1,5 @@
-import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
 import type { AdventureGameMode } from "@lindocara/engine/adventure.js";
+import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
