@@ -604,6 +604,16 @@ export function rethrowAsMapError(error: unknown): never {
   if (code === "hero_settings") {
     throw new HttpError({ status: 400, error: "map_invalid", message });
   }
+  if (
+    code === "read_elements" ||
+    code === "read_events" ||
+    code === "read_event_rows" ||
+    code === "read_event_pages" ||
+    code === "read_event_decode" ||
+    code === "read_payload"
+  ) {
+    throw new HttpError({ status: 500, error: `map_${code}`, message }, error);
+  }
   if (code === "tileset" || code === "layers") {
     throw new HttpError({ status: 400, error: "map_invalid", message });
   }

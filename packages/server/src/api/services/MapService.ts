@@ -54,9 +54,9 @@ import {
 } from "../../adventure-registry.js";
 import { adventures } from "../entities/adventures.ts";
 import { heroes } from "../entities/heroes.ts";
-import { mapElements } from "../entities/mapElements.ts";
+import { type MapElement as MapElementRow, mapElements } from "../entities/mapElements.ts";
 import { type MapEventPage as MapEventPageRow, mapEventPages } from "../entities/mapEventPages.ts";
-import { mapEvents } from "../entities/mapEvents.ts";
+import { type MapEvent as MapEventRow, mapEvents } from "../entities/mapEvents.ts";
 import { type MapRow, maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { HeroService } from "./HeroService.ts";
@@ -879,33 +879,48 @@ export class MapService {
   }
 
   private async toPayload(row: MapRow): Promise<MapPayload> {
-    const elementRows = await this.mapElements.findMany({ where: { mapId: { eq: row.id } } });
-    const events = await this.loadEvents(row.id);
-    const heightfield = heightfieldOfRow(row.heightfield);
-    return {
-      id: row.id,
-      accountId: row.userId,
-      adventureId: row.adventureId,
-      name: row.name,
-      revision: row.revision,
-      environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
-      tilesetId: row.tilesetId,
-      cols: row.cols,
-      rows: row.rows,
-      layers: decodeLayers(row.id, row.layers, row.cols, row.rows).map(encodeTileLayer),
-      elements: elementRows.flatMap((element): MapElement[] => {
-        const wire = elementToWire(element);
-        return wire ? [wire] : [];
-      }),
-      spawn: { col: row.spawnCol, row: row.spawnRow },
-      markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
-      events,
-      audio: decodeMapAudio(row.audio),
-      heroSettings: decodeMapHeroSettings(row.heroSettings),
-      dayNightCycle: row.dayNightCycle,
-      fixedLighting: row.fixedLighting,
-      heightfield,
-    };
+    let elementRows: MapElementRow[];
+    try {
+      elementRows = await this.mapElements.findMany({ where: { mapId: { eq: row.id } } });
+    } catch (error) {
+      throw mapReadError("elements", error);
+    }
+    let events: MapEvent[];
+    try {
+      events = await this.loadEvents(row.id);
+    } catch (error) {
+      if (isMapReadError(error)) throw error;
+      throw mapReadError("events", error);
+    }
+    try {
+      const heightfield = heightfieldOfRow(row.heightfield);
+      return {
+        id: row.id,
+        accountId: row.userId,
+        adventureId: row.adventureId,
+        name: row.name,
+        revision: row.revision,
+        environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
+        tilesetId: row.tilesetId,
+        cols: row.cols,
+        rows: row.rows,
+        layers: decodeLayers(row.id, row.layers, row.cols, row.rows).map(encodeTileLayer),
+        elements: elementRows.flatMap((element): MapElement[] => {
+          const wire = elementToWire(element);
+          return wire ? [wire] : [];
+        }),
+        spawn: { col: row.spawnCol, row: row.spawnRow },
+        markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
+        events,
+        audio: decodeMapAudio(row.audio),
+        heroSettings: decodeMapHeroSettings(row.heroSettings),
+        dayNightCycle: row.dayNightCycle,
+        fixedLighting: row.fixedLighting,
+        heightfield,
+      };
+    } catch (error) {
+      throw mapReadError("payload", error);
+    }
   }
 
   /** Ported from `eventsOf`: events ordered by ordinal, each carrying its pages ordered by
@@ -913,95 +928,110 @@ export class MapService {
    *  an event the wire parser would reject — the same "one bad row must not break the map" degrade
    *  `toPayload`'s element mapping uses. */
   private async loadEvents(mapId: string): Promise<MapEvent[]> {
-    const eventRows = await this.mapEvents.findMany({
-      where: { mapId: { eq: mapId } },
-      orderBy: "ordinal",
-    });
+    let eventRows: MapEventRow[];
+    try {
+      eventRows = await this.mapEvents.findMany({
+        where: { mapId: { eq: mapId } },
+        orderBy: "ordinal",
+      });
+    } catch (error) {
+      throw mapReadError("event_rows", error);
+    }
     if (eventRows.length === 0) return [];
     const pageRows: MapEventPageRow[] = [];
     for (const eventIds of chunkArray(
       eventRows.map((event) => event.id),
       MAP_EVENT_PAGE_READ_CHUNK,
     )) {
-      pageRows.push(
-        ...(await this.mapEventPages.findMany({
-          where: { eventId: { inArray: eventIds } },
-          orderBy: "position",
-        })),
-      );
-    }
-    const pagesByEvent = new Map<string, MapEventPage[]>();
-    for (const page of pageRows) {
-      const list = pagesByEvent.get(page.eventId) ?? [];
-      list.push(pageToWire(page));
-      pagesByEvent.set(page.eventId, list);
-    }
-    return eventRows.flatMap((row): MapEvent[] => {
-      const pages = pagesByEvent.get(row.id);
-      if (!pages || pages.length === 0) return [];
-      const isMonster = row.kind === "monster";
-      const isNpc = row.kind === "npc";
-      const isTuned = isMonster || isNpc;
-      const isGuard = row.kind === "guard";
-      const isHarvestable = row.kind === "harvestable";
-      const harvestProfile = isHarvestable ? decodeHarvestProfileColumn(row.harvestProfile) : null;
-      if (
-        (isMonster && (!isMonsterSpecies(row.species) || row.patrolRadius == null)) ||
-        ((isGuard || isNpc) && row.patrolRadius == null) ||
-        (isHarvestable && harvestProfile === null)
-      ) {
-        return [];
+      try {
+        pageRows.push(
+          ...(await this.mapEventPages.findMany({
+            where: { eventId: { inArray: eventIds } },
+            orderBy: "position",
+          })),
+        );
+      } catch (error) {
+        throw mapReadError("event_pages", error);
       }
-      const species = isMonster && isMonsterSpecies(row.species) ? row.species : null;
-      const tuning = isTuned ? defaultMonsterTuning(species ?? "spear_goblin") : null;
-      return [
-        {
-          id: row.id,
-          col: row.col,
-          row: row.row,
-          name: row.name,
-          ordinal: row.ordinal,
-          ...(row.linkedEventId == null ? {} : { linkedEventId: row.linkedEventId }),
-          showMarker: row.showMarker,
-          kind: row.kind,
-          species,
-          patrolRadius: isMonster || isGuard || isNpc ? (row.patrolRadius ?? null) : null,
-          monsterRank: isTuned ? (row.monsterRank ?? tuning?.rank ?? null) : null,
-          monsterMaxHp: isTuned ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
-          monsterDamage: isTuned ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
-          monsterSpeed: isTuned ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
-          monsterXp: isTuned ? (row.monsterXp ?? tuning?.xp ?? null) : null,
-          monsterWeakness: isTuned ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
-          monsterWeaknessPercent: isTuned
-            ? (row.monsterWeaknessPercent ?? tuning?.weaknessPercent ?? null)
-            : null,
-          monsterSpecialTechnique: isTuned
-            ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
-            : null,
-          ...(isMonster && row.monsterAttackProfile != null
-            ? { monsterAttackProfile: row.monsterAttackProfile as MonsterAttackProfile }
-            : {}),
-          ...(isMonster && row.monsterRespawnMode != null
-            ? { monsterRespawnMode: row.monsterRespawnMode }
-            : {}),
-          ...(isMonster && row.monsterRespawnDelayMs != null
-            ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
-            : {}),
-          ...(isMonster && row.monsterPursuitMode != null
-            ? { monsterPursuitMode: row.monsterPursuitMode }
-            : {}),
-          ...(isMonster && row.monsterAcceleration != null
-            ? { monsterAcceleration: row.monsterAcceleration }
-            : {}),
-          ...(isMonster && row.monsterMaxSpeed != null
-            ? { monsterMaxSpeed: row.monsterMaxSpeed }
-            : {}),
-          ...(isMonster ? { monsterOneHitKill: row.monsterOneHitKill } : {}),
-          ...(harvestProfile === null ? {} : { harvestProfile }),
-          pages,
-        } as MapEvent,
-      ];
-    });
+    }
+    try {
+      const pagesByEvent = new Map<string, MapEventPage[]>();
+      for (const page of pageRows) {
+        const list = pagesByEvent.get(page.eventId) ?? [];
+        list.push(pageToWire(page));
+        pagesByEvent.set(page.eventId, list);
+      }
+      return eventRows.flatMap((row): MapEvent[] => {
+        const pages = pagesByEvent.get(row.id);
+        if (!pages || pages.length === 0) return [];
+        const isMonster = row.kind === "monster";
+        const isNpc = row.kind === "npc";
+        const isTuned = isMonster || isNpc;
+        const isGuard = row.kind === "guard";
+        const isHarvestable = row.kind === "harvestable";
+        const harvestProfile = isHarvestable
+          ? decodeHarvestProfileColumn(row.harvestProfile)
+          : null;
+        if (
+          (isMonster && (!isMonsterSpecies(row.species) || row.patrolRadius == null)) ||
+          ((isGuard || isNpc) && row.patrolRadius == null) ||
+          (isHarvestable && harvestProfile === null)
+        ) {
+          return [];
+        }
+        const species = isMonster && isMonsterSpecies(row.species) ? row.species : null;
+        const tuning = isTuned ? defaultMonsterTuning(species ?? "spear_goblin") : null;
+        return [
+          {
+            id: row.id,
+            col: row.col,
+            row: row.row,
+            name: row.name,
+            ordinal: row.ordinal,
+            ...(row.linkedEventId == null ? {} : { linkedEventId: row.linkedEventId }),
+            showMarker: row.showMarker,
+            kind: row.kind,
+            species,
+            patrolRadius: isMonster || isGuard || isNpc ? (row.patrolRadius ?? null) : null,
+            monsterRank: isTuned ? (row.monsterRank ?? tuning?.rank ?? null) : null,
+            monsterMaxHp: isTuned ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
+            monsterDamage: isTuned ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
+            monsterSpeed: isTuned ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
+            monsterXp: isTuned ? (row.monsterXp ?? tuning?.xp ?? null) : null,
+            monsterWeakness: isTuned ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
+            monsterWeaknessPercent: isTuned
+              ? (row.monsterWeaknessPercent ?? tuning?.weaknessPercent ?? null)
+              : null,
+            monsterSpecialTechnique: isTuned
+              ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
+              : null,
+            ...(isMonster && row.monsterAttackProfile != null
+              ? { monsterAttackProfile: row.monsterAttackProfile as MonsterAttackProfile }
+              : {}),
+            ...(isMonster && row.monsterRespawnMode != null
+              ? { monsterRespawnMode: row.monsterRespawnMode }
+              : {}),
+            ...(isMonster && row.monsterRespawnDelayMs != null
+              ? { monsterRespawnDelayMs: row.monsterRespawnDelayMs }
+              : {}),
+            ...(isMonster && row.monsterPursuitMode != null
+              ? { monsterPursuitMode: row.monsterPursuitMode }
+              : {}),
+            ...(isMonster && row.monsterAcceleration != null
+              ? { monsterAcceleration: row.monsterAcceleration }
+              : {}),
+            ...(isMonster && row.monsterMaxSpeed != null
+              ? { monsterMaxSpeed: row.monsterMaxSpeed }
+              : {}),
+            ...(isMonster ? { monsterOneHitKill: row.monsterOneHitKill } : {}),
+            ...(harvestProfile === null ? {} : { harvestProfile }),
+            pages,
+          } as MapEvent,
+        ];
+      });
+    } catch (error) {
+      throw mapReadError("event_decode", error);
+    }
   }
 
   /**
@@ -1073,6 +1103,22 @@ function chunkArray<T>(items: readonly T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+type MapReadPhase =
+  | "elements"
+  | "events"
+  | "event_rows"
+  | "event_pages"
+  | "event_decode"
+  | "payload";
+
+function mapReadError(phase: MapReadPhase, cause: unknown): Error {
+  return new Error(`read_${phase}: stored map content could not be reconstructed`, { cause });
+}
+
+function isMapReadError(error: unknown): error is Error {
+  return error instanceof Error && error.message.startsWith("read_");
 }
 
 function pageToWire(page: MapEventPageRow): MapEventPage {
