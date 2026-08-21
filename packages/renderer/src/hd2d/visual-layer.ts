@@ -328,6 +328,25 @@ export function centerProjectileGeometry(geometry: THREE.BufferGeometry): void {
 }
 
 /**
+ * The skid decal's dwell, the threshold under it, and how long it takes to fade.
+ *
+ * `derapage` (`engine/hd2d/locomotion.ts`) is the disagreement between where a hero is moving and
+ * where the input asks it to, and its own docblock names the maximum case out loud: input released
+ * while still moving. That is the tail of EVERY stop, on every material -- on grass it lasts the
+ * two or three frames friction needs to bleed the speed off, on ice it lasts a second. As the HELD
+ * SOUND it was written for, that difference IS the design and a couple of loud frames are
+ * inaudible. As a decal on the ground it was a pale bar blinking under the hero every time a key
+ * was released, which is what walking down/up/down/up reported.
+ *
+ * A dwell restores the distinction without naming a material, exactly as `derapage` refuses to name
+ * one: grass is finished before the dwell elapses, ice is not. The fade is the other half of the
+ * report -- a decal that vanishes between two frames reads as a rendering fault whatever painted it.
+ */
+export const SKID_DWELL_MS = 220;
+export const SKID_MIN_INTENSITY = 0.35;
+export const SKID_FADE_MS = 180;
+
+/**
  * The dust ring that marks an interactable event.
  *
  * Motes ORBIT a circle rather than sitting on one: the marker has to be noticed from across a
@@ -377,6 +396,13 @@ export class Hd2dVisualLayer {
   readonly #breathBar = new THREE.Group();
   readonly #breathFill: THREE.Mesh;
   readonly #skid: THREE.Mesh;
+  /** When the current continuous slide began, `null` when the hero is not sliding. The decal is a
+   *  function of these three and of nothing the frame it is drawn in. */
+  #skidSince: number | null = null;
+  #skidEndedAt: number | null = null;
+  #skidFadeFrom = 0;
+  #skidAlpha = 0;
+  #skidIntensity = 0;
   #events: readonly WorldEventSnapshot[] = [];
   #questState: readonly AuthoredQuestMarker[] = [];
   #questVisualKey = "";
@@ -470,6 +496,7 @@ export class Hd2dVisualLayer {
       new THREE.BoxGeometry(0.9, 0.012, 0.055),
       transparentMaterial(0xc7efff, 0.62),
     );
+    this.#skid.name = "hero-skid";
     this.#skid.visible = false;
     this.#root.add(this.#skid);
   }
@@ -784,8 +811,15 @@ export class Hd2dVisualLayer {
       else if (event.t === "reception" && hero)
         this.pulse(hero.x, hero.z, 0xd8c49c, Math.min(1.2, 0.45 + event.force * 0.04), 360, now);
     }
-    this.#skid.visible = hero !== null && skid > 0.03;
-    if (hero && this.#skid.visible) {
+    // Sliding is RECORDED here and drawn in `update()`: the decal has to keep fading after the
+    // hero stops sending events, and it must not reappear at full strength the frame a slide ends.
+    const sliding = hero !== null && skid >= SKID_MIN_INTENSITY;
+    if (sliding && hero) {
+      this.#skidSince ??= now;
+      this.#skidEndedAt = null;
+      this.#skidIntensity = skid;
+      // Placed only while sliding: a mark on the ground stays where it was scraped, it does not
+      // follow the hero through the fade.
       this.#skid.position.set(
         hero.x - hero.facing.x * 0.38,
         this.#groundY(hero.x, hero.z, 0.035),
@@ -793,8 +827,35 @@ export class Hd2dVisualLayer {
       );
       this.#skid.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
       this.#skid.scale.x = 0.45 + skid * 0.9;
-      materialOpacity(this.#skid, 0.25 + skid * 0.5);
+    } else if (this.#skidSince !== null) {
+      this.#skidSince = null;
+      this.#skidEndedAt = now;
+      this.#skidFadeFrom = this.#skidAlpha;
     }
+    this.#advanceSkid(now);
+  }
+
+  /**
+   * The decal's whole visibility rule, in one place and driven by the clock rather than by whether
+   * a frame happened to carry a `glisse` event.
+   *
+   * A slide that ends before the dwell elapses fades from the alpha it actually had, which is zero:
+   * that is what stops the old flash from simply moving to the moment the key is released.
+   */
+  #advanceSkid(now: number): void {
+    if (this.#skidSince !== null) {
+      const dwelled = now - this.#skidSince - SKID_DWELL_MS;
+      const target = 0.25 + this.#skidIntensity * 0.5;
+      this.#skidAlpha = target * THREE.MathUtils.clamp(dwelled / SKID_FADE_MS, 0, 1);
+    } else if (this.#skidEndedAt !== null) {
+      const remaining = THREE.MathUtils.clamp(1 - (now - this.#skidEndedAt) / SKID_FADE_MS, 0, 1);
+      this.#skidAlpha = this.#skidFadeFrom * remaining;
+      if (remaining <= 0) this.#skidEndedAt = null;
+    } else {
+      this.#skidAlpha = 0;
+    }
+    this.#skid.visible = this.#skidAlpha > 0.01;
+    if (this.#skid.visible) materialOpacity(this.#skid, this.#skidAlpha);
   }
 
   syncLocalHero(
@@ -2040,6 +2101,7 @@ export class Hd2dVisualLayer {
         material.opacity = 0.32 + Math.sin(now / 260) * 0.18;
       }
     }
+    this.#advanceSkid(now);
     // The dust turns. A transform per marker on shared, baked geometry: no buffer is rewritten and
     // nothing is allocated, which is what lets a map full of interactables animate for free.
     if (this.#eventMarkers.size > 0) {

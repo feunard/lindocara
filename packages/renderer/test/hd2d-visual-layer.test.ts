@@ -13,6 +13,8 @@ import {
   projectileBillboardAngle,
   projectileFrameIndex,
   projectileVisualLift,
+  SKID_DWELL_MS,
+  SKID_FADE_MS,
 } from "../src/hd2d/visual-layer.js";
 
 function harness(
@@ -252,6 +254,83 @@ describe("Hd2dVisualLayer event marker dust", () => {
     // The layer owns them, so tearing it down is what frees them, exactly once.
     layer.dispose();
     expect(freed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Hd2dVisualLayer skid decal", () => {
+  const hero = {
+    x: 0,
+    y: 0,
+    z: 0,
+    facing: { x: 0, z: 1 },
+    swimming: false,
+  } as PlayerSnapshot;
+
+  /** One frame: the client emits `glisse` every frame, so a slide is a run of them. */
+  function frame(
+    layer: Hd2dVisualLayer,
+    clock: { mockReturnValue(v: number): unknown },
+    at: number,
+    intensity: number,
+  ): void {
+    clock.mockReturnValue(at);
+    layer.playHeroMovement([{ t: "glisse", intensite: intensity }], hero);
+    layer.update(at);
+  }
+
+  it("never paints the ground for the tail of an ordinary stop", () => {
+    const { layer, root } = harness();
+    const skid = root.getObjectByName("hero-skid");
+    if (!skid) throw new Error("the skid decal was not built");
+    const clock = vi.spyOn(performance, "now");
+
+    // Releasing a key while still moving is `derapage`'s MAXIMUM, not an edge case, and on grass
+    // friction bleeds the speed off in a few frames. That was the reported white bar.
+    frame(layer, clock, 1_000, 1);
+    expect(skid.visible).toBe(false);
+    frame(layer, clock, 1_060, 1);
+    expect(skid.visible).toBe(false);
+    frame(layer, clock, 1_120, 0);
+    expect(skid.visible).toBe(false);
+    // And it must not appear as the slide ENDS either: a fade from an alpha that was never lit is
+    // still zero.
+    layer.update(1_180);
+    expect(skid.visible).toBe(false);
+
+    clock.mockRestore();
+    layer.dispose();
+  });
+
+  it("paints a sustained slide, fading in after the dwell and out when it stops", () => {
+    const { layer, root } = harness();
+    const skid = root.getObjectByName("hero-skid");
+    if (!skid) throw new Error("the skid decal was not built");
+    const clock = vi.spyOn(performance, "now");
+
+    // A slide that outlasts the dwell: ice, where the material keeps the hero moving against the
+    // input for a second rather than for three frames.
+    const start = 2_000;
+    for (let at = start; at <= start + SKID_DWELL_MS + SKID_FADE_MS; at += 40) {
+      frame(layer, clock, at, 0.9);
+    }
+    expect(skid.visible).toBe(true);
+    if (!(skid instanceof THREE.Mesh)) throw new Error("the skid decal is not a mesh");
+    const material = skid.material;
+    if (!(material instanceof THREE.MeshBasicMaterial)) throw new Error("unexpected material");
+    const lit = material.opacity;
+    expect(lit).toBeGreaterThan(0.2);
+
+    // Input regained: it fades rather than blinking off, which is how the old one read as a fault.
+    const stopped = start + SKID_DWELL_MS + SKID_FADE_MS + 40;
+    frame(layer, clock, stopped, 0);
+    expect(skid.visible).toBe(true);
+    layer.update(stopped + SKID_FADE_MS / 2);
+    expect(material.opacity).toBeLessThan(lit);
+    layer.update(stopped + SKID_FADE_MS + 1);
+    expect(skid.visible).toBe(false);
+
+    clock.mockRestore();
+    layer.dispose();
   });
 });
 
