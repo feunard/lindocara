@@ -1,4 +1,3 @@
-import { EVENT_KINDS } from "@lindocara/engine/map-events.js";
 import { type Infer, z } from "alepha";
 import { $entity, db } from "alepha/orm";
 import { maps } from "./maps.ts";
@@ -15,9 +14,11 @@ import { maps } from "./maps.ts";
  * client-minted id), so the fallback never fires — but this is a real, harmless divergence from
  * legacy's "must supply id or fail" behaviour, worth knowing about.
  *
- * Only `kind` is a DB-enforced enum in the legacy column (`text("kind", { enum: EVENT_KINDS })`).
- * `species`/`monsterRank`/`monsterWeakness`/`monsterSpecialTechnique`/`monsterAttackProfile`/
- * `monsterRespawnMode` are all
+ * The physical `kind` column is plain text despite the legacy TypeScript enum annotation. It stays
+ * runtime-permissive here because production still contains the retired `spawn` value: reads drop
+ * that inert event in `MapService`, while every write still passes `parseMapEvents` and therefore
+ * accepts only current kinds. `species`/`monsterRank`/`monsterWeakness`/
+ * `monsterSpecialTechnique`/`monsterAttackProfile`/`monsterRespawnMode` are likewise
  * legacy `.$type<T>()` — TypeScript-only typing over a plain unconstrained TEXT column, no runtime
  * enum. That laxity is preserved here as `z.string()` rather than `z.enum(...)`: `MonsterSpecies`
  * has no exported `as const` literal tuple to build a real Zod enum from (only `CURATED_MONSTER_
@@ -39,8 +40,8 @@ export const mapEvents = $entity({
     linkedEventId: z.uuid().optional(),
     /** Small authored-event ground marker; old rows remain visible. */
     showMarker: db.default(z.boolean(), true),
-    /** Scripted, anchor, actor or explicitly configured harvestable event. */
-    kind: db.default(z.enum(EVENT_KINDS), "normal"),
+    /** Current event kind, or a retired stored value tolerated for dual-read compatibility. */
+    kind: db.default(z.string(), "normal"),
     /** Monster spawn, set iff `kind = 'monster'`. Typed as `MonsterSpecies` at the app layer. */
     species: z.string().optional(),
     /** Monster patrol radius (px), set iff `kind = 'monster'`. */

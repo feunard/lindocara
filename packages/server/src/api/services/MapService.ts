@@ -36,6 +36,7 @@ import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   entryEvents,
   exitEvents,
+  isEventKind,
   type MapEvent,
   type MapEventPage,
   parseNpcRoutine,
@@ -962,6 +963,9 @@ export class MapService {
         pagesByEvent.set(page.eventId, list);
       }
       return eventRows.flatMap((row): MapEvent[] => {
+        // `spawn` was retired in favour of `adventures.startMapId`. Old authored rows remain in
+        // production and are intentionally inert; unknown future/invalid values degrade likewise.
+        if (!isEventKind(row.kind)) return [];
         const pages = pagesByEvent.get(row.id);
         if (!pages || pages.length === 0) return [];
         const isMonster = row.kind === "monster";
