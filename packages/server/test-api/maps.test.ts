@@ -751,7 +751,7 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
-  // Regression coverage for the chunked-write fix: `MapService.writeElements`/`writeEvents` used
+  // Regression coverage for chunked writes and reads: `MapService.writeElements`/`writeEvents` used
   // to hand `createMany` an unchunked array. Alepha's `Repository.createMany` batches by ROW COUNT
   // only (`.vendor/alepha/src/orm/core/services/Repository.ts:866-908`), never by bound-parameter
   // count, so a wide-enough row set (events carry ~19 columns each) blew past D1's ~100-bound-param
@@ -798,6 +798,7 @@ describe("list, get, update, delete", () => {
     expect(authored.status).toBe(200);
     expect(await authored.json()).toMatchObject({ revision: 2 });
 
+    // 65 event ids cross the production-safe 40-bind read boundary.
     const fetched = await authedFetch(`/api/maps/${id}`, token);
     expect(fetched.status).toBe(200);
     const payload = (await fetched.json()) as {
