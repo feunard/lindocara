@@ -32,6 +32,7 @@ import {
   canStand,
   groundLineOfSight,
   groundUnder,
+  groundUnderBody,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -269,7 +270,7 @@ export function peasantCampPosition(
     x: player.x + facing.x * Math.max(0, plan.placementDistance),
     z: player.z + facing.z * Math.max(0, plan.placementDistance),
   };
-  const groundY = groundUnder(terrain, player.x, player.z, player.y);
+  const groundY = groundUnderBody(terrain, player.x, player.z, player.y);
   if (!canStand(terrain, center.x, center.z, CAMP_RADIUS, groundY)) return null;
   if (!groundLineOfSight(terrain, player, center)) return null;
   return { x: center.x, y: groundUnder(terrain, center.x, center.z, groundY), z: center.z };

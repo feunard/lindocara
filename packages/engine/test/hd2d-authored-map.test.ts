@@ -7,7 +7,12 @@ import {
 import { colliderContainsPoint, createColliderIndex } from "../src/hd2d/collider-index.js";
 import { EMPTY_MARKERS, type MapData } from "../src/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
-import { canStand, groundUnder, zoneTerrainFromHeightfield } from "../src/terrain-access.js";
+import {
+  canStand,
+  groundUnder,
+  groundUnderBody,
+  zoneTerrainFromHeightfield,
+} from "../src/terrain-access.js";
 import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
@@ -646,6 +651,15 @@ describe("compileAuthoredMap", () => {
     // walks under a deck the room refuses would be rubber-banded back out from under it.
     const terrain = zoneTerrainFromHeightfield(compiled);
     expect(canStand(terrain, -0.5, 0.5, 0.3, 0)).toBe(true);
+
+    // The two ground questions, on the one point where they differ. `groundUnder` is POSITIONAL —
+    // the highest surface here, whatever its height — and the landing paths want exactly that.
+    // `groundUnderBody` is the one a body underfoot asks: the deck is more than a step above a
+    // monster on the channel floor, so it is not that monster's ground and it does not lift it.
+    expect(groundUnder(terrain, -0.5, 0.5, 0)).toBeCloseTo(deck.top ?? 0);
+    expect(groundUnderBody(terrain, -0.5, 0.5, 0)).toBe(0);
+    // A body that IS on the deck keeps it: its own ceiling clears the planking it stands on.
+    expect(groundUnderBody(terrain, -0.5, 0.5, deck.top ?? 0)).toBeCloseTo(deck.top ?? 0);
   });
 
   it("keeps a freely rotated bridge's deck, rails and visual on the same angle", () => {

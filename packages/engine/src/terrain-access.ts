@@ -282,12 +282,52 @@ export function canStand(
  * the ground actually underfoot rather than a value carried from wherever the body last was. That
  * is what "monsters read `heightAt` for the ground under them" means in practice, and it is also
  * what stops a body whose elevation drifted from being refused every move it makes.
+ *
+ * A mover that knows its body's elevation wants `groundUnderBody` instead: this one has no ceiling,
+ * so it answers with a bridge deck overhead as readily as with the floor underfoot.
  */
 export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback = 0): number {
   return (
     terrain.query.surfaceAt?.(x, z, Number.POSITIVE_INFINITY) ??
     terrain.query.heightAt(x, z) ??
     fallback
+  );
+}
+
+/**
+ * The ground UNDER A BODY at `(x, z)`, which is not the same question as `groundUnder`.
+ *
+ * `groundUnder` is positional: the highest surface at a point, whatever its height. That is the
+ * right answer for a landing path asking "what would I come down on here" -- how a hero finds a
+ * building roof, and what `hd2d-authored-map.test.ts` pins for all seven roofs. It is the wrong
+ * answer for a body already standing somewhere, because a bridge deck two levels overhead is a
+ * surface at that point too: read positionally, the planking becomes the ground under a monster
+ * patrolling the channel floor, `canStand` agrees the monster may stand there, and it levitates
+ * onto the deck.
+ *
+ * So a body brings its own elevation and gets its own ceiling, `standingCeiling(terrain, elevation)`
+ * -- the same bound `canStand` applies, so the ground a mover reads and the ground the rule tests
+ * can no longer disagree. A platform within one step is still ground to step onto; one further up
+ * is scenery to walk under.
+ *
+ * `elevation` doubles as the fallback, as `groundUnder`'s `fallback` does: over water or off the
+ * grid there is no ground to read, and what the body already carries is the least wrong thing to
+ * keep.
+ *
+ * Only callers that KNOW a body's elevation may use this. `createNavigationGrid` deliberately does
+ * not: one height per cell has to serve every body, and grounding the grid at zero would make a
+ * bridge deck unpathable for the monsters that legitimately cross it.
+ */
+export function groundUnderBody(
+  terrain: ZoneTerrain,
+  x: number,
+  z: number,
+  elevation: number,
+): number {
+  return (
+    terrain.query.surfaceAt?.(x, z, standingCeiling(terrain, elevation)) ??
+    terrain.query.heightAt(x, z) ??
+    elevation
   );
 }
 

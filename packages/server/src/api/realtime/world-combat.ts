@@ -54,6 +54,7 @@ import {
   canStand,
   groundLineOfSight,
   groundUnder,
+  groundUnderBody,
   nearestStandableCell,
 } from "@lindocara/engine/terrain-access.js";
 import { cancelCombatAction, startCombatAction } from "../../world/combat-action-system.js";
@@ -1324,7 +1325,7 @@ export function safeLumenLanding(
   now: number,
 ): WorldPosition | null {
   const terrain = zone(w.state).terrain;
-  const groundY = groundUnder(terrain, player.x, player.z, player.y);
+  const groundY = groundUnderBody(terrain, player.x, player.z, player.y);
   if (
     canStand(terrain, desired.x, desired.z, BODY_RADIUS, groundY) &&
     lumenLandingClear(w, player, desired, now, terrain.size)

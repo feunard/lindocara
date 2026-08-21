@@ -4,6 +4,7 @@ import {
   BODY_RADIUS,
   canStand,
   groundUnder,
+  groundUnderBody,
   sweptGroundTerrainImpact,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
@@ -174,7 +175,7 @@ export function planShadowStep<T extends ShadowStepCandidate>(
   bodyRadius: (candidate: T) => number,
   options: ShadowStepPlanningOptions = {},
 ): ShadowStepPlanningResult {
-  const groundY = groundUnder(terrain, origin.x, origin.z, origin.y);
+  const groundY = groundUnderBody(terrain, origin.x, origin.z, origin.y);
   const target = nearestShadowStepTarget(origin, candidates, range, now, terrain, groundY, options);
   if (!target) return { ok: false, reason: "no_target" };
   const destination = shadowStepDestination(

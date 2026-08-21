@@ -537,6 +537,28 @@ describe("a monster and a hero on high ground", () => {
     return { context, now };
   }
 
+  it("walks a monster UNDER a raised deck instead of lifting it onto the planking", () => {
+    // A bridge deck two levels up, spanning the ground between the monster and its target. `top`
+    // is what makes it a walkable platform, `bottom` is what lets a body pass beneath it rather
+    // than into it (`collider-index.ts`). The monster never touches it: it is more than one step
+    // above the channel floor, so it is scenery overhead, not ground underfoot.
+    const deckTop = 2 * LEVEL_HEIGHT;
+    const built = terrain({
+      colliders: [{ x: -2, z: -1, w: 4, h: 4, top: deckTop, bottom: deckTop - 0.2 }],
+    });
+    const monster = goblinAt(0, 0);
+    const startZ = monster.z;
+    const target = hero(0, 2.2);
+
+    chase(built, monster, target, 40);
+
+    // It closed on the hero, walking through the deck's footprint...
+    expect(monster.z).toBeGreaterThan(startZ);
+    // ...and stayed on the floor the whole way. Reading the highest surface at its feet instead of
+    // the one within its own step is what used to levitate it onto the deck.
+    expect(monster.y).toBe(0);
+  });
+
   it("cannot chase a hero onto a plateau it has no path to", () => {
     const built = terrain();
     // Level-0 ground, 2.5 tiles north of the plateau's face and inside `MONSTER_AGGRO_RANGE`

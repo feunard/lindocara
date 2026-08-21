@@ -51,6 +51,7 @@ import {
   canStand,
   groundLineOfSight,
   groundUnder,
+  groundUnderBody,
   resolveGroundMovement,
   sweptGroundTerrainImpact,
 } from "@lindocara/engine/terrain-access.js";
@@ -288,7 +289,7 @@ export function finishHeldPlayerAction(
         player.x,
         player.z,
         BODY_RADIUS,
-        groundUnder(terrain, player.x, player.z, player.y),
+        groundUnderBody(terrain, player.x, player.z, player.y),
       )
     ) {
       const sacredPassage = talentEffect(player.class, player.talents, "sacred_passage", 3);
@@ -687,7 +688,7 @@ export function startPlayerAction(
             player,
             monster,
             zone(w.state).terrain,
-            groundUnder(zone(w.state).terrain, player.x, player.z, player.y),
+            groundUnderBody(zone(w.state).terrain, player.x, player.z, player.y),
           ),
       )
       .sort((left, right) => {
@@ -1211,7 +1212,7 @@ export function resolveShieldBash(
     start,
     end,
     BODY_RADIUS,
-    groundUnder(terrain, player.x, player.z, player.y),
+    groundUnderBody(terrain, player.x, player.z, player.y),
   );
   const midpoint = { x: (start.x + end.x) / 2, z: (start.z + end.z) / 2 };
   const monsterImpacts = w.state.monsterGrid
@@ -1519,7 +1520,7 @@ export function resolvePlayerAction(
   const terrain = zone(w.state).terrain;
   // The actor's OWN ground, read once: every sight test, sweep and landing below is grounded on
   // where the body IS, never on where it is going — `MAX_STEP` is 0 and none of these climb.
-  const groundY = groundUnder(terrain, player.x, player.z, player.y);
+  const groundY = groundUnderBody(terrain, player.x, player.z, player.y);
 
   if (definition.shape === "stealth") {
     if (enterRogueStealth(player, now)) {
@@ -2408,11 +2409,11 @@ export function pulseWarriorVortex(
         x: monster.x + direction.x * effect.pullDistance,
         z: monster.z + direction.z * effect.pullDistance,
       },
-      groundUnder(terrain, monster.x, monster.z, monster.y),
+      groundUnderBody(terrain, monster.x, monster.z, monster.y),
     );
     monster.x = moved.x;
     monster.z = moved.z;
-    monster.y = groundUnder(terrain, moved.x, moved.z, monster.y);
+    monster.y = groundUnderBody(terrain, moved.x, moved.z, monster.y);
     applyMonsterSlow(monster, effect.slowRatio, effect.slowDurationMs, now);
     w.state.monsterGrid.update(monster, previous);
   }

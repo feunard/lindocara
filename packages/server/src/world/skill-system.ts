@@ -6,7 +6,7 @@ import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,
-  groundUnder,
+  groundUnderBody,
   resolveGroundMovement,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
@@ -97,7 +97,7 @@ export function movePlayerInDirection(
       terrain,
       player,
       desired,
-      groundUnder(terrain, player.x, player.z, player.y),
+      groundUnderBody(terrain, player.x, player.z, player.y),
       BODY_RADIUS,
     );
     if (moved.x === player.x && moved.z === player.z) break;
@@ -107,7 +107,7 @@ export function movePlayerInDirection(
     // twelve segments costs the client exactly one adoption, of the point it actually stopped at.
     displacePlayer(player, {
       x: moved.x,
-      y: groundUnder(terrain, moved.x, moved.z, player.y),
+      y: groundUnderBody(terrain, moved.x, moved.z, player.y),
       z: moved.z,
     });
     grid.update(player, previousPosition);

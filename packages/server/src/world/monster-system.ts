@@ -29,6 +29,7 @@ import {
   groundLineOfSight,
   groundPathClear,
   groundUnder,
+  groundUnderBody,
   resolveGroundMovement,
   standingCeiling,
   type ZoneTerrain,
@@ -113,11 +114,11 @@ export function pushMonsterAwayFrom(
       x: monster.x + direction.x * Math.max(0, distance),
       z: monster.z + direction.z * Math.max(0, distance),
     },
-    groundUnder(terrain, monster.x, monster.z, monster.y),
+    groundUnderBody(terrain, monster.x, monster.z, monster.y),
   );
   monster.x = moved.x;
   monster.z = moved.z;
-  monster.y = groundUnder(terrain, moved.x, moved.z, monster.y);
+  monster.y = groundUnderBody(terrain, moved.x, moved.z, monster.y);
   monsterGrid.update(monster, previous);
 }
 
@@ -182,7 +183,7 @@ function targetOutOfReach(
 ): boolean {
   const targetGround = terrain.query.heightAt(target.x, target.z);
   if (targetGround === null) return true;
-  const monsterGround = groundUnder(terrain, monster.x, monster.z, monster.y);
+  const monsterGround = groundUnderBody(terrain, monster.x, monster.z, monster.y);
   return targetGround > standingCeiling(terrain, monsterGround);
 }
 
@@ -209,6 +210,10 @@ export function resetMonsterAtSpawn(
   monster.hp = monster.maxHp;
   monster.x = monster.spawnX;
   monster.z = monster.spawnZ;
+  // POSITIONAL on purpose, where every mover above is body-aware: a spawn point is authored as a
+  // cell, with no elevation of its own, so "the surface at this point" is the only reading it has.
+  // A monster authored under a bridge would spawn on its deck; that is the ambiguity of a 2D spawn,
+  // not the levitation `groundUnderBody` removes from the movers.
   monster.y = groundUnder(terrain, monster.spawnX, monster.spawnZ, 0);
   monster.vx = 0;
   monster.vz = 0;
@@ -462,7 +467,7 @@ function navigateMonster<TSocket>(
       monster,
       destination,
       BODY_RADIUS,
-      groundUnder(context.zone.terrain, monster.x, monster.z, monster.y),
+      groundUnderBody(context.zone.terrain, monster.x, monster.z, monster.y),
     );
   if (lineClear) {
     if (monster.navigation.requestPending || monster.navigation.path.length > 0)
@@ -532,7 +537,7 @@ function moveMonsterDirect<TSocket>(
       x: monster.x + (dx / length) * travel,
       z: monster.z + (dz / length) * travel,
     },
-    groundUnder(terrain, monster.x, monster.z, monster.y),
+    groundUnderBody(terrain, monster.x, monster.z, monster.y),
   );
   if (moved.x === monster.x) monster.vx = 0;
   if (moved.z === monster.z) monster.vz = 0;
@@ -540,7 +545,7 @@ function moveMonsterDirect<TSocket>(
   monster.z = moved.z;
   // Monsters walk on terrain height and never leave it: the ground under the body IS its
   // elevation, re-read after every authoritative step.
-  monster.y = groundUnder(terrain, moved.x, moved.z, monster.y);
+  monster.y = groundUnderBody(terrain, moved.x, moved.z, monster.y);
   context.monsterGrid.update(monster, previousPosition);
   const movedDistance = groundDistance(previousPosition, monster);
   if (movedDistance > NEGLIGIBLE_MOVE) context.onMonsterMoved?.(monster, previousPosition);
@@ -647,9 +652,9 @@ function moveGuardToward<TSocket>(
     terrain,
     { x: guard.x, z: guard.z },
     desired,
-    groundUnder(terrain, guard.x, guard.z, guard.y),
+    groundUnderBody(terrain, guard.x, guard.z, guard.y),
   );
   guard.x = moved.x;
   guard.z = moved.z;
-  guard.y = groundUnder(terrain, moved.x, moved.z, guard.y);
+  guard.y = groundUnderBody(terrain, moved.x, moved.z, guard.y);
 }
