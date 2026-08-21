@@ -26,6 +26,7 @@ import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { resurrectHp } from "@lindocara/engine/death.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
+import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import {
   BODY_RADIUS,
@@ -90,6 +91,7 @@ function terrain(colliders: MapData["colliders"] = []): ZoneTerrain {
 function definitionWith(
   built: ZoneTerrain,
   spawn: { x: number; z: number } | null,
+  events: readonly MapEvent[] = [],
 ): ZoneDefinition {
   return {
     id: MAP_ID,
@@ -104,7 +106,7 @@ function definitionWith(
     guards: [],
     portals: [],
     navigation: DEFAULT_ZONE_NAVIGATION,
-    events: [],
+    events,
     ...(spawn ? { spawns: [{ name: "entry", x: spawn.x, z: spawn.z }] } : {}),
   };
 }
@@ -144,8 +146,9 @@ function glue(
   built: ZoneTerrain,
   player: PlayerRuntime,
   spawn: { x: number; z: number } | null = null,
+  events: readonly MapEvent[] = [],
 ): WorldGlue {
-  const definition = definitionWith(built, spawn);
+  const definition = definitionWith(built, spawn, events);
   const state = createWorldRoomState(
     `${PARTY_ID}:${MAP_ID}`,
     { partyId: PARTY_ID, mapId: MAP_ID },
@@ -335,6 +338,96 @@ describe("an authored event's cell, in tile units", () => {
 
     // The tolerance is a real ground distance, so it reopens exactly that gap.
     expect(touchesEventCell(w.state, clear, event, BODY_RADIUS * 0.2)).toBe(true);
+  });
+});
+
+/** A page with no conditions, so `activePageIndex` always picks it, carrying a program so
+ *  `runnablePage` treats it as a script rather than as appearance. */
+function touchPage(): MapEventPage {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 3,
+    moveFreq: 2,
+    optMoveAnim: false,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "player-touch",
+    commands: [{ t: "say", name: "Porte", text: "Tu passes." }],
+  };
+}
+
+/**
+ * The rule that stops two facing teleporters becoming an infinite loop.
+ *
+ * A teleport whose destination is an EVENT puts the hero down ON that event, and if arriving there
+ * counted as touching it, a pair of doors pointing at each other would bounce a hero back and forth
+ * forever. Nothing declares that it must not; it falls out of `detectPlayerTouch` firing on the
+ * movement EDGE and of a teleport being a server displacement rather than a reported move. Both
+ * halves are load-bearing and neither is obvious, so they are pinned here.
+ */
+describe("a hero put down ON a player-touch event by a teleport", () => {
+  const DOOR: MapEvent = {
+    id: "door-b",
+    col: 4,
+    row: 6,
+    name: "Porte B",
+    ordinal: 1,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
+    pages: [touchPage()],
+  };
+
+  /** A move frame for `player`'s CURRENT displacement stamp, read fresh every time: a server
+   *  displacement (a teleport is one) bumps it and stales every frame minted before it. */
+  function report(player: PlayerRuntime, to: { x: number; z: number }) {
+    return {
+      t: "move" as const,
+      x: to.x,
+      y: 0,
+      z: to.z,
+      vy: 0,
+      facing: { x: 1, z: 0 },
+      airborne: false,
+      swimming: false,
+      gliding: false,
+      displacement: player.displacement,
+    };
+  }
+
+  it("does not fire it on arrival, and fires it again only after stepping off and back on", () => {
+    const built = terrain();
+    const away = atCell(DOOR.col, DOOR.row - 3);
+    const centre = atCell(DOOR.col, DOOR.row);
+    const player = hero(away.x, away.z);
+    const w = glue(built, player, null, [DOOR]);
+
+    // Landing on it is not touching it: `detectPlayerTouch` runs from `applyReportedMove`, and a
+    // teleport never goes through there.
+    expect(teleportSameMap(w, player, DOOR.col, DOOR.row, "portal")).toBe("teleported");
+    expect(touchesEventCell(w.state, player, DOOR, 0)).toBe(true);
+    expect(w.state.eventRuns.contexts.size).toBe(0);
+
+    // Nor does the first frame reported FROM the arrival cell: the trigger needs the previous
+    // position NOT to be touching, and it already is.
+    applyReportedMove(w, "connection", player, report(player, { x: centre.x + 0.05, z: centre.z }));
+    expect(w.state.eventRuns.contexts.size).toBe(0);
+
+    // Leaving is not an edge either — the edge is entry.
+    applyReportedMove(w, "connection", player, report(player, away));
+    expect(w.state.eventRuns.contexts.size).toBe(0);
+
+    // Walking clear and back IS one, which is the report's own words: the hero has to go out of
+    // the B area to come back to A.
+    applyReportedMove(w, "connection", player, report(player, centre));
+    expect(w.state.eventRuns.contexts.has(DOOR.id)).toBe(true);
   });
 });
 
