@@ -13,7 +13,7 @@ import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import type { BillboardScene } from "../src/hd2d/billboards.js";
 import { shouldStartWorldEventTextureLoad, staticAssetSpec } from "../src/hd2d/game-renderer.js";
-import { HD2D_CAMERA } from "../src/hd2d/scene.js";
+import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
 import { placeStaticContent } from "../src/hd2d/static-content.js";
 
@@ -471,6 +471,7 @@ describe("staticAssetSpec", () => {
     placeStaticContent(createHd2dContext(), rearScene, rearMap, resolverFor({ building }));
     const rear = rearScene.root.getObjectByName("building-house-standing");
     expect(rear?.rotation.y).toBeCloseTo(-Math.PI);
+    expect(rear?.userData[AUTHORED_PICK_SURFACE]).toBe("building");
 
     const leftMap = flatMap(4, {
       elements: [{ assetId: "building", x: 0, z: 0, orientation: 3 }],

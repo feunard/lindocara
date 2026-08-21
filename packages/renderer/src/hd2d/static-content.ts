@@ -51,7 +51,7 @@ import {
   makeBuildingVolume,
   type NativeStaticVisual,
 } from "./building-volumes.js";
-import { HD2D_CAMERA } from "./scene.js";
+import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "./scene.js";
 
 /**
  * One catalogue appearance, reduced to what a billboard is built from.
@@ -302,6 +302,9 @@ export function placeStaticContent(
             ...(sprite.lit === undefined ? {} : { lit: sprite.lit }),
             pitch: HD2D_CAMERA.pitch,
           }));
+    if (native && sprite.buildingVolume) {
+      native.mesh.userData[AUTHORED_PICK_SURFACE] = "building";
+    }
     const bridgeSampleZ = bridge
       ? z
       : sprite.bridgeOrientation === "horizontal"

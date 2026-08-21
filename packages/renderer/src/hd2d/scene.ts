@@ -305,6 +305,28 @@ const NIGHT: MoodConfig = {
  *  handing that to the water/foam/sky integrators makes them jump. */
 const MAX_FRAME_SECONDS = 0.05;
 
+/** Marks native authored architecture that should stop the editor's pointer ray. */
+export const AUTHORED_PICK_SURFACE = "authoredPickSurface";
+
+/**
+ * Convert the visible face hit by the editor pointer into the ground coordinate the author meant.
+ * Terrain cliffs lead to the low cell in front of them. A building wall instead leads inward,
+ * because its roof and footprint are valid authored destinations rather than empty ground behind
+ * the mesh.
+ */
+export function editorGroundPickPoint(
+  point: Pick<THREE.Vector3, "x" | "z">,
+  normal: Pick<THREE.Vector3, "x" | "y" | "z">,
+  onBuilding: boolean,
+): { x: number; z: number } {
+  if (normal.y >= 0.5) return { x: point.x, z: point.z };
+  const direction = onBuilding ? -1 : 1;
+  return {
+    x: point.x + normal.x * 0.5 * direction,
+    z: point.z + normal.z * 0.5 * direction,
+  };
+}
+
 // --- the scene ----------------------------------------------------------------------------------
 
 export interface Hd2dScene {
@@ -762,21 +784,28 @@ export function createHd2dScene(
     },
     pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null {
       const half = currentMap.size / 2;
+      const authoredSurfaces = scene.children.filter(
+        (child) => child.userData[AUTHORED_PICK_SURFACE] === "building",
+      );
       for (const hit of raycaster.intersectObjects(
-        [terrain.group, stairs.group, water.mesh],
+        [terrain.group, stairs.group, water.mesh, ...authoredSurfaces],
         true,
       )) {
         const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
         if (!normal) continue;
+        let ancestor: THREE.Object3D | null = hit.object;
+        while (ancestor && ancestor !== scene) {
+          if (ancestor.userData[AUTHORED_PICK_SURFACE] === "building") break;
+          ancestor = ancestor.parent;
+        }
+        const onBuilding = ancestor?.userData[AUTHORED_PICK_SURFACE] === "building";
         // A cliff face is not a surface you can stand on, but it IS something an author points at.
         // Skipping it let the ray carry on to the first horizontal surface behind the wall, which
         // marked a cell the pointer was nowhere near. Read a vertical face as the ground at its
         // FOOT instead: step a half cell along the outward normal, which lands in the low cell the
-        // wall drops into rather than on the plateau it holds up.
-        const point =
-          normal.y < 0.5
-            ? { x: hit.point.x + normal.x * 0.5, z: hit.point.z + normal.z * 0.5 }
-            : { x: hit.point.x, z: hit.point.z };
+        // wall drops into rather than on the plateau it holds up. Native building walls use the
+        // opposite direction so clicking visible architecture selects its footprint/roof.
+        const point = editorGroundPickPoint(hit.point, normal, onBuilding);
         if (point.x < -half || point.x > half || point.z < -half || point.z > half) {
           continue;
         }

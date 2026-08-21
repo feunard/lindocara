@@ -8,10 +8,31 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import {
   cameraFocusSurface,
+  editorGroundPickPoint,
   terrainAtlasKey,
   terrainGroupFor,
   waterPlaneKey,
 } from "../src/hd2d/scene.js";
+
+describe("editor ground picking", () => {
+  it("keeps roof clicks in place and pulls wall clicks into the building footprint", () => {
+    expect(editorGroundPickPoint({ x: 2.25, z: 3.5 }, { x: 0, y: 1, z: 0 }, true)).toEqual({
+      x: 2.25,
+      z: 3.5,
+    });
+    expect(editorGroundPickPoint({ x: 2, z: 3.5 }, { x: -1, y: 0, z: 0 }, true)).toEqual({
+      x: 2.5,
+      z: 3.5,
+    });
+  });
+
+  it("keeps terrain cliff clicks on the low exterior cell", () => {
+    expect(editorGroundPickPoint({ x: 2, z: 3.5 }, { x: -1, y: 0, z: 0 }, false)).toEqual({
+      x: 1.5,
+      z: 3.5,
+    });
+  });
+});
 
 /**
  * An atlas whose only job is to exist: `meshTerrain` reads `cols`/`rows`/`block`/`wallRow`/`tilePx`
