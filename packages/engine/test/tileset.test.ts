@@ -85,11 +85,13 @@ describe("tileIdInTileset", () => {
   });
 
   it("rejects an autotile slot the tileset does not declare", () => {
-    // tiny-swords ships 4 autotiles (slots 0-3); slot 4 is in-shape for the id space but
-    // unresolvable against this tileset.
-    expect(
-      tileIdInTileset(TINY_SWORDS_TILESET, autotileId(TINY_SWORDS_TILESET.autotiles.length, 0)),
-    ).toBe(false);
+    // A SYNTHETIC tileset, not tiny-swords: since the sunken levels took the last twelve slots,
+    // tiny-swords declares all 64 the id space reserves, and `autotileId(64, 0)` is not an
+    // undeclared autotile at all - it is `FIXED_BASE`, the first fixed tile. The rule under test
+    // is about a tileset shorter than the reservation, which is every tileset but that one.
+    const sparse = { ...TINY_SWORDS_TILESET, autotiles: TINY_SWORDS_TILESET.autotiles.slice(0, 2) };
+    expect(tileIdInTileset(sparse, autotileId(1, 0))).toBe(true);
+    expect(tileIdInTileset(sparse, autotileId(2, 0))).toBe(false);
   });
 
   it("rejects a fixed-tile index the tileset does not declare", () => {

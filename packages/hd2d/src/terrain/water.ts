@@ -145,6 +145,40 @@ export interface Water {
 // houles). Le paramètre reste dans la signature parce que toutes les fabriques de scène du package
 // prennent le `Hd2dContext` du jeu/éditeur qui les appelle (voir `sky.ts`) — un appelant n'a pas à
 // se demander au cas par cas laquelle en a réellement besoin.
+/**
+ * The map's ground, as a one-texel-per-cell mask: 255 where a cell HAS ground, 0 where it is water
+ * or off the map.
+ *
+ * This is what keeps a dry pit dry. The sea is one flat plane at `level`, three times wider than
+ * the grid, and until ground could sink below that level it was hidden everywhere it mattered by
+ * terrain standing above it. A pit floor is BELOW it, so the plane simply closed over the pit and
+ * drew a pond.
+ *
+ * A mask rather than geometry, for two reasons the alternatives fail on: cutting holes in the plane
+ * would need it rebuilt per terrain edit, and the plane is 17-23 ms to allocate and is deliberately
+ * reused across scenes (see `Water.setField`); and per-vertex masking would be as coarse as the
+ * plane's own segments, which are two world units, so the coastline would fray. One texel per cell,
+ * sampled NEAREST, cuts exactly on cell boundaries at any plane resolution.
+ */
+export function groundMaskData(field: HeightField): Uint8Array {
+  const data = new Uint8Array(field.cols * field.rows);
+  for (let j = 0; j < field.rows; j++) {
+    for (let i = 0; i < field.cols; i++) {
+      data[j * field.cols + i] = field.levelAt(i, j) === null ? 0 : 255;
+    }
+  }
+  return data;
+}
+
+function groundMaskTexture(field: HeightField): THREE.DataTexture {
+  const data = groundMaskData(field);
+  const texture = new THREE.DataTexture(data, field.cols, field.rows, THREE.RedFormat);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOptions): Water {
   const seg = Math.max(1, Math.round(opts.size / opts.segment));
   const geo = new THREE.PlaneGeometry(opts.size, opts.size, seg, seg);
@@ -220,7 +254,13 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
     roughness: opts.roughness,
     metalness: 0,
   });
+  let groundMask = groundMaskTexture(field);
   const uniforms = {
+    uGround: { value: groundMask },
+    /** World rect of the grid, as origin + inverse size, so the shader costs one multiply. */
+    uGroundRect: {
+      value: new THREE.Vector4(-field.cols / 2, -field.rows / 2, 1 / field.cols, 1 / field.rows),
+    },
     uTime: { value: 0 },
     // Couleurs volontairement SOMBRES et saturées : c'est un plan horizontal qui prend le soleil de
     // plein fouet, et ACES désature tout ce qui monte vers les hautes lumières — un turquoise pâle
@@ -239,8 +279,23 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
     )}`;
     shader.fragmentShader = `uniform float uTime, uWave;
      uniform vec3 uShallow, uDeep;
+     uniform sampler2D uGround;
+     uniform vec4 uGroundRect;
      varying float vShallow;
      varying vec2 vSea;\n${shader.fragmentShader
+       .replace(
+         "#include <clipping_planes_fragment>",
+         // Discarded over any cell that HAS ground, which is a no-op everywhere the terrain already
+         // stood above the plane and is the whole fix where it does not: a sunken level is dry
+         // ground, not a seabed. Outside the grid the sea carries on, which is what the plane's
+         // extra width is for.
+         `#include <clipping_planes_fragment>
+          {
+            vec2 cell = (vSea - uGroundRect.xy) * uGroundRect.zw;
+            if (cell.x > 0.0 && cell.x < 1.0 && cell.y > 0.0 && cell.y < 1.0 &&
+                texture2D(uGround, cell).r > 0.5) discard;
+          }`,
+       )
        .replace(
          "#include <map_fragment>",
          // La texture ne sert plus qu'à MODULER : la couleur vient du dégradé de profondeur, que la
@@ -292,6 +347,13 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
       uniforms.uWave.value = v;
     },
     setField(next) {
+      // The mask is refreshed even when `shallow` was given as a constant or a function: those two
+      // forms replace the DEPTH GRADIENT, not the question of where there is ground at all, and a
+      // pool that kept a stale mask would flood the pit an author just dug under it.
+      groundMask.dispose();
+      groundMask = groundMaskTexture(next);
+      uniforms.uGround.value = groundMask;
+      uniforms.uGroundRect.value.set(-next.cols / 2, -next.rows / 2, 1 / next.cols, 1 / next.rows);
       if (opts.shallow !== undefined) return;
       fillShallow(next);
       shallowAttribute.needsUpdate = true;
@@ -307,6 +369,7 @@ export function createWater(_ctx: Hd2dContext, field: HeightField, opts: WaterOp
     dispose() {
       geo.dispose();
       material.dispose();
+      groundMask.dispose();
       // Le CLONE (voir plus haut) appartient à cette mer, donc à elle de le libérer. `opts.texture`
       // — l'original — n'est en revanche jamais touché : il appartient au registre de textures de
       // l'appelant (voir la doc de `WaterOptions.texture`), une autre surface pourrait le partager.

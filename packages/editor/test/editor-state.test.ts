@@ -63,6 +63,7 @@ import {
   GRASS_SLOTS,
   isRampFixedIndex,
   MAX_TERRAIN_LEVEL,
+  MIN_TERRAIN_LEVEL,
   oneCellRampFixedIndex,
   TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
@@ -2314,8 +2315,14 @@ describe("relative elevation brushes", () => {
 
   it("refuses rather than silently repainting when a step has nowhere to go", () => {
     const base = blankMap("m", 20, 15);
-    // Ground is the floor: "-1" there returns null, which the stage turns into its visible hint.
-    expect(place(base, { kind: "elevation", step: "lower" }, 5, 5)).toBeNull();
+    // Ground is no longer the floor: `lower` digs a dry pit, three levels deep, and only refuses
+    // at the bottom of it. That refusal is what the stage turns into its visible hint.
+    let pit = base;
+    for (let step = 0; step < -MIN_TERRAIN_LEVEL; step += 1) {
+      pit = place(pit, { kind: "elevation", step: "lower" }, 5, 5) as EditorMap;
+    }
+    expect(levelAt(pit, 5, 5)).toBe(MIN_TERRAIN_LEVEL);
+    expect(place(pit, { kind: "elevation", step: "lower" }, 5, 5)).toBeNull();
     let top = base;
     for (let step = 0; step < MAX_TERRAIN_LEVEL; step += 1) {
       top = place(top, { kind: "elevation", step: "raise" }, 5, 5) as EditorMap;

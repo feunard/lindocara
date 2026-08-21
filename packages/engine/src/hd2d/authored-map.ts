@@ -37,7 +37,12 @@ import {
 } from "../tile-brush.js";
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
-import { elevationOfSlot, materialOfSlot, oneCellRampDescriptor } from "../tilesets/tiny-swords.js";
+import {
+  elevationOfSlot,
+  isGroundElevation,
+  materialOfSlot,
+  oneCellRampDescriptor,
+} from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
@@ -96,7 +101,10 @@ function authoredLevel(id: number): number | null {
   if (tile.kind === "empty") return null;
   if (tile.kind === "autotile") {
     const elevation = elevationOfSlot(tile.slot);
-    return elevation < 0 ? 0 : elevation;
+    // A slot that is not ground at all (a cliff face, a retired brush) still SUPPORTS ground, and
+    // its base is the ground plane. A sunken slot is ground, at a negative level, and passes
+    // through: `< 0` here used to mean "not ground" and would now flatten every pit.
+    return isGroundElevation(elevation) ? elevation : 0;
   }
   // Fixed ground art is uncommon (ramps live on the wall layer), but a valid fixed tile is land,
   // never an invisible hole. Its supporting elevation remains the ground layer's base level.

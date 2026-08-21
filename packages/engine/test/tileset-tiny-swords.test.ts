@@ -2,10 +2,16 @@ import {
   CLIFF_WALL_SLOT,
   elevationOfSlot,
   GRASS_SLOTS,
+  isGroundElevation,
+  MIN_TERRAIN_LEVEL,
+  materialOfSlot,
+  NO_GROUND_ELEVATION,
+  SUNKEN_MATERIAL_SLOTS,
   TERRAIN_LEVELS,
   TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
+  terrainSlot,
   tilesetById,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
@@ -50,7 +56,40 @@ describe("the Tiny Swords tileset", () => {
 
   it("maps slots back to elevation levels", () => {
     expect(GRASS_SLOTS.map(elevationOfSlot)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    expect(elevationOfSlot(CLIFF_WALL_SLOT)).toBe(-1);
+    // Sunken slots answer with a NEGATIVE level, and a cliff face answers "not ground at all".
+    // Those were the same value (-1) until ground could sink, which is why the sentinel moved.
+    expect(SUNKEN_MATERIAL_SLOTS.herbe.map(elevationOfSlot)).toEqual([-1, -2, -3]);
+    expect(SUNKEN_MATERIAL_SLOTS.glace.map(elevationOfSlot)).toEqual([-1, -2, -3]);
+    expect(elevationOfSlot(CLIFF_WALL_SLOT)).toBe(NO_GROUND_ELEVATION);
+    expect(isGroundElevation(elevationOfSlot(CLIFF_WALL_SLOT))).toBe(false);
+    expect(isGroundElevation(-3)).toBe(true);
+  });
+
+  it("gives every sunken slot its own place, below the ground plane and darker with depth", () => {
+    const sunken = Object.values(SUNKEN_MATERIAL_SLOTS).flat();
+    // Twelve distinct slots, the last of the reservation, appended after every historical one so
+    // no stored id changed meaning.
+    expect(new Set(sunken).size).toBe(12);
+    expect(Math.min(...sunken)).toBe(52);
+    expect(Math.max(...sunken)).toBe(63);
+    expect(MIN_TERRAIN_LEVEL).toBe(-3);
+    const tintAt = (slot: number): number => {
+      const tint = TINY_SWORDS_TILESET.autotiles[slot]?.tint;
+      if (tint === undefined) throw new Error(`slot ${slot} has no tint`);
+      return tint;
+    };
+    // A pit is in its own shadow: each level down is darker than the one above it.
+    const [one, two, three] = SUNKEN_MATERIAL_SLOTS.herbe;
+    expect(tintAt(one)).toBeGreaterThan(tintAt(two));
+    expect(tintAt(two)).toBeGreaterThan(tintAt(three));
+    // And it is ordinary ground: walkable, on the lowest render band, of its own material.
+    for (const slot of sunken) {
+      expect(TINY_SWORDS_TILESET.autotiles[slot]?.passable).toBe(true);
+      expect(TINY_SWORDS_TILESET.autotiles[slot]?.renderLevel).toBe(0);
+    }
+    expect(materialOfSlot(SUNKEN_MATERIAL_SLOTS.sable[1])).toBe("sable");
+    expect(terrainSlot("neige", -2)).toBe(SUNKEN_MATERIAL_SLOTS.neige[1]);
+    expect(terrainSlot("neige", MIN_TERRAIN_LEVEL - 1)).toBeNull();
   });
 
   it("declares every slot its material tables name", () => {
@@ -80,11 +119,12 @@ describe("the Tiny Swords tileset", () => {
     expect(TERRAIN_MATERIAL_SLOTS.glace.slice(0, 4)).toEqual([13, 14, 15, 22]);
   });
 
-  it("keeps every declared slot inside the id space", () => {
-    // 52 of the 64 the id space reserves. A twelfth level would need four more per material and
-    // would not fit; raising the reservation moves `FIXED_BASE` and renumbers every stored fixed
-    // tile in every saved map, which is why the range stops here rather than anywhere else.
-    expect(TINY_SWORDS_TILESET.autotiles.length).toBe(52);
+  it("keeps every declared slot inside the id space, which is now exactly full", () => {
+    // 64 of the 64 the id space reserves: 52 for the ground plane and its ten plateaus, plus the
+    // twelve the three sunken levels took. The next level in EITHER direction needs a fifteenth
+    // block that does not exist, and buying it raises the reservation, which moves `FIXED_BASE`
+    // and reinterprets every stored fixed id in every saved map. That is why the range stops here.
+    expect(TINY_SWORDS_TILESET.autotiles.length).toBe(64);
     expect(TINY_SWORDS_TILESET.autotiles.length).toBeLessThanOrEqual(64);
     expect(GRASS_SLOTS).toHaveLength(TERRAIN_LEVELS);
   });

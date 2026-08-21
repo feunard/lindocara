@@ -13,6 +13,8 @@ import {
   CLIFF_WATER_SLOT,
   GRASS_SLOTS,
   MAX_TERRAIN_LEVEL,
+  MIN_TERRAIN_LEVEL,
+  NO_GROUND_ELEVATION,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
@@ -143,24 +145,38 @@ describe("relative elevation steps", () => {
   it("REFUSES rather than repainting when a step has nowhere to go", () => {
     // Null is the whole point: a brush that quietly repaints the same slot is indistinguishable
     // from a broken one, so the editor can flash its hint instead.
-    expect(elevationStepTarget("lower", 0)).toBeNull();
+    expect(elevationStepTarget("lower", MIN_TERRAIN_LEVEL)).toBeNull();
     expect(elevationStepTarget("raise", MAX_TERRAIN_LEVEL)).toBeNull();
   });
 
+  it("digs below the ground plane, one level at a time, down to the pit floor", () => {
+    expect(elevationStepTarget("lower", 0)).toBe(-1);
+    expect(elevationStepTarget("lower", -1)).toBe(-2);
+    expect(elevationStepTarget("raise", -3)).toBe(-2);
+    expect(elevationStepTarget("ground", -2)).toBe(0);
+    expect(elevationStepTarget("keep", -2)).toBe(-2);
+  });
+
   it("lands the first stroke on the sea at ground level, and never below it", () => {
-    // Water, void and off-map all read as -1 (`elevationOfSlot`). There is deliberately nothing
-    // below the ground: a negative level would need art, collision and an encoding that do not exist.
+    // Water, void and off-map read as `NO_GROUND_ELEVATION`, which is NOT -1 any more: -1 is a pit
+    // floor. The sea is the absence of ground, so lowering it still has no meaning, while lowering
+    // ground now digs.
     for (const step of ["keep", "ground", "raise"] as const) {
-      expect(elevationStepTarget(step, -1)).toBe(0);
+      expect(elevationStepTarget(step, NO_GROUND_ELEVATION)).toBe(0);
     }
-    expect(elevationStepTarget("lower", -1)).toBeNull();
+    expect(elevationStepTarget("lower", NO_GROUND_ELEVATION)).toBeNull();
   });
 
   it("reads a cell's current level off the ground layer, water included", () => {
     const layers = paintElevation(blank(), set, 2, 3, 3);
     const ground = layerAt(layers, 0);
     expect(groundElevationAt(ground, 3, 3)).toBe(2);
-    expect(groundElevationAt(ground, 0, 0)).toBe(-1);
-    expect(groundElevationAt(ground, -1, 0)).toBe(-1);
+    // An unpainted cell and an off-map one are both "no ground", which is no longer spelled -1:
+    // that is a pit floor now, and a brush that confused the two would dig the sea.
+    expect(groundElevationAt(ground, 0, 0)).toBe(NO_GROUND_ELEVATION);
+    expect(groundElevationAt(ground, -1, 0)).toBe(NO_GROUND_ELEVATION);
+
+    const dug = paintElevation(layers, set, -2, 1, 1);
+    expect(groundElevationAt(layerAt(dug, 0), 1, 1)).toBe(-2);
   });
 });

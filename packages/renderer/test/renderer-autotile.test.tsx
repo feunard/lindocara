@@ -158,6 +158,10 @@ describe("tileDrawAt", () => {
       ids: [EMPTY_TILE, autotileId(GRASS_SLOTS[0], 0), EMPTY_TILE, EMPTY_TILE],
     };
     expect(tileDrawAt(TINY_SWORDS_TILESET, wrapGrid, -1, 1)).toBeNull();
-    expect(tileDrawAt(TINY_SWORDS_TILESET, layerOf(autotileId(60, 0)), 0, 0)).toBeNull();
+    // An undeclared slot, against a SYNTHETIC tileset: tiny-swords now declares all 64 slots the
+    // id space reserves (the sunken levels took the last twelve), so it no longer has one to spare
+    // as a witness, and `autotileId(64, 0)` is `FIXED_BASE` rather than an undeclared autotile.
+    const sparse = { ...TINY_SWORDS_TILESET, autotiles: TINY_SWORDS_TILESET.autotiles.slice(0, 2) };
+    expect(tileDrawAt(sparse, layerOf(autotileId(5, 0)), 0, 0)).toBeNull();
   });
 });

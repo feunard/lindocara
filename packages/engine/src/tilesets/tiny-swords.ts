@@ -46,6 +46,20 @@ const RAISED_3_TINT = 0x969696;
  * black, which reads as a hole rather than as high ground.
  */
 const RAISED_TINT_FLOOR = 0x4a;
+/**
+ * How much darker each level BELOW zero is than the one above it.
+ *
+ * Steeper than the 0.88 the raised levels climb by, and deliberately so: a pit is in its own
+ * shadow, and a sunken level tinted on the raised curve would read as a plateau seen from above.
+ * The same floor applies, for the same reason -- past it the ground stops being ground and reads
+ * as a hole in the map.
+ */
+const SUNKEN_TINT_STEP = 0.79;
+function sunkenTint(depth: number): number {
+  const channel = Math.max(RAISED_TINT_FLOOR, Math.round(0xff * SUNKEN_TINT_STEP ** depth));
+  return channel * 0x010101;
+}
+
 function raisedTint(level: number): number | undefined {
   if (level <= 0) return undefined;
   if (level === 1) return RAISED_1_TINT;
@@ -58,17 +72,28 @@ function raisedTint(level: number): number | undefined {
 /**
  * The highest authored elevation. Eleven levels: the ground plus ten plateaus.
  *
- * Reachable WITHOUT a migration, and that is why it stops here rather than lower or higher. A
- * cell's level is its index into `TERRAIN_MATERIAL_SLOTS`, whose entries are slots in the tileset's
- * `autotiles` array, and the id space reserves `AUTOTILE_SLOTS` (64) of those. Eleven levels across
- * four materials plus the four cliff-wall slots comes to 52; a twelfth level would not fit, and
- * raising the reservation moves `FIXED_BASE`, which renumbers every stored fixed tile in every
- * saved map.
- *
- * Below zero is the same wall from the other side: four sunken levels need sixteen more slots than
- * exist, so ground beneath the sea is a format change rather than an extension.
+ * Reachable WITHOUT a migration, and that is why it stops here rather than higher. A cell's level
+ * is its index into `TERRAIN_MATERIAL_SLOTS`, whose entries are slots in the tileset's `autotiles`
+ * array, and the id space reserves `AUTOTILE_SLOTS` (64) of those. Eleven levels across four
+ * materials plus the four cliff-wall slots comes to 52; a twelfth level would not fit, and raising
+ * the reservation moves `FIXED_BASE`, which renumbers every stored fixed tile in every saved map.
  */
 export const TERRAIN_LEVELS = 11;
+
+/**
+ * How far ground may sink BELOW zero: three levels, and the number is the slot budget, not a taste.
+ *
+ * 52 of the 64 reserved slots were declared, leaving exactly twelve, which is three levels across
+ * four materials. A fourth sunken level is the sixteenth slot that does not exist, and buying it
+ * means raising `AUTOTILE_SLOTS`, which moves `FIXED_BASE`, which reinterprets every stored fixed
+ * id in every saved map -- a ramp id would decode as an autotile. That is a format migration with a
+ * stored-format version behind it, and it is worth doing the day a fourth level is worth having;
+ * it is not worth doing to reach it.
+ *
+ * The reservation is now exactly full (64 of 64 declared), so the next level in EITHER direction
+ * pays that price.
+ */
+export const SUNKEN_TERRAIN_LEVELS = 3;
 
 /**
  * One slot per level, as a TUPLE rather than an array, and that is not a formality: every reader
@@ -117,6 +142,26 @@ export const TERRAIN_MATERIAL_SLOTS = {
  * reading: thin ice already looked and slid exactly like it. Pairs with `decodeMap`'s coercion of
  * the `"glace-fine"` material itself.
  */
+/**
+ * One slot per SUNKEN level, depth 1 first, in the same four-material order as the raised tables.
+ *
+ * These are the last twelve slots of the reservation (52 through 63), appended after every other
+ * declaration for the reason every band here is appended: a slot is an INDEX into the `autotiles`
+ * array, so inserting anywhere else renumbers stored ids.
+ *
+ * A SEPARATE table rather than a longer `TERRAIN_MATERIAL_SLOTS` with a bias, because the raised
+ * tables are indexed BY LEVEL by every reader in the codebase. Adding a bias would have made every
+ * one of those reads wrong in a way the compiler could not see, to save one branch in
+ * `terrainSlot`.
+ */
+export type SunkenLevelSlots = readonly [number, number, number];
+export const SUNKEN_MATERIAL_SLOTS = {
+  herbe: [52, 56, 60],
+  sable: [53, 57, 61],
+  neige: [54, 58, 62],
+  glace: [55, 59, 63],
+} as const satisfies Readonly<Record<TerrainMaterial, SunkenLevelSlots>>;
+
 const RETIRED_THIN_ICE_SLOTS: readonly number[] = [16, 17, 18, 23];
 export const CLIFF_WALL_SLOT = 3;
 export const CLIFF_WATER_SLOT = 4;
@@ -382,6 +427,22 @@ export const TINY_SWORDS_TILESET: Tileset = {
         }));
       },
     ),
+    // The sunken levels, depth 1 to 3: slots 52 through 63, the last of the reservation. They are
+    // the SAME ground as level 0 -- walkable, of their material, and dry -- drawn on the lowest
+    // render band and darkened by depth, since what tells a pit from a plateau is the wall between
+    // them and the shadow inside it, not a different sheet.
+    ...Array.from({ length: SUNKEN_TERRAIN_LEVELS }, (_unused, index) => index + 1).flatMap(
+      (depth) =>
+        AUTHORED_TERRAIN_MATERIALS.map(() => ({
+          atlas: ATLAS,
+          origin: { col: 0, row: 0 },
+          kind: "edge16" as const,
+          passable: true,
+          priority: "below" as const,
+          renderLevel: 0 as const,
+          tint: sunkenTint(depth),
+        })),
+    ),
   ],
   // Pixel Frog's two native stairs are atlas (0,4)+(0,5), climbing right, and
   // (3,4)+(3,5), climbing left. West keeps its dedicated source instead of mirroring pixels.
@@ -455,13 +516,32 @@ export function tilesetById(id: string): Tileset | null {
   return BY_ID.get(id) ?? null;
 }
 
-/** Which elevation level a ground slot stands at, or -1 for anything that is not grass. */
+/**
+ * What a cell that is not ground at all reads as: water, the void, and off the map.
+ *
+ * It was -1 until ground could sink, and -1 is now a LEVEL. The replacement is not -4 or -99 but
+ * negative infinity, because every use of it is a comparison ("is this neighbour higher than
+ * that one") and infinity is the only value that can never be overtaken by a range that grows
+ * again. Read it with `isGroundElevation`, never with `< 0`: that test used to mean "not ground"
+ * and now means "in a pit".
+ */
+export const NO_GROUND_ELEVATION = Number.NEGATIVE_INFINITY;
+
+/** Whether an elevation read off a slot is real ground, at any level, sunken ones included. */
+export function isGroundElevation(elevation: number): boolean {
+  return elevation !== NO_GROUND_ELEVATION;
+}
+
+/** Which elevation level a ground slot stands at, or `NO_GROUND_ELEVATION` for anything that is
+ *  not authored ground. Sunken slots answer with a NEGATIVE level, which is the whole point. */
 export function elevationOfSlot(slot: number): number {
   for (const material of AUTHORED_TERRAIN_MATERIALS) {
     const level = (TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).indexOf(slot);
     if (level >= 0) return level;
+    const depth = (SUNKEN_MATERIAL_SLOTS[material] as readonly number[]).indexOf(slot);
+    if (depth >= 0) return -(depth + 1);
   }
-  return -1;
+  return NO_GROUND_ELEVATION;
 }
 
 /** The physical/visual material encoded by an authored ground slot. Non-ground legacy slots keep
@@ -469,13 +549,16 @@ export function elevationOfSlot(slot: number): number {
 export function materialOfSlot(slot: number): TerrainMaterial {
   for (const material of AUTHORED_TERRAIN_MATERIALS) {
     if ((TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
+    if ((SUNKEN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
   }
   if (RETIRED_THIN_ICE_SLOTS.includes(slot)) return "glace";
   return "herbe";
 }
 
+/** The slot painting `material` at `level`, sunken levels included, or `null` off the range. */
 export function terrainSlot(material: TerrainMaterial, level: number): number | null {
-  return TERRAIN_MATERIAL_SLOTS[material][level] ?? null;
+  if (level >= 0) return TERRAIN_MATERIAL_SLOTS[material][level] ?? null;
+  return SUNKEN_MATERIAL_SLOTS[material][-level - 1] ?? null;
 }
 
 /**
@@ -491,3 +574,14 @@ export function terrainSlot(material: TerrainMaterial, level: number): number | 
  * for a range an author can actually use; eleven bespoke tints and cliff sheets are not.
  */
 export const MAX_TERRAIN_LEVEL = GRASS_SLOTS.length - 1;
+
+/**
+ * The deepest authored elevation: three levels of dry pit below the ground plane.
+ *
+ * Derived from the sunken table for the same reason `MAX_TERRAIN_LEVEL` is derived from the raised
+ * one. A pit is DRY: it is ordinary ground at a negative level, walkable, of its own material, and
+ * it is not the sea. Water remains the absence of ground (`NO_GROUND_ELEVATION`), which is what
+ * keeps "there is a hole in the map here" and "the ground here is low" from ever being the same
+ * fact.
+ */
+export const MIN_TERRAIN_LEVEL = -(SUNKEN_MATERIAL_SLOTS.herbe.length as number);

@@ -23,7 +23,9 @@ import {
   CLIFF_WATER_HIGH_2_SLOT,
   CLIFF_WATER_SLOT,
   elevationOfSlot,
+  isGroundElevation,
   MAX_TERRAIN_LEVEL,
+  MIN_TERRAIN_LEVEL,
   oneCellRampFixedIndex,
   RAMP_FIXED_TILE_COUNT,
   RAMP_LEVEL_3_FIXED_BASE,
@@ -314,8 +316,8 @@ export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer
   return { ...layer, ids };
 }
 
-/** Which elevation level a ground cell stands at. Empty and off-map read as -1: lower than any
- *  authored level, so a cliff at the map's edge still gets its face. */
+/** Which elevation level a ground cell stands at. Empty and off-map read as `NO_GROUND_ELEVATION`:
+ *  lower than any authored level, so a cliff at the map's edge still gets its face. */
 function elevationAt(ground: TileLayer, col: number, row: number): number {
   return elevationOfSlot(slotAt(ground, col, row));
 }
@@ -336,13 +338,13 @@ export type ElevationStep = "keep" | "ground" | "raise" | "lower";
  * go. `null` is a REFUSAL the caller is expected to show (the editor flashes its "not here" hint),
  * never a silent no-op: a button that does nothing is indistinguishable from a broken one.
  *
- * Water and off-map read as -1 (`elevationOfSlot`), below every authored level. The first stroke on
- * the sea therefore always lands on the ground, whichever step carries it, and only `lower` refuses
- * there, because there is deliberately nothing below the ground: negative levels would need art,
- * collision and a stored encoding none of which exist.
+ * Water and off-map read as `NO_GROUND_ELEVATION` (`elevationOfSlot`), below every authored level.
+ * The first stroke on the sea therefore always lands on the ground, whichever step carries it, and
+ * only `lower` refuses there: the sea is not a pit, and lowering the absence of ground has no
+ * meaning. From ground, `lower` now digs, down to `MIN_TERRAIN_LEVEL`.
  */
 export function elevationStepTarget(step: ElevationStep, current: number): number | null {
-  if (current < 0) return step === "lower" ? null : 0;
+  if (!isGroundElevation(current)) return step === "lower" ? null : 0;
   switch (step) {
     case "keep":
       return current;
@@ -351,11 +353,12 @@ export function elevationStepTarget(step: ElevationStep, current: number): numbe
     case "raise":
       return current < MAX_TERRAIN_LEVEL ? current + 1 : null;
     case "lower":
-      return current > 0 ? current - 1 : null;
+      return current > MIN_TERRAIN_LEVEL ? current - 1 : null;
   }
 }
 
-/** Which elevation the ground layer already holds at a cell: -1 for water, void and off-map. */
+/** Which elevation the ground layer already holds at a cell: `NO_GROUND_ELEVATION` for water, void
+ *  and off-map, and a NEGATIVE level for a pit floor, which is ground like any other. */
 export function groundElevationAt(ground: TileLayer, col: number, row: number): number {
   return elevationOfSlot(slotAt(ground, col, row));
 }
@@ -609,7 +612,17 @@ function wantedCliffDirection(ground: TileLayer, col: number, row: number): Want
     ["south", elevationAt(ground, col, row + 1)],
     ["west", elevationAt(ground, col - 1, row)],
   ];
-  const wanted = neighbours.find(([, elevation]) => elevation > 0 && elevation > here);
+  // A face belongs to the LOW cell. Two readings meet here and only one of them is new:
+  // - the cell is ground (a plateau's foot, or a pit floor): any neighbour standing higher is a
+  //   wall, which is what lets a pit have sides at all;
+  // - the cell is water: the historical rule stands, a neighbour must be RAISED (level 1 or more),
+  //   because a shore beside level-0 ground is a beach and gets foam, not a cliff.
+  const wanted = neighbours.find(
+    ([, elevation]) =>
+      isGroundElevation(elevation) &&
+      elevation > here &&
+      (isGroundElevation(here) || elevation > 0),
+  );
   if (!wanted) return null;
   return { direction: wanted[0], highLevel: wanted[1] >= 2 ? 2 : 1 };
 }
@@ -678,7 +691,11 @@ function syncWall(
   }
 
   if (wanted.direction === "north") {
-    const wantedSlot = northCliffSlot(elevationAt(ground, col, row) < 0, wanted.highLevel);
+    // WATER-footed, not merely low-lying: a pit floor is ground, and its wall wears the land foot.
+    const wantedSlot = northCliffSlot(
+      !isGroundElevation(elevationAt(ground, col, row)),
+      wanted.highLevel,
+    );
     if (current.kind === "autotile" && current.slot === wantedSlot) return walls;
     return paintAutotile(walls, tileset, wantedSlot, col, row);
   }
