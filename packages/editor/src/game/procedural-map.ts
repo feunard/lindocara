@@ -34,11 +34,18 @@ import {
   type EditorAssetDefinition,
   type EditorAssetId,
   editorAsset,
+  LINDOCARA_RUNNER_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { canvasEditorMap, type EditorMap } from "./editor-state.js";
 
-export const PROCEDURAL_MAP_GENRES = ["forest", "archipelago", "highlands", "tundra"] as const;
+export const PROCEDURAL_MAP_GENRES = [
+  "forest",
+  "archipelago",
+  "highlands",
+  "tundra",
+  "runner",
+] as const;
 export type ProceduralMapGenre = (typeof PROCEDURAL_MAP_GENRES)[number];
 
 export const PROCEDURAL_MAP_COMPLEXITIES = ["light", "balanced", "dense"] as const;
@@ -118,6 +125,7 @@ const GENRE_CATEGORIES: Record<ProceduralMapGenre, Readonly<Record<string, numbe
   },
   highlands: { rocks: 7, resources: 4, trees: 2, vegetation: 1, "small-decor": 1 },
   tundra: { rocks: 6, resources: 4, trees: 3, "water-decor": 2, "small-decor": 1 },
+  runner: { runner: 10, rocks: 1, "small-decor": 1 },
 };
 
 const GENRE_MONSTERS: Record<ProceduralMapGenre, readonly MonsterSpecies[]> = {
@@ -125,6 +133,7 @@ const GENRE_MONSTERS: Record<ProceduralMapGenre, readonly MonsterSpecies[]> = {
   archipelago: ["gnoll_marauder", "mire_troll", "spear_goblin"],
   highlands: ["skull_guard", "skull_crusader", "minotaur_brute", "gate_troll"],
   tundra: ["skull_warden", "hex_shaman", "gate_troll"],
+  runner: ["war_pig"],
 };
 
 // Meat belongs on living sheep and gold belongs in authored rewards, never as loose generated
@@ -136,6 +145,7 @@ const FRIENDLY_BUILDING_COLOR: Record<ProceduralMapGenre, "blue" | "purple" | "y
   archipelago: "yellow",
   highlands: "blue",
   tundra: "purple",
+  runner: "purple",
 };
 
 const VILLAGER_TINTS = [0xffffff, 0xe6f3ff, 0xfff1c2, 0xe9ddff] as const;
@@ -583,6 +593,120 @@ function deterministicUuid(seed: string, label: string): string {
   chars[16] = "8";
   const value = chars.join("");
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function runnerCells(cols: number, rows: number): PlannedCell[] {
+  const centreRow = Math.floor(rows / 2);
+  return Array.from({ length: cols * rows }, (_, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const land = col >= 1 && col <= cols - 2 && Math.abs(row - centreRow) <= 3;
+    return {
+      land,
+      level: 0,
+      material: land ? "sable" : "herbe",
+      route: land,
+      river: false,
+      zone: land ? "danger" : "wild",
+    };
+  });
+}
+
+function generateRunnerMap(
+  base: EditorMap,
+  cols: number,
+  rows: number,
+  complexity: ProceduralMapComplexity,
+  seed: string,
+  random: () => number,
+): EditorMap {
+  const centreRow = Math.floor(rows / 2);
+  const spawn = { col: 4, row: centreRow };
+  const cells = runnerCells(cols, rows);
+  const elements: MapElement[] = [];
+  const occupied = new Set<string>();
+  const obstacleInterval = complexity === "light" ? 12 : complexity === "dense" ? 7 : 9;
+  for (let col = 9; col < cols - 5; col += obstacleInterval) {
+    const row = centreRow + (random() < 0.5 ? -2 : 2);
+    tryPlaceElement(elements, occupied, cells, cols, rows, LINDOCARA_RUNNER_ASSET_IDS.barricade, {
+      col,
+      row,
+    });
+  }
+
+  const events: MapEvent[] = [];
+  let ordinal = 1;
+  const addEvent = (event: MapEvent): void => {
+    if (events.length >= MAX_EVENTS_PER_MAP || occupied.has(pointKey(event))) return;
+    events.push(event);
+    occupied.add(pointKey(event));
+  };
+  addEvent(
+    presetEvent({
+      id: deterministicUuid(seed, "runner-pursuer"),
+      col: 2,
+      row: centreRow,
+      ordinal: ordinal++,
+      preset: "pursuer",
+      selfMapId: "",
+      selfSpawn: spawn,
+      name: "Relentless pursuer",
+    }),
+  );
+
+  const trapInterval = complexity === "light" ? 7 : complexity === "dense" ? 4 : 5;
+  let trapIndex = 0;
+  for (let col = 8; col < cols - 4; col += trapInterval) {
+    const openRows = [-2, -1, 0, 1, 2]
+      .map((offset) => centreRow + offset)
+      .filter((row) => !occupied.has(pointKey({ col, row })));
+    const row = openRows[Math.floor(random() * openRows.length)];
+    if (row === undefined) continue;
+    addEvent(
+      presetEvent({
+        id: deterministicUuid(seed, `runner-trap-${trapIndex}`),
+        col,
+        row,
+        ordinal: ordinal++,
+        preset: "trap",
+        selfMapId: "",
+        selfSpawn: spawn,
+        name: `Spike trap ${trapIndex + 1}`,
+      }),
+    );
+    trapIndex += 1;
+  }
+
+  addEvent(
+    presetEvent({
+      id: deterministicUuid(seed, "runner-finish"),
+      col: cols - 3,
+      row: centreRow,
+      ordinal: ordinal++,
+      preset: "endgame",
+      selfMapId: "",
+      selfSpawn: spawn,
+      name: "Escape",
+    }),
+  );
+
+  return canvasEditorMap({
+    ...base,
+    audio: {
+      ...base.audio,
+      explorationProfile: "runner",
+      nightProfile: "runner",
+      discoveryProfile: "runner",
+      dangerProfile: "runner",
+      combatProfile: "runner",
+      bossProfile: "runner",
+    },
+    layers: buildLayers(cells, cols, rows),
+    elements,
+    spawn,
+    markers: EMPTY_MARKERS,
+    events,
+  });
 }
 
 function flatLand(
@@ -1298,6 +1422,8 @@ export function generateProceduralMap(base: EditorMap, options: ProceduralMapOpt
   const seedKey = `${normalizedSeed}:${options.genre}:${options.complexity}:${selectedSize.cols}x${selectedSize.rows}`;
   const seed = hashText(seedKey);
   const random = randomSource(seedKey);
+  if (options.genre === "runner")
+    return generateRunnerMap(base, cols, rows, options.complexity, seedKey, random);
   const spawn = { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
   const cells = plannedTerrain(options.genre, cols, rows, seed, random);
   const river = carveRiver(cells, cols, rows, seed, random);
