@@ -15,8 +15,11 @@
  * the registry that gives an id meaning is a later concern, and pretending it exists here would move
  * the validation gap somewhere less honest, the same choice `map-events.ts` documents.
  */
+import { type AmbienceDayCycle, isAmbienceDayCycle } from "./ambience.js";
+import { isMusicTrackId, type MusicTrackId } from "./audio-catalog.js";
 import { isUuid } from "./identifiers.js";
 import { CONDITION_ID_PATTERN, isSelfSwitch, type SelfSwitch } from "./map-events.js";
+import { type MapWeather, parseMapWeather } from "./map-weather.js";
 import { isSoundEffectId } from "./sfx-catalog.js";
 
 /**
@@ -205,7 +208,18 @@ export type EventCommand =
    * exist. Presentation only, like `say`'s prose: the room decides WHEN it happens, the client owns
    * the file and the mixing.
    */
-  | { readonly t: "playSound"; readonly soundId: string };
+  | { readonly t: "playSound"; readonly soundId: string }
+  /**
+   * The three live presentation states a page may set: the sky, the clock and the soundtrack.
+   *
+   * Each carries `null` for "back to what this map itself says", which is why they are separate
+   * opcodes rather than one `setAmbience` with optional fields: an author picks the one thing they
+   * mean to change, and the command list reads as a sentence. Presentation only, room-wide, and
+   * never a rule (see `ambience.ts`).
+   */
+  | { readonly t: "setWeather"; readonly weather: MapWeather | null }
+  | { readonly t: "setDayCycle"; readonly cycle: AmbienceDayCycle }
+  | { readonly t: "setMusic"; readonly trackId: MusicTrackId | null };
 
 function isConditionId(value: unknown): value is string {
   return typeof value === "string" && CONDITION_ID_PATTERN.test(value);
@@ -269,6 +283,18 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       const name = parseText(record.name);
       if (name === null) return null;
       return { t: "say", text, name };
+    }
+    case "setWeather": {
+      if (record.weather !== null && parseMapWeather(record.weather) === null) return null;
+      return { t: "setWeather", weather: record.weather as MapWeather | null };
+    }
+    case "setDayCycle": {
+      if (!isAmbienceDayCycle(record.cycle)) return null;
+      return { t: "setDayCycle", cycle: record.cycle };
+    }
+    case "setMusic": {
+      if (record.trackId !== null && !isMusicTrackId(record.trackId)) return null;
+      return { t: "setMusic", trackId: record.trackId as MusicTrackId | null };
     }
     case "playSound": {
       // Gated against the catalogue rather than merely typed: an unknown id is a page that would

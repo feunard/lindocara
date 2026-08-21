@@ -3,6 +3,8 @@ import {
   DEFAULT_ADVENTURE_CAMERA_MODE,
   DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
+import { type AmbienceState, NO_AMBIENCE_OVERRIDE } from "@lindocara/engine/ambience.js";
+import type { AdventureAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { type ConsumableId, isConsumableId } from "@lindocara/engine/consumables.js";
@@ -509,8 +511,41 @@ async function startGameIdentity(
   let audioDayCycleOverride: DayCycleOverride = null;
   let dayNightCycleEnabled = true;
   let fixedLighting: MapFixedLighting = DEFAULT_MAP_FIXED_LIGHTING;
+  /** The weather the MAP was authored with, under whatever a page has laid over it. */
+  let mapWeather: MapWeather = "none";
+  /** The room's live override: the sky, the clock and the soundtrack a page has set. */
+  let ambience: AmbienceState = { ...NO_AMBIENCE_OVERRIDE };
+  /** The adventure's own audio for this map, kept so a music override can be lifted again. */
+  let sceneAudio: AdventureAudioConfig | undefined;
+  /** The creator's test switch wins over the author's, which wins over the map's fixed lighting:
+   *  someone driving the day/night button in a playtest is asking to see THIS, right now. */
   const effectiveDayCycleOverride = (): DayCycleOverride =>
-    audioDayCycleOverride ?? (dayNightCycleEnabled ? null : fixedLightingOverride(fixedLighting));
+    audioDayCycleOverride ??
+    ambience.dayCycle ??
+    (dayNightCycleEnabled ? null : fixedLightingOverride(fixedLighting));
+
+  /**
+   * Push the room's ambience into the renderer and the mixer.
+   *
+   * One function for the welcome and for a live change, so a hero who joins mid-storm and a hero
+   * who was standing there when it started end up in exactly the same state.
+   */
+  const applyAmbience = (): void => {
+    const weather = ambience.weather ?? mapWeather;
+    if (weather !== activeWeather) {
+      // A new sky: the strike counter belongs to the storm that was flashing.
+      lastThunderStrike = null;
+    }
+    activeWeather = weather;
+    renderer.setWeather?.(weather);
+    sound.setRainIntensity(weatherRains(weather) ? 1 : 0);
+    renderer.setDayCycleOverride?.(effectiveDayCycleOverride());
+    if (sceneAudio) {
+      sound.configureScene(
+        ambience.music === null ? sceneAudio : { ...sceneAudio, music: ambience.music },
+      );
+    }
+  };
   let currentMerchant: MerchantDefinition | null = null;
   // A cross-map authored teleport shows its departure before the transition close, then its arrival
   // on the next authoritative welcome. Ordinary network reconnects never set this flag.
@@ -581,6 +616,8 @@ async function startGameIdentity(
         });
       }
       renderer.setSelfId(selfId);
+      sceneAudio = world.audio;
+      ambience = world.ambience ?? { ...NO_AMBIENCE_OVERRIDE };
       sound.configureScene(world.audio);
       sheepFeedback.reset(world.size, world.events);
       chestFeedback.reset(world.events);
@@ -618,15 +655,14 @@ async function startGameIdentity(
           layers: world.layers,
         });
         // Weather rides in the heightfield beside `environment`, so it arrives with the terrain and
-        // changes on a map transition without a message of its own. The renderer reads it from the
-        // map it was just handed; only the SOUND has to be told, because the bank knows nothing
-        // about maps. `weatherRains` rather than a comparison, so a state added beside rain that
-        // also falls water cannot forget to open the bed.
-        sound.setRainIntensity(weatherRains(heightfield.weather ?? "none") ? 1 : 0);
-        activeWeather = heightfield.weather ?? "none";
-        // A map change is a new sky: the strike counter belongs to the map that was flashing, and
-        // carrying it across would silence the first clap of the next storm.
+        // changes on a map transition without a message of its own. What an authored page has laid
+        // OVER it arrives on the welcome instead, which is how a hero joining mid-storm lands in
+        // the same sky as the party they joined; `applyAmbience` resolves the two and tells the
+        // renderer and the mixer, since the bank knows nothing about maps.
+        mapWeather = heightfield.weather ?? "none";
         lastThunderStrike = null;
+        activeWeather = mapWeather;
+        applyAmbience();
       }
       currentMerchant = world.merchant;
       renderer.configureMerchant(world.merchant);
@@ -747,6 +783,10 @@ async function startGameIdentity(
     },
     onEventSound: (soundId) => {
       sound.authoredCue(soundId);
+    },
+    onAmbience: (next) => {
+      ambience = next;
+      applyAmbience();
     },
     onEventClose: (runId) => {
       const store = useUiStore.getState();

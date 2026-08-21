@@ -41,6 +41,7 @@
  * client treats closing an absent panel as a no-op. Task 3's distance-close constructs the same
  * effect when the triggerer walks away, which is why it is part of this module's effect union.
  */
+
 import {
   type PartyAdventureState,
   QUEST_OBJECTIVE_TARGET_MAX,
@@ -49,12 +50,15 @@ import {
   switchIsOn,
   variableAtLeast,
 } from "./adventure-state.js";
+import type { AmbienceDayCycle } from "./ambience.js";
+import type { MusicTrackId } from "./audio-catalog.js";
 import type {
   ChoiceOption,
   EventCommand,
   EventCondition,
   TransitionCategory,
 } from "./event-commands.js";
+import type { MapWeather } from "./map-weather.js";
 
 /**
  * One block of the running program. `commands` is the block's ordered command list (the root
@@ -221,6 +225,17 @@ export type EventEffect =
   | { readonly kind: "say"; readonly text: string; readonly name: string | null }
   /** Play a catalogue cue for the hero running this page. Presentation, like `say`'s prose. */
   | { readonly kind: "playSound"; readonly soundId: string }
+  /**
+   * Change the room's live sky, clock or soundtrack. One effect for the three commands, because the
+   * room holds one ambience block and every recipient (including a hero who joins later) reads all
+   * of it at once. `null` in a field means "back to what this map itself says".
+   */
+  | {
+      readonly kind: "ambience";
+      readonly weather?: MapWeather | null;
+      readonly dayCycle?: AmbienceDayCycle;
+      readonly music?: MusicTrackId | null;
+    }
   | { readonly kind: "offerChoices"; readonly prompt: string; readonly options: readonly string[] }
   | { readonly kind: "mutateState"; readonly op: StateMutation }
   | {
@@ -371,6 +386,21 @@ function executeCommand(
             name: command.name === undefined ? context.speaker : command.name,
           },
         ],
+      };
+    case "setWeather":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "ambience", weather: command.weather }],
+      };
+    case "setDayCycle":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "ambience", dayCycle: command.cycle }],
+      };
+    case "setMusic":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "ambience", music: command.trackId }],
       };
     case "playSound":
       // Unlike `say` this does NOT park the run: a cue is a beat under the page, not a page of its

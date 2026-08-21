@@ -19,6 +19,7 @@ import {
   EMPTY_REGISTRY,
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
+import { type AmbienceState, NO_AMBIENCE_OVERRIDE } from "@lindocara/engine/ambience.js";
 import { type AdventureAudioConfig, resolveMapAudio } from "@lindocara/engine/audio-catalog.js";
 import {
   destroyedBuildingAssetId,
@@ -402,6 +403,14 @@ export interface WorldRoomState {
   cameraMode: AdventureCameraMode;
   /** Adventure-wide gameplay rules copied when this memory-only room is created. */
   gameMode: AdventureGameMode;
+  /**
+   * The live sky, clock and soundtrack an authored page has laid over this map's own.
+   *
+   * Room memory, like the monsters and the loot beside it, and reset with the room for the same
+   * reason: it is presentation, not durable truth. A hero who joins reads it from the welcome, so
+   * everyone in the room stands in the same weather. See `engine/ambience.ts`.
+   */
+  ambience: AmbienceState;
   players: Map<string, PlayerRuntime>;
   connectionIdByHeroId: Map<string, string>;
   playerGrid: SpatialGrid<PlayerRuntime>;
@@ -536,6 +545,7 @@ export function createWorldRoomState(
     location,
     cameraMode,
     gameMode,
+    ambience: { ...NO_AMBIENCE_OVERRIDE },
     players: new Map(),
     connectionIdByHeroId: new Map(),
     playerGrid: new SpatialGrid<PlayerRuntime>(SPATIAL_CELL_SIZE),

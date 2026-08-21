@@ -1674,6 +1674,44 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("a page changes the sky for the whole room, and a late joiner arrives in it", async () => {
+    const eventId = crypto.randomUUID();
+    const storm = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [
+      { t: "setWeather", weather: "storm" },
+      { t: "setDayCycle", cycle: "night" },
+    ]);
+    const host = await newPlayableParty("stormpage", [storm]);
+    const guest = await joinPartyWithHero("stormguest", host.partyId);
+    const clock = new FakeClock();
+    const engine = createEngine(host.roomId, clock);
+    const s1 = fakeSocket(host.userId, host.heroId, "c-1");
+    await engine.join(s1);
+    const state = roomState(engine);
+    const centre = authoredCellCentreGround(storm, gridSizeOf(state));
+    const p1 = playerOf(state, host.heroId);
+    p1.x = centre.x - 40 / TILE_SIZE;
+    p1.z = centre.z;
+
+    await engine.message(s1.id, { t: "interact" });
+    await advanceTickSettled(clock);
+
+    // Room-wide, unlike a cue: everyone standing in the rain stands in the same rain.
+    expect(state.ambience).toEqual({ weather: "storm", dayCycle: "night", music: null });
+    // One broadcast per command, each carrying the whole merged block rather than a patch, so a
+    // recipient never has to remember what it was told before.
+    const broadcasts = messagesOf(s1).filter((message) => message.t === "ambience");
+    expect(broadcasts).toHaveLength(2);
+    expect(broadcasts[0]).toMatchObject({ weather: "storm", dayCycle: null, music: null });
+    expect(broadcasts[1]).toMatchObject({ weather: "storm", dayCycle: "night", music: null });
+
+    // And the hero who was not there when it started still arrives in the storm.
+    const s2 = fakeSocket(guest.userId, guest.heroId, "c-2");
+    await engine.join(s2);
+    const welcome = messagesOf(s2).find((message) => message.t === "welcome");
+    expect(welcome).toMatchObject({ world: { ambience: { weather: "storm", dayCycle: "night" } } });
+    engine.dispose();
+  });
+
   test("an authored cue reaches the triggerer, and only the triggerer", async () => {
     const eventId = crypto.randomUUID();
     const bell = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [

@@ -8,6 +8,7 @@
  */
 
 import { activePageIndex } from "@lindocara/engine/adventure-state.js";
+import type { AmbienceState } from "@lindocara/engine/ambience.js";
 import {
   BUILDING_DOOR_INTERACTION_RANGE,
   distanceToBuildingDoor,
@@ -897,6 +898,40 @@ export function flushDialogue(w: WorldGlue): void {
   dialogue.length = 0;
 }
 
+/**
+ * The sky, the clock and the soundtrack, changed for the WHOLE room.
+ *
+ * Unlike every other dispatch here this one is not about the triggerer: everyone standing in the
+ * rain is standing in the same rain, so the merged block is stored on the room and broadcast to
+ * every authorized player. A hero who joins afterwards reads the same block off the welcome, which
+ * is what keeps a late arrival from walking into a different sky than the party they joined.
+ *
+ * `undefined` in a field means "this command did not mention it"; `null` means "back to what the
+ * map itself says". The two are deliberately different, and only this merge sees the difference.
+ */
+export function dispatchAmbience(
+  w: WorldGlue,
+  effect: Extract<DispatchEffect["effect"], { kind: "ambience" }>,
+): void {
+  const next: AmbienceState = {
+    weather: effect.weather === undefined ? w.state.ambience.weather : effect.weather,
+    dayCycle: effect.dayCycle === undefined ? w.state.ambience.dayCycle : effect.dayCycle,
+    music: effect.music === undefined ? w.state.ambience.music : effect.music,
+  };
+  if (
+    next.weather === w.state.ambience.weather &&
+    next.dayCycle === w.state.ambience.dayCycle &&
+    next.music === w.state.ambience.music
+  ) {
+    return;
+  }
+  w.state.ambience = next;
+  for (const [connectionId, player] of w.state.players) {
+    if (!player.authorized) continue;
+    w.deps.send(connectionId, { t: "ambience", ...next });
+  }
+}
+
 /** Port of `#dispatchGold` (`world.ts:4774`): a `changeGold` lands on the triggerer's session
  *  inventory, clamped at zero; a positive grant tells the hero with `loot.picked`. A grant landing
  *  mid-transition is refused with a deduped structured log. */
@@ -1150,6 +1185,8 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         dispatchItems(w, dispatch, effect);
       } else if (effect.kind === "damage") {
         dispatchDamage(w, dispatch, effect, now);
+      } else if (effect.kind === "ambience") {
+        dispatchAmbience(w, effect);
       } else {
         const player = playerById(w.state, dispatch.heroId);
         if (player) {

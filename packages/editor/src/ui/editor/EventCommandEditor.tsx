@@ -1,6 +1,7 @@
 import { Button } from "@alepha/ui/components/ui/button";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
+import { MUSIC_TRACKS, type MusicTrackId } from "@lindocara/engine/audio-catalog.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
   COMMAND_TEXT_MAX,
@@ -16,6 +17,7 @@ import {
 } from "@lindocara/engine/event-commands.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
+import { MAP_WEATHERS, type MapWeather } from "@lindocara/engine/map-weather.js";
 import {
   SOUND_EFFECT_FAMILIES,
   SOUND_EFFECT_IDS,
@@ -77,7 +79,7 @@ type CategoryKey =
   | "control"
   | "character"
   | "party"
-  | "audio"
+  | "ambience"
   | "other";
 
 const COMMAND_CATEGORIES: readonly {
@@ -93,7 +95,7 @@ const COMMAND_CATEGORIES: readonly {
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   { key: "character", kinds: ["teleport", "wait", "damage"] },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
-  { key: "audio", kinds: ["playSound"] },
+  { key: "ambience", kinds: ["playSound", "setMusic", "setWeather", "setDayCycle"] },
   { key: "other", kinds: ["comment"] },
 ];
 
@@ -127,6 +129,14 @@ function defaultCommand(
       const soundId = SOUND_EFFECT_IDS[0];
       return soundId === undefined ? null : { t: "playSound", soundId };
     }
+    // The three ambience commands default to the map's own value, which is the harmless half of
+    // each: dropped in and left alone, they undo an override rather than making one.
+    case "setWeather":
+      return { t: "setWeather", weather: null };
+    case "setDayCycle":
+      return { t: "setDayCycle", cycle: null };
+    case "setMusic":
+      return { t: "setMusic", trackId: null };
     case "setSwitch": {
       const switchId = firstId(ctx.switches);
       return switchId ? { t: "setSwitch", switchId, value: true } : null;
@@ -348,6 +358,22 @@ function commandLine(
       return t("editor.event.cmd.choices", { prompt: command.prompt });
     case "playSound":
       return t("editor.event.cmd.playSound", { sound: command.soundId });
+    case "setWeather":
+      return t("editor.event.cmd.setWeather", {
+        weather: command.weather
+          ? t(`editor.weather.mode.${command.weather}`)
+          : t("editor.event.cmd.ambience.mapDefault"),
+      });
+    case "setDayCycle":
+      return t("editor.event.cmd.setDayCycle", {
+        cycle: command.cycle
+          ? t(`editor.event.cmd.dayCycle.${command.cycle}`)
+          : t("editor.event.cmd.ambience.mapDefault"),
+      });
+    case "setMusic":
+      return t("editor.event.cmd.setMusic", {
+        track: command.trackId ?? t("editor.event.cmd.ambience.mapDefault"),
+      });
     case "setSwitch":
       return t("editor.event.cmd.setSwitch", {
         id: namedEntry(switches, command.switchId),
@@ -823,6 +849,45 @@ function ParamBody({
       return <ChoicesParams command={command} onChange={onChange} />;
     case "playSound":
       return <PlaySoundParams command={command} onChange={onChange} />;
+    case "setWeather":
+      return (
+        <AmbienceParams
+          label={t("editor.event.cmd.field.weather")}
+          value={command.weather ?? ""}
+          options={MAP_WEATHERS.map((weather) => ({
+            value: weather,
+            label: t(`editor.weather.mode.${weather}`),
+          }))}
+          onChange={(value) =>
+            onChange({ ...command, weather: value === "" ? null : (value as MapWeather) })
+          }
+        />
+      );
+    case "setDayCycle":
+      return (
+        <AmbienceParams
+          label={t("editor.event.cmd.field.cycle")}
+          value={command.cycle ?? ""}
+          options={[
+            { value: "day", label: t("editor.event.cmd.dayCycle.day") },
+            { value: "night", label: t("editor.event.cmd.dayCycle.night") },
+          ]}
+          onChange={(value) =>
+            onChange({ ...command, cycle: value === "" ? null : (value as "day" | "night") })
+          }
+        />
+      );
+    case "setMusic":
+      return (
+        <AmbienceParams
+          label={t("editor.event.cmd.field.track")}
+          value={command.trackId ?? ""}
+          options={MUSIC_TRACKS.map((track) => ({ value: track.id, label: track.title }))}
+          onChange={(value) =>
+            onChange({ ...command, trackId: value === "" ? null : (value as MusicTrackId) })
+          }
+        />
+      );
     case "setSwitch":
       return (
         <div className="flex flex-wrap items-end gap-2">
@@ -1260,6 +1325,46 @@ function SayParams({
       <span className="text-right text-[10px] text-zinc-400 tabular-nums">
         {t("editor.event.cmd.field.charCount", { n: command.text.length, max: COMMAND_TEXT_MAX })}
       </span>
+    </div>
+  );
+}
+
+/**
+ * One select for each of the three ambience commands, with the map's own value as the first option
+ * and therefore as the way back. The empty string is that option: `null` cannot be an `<option>`
+ * value, and "" is the one string none of the three vocabularies uses.
+ */
+function AmbienceParams({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly { value: string; label: string }[];
+  onChange(value: string): void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Field label={label}>
+        <FieldSelect
+          aria-label={label}
+          className="w-56"
+          value={value}
+          onChange={(e) => onChange(e.currentTarget.value)}
+        >
+          <option value="">{t("editor.event.cmd.ambience.mapDefault")}</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+        {t("editor.event.cmd.field.ambience.hint")}
+      </p>
     </div>
   );
 }

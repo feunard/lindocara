@@ -45,6 +45,7 @@ import {
   QUEST_REWARD_AMOUNT_MAX,
   QUEST_TITLE_MAX,
 } from "./adventure-state.js";
+import { type AmbienceState, parseAmbienceState } from "./ambience.js";
 import { type AdventureAudioConfig, parseAdventureAudioConfig } from "./audio-catalog.js";
 import { parseBuildingDimensions } from "./buildings.js";
 import {
@@ -758,6 +759,9 @@ export interface WorldInfo {
   gameMode?: AdventureGameMode;
   /** Server-authored class balance and ability availability for this map. */
   heroSettings?: import("./map-hero-settings.js").MapHeroSettings;
+  /** The room's live ambience override. Absent from a server that predates it, and from a room
+   *  nothing has overridden: both mean "the map's own sky, clock and soundtrack". */
+  ambience?: AmbienceState;
   /** Missing preserves compatibility with rooms created before maps could disable their clock. */
   dayNightCycle?: boolean;
   /** Missing keeps disabled legacy maps fixed in daylight. */
@@ -1074,6 +1078,12 @@ export type ServerMessage =
   /** An authored cue for the run's triggerer. `soundId` is a CATALOGUE key, never a path, so this
    *  is a code like every other server message rather than an exception to the rule. */
   | { t: "event.sound"; runId: string; soundId: string }
+  /**
+   * The room's live sky, clock and soundtrack, for EVERY player in it rather than for a triggerer.
+   * Always complete, never a patch: `null` in a field means the map's own value, which is also what
+   * a room that has never been overridden reports.
+   */
+  | ({ t: "ambience" } & AmbienceState)
   | {
       t: "quest.open";
       conversationId: string;
@@ -1956,6 +1966,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     (value.cameraMode === undefined || isAdventureCameraMode(value.cameraMode)) &&
     (value.gameMode === undefined || isAdventureGameMode(value.gameMode)) &&
     (value.heroSettings === undefined || parseMapHeroSettings(value.heroSettings) !== null) &&
+    (value.ambience === undefined || parseAmbienceState(value.ambience) !== null) &&
     (value.dayNightCycle === undefined || typeof value.dayNightCycle === "boolean") &&
     (value.fixedLighting === undefined || parseMapFixedLighting(value.fixedLighting) !== null) &&
     isNpc(value.questNpc) &&
@@ -2588,6 +2599,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     // The id is checked against the catalogue, not merely typed: a frame naming a cue this build
     // does not ship is a frame the client could not play anyway.
     if (value.t === "event.sound" && isWireId(value.runId) && isSoundEffectId(value.soundId)) {
+      return value as unknown as ServerMessage;
+    }
+    if (value.t === "ambience" && parseAmbienceState(value) !== null) {
       return value as unknown as ServerMessage;
     }
     if (

@@ -107,6 +107,24 @@ describe("stepEventRun — the per-opcode table", () => {
     expect(result.context.status).toBe("running");
   });
 
+  it("emits one ambience effect per command, naming only what it changes", () => {
+    // `undefined` is "this command did not mention it" and `null` is "back to the map's own": the
+    // room's merge is the only place that difference matters, so the effects have to keep it.
+    expect(stepEventRun(run([{ t: "setWeather", weather: "storm" }]), state()).effects).toEqual([
+      { kind: "ambience", weather: "storm" },
+    ]);
+    expect(stepEventRun(run([{ t: "setDayCycle", cycle: null }]), state()).effects).toEqual([
+      { kind: "ambience", dayCycle: null },
+    ]);
+    expect(stepEventRun(run([{ t: "setMusic", trackId: "forest-1" }]), state()).effects).toEqual([
+      { kind: "ambience", music: "forest-1" },
+    ]);
+    // None of the three parks the run: they are beats under a page, like a cue.
+    expect(stepEventRun(run([{ t: "setWeather", weather: null }]), state()).context.status).toBe(
+      "running",
+    );
+  });
+
   it("choices offers the labels, stores the count and parks without advancing pc", () => {
     const result = stepEventRun(
       run([

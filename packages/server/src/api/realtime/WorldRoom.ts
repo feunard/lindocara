@@ -2050,6 +2050,9 @@ export class WorldRoom {
       ...(definition.audio === undefined ? {} : { audio: definition.audio }),
       cameraMode: state.cameraMode,
       gameMode: state.gameMode,
+      // The room's live sky, clock and soundtrack. A hero joining a room where a page has already
+      // set the weather must arrive in that weather, not in the map's own.
+      ambience: { ...state.ambience },
       ...(definition.heroSettings === undefined ? {} : { heroSettings: definition.heroSettings }),
       ...(definition.dayNightCycle === undefined
         ? {}

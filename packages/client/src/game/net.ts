@@ -1,3 +1,4 @@
+import type { AmbienceState } from "@lindocara/engine/ambience.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, speedForLife } from "@lindocara/engine/death.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
@@ -180,6 +181,8 @@ export interface ConnectionHandlers {
   onEventClose(runId: string): void;
   /** An authored cue: a catalogue id, resolved to a file by the sound layer. */
   onEventSound(soundId: string): void;
+  /** The room's live sky, clock and soundtrack. Always complete; `null` means the map's own. */
+  onAmbience(ambience: AmbienceState): void;
   onQuestOpen(
     conversationId: string,
     entries: import("@lindocara/engine/protocol.js").QuestDialogueEntry[],
@@ -816,6 +819,14 @@ export class WorldClient {
     }
     if (message.t === "event.sound") {
       handlers.onEventSound(message.soundId);
+      return;
+    }
+    if (message.t === "ambience") {
+      handlers.onAmbience({
+        weather: message.weather,
+        dayCycle: message.dayCycle,
+        music: message.music,
+      });
       return;
     }
     if (message.t === "event.close") {

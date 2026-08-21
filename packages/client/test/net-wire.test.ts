@@ -180,6 +180,7 @@ function handlers(): ConnectionHandlers {
     onEventChoices: vi.fn(),
     onEventClose: vi.fn(),
     onEventSound: vi.fn(),
+    onAmbience: vi.fn(),
     onQuestOpen: vi.fn(),
     onQuestResult: vi.fn(),
     onQuestClose: vi.fn(),

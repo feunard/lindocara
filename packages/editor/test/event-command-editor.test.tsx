@@ -407,9 +407,9 @@ describe("EventCommandEditor", () => {
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
     // The core event language plus the authored quest/fact commands, the endAdventure beat, the
-    // `openShop` counter, the reusable damage trap and the authored cue; deferred common-event and
-    // screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(23);
+    // `openShop` counter, the reusable damage trap, the authored cue and the three ambience
+    // commands; deferred common-event and screen commands remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(26);
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
     ).toBeEnabled();
@@ -418,6 +418,22 @@ describe("EventCommandEditor", () => {
     ).toBeEnabled();
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
+  });
+
+  it("authors the sky, the clock and the soundtrack, each with the map's own as the way back", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness latest={latest} />);
+
+    // Dropped in and left alone, an ambience command is harmless: it says "the map's own value".
+    await insertVia(user, "setWeather")();
+    expect(latest.current).toEqual([{ t: "setWeather", weather: null }]);
+
+    const weather = screen.getByRole("combobox", { name: t("editor.event.cmd.field.weather") });
+    await user.selectOptions(weather, "storm");
+    expect(latest.current).toEqual([{ t: "setWeather", weather: "storm" }]);
+    await user.selectOptions(weather, "");
+    expect(latest.current).toEqual([{ t: "setWeather", weather: null }]);
   });
 
   it("authors a cue from the catalogue, grouped by what it is for", async () => {
