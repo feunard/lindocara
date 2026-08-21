@@ -72,7 +72,7 @@ export function presetPageContent(
         ],
       };
     case "sign":
-      return { trigger: "action", commands: [{ t: "say", text: "", name: null }] };
+      return { trigger: "action", commands: [{ t: "say", text: "" }] };
     case "chest":
       return { trigger: "action", commands: [{ t: "changeGold", amount: CHEST_DEFAULT_GOLD }] };
     case "trap":

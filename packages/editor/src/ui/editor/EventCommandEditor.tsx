@@ -107,11 +107,10 @@ function defaultCommand(
 ): EventCommand | null {
   switch (kind) {
     case "say":
-      return {
-        t: "say",
-        text: "",
-        name: ctx.defaultSpeakerName?.trim() || null,
-      };
+      // No `name` at all: the line follows the event's own, which is what makes renaming the
+      // character rename its dialogue. A copy taken here would freeze at creation, which is exactly
+      // what the author was retyping around.
+      return { t: "say", text: "" };
     case "choices":
       return { t: "choices", prompt: "", options: [{ label: "", body: [] }] };
     case "setSwitch": {
@@ -319,12 +318,18 @@ function commandLine(
   switches: readonly RegistryEntry[],
   variables: readonly RegistryEntry[],
   quests: readonly AuthoredQuestDefinition[],
+  defaultSpeakerName?: string | undefined,
 ): string {
   switch (command.t) {
-    case "say":
-      return command.name
-        ? t("editor.event.cmd.say.named", { name: command.name, text: command.text })
+    case "say": {
+      // The RESOLVED speaker, the same one the runtime will show: a line that names nobody is read
+      // under the event's own name, so the list says what the player will hear.
+      const speaker =
+        command.name === undefined ? (defaultSpeakerName?.trim() ?? "") : (command.name ?? "");
+      return speaker
+        ? t("editor.event.cmd.say.named", { name: speaker, text: command.text })
         : t("editor.event.cmd.say", { text: command.text });
+    }
     case "choices":
       return t("editor.event.cmd.choices", { prompt: command.prompt });
     case "setSwitch":
@@ -623,6 +628,7 @@ export function EventCommandEditor({
             switches={switches}
             variables={variables}
             quests={quests}
+            defaultSpeakerName={defaultSpeakerName}
             selected={row.selection !== null && selectionsEqual(row.selection, selection)}
             onSelect={() => {
               if (row.selection) {
@@ -651,6 +657,7 @@ export function EventCommandEditor({
             quests={quests}
             maps={maps}
             onChange={replaceSelected}
+            defaultSpeakerName={defaultSpeakerName}
           />
         ) : (
           <p className="text-[11.5px] text-zinc-400">{t("editor.event.cmd.selectHint")}</p>
@@ -668,12 +675,14 @@ function CommandRowView({
   quests,
   selected,
   onSelect,
+  defaultSpeakerName,
 }: {
   row: CommandRow;
   maps: readonly TeleportMap[];
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
   quests: readonly AuthoredQuestDefinition[];
+  defaultSpeakerName?: string | undefined;
   selected: boolean;
   onSelect(): void;
 }) {
@@ -707,13 +716,13 @@ function CommandRowView({
         type="button"
         style={indent}
         aria-pressed={selected}
-        aria-label={commandLine(row.command, maps, switches, variables, quests)}
+        aria-label={commandLine(row.command, maps, switches, variables, quests, defaultSpeakerName)}
         onClick={onSelect}
         className={`block w-full rounded px-1 py-0.5 text-left whitespace-pre-wrap ${
           selected ? "bg-indigo-100 text-indigo-800" : "text-zinc-700 hover:bg-zinc-200/60"
         }`}
       >
-        • {commandLine(row.command, maps, switches, variables, quests)}
+        • {commandLine(row.command, maps, switches, variables, quests, defaultSpeakerName)}
       </button>
     );
   }
@@ -743,6 +752,7 @@ function ParamEditor({
   quests,
   maps,
   onChange,
+  defaultSpeakerName,
 }: {
   command: EventCommand;
   switches: readonly RegistryEntry[];
@@ -750,6 +760,7 @@ function ParamEditor({
   quests: readonly AuthoredQuestDefinition[];
   maps: readonly TeleportMap[];
   onChange(command: EventCommand): void;
+  defaultSpeakerName?: string | undefined;
 }) {
   const label = t(`editor.event.cmd.new.${command.t}`);
   return (
@@ -764,6 +775,7 @@ function ParamEditor({
         quests={quests}
         maps={maps}
         onChange={onChange}
+        defaultSpeakerName={defaultSpeakerName}
       />
     </div>
   );
@@ -776,6 +788,7 @@ function ParamBody({
   quests,
   maps,
   onChange,
+  defaultSpeakerName,
 }: {
   command: EventCommand;
   switches: readonly RegistryEntry[];
@@ -783,10 +796,13 @@ function ParamBody({
   quests: readonly AuthoredQuestDefinition[];
   maps: readonly TeleportMap[];
   onChange(command: EventCommand): void;
+  defaultSpeakerName?: string | undefined;
 }) {
   switch (command.t) {
     case "say":
-      return <SayParams command={command} onChange={onChange} />;
+      return (
+        <SayParams command={command} onChange={onChange} defaultSpeakerName={defaultSpeakerName} />
+      );
     case "choices":
       return <ChoicesParams command={command} onChange={onChange} />;
     case "setSwitch":
@@ -1155,28 +1171,62 @@ function QuestProgressParams({
   );
 }
 
+/** The three states of an authored speaker, as one select: inherit the event's name, nobody, or a
+ *  name for this line alone. The stored shape is `name` absent / `null` / a string. */
+function speakerMode(command: Extract<EventCommand, { t: "say" }>): "inherit" | "none" | "custom" {
+  if (command.name === undefined) return "inherit";
+  return command.name === null ? "none" : "custom";
+}
+
 function SayParams({
   command,
   onChange,
+  defaultSpeakerName,
 }: {
   command: Extract<EventCommand, { t: "say" }>;
   onChange(command: EventCommand): void;
+  defaultSpeakerName?: string | undefined;
 }) {
+  const mode = speakerMode(command);
+  const eventName = defaultSpeakerName?.trim() ?? "";
   return (
     <div className="flex flex-col gap-2">
       <Field label={t("editor.event.cmd.field.name")}>
-        <input
+        <FieldSelect
           aria-label={t("editor.event.cmd.field.name")}
+          className="w-56"
+          value={mode}
+          onChange={(e) => {
+            const next = e.currentTarget.value;
+            if (next === "inherit") {
+              const { name: _dropped, ...rest } = command;
+              onChange(rest);
+            } else if (next === "none") {
+              onChange({ ...command, name: null });
+            } else {
+              onChange({ ...command, name: eventName || " " });
+            }
+          }}
+        >
+          <option value="inherit">
+            {eventName
+              ? t("editor.event.cmd.speaker.inherit", { name: eventName })
+              : t("editor.event.cmd.speaker.inherit.unnamed")}
+          </option>
+          <option value="none">{t("editor.event.cmd.speaker.none")}</option>
+          <option value="custom">{t("editor.event.cmd.speaker.custom")}</option>
+        </FieldSelect>
+      </Field>
+      {mode === "custom" && (
+        <input
+          aria-label={t("editor.event.cmd.speaker.custom")}
           className="h-7 w-44 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           maxLength={COMMAND_TEXT_MAX}
           placeholder={t("editor.event.cmd.field.name.placeholder")}
           value={command.name ?? ""}
-          onChange={(e) => {
-            const name = e.currentTarget.value;
-            onChange({ ...command, name: name === "" ? null : name });
-          }}
+          onChange={(e) => onChange({ ...command, name: e.currentTarget.value })}
         />
-      </Field>
+      )}
       <p className="text-[10.5px] leading-relaxed text-muted-foreground">
         {t("editor.event.cmd.field.name.hint")}
       </p>

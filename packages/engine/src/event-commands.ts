@@ -113,7 +113,21 @@ export interface ChoiceOption {
  * because the author wrote it and no dictionary can hold it (spec Decision 4).
  */
 export type EventCommand =
-  | { readonly t: "say"; readonly text: string; readonly name: string | null }
+  /**
+   * One line of authored dialogue.
+   *
+   * `name` is the speaker, and it has THREE states rather than two, which is what lets an author
+   * name a character once instead of on every line:
+   *
+   * - **absent** - the event's own name speaks the line. The common case, and the default a new
+   *   line is created in, so renaming the NPC renames its dialogue.
+   * - **`null`** - nobody speaks it: narration, a sign, a thought.
+   * - **a string** - this line only, someone else. A second character answering inside one page.
+   *
+   * Every line stored before this carried an explicit `name`, so nothing authored changed meaning
+   * when the third state appeared.
+   */
+  | { readonly t: "say"; readonly text: string; readonly name?: string | null }
   | { readonly t: "choices"; readonly prompt: string; readonly options: readonly ChoiceOption[] }
   | { readonly t: "setSwitch"; readonly switchId: string; readonly value: boolean }
   | {
@@ -236,14 +250,14 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
     case "say": {
       const text = parseText(record.text);
       if (text === null) return null;
-      // `name` is the optional speaker label: absent/null means an unattributed line. A present
-      // name must be a string within the text bound; anything else fails the whole command.
-      let name: string | null = null;
-      if (record.name !== null && record.name !== undefined) {
-        if (typeof record.name !== "string") return null;
-        name = parseText(record.name);
-        if (name === null) return null;
-      }
+      // The three states of a speaker (see the union): the KEY's absence is meaningful here, so it
+      // is preserved rather than folded into `null`. An explicit `null` still means narration, and
+      // a present name must be a string within the text bound.
+      if (record.name === undefined) return { t: "say", text };
+      if (record.name === null) return { t: "say", text, name: null };
+      if (typeof record.name !== "string") return null;
+      const name = parseText(record.name);
+      if (name === null) return null;
       return { t: "say", text, name };
     }
     case "choices": {

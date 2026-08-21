@@ -72,9 +72,9 @@ export function ObjectBindingDialog({
   const bind = (): void => {
     const commands: EventCommand[] = [];
     let once = false;
-    if (kind === "dialogue") commands.push({ t: "say", name: name || null, text: "" });
+    if (kind === "dialogue") commands.push({ t: "say", text: "" });
     if (kind === "loot") {
-      commands.push({ t: "say", name: null, text: "" }, { t: "changeGold", amount });
+      commands.push({ t: "say", text: "" }, { t: "changeGold", amount });
       once = true;
     }
     const selectedObjective = matchingObjectives.find((objective) => objective.id === objectiveId);

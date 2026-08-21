@@ -20,6 +20,10 @@ const UUID = "11111111-1111-4111-8111-111111111111";
 const ONE_OF_EACH: EventCommand[] = [
   { t: "say", text: "Bonjour", name: "Mira" },
   { t: "say", text: "", name: null },
+  // No `name` key at all: the third state, and the one a new line is authored in. It has to
+  // survive the round trip as an ABSENCE, since folding it into `null` would turn every line that
+  // follows its event's name into narration.
+  { t: "say", text: "Sans locuteur declare" },
   {
     t: "choices",
     prompt: "Ouvrir ?",

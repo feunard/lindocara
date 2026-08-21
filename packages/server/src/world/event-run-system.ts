@@ -135,6 +135,9 @@ export function startRun(runtime: EventRunRuntime, params: StartRunParams): bool
       pageIndex: params.pageIndex,
       heroId: params.heroId,
       program: params.program,
+      // The event's name IS the speaker of any line that does not name one: this is the whole of
+      // "set the NPC's name once" on the runtime side.
+      speaker: params.event.name,
     }),
   );
   return true;

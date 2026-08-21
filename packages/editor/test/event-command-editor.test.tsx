@@ -74,29 +74,58 @@ describe("EventCommandEditor", () => {
     await insert("breakLoop");
 
     expect(latest.current).toEqual([
-      { t: "say", text: "", name: null },
+      { t: "say", text: "" },
       {
         t: "if",
         cond: { type: "selfSwitch", selfSwitch: "A" },
-        then: [{ t: "say", text: "", name: null }],
+        then: [{ t: "say", text: "" }],
         else: [],
       },
       { t: "loop", body: [{ t: "breakLoop" }] },
     ]);
   });
 
-  it("prefills a new dialogue line with the speaking event's name", async () => {
+  it("leaves a new dialogue line following the event's name instead of copying it", async () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };
     render(<Harness defaultSpeakerName="Warden Mira" latest={latest} />);
 
     await insertVia(user, "say")();
 
-    expect(latest.current).toEqual([{ t: "say", text: "", name: "Warden Mira" }]);
-    expect(screen.getByRole("textbox", { name: t("editor.event.cmd.field.name") })).toHaveValue(
-      "Warden Mira",
-    );
+    // No `name` at all: the copy is what used to freeze at creation, so renaming the event left
+    // every existing line saying the old name.
+    expect(latest.current).toEqual([{ t: "say", text: "" }]);
+    const speaker = screen.getByRole("combobox", { name: t("editor.event.cmd.field.name") });
+    expect(speaker).toHaveValue("inherit");
+    expect(
+      screen.getByRole("option", {
+        name: t("editor.event.cmd.speaker.inherit", { name: "Warden Mira" }),
+      }),
+    ).toBeInTheDocument();
+    // The list line still shows who will speak it, resolved the way the runtime resolves it.
+    expect(screen.getByRole("button", { name: /Warden Mira:/ })).toBeInTheDocument();
     expect(screen.getByText(t("editor.event.cmd.field.name.hint"))).toBeVisible();
+  });
+
+  it("gives one line a different speaker, and another none at all", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness defaultSpeakerName="Warden Mira" latest={latest} />);
+
+    await insertVia(user, "say")();
+    const speaker = screen.getByRole("combobox", { name: t("editor.event.cmd.field.name") });
+
+    await user.selectOptions(speaker, "none");
+    expect(latest.current).toEqual([{ t: "say", text: "", name: null }]);
+
+    await user.selectOptions(speaker, "custom");
+    const override = screen.getByRole("textbox", { name: t("editor.event.cmd.speaker.custom") });
+    await user.clear(override);
+    await user.type(override, "The wind");
+    expect(latest.current).toEqual([{ t: "say", text: "", name: "The wind" }]);
+
+    await user.selectOptions(speaker, "inherit");
+    expect(latest.current).toEqual([{ t: "say", text: "" }]);
   });
 
   it("authors an editable lethal damage action", async () => {
@@ -300,7 +329,7 @@ describe("EventCommandEditor", () => {
     };
     expect(choices.options[0]?.body).toEqual([]);
     expect(choices.options[1]?.label).toBe("Yes");
-    expect(choices.options[1]?.body).toEqual([{ t: "say", text: "", name: null }]);
+    expect(choices.options[1]?.body).toEqual([{ t: "say", text: "" }]);
 
     // Re-select the choices command (nesting the say moved the selection into option 2's branch),
     // then remove option 1 — the remaining option keeps its nested say.

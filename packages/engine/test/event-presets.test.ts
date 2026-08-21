@@ -36,7 +36,7 @@ describe("presetPageContent", () => {
   it("sign carries an interact-triggered say; chest a changeGold", () => {
     expect(presetPageContent("sign", MAP_ID)).toEqual({
       trigger: "action",
-      commands: [{ t: "say", text: "", name: null }],
+      commands: [{ t: "say", text: "" }],
     });
     expect(presetPageContent("chest", MAP_ID).commands).toEqual([{ t: "changeGold", amount: 10 }]);
   });

@@ -92,6 +92,12 @@ export type RunStatus = "running" | "waiting-advance" | "waiting-choice" | "wait
 export interface RunContext {
   readonly runId: string;
   readonly eventId: string;
+  /**
+   * Who speaks a line that does not name a speaker: the event's own name, trimmed, or `null` for an
+   * event with no name at all. Resolved once when the run starts rather than per line, because it
+   * cannot change while the run is on screen, and carried on the context so the stepper stays pure.
+   */
+  readonly speaker: string | null;
   readonly pageIndex: number;
   readonly heroId: string;
   readonly frames: readonly Frame[];
@@ -253,10 +259,13 @@ export function startEventRun(params: {
   readonly pageIndex: number;
   readonly heroId: string;
   readonly program: readonly EventCommand[];
+  /** The event's own name. An empty one is no name at all, exactly as the editor treats it. */
+  readonly speaker?: string | null;
 }): RunContext {
   return {
     runId: params.runId,
     eventId: params.eventId,
+    speaker: params.speaker?.trim() || null,
     pageIndex: params.pageIndex,
     heroId: params.heroId,
     frames: [{ commands: params.program, pc: 0, kind: "body" }],
@@ -350,7 +359,16 @@ function executeCommand(
           pendingChoices: null,
           resumeAtTick: null,
         },
-        effects: [{ kind: "say", text: command.text, name: command.name }],
+        // The three states of an authored speaker collapse here, and nowhere else: an absent name
+        // is the event speaking under its own, an explicit `null` is narration, a string is this
+        // line only. Everything downstream (the wire, the panel) sees one resolved value.
+        effects: [
+          {
+            kind: "say",
+            text: command.text,
+            name: command.name === undefined ? context.speaker : command.name,
+          },
+        ],
       };
     case "choices":
       return {

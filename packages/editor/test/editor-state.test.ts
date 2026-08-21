@@ -1544,7 +1544,7 @@ describe("applyTool: event placement", () => {
       6,
       6,
     ) as EditorMap;
-    expect(sign.events[0]?.pages[0]?.commands).toEqual([{ t: "say", text: "", name: null }]);
+    expect(sign.events[0]?.pages[0]?.commands).toEqual([{ t: "say", text: "" }]);
     const chest = place(
       base,
       { kind: "event", eventKind: "normal", preset: "chest" },

@@ -36,13 +36,14 @@ import { describe, expect, it } from "vitest";
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
 const MAP_ID = "22222222-2222-4222-8222-222222222222";
 
-function run(program: readonly EventCommand[]): RunContext {
+function run(program: readonly EventCommand[], speaker?: string | null): RunContext {
   return startEventRun({
     runId: "run-1",
     eventId: EVENT_ID,
     pageIndex: 0,
     heroId: "hero-1",
     program,
+    ...(speaker === undefined ? {} : { speaker }),
   });
 }
 
@@ -72,6 +73,30 @@ describe("stepEventRun — the per-opcode table", () => {
     const result = stepEventRun(run([{ t: "say", text: "Bonjour", name: "Mira" }]), state());
     expect(result.effects).toEqual([{ kind: "say", text: "Bonjour", name: "Mira" }]);
     expect(result.context.status).toBe("waiting-advance");
+  });
+
+  it("reads an unattributed line under the event's own name", () => {
+    // The whole of "name the NPC once": a line that names no speaker is spoken by the event, so
+    // renaming the event renames its dialogue instead of leaving copies behind.
+    const result = stepEventRun(run([{ t: "say", text: "Bonjour" }], "Mira"), state());
+    expect(result.effects).toEqual([{ kind: "say", text: "Bonjour", name: "Mira" }]);
+  });
+
+  it("keeps narration voiceless, and an override on the line that carries it", () => {
+    // An explicit `null` is not "no name yet", it is "nobody says this": a sign, a thought.
+    expect(
+      stepEventRun(run([{ t: "say", text: "Une plaque", name: null }], "Mira"), state()).effects,
+    ).toEqual([{ kind: "say", text: "Une plaque", name: null }]);
+    // And a second voice inside one page still speaks for itself.
+    expect(
+      stepEventRun(run([{ t: "say", text: "Halte !", name: "Le garde" }], "Mira"), state()).effects,
+    ).toEqual([{ kind: "say", text: "Halte !", name: "Le garde" }]);
+  });
+
+  it("leaves a line voiceless when the event itself has no name", () => {
+    expect(stepEventRun(run([{ t: "say", text: "…" }], "   "), state()).effects).toEqual([
+      { kind: "say", text: "…", name: null },
+    ]);
   });
 
   it("choices offers the labels, stores the count and parks without advancing pc", () => {
