@@ -78,12 +78,12 @@ export const AdminKeysTokenDialog = (props: AdminKeysTokenDialogProps) => {
           <DialogDescription>
             {tr("admin.keys.tokenDescription", {
               default:
-                "Copy this token now — it is shown only once and cannot be recovered.",
+                "Copy this token now: it is shown only once and cannot be recovered.",
             })}
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-start gap-2">
-          <code className="bg-muted min-w-0 flex-1 break-all rounded-md p-3 font-mono text-xs leading-relaxed">
+          <code className="bg-muted min-w-0 flex-1 rounded-md p-3 font-mono text-xs leading-relaxed break-all">
             {props.token}
           </code>
           <TooltipProvider>

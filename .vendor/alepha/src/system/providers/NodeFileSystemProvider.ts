@@ -2,6 +2,7 @@ import { constants, createReadStream } from "node:fs";
 import {
   access,
   copyFile,
+  appendFile as fsAppendFile,
   cp as fsCp,
   mkdir as fsMkdir,
   readFile as fsReadFile,
@@ -13,6 +14,7 @@ import {
 import { basename, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeWebStream } from "node:stream/web";
+
 import {
   $inject,
   AlephaError,
@@ -22,6 +24,7 @@ import {
   type StreamLike,
 } from "alepha";
 import { DateTimeProvider } from "alepha/datetime";
+
 import { FileDetector } from "../services/FileDetector.ts";
 import type {
   CpOptions,
@@ -445,6 +448,25 @@ export class NodeFileSystemProvider implements FileSystemProvider {
       return;
     }
     await fsWriteFile(path, data);
+  }
+
+  /**
+   * Appends data to a file, creating it when it does not exist.
+   *
+   * @param path - The file path to append to
+   * @param data - The data to append (Buffer or string)
+   *
+   * @example
+   * ```typescript
+   * const fs = alepha.inject(NodeFileSystemProvider);
+   * await fs.appendFile("/tmp/app.log", "one more line\n");
+   * ```
+   */
+  async appendFile(
+    path: string,
+    data: Uint8Array | Buffer | string,
+  ): Promise<void> {
+    await fsAppendFile(path, data);
   }
 
   /**

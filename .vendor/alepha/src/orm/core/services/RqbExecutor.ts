@@ -1,6 +1,7 @@
 import { $inject, Alepha, AlephaError } from "alepha";
 import { $logger } from "alepha/logger";
 import { defineRelations } from "drizzle-orm";
+
 import type { EntityPrimitive } from "../primitives/$entity.ts";
 import type {
   EntitySchema,
@@ -625,7 +626,7 @@ export class RqbExecutor {
     );
   }
 
-  protected databaseClassOf(provider: DatabaseProvider): any | undefined {
+  protected databaseClassOf(provider: DatabaseProvider): any {
     const connection = provider.db as any;
     if (!connection) return undefined;
 

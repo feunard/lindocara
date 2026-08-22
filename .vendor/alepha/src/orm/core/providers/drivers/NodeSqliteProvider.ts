@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+
 import {
   $atom,
   $env,
@@ -17,6 +18,7 @@ import { BetterSQLiteSession } from "drizzle-orm/better-sqlite3/session";
 import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 import { SQLiteAsyncDatabase } from "drizzle-orm/sqlite-core/async/db";
 import { SQLiteDialect } from "drizzle-orm/sqlite-core/dialect";
+
 import { DbError } from "../../errors/DbError.ts";
 import { databaseEnvSchema } from "../../schemas/databaseEnvSchema.ts";
 import { SqliteModelBuilder } from "../../services/SqliteModelBuilder.ts";
@@ -29,6 +31,8 @@ import { DatabaseProvider, type SQLLike } from "./DatabaseProvider.ts";
 
 (() => {
   if (process?.emit) {
+    // Captured to be restored, never called through this binding.
+    // oxlint-disable-next-line typescript/unbound-method
     const originalEmit = process.emit;
     process.emit = (event: any, warning: any, ...args: any[]) => {
       if (

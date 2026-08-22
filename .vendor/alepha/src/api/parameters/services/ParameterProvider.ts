@@ -19,6 +19,7 @@ import {
   tenancyAtom,
 } from "alepha/security";
 import { $topic } from "alepha/topic";
+
 import { type Parameter, parameters } from "../entities/parameters.ts";
 import type { ParameterPrimitive } from "../primitives/$parameter.ts";
 import type { ParameterStatus } from "../schemas/parameterStatusSchema.ts";
@@ -446,12 +447,12 @@ export class ParameterProvider {
     const pastVersions = sorted.filter(
       (v) => new Date(v.activationDate) <= effectiveNow,
     );
-    const futureVersions = sorted.filter(
+    const nextVersionCandidate = sorted.find(
       (v) => new Date(v.activationDate) > effectiveNow,
     );
 
     const currentVersion = pastVersions[pastVersions.length - 1];
-    const nextVersion = futureVersions[0];
+    const nextVersion = nextVersionCandidate;
 
     return sorted.map((v) => {
       let status: ParameterStatus;
@@ -750,8 +751,8 @@ export class ParameterProvider {
   public async getCurrentWithDefault(name: string): Promise<{
     current: ParameterWithStatus | null;
     next: ParameterWithStatus | null;
-    defaultValue: unknown | null;
-    currentValue: unknown | null;
+    defaultValue: unknown;
+    currentValue: unknown;
     schema: Record<string, unknown> | null;
     description: string | null;
   }> {

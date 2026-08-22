@@ -1,8 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
 import { $inject, $store, z } from "alepha";
 import { $command } from "alepha/command";
 import { $logger } from "alepha/logger";
+
 import {
   changelogOptions,
   DEFAULT_TYPES,
@@ -176,9 +178,9 @@ export class ChangelogCommand {
     const tags = tagsOutput
       .trim()
       .split("\n")
-      .filter((tag) => tag.match(/^\d+\.\d+\.\d+$/));
+      .find((tag) => tag.match(/^\d+\.\d+\.\d+$/));
 
-    return tags[0] || null;
+    return tags || null;
   }
 
   // ---------------------------------------------------------------------------

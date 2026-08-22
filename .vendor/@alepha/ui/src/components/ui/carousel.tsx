@@ -94,6 +94,9 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return;
+    // Reads the initial state of the Embla carousel instance and subscribes to
+    // it. The instance is created by a ref callback, so it exists only here.
+    // oxlint-disable-next-line react/set-state-in-effect
     onSelect(api);
     api.on("reInit", onSelect);
     api.on("select", onSelect);
@@ -103,20 +106,34 @@ function Carousel({
     };
   }, [api, onSelect]);
 
+  // Memoised so every consumer of the context does not re-render on each
+  // render of this provider. Re-apply after `yarn w @alepha/ui sync`.
+  const contextValue = React.useMemo(
+    () => ({
+      carouselRef,
+      api: api,
+      opts,
+      orientation:
+        orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
+      scrollPrev,
+      scrollNext,
+      canScrollPrev,
+      canScrollNext,
+    }),
+    [
+      carouselRef,
+      api,
+      opts,
+      orientation,
+      scrollPrev,
+      scrollNext,
+      canScrollPrev,
+      canScrollNext,
+    ],
+  );
+
   return (
-    <CarouselContext.Provider
-      value={{
-        carouselRef,
-        api: api,
-        opts,
-        orientation:
-          orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
-        scrollPrev,
-        scrollNext,
-        canScrollPrev,
-        canScrollNext,
-      }}
-    >
+    <CarouselContext.Provider value={contextValue}>
       <div
         onKeyDownCapture={handleKeyDown}
         className={cn("relative", className)}

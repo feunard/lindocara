@@ -41,6 +41,7 @@ import {
   UserX,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+
 import { PROVIDER_LABELS } from "../auth/provider-labels.ts";
 import { passwordSchema } from "./admin-user-detail-password-schema.ts";
 import {
@@ -271,7 +272,6 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
       emailVerified: user.emailVerified ?? false,
       roles: user.roles ?? [],
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userQuery.data]);
 
   // -- Set password ---------------------------------------------------------
@@ -538,7 +538,7 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
           <>
             <Button
               variant="outline"
-              size="sm"
+              size="lg"
               loading={toggleEnabled.loading}
               disabled={isSelf}
               onClick={() => toggleEnabled.run()}
@@ -557,7 +557,7 @@ export const AdminUserDetail = (props: AdminUserDetailProps) => {
             </Button>
             <Button
               variant="destructive"
-              size="sm"
+              size="lg"
               loading={deleteUser.loading}
               disabled={isSelf}
               onClick={() => deleteUser.run()}

@@ -2,11 +2,13 @@ import { createReadStream } from "node:fs";
 import { access, readdir, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, sep } from "node:path";
 import type { Readable as NodeStream } from "node:stream";
+
 import { $hook, $inject, Alepha } from "alepha";
 import { DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
 import { type ServerHandler, ServerRouterProvider } from "alepha/server";
 import { FileDetector } from "alepha/system";
+
 import { $serve, type ServePrimitiveOptions } from "../primitives/$serve.ts";
 
 export class ServerStaticProvider {
@@ -267,7 +269,7 @@ export class ServerStaticProvider {
     const entries = await readdir(dir, { withFileTypes: true });
 
     const files = await Promise.all(
-      entries.map((dirent) => {
+      entries.map(async (dirent) => {
         // skip .env & other dot files
         if (ignoreDotEnvFiles && dirent.name.startsWith(".")) {
           return [];

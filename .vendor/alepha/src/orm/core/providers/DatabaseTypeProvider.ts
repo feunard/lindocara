@@ -12,6 +12,7 @@ import {
   z,
 } from "alepha";
 import type { UpdateDeleteAction } from "drizzle-orm/pg-core/foreign-keys";
+
 import {
   PG_CREATED_AT,
   PG_DEFAULT,
@@ -142,7 +143,9 @@ export class DatabaseTypeProvider {
       >;
     }
 
-    throw new AlephaError(`Unsupported type for primary key: ${type}`);
+    throw new AlephaError(
+      `Unsupported type for primary key: ${JSON.stringify(type)}`,
+    );
   }
 
   /**

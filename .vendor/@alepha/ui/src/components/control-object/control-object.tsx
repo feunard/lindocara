@@ -2,11 +2,11 @@ import * as React from "react";
 
 void React;
 
+import { spanClass, widthFor } from "@alepha/ui/components/control-base/grid";
 import {
   Control,
   type ControlProps,
 } from "@alepha/ui/components/control/control";
-import { spanClass, widthFor } from "@alepha/ui/components/control-base/grid";
 import { Button } from "@alepha/ui/components/ui/button";
 import { type ZObject, z } from "alepha";
 import {
@@ -19,6 +19,7 @@ import {
 import { useI18n } from "alepha/react/i18n";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+
 import {
   childI18nPrefix,
   resolveFieldI18n,
@@ -93,12 +94,12 @@ export function ControlObject(props: ControlObjectProps) {
     | undefined;
 
   const grid = (
-    <div className="grid gap-3 grid-cols-12">
+    <div className="grid grid-cols-12 gap-3">
       {fieldNames.map((name) => {
         const field = nestedItems?.[name];
         if (!field) return null;
         const fieldProps = {
-          ...(props.controlProps?.[name] ?? {}),
+          ...props.controlProps?.[name],
           ...resolveFieldI18n(
             tr as never,
             props.i18nPrefix,
@@ -153,9 +154,9 @@ export function ControlObject(props: ControlObjectProps) {
         ) : (
           <div className="size-8 shrink-0" />
         )}
-        <div className="flex flex-col min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           {meta.label && (
-            <legend className="text-sm font-medium leading-tight">
+            <legend className="text-sm leading-tight font-medium">
               {meta.label}
               {meta.required && (
                 <span className="text-destructive ml-0.5">*</span>

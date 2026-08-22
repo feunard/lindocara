@@ -2,6 +2,7 @@ import type { ZObject } from "alepha";
 import { useAlepha } from "alepha/react";
 import { useRouter, useRouterState } from "alepha/react/router";
 import { useEffect, useRef } from "react";
+
 import type { FormModel } from "../services/FormModel.ts";
 
 export interface UseFormQuerySyncOptions<TKey extends string> {
@@ -102,7 +103,6 @@ export const useFormQuerySync = <T extends ZObject, TKey extends string>(
       }));
     }
     // querySig is the meaningful trigger; form/keys/router are stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [querySig]);
 
   // form → URL. Listen for changes on the watched keys only.
@@ -134,6 +134,5 @@ export const useFormQuerySync = <T extends ZObject, TKey extends string>(
       });
     });
     return off;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alepha, form, router]);
 };

@@ -29,7 +29,7 @@ import {
 } from "alepha/react/form";
 import { useI18n } from "alepha/react/i18n";
 import { Loader2 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 
 export type SelectOption =
   | string
@@ -235,18 +235,21 @@ export function ControlSelect(props: ControlSelectProps) {
     props.input.initialValue,
   );
 
-  const [staticData, setStaticData] = useState<SelectOption[]>([]);
   const enumKey = enumValues.map(optValue).join("");
   const min = meta.constraints.minimum;
   const max = meta.constraints.maximum;
-  useEffect(() => {
-    if (effectiveLoader) return;
+  // Derived, not stored: this is a pure function of the schema. As state
+  // filled in by an effect, the first paint of every boolean or ranged select
+  // was an EMPTY list, corrected one render later.
+  const staticData = useMemo<SelectOption[]>(() => {
+    if (effectiveLoader) return [];
     if (isBoolean && enumValues.length === 0) {
-      setStaticData([
+      return [
         { value: "true", label: tr("controlSelect.yes", { default: "Yes" }) },
         { value: "false", label: tr("controlSelect.no", { default: "No" }) },
-      ]);
-    } else if (
+      ];
+    }
+    if (
       isNumeric &&
       enumValues.length === 0 &&
       typeof min === "number" &&
@@ -255,10 +258,9 @@ export function ControlSelect(props: ControlSelectProps) {
     ) {
       const range: SelectOption[] = [];
       for (let i = min; i <= max; i++) range.push(String(i));
-      setStaticData(range);
-    } else {
-      setStaticData(enumValues);
+      return range;
     }
+    return enumValues;
   }, [effectiveLoader, enumKey, isBoolean, isNumeric, min, max, tr]);
 
   const data = effectiveLoader ? asyncData : staticData;
@@ -451,7 +453,10 @@ function Combobox(props: ComboboxProps) {
       ? (props.value as unknown[]).map(String)
       : []
     : props.value != null
-      ? [String(props.value)]
+      ? // Coercion at a boundary: the value is a form/route/chart primitive whose
+        // declared type is wider than what can reach here.
+        // oxlint-disable-next-line typescript/no-base-to-string
+        [String(props.value)]
       : [];
 
   const labelFor = (val: string) =>
@@ -600,14 +605,14 @@ function Combobox(props: ComboboxProps) {
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-1.5">
                   {opt.tag && (
-                    <span className="bg-muted text-muted-foreground rounded px-1 text-[10px] uppercase tracking-wide">
+                    <span className="bg-muted text-muted-foreground rounded px-1 text-[10px] tracking-wide uppercase">
                       {opt.tag}
                     </span>
                   )}
                   <span className="truncate">{opt.label}</span>
                 </div>
                 {opt.description && (
-                  <span className="text-muted-foreground text-xs truncate">
+                  <span className="text-muted-foreground truncate text-xs">
                     {opt.description}
                   </span>
                 )}
@@ -685,7 +690,7 @@ function Combobox(props: ComboboxProps) {
             id={props.id}
             disabled={props.disabled}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 dark:hover:bg-input/50",
+              "border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50",
               // Muted means "nothing chosen yet", which is only true without
               // a clear row. WITH one, empty is a selected value — the popup
               // already puts the check mark on it (see `cbValue`), and the
@@ -750,7 +755,13 @@ const useAsyncLoader = (
           cache.current.set("", result);
           setData(result);
 
+          // Coercion at a boundary: the value is a form/route/chart primitive whose
+          // declared type is wider than what can reach here.
+          // oxlint-disable-next-line typescript/no-base-to-string
           if (!isShort && defaultValue != null && String(defaultValue) !== "") {
+            // Coercion at a boundary: the value is a form/route/chart primitive whose
+            // declared type is wider than what can reach here.
+            // oxlint-disable-next-line typescript/no-base-to-string
             const resolved = await loader("", [String(defaultValue)]);
             if (resolved.length > 0) {
               setData((prev) => {

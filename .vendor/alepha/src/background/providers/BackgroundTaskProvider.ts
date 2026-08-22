@@ -30,7 +30,7 @@ export class BackgroundTaskProvider {
    * blocked and a synchronous throw inside `task` can't escape into it. Errors
    * are caught and logged.
    */
-  public defer(task: () => unknown | Promise<unknown>): void {
+  public defer(task: () => unknown): void {
     const promise = Promise.resolve()
       .then(task)
       .then(
@@ -60,7 +60,7 @@ export class BackgroundTaskProvider {
    * tests don't drop deferred work.
    */
   public async flush(): Promise<void> {
-    await Promise.allSettled([...this.pending]);
+    await Promise.allSettled(this.pending);
   }
 
   protected readonly onStop = $hook({

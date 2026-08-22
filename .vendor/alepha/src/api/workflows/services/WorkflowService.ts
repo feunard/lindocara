@@ -3,6 +3,7 @@ import { DateTimeProvider } from "alepha/datetime";
 import { $logger } from "alepha/logger";
 import { $repository, DatabaseProvider, sql } from "alepha/orm";
 import { NotFoundError } from "alepha/server";
+
 import type { WorkflowExecutionEntity } from "../entities/workflowExecutions.ts";
 import { workflowExecutions } from "../entities/workflowExecutions.ts";
 import { workflowStepExecutions } from "../entities/workflowStepExecutions.ts";
@@ -153,10 +154,14 @@ export class WorkflowService {
           name: step.name,
           hasCompensate: Boolean(step.compensate),
           hasRetry: Boolean(step.retry),
-          timeout: step.timeout ? String(step.timeout) : undefined,
+          timeout: step.timeout
+            ? this.dt.duration(step.timeout).toISOString()
+            : undefined,
         })),
         onError: opts.onError ?? "compensate",
-        timeout: opts.timeout ? String(opts.timeout) : undefined,
+        timeout: opts.timeout
+          ? this.dt.duration(opts.timeout).toISOString()
+          : undefined,
         priority: opts.priority ?? "normal",
         tags: opts.tags,
         paused: this.workflowProvider.isWorkflowPaused(name),

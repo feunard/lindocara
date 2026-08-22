@@ -15,6 +15,7 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import { type NavEntry, useNavEntries } from "./use-nav-entries.ts";
 
 export interface SpotlightProps {
@@ -102,7 +103,7 @@ export const Spotlight = (props: SpotlightProps) => {
     (entry: NavEntry) => {
       if (entry.disabled) return;
       setOpen(false);
-      router.push(entry.name);
+      void router.push(entry.name);
     },
     [router, setOpen],
   );

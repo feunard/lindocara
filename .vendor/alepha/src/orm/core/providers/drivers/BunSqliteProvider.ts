@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
+
 import {
   $atom,
   $env,
@@ -13,6 +14,7 @@ import {
 } from "alepha";
 import type { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
 import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
+
 import { DbError } from "../../errors/DbError.ts";
 import { databaseEnvSchema } from "../../schemas/databaseEnvSchema.ts";
 import { SqliteModelBuilder } from "../../services/SqliteModelBuilder.ts";
@@ -246,7 +248,7 @@ export class BunSqliteProvider extends DatabaseProvider {
 
     if (foreignKeysWereOn) this.sqlite!.run("PRAGMA foreign_keys=OFF");
     try {
-      const result = await migrate(this.bunDb!, {
+      const result = migrate(this.bunDb!, {
         migrationsFolder,
         ...options,
       });

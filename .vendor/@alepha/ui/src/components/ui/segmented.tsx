@@ -9,8 +9,10 @@ export interface SegmentedOption {
   disabled?: boolean;
 }
 
-export interface SegmentedProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange"> {
+export interface SegmentedProps extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  "onChange"
+> {
   /**
    * Selectable options. Each one renders as a segment.
    */
@@ -141,6 +143,9 @@ export function Segmented(props: SegmentedProps) {
   }, [activeIndex]);
 
   React.useLayoutEffect(() => {
+    // Measures the DOM after it has been committed — there is nothing to
+    // derive during render, the geometry does not exist yet.
+    // oxlint-disable-next-line react/set-state-in-effect
     measureThumb();
   }, [measureThumb, options.length, size, fullWidth]);
 
@@ -229,7 +234,7 @@ export function Segmented(props: SegmentedProps) {
             className={cn(
               "relative z-10 inline-flex min-w-0 items-center justify-center rounded-[calc(var(--radius)-2px)] font-medium whitespace-nowrap",
               "transition-colors duration-150 ease-in-out",
-              "focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-[3px]",
+              "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
               itemPadClass[size],
               active
                 ? "text-primary-foreground"

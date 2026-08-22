@@ -6,6 +6,7 @@ import {
   type StreamLike,
 } from "alepha";
 import { DateTimeProvider } from "alepha/datetime";
+
 import { FileDetector } from "../services/FileDetector.ts";
 import type {
   CpOptions,
@@ -339,6 +340,15 @@ export class WorkerdFileSystemProvider implements FileSystemProvider {
   ): Promise<void> {
     throw new AlephaError(
       "WorkerdFileSystemProvider: writeFile() is not available in edge runtimes.",
+    );
+  }
+
+  public async appendFile(
+    _path: string,
+    _data: Uint8Array | Buffer | string,
+  ): Promise<void> {
+    throw new AlephaError(
+      "WorkerdFileSystemProvider: appendFile() is not available in edge runtimes.",
     );
   }
 

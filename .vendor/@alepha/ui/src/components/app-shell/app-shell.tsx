@@ -1,3 +1,4 @@
+import { cn } from "@alepha/ui/lib/utils";
 import * as React from "react";
 
 void React;
@@ -69,7 +70,7 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 
 export interface NavigationProgressOptions {
   /**
@@ -121,7 +122,7 @@ function NavigationProgress(options: NavigationProgressOptions) {
   const barClassName = options.className ?? "bg-primary";
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 pointer-events-none"
+      className="pointer-events-none fixed top-0 right-0 left-0 z-50"
       style={{ height }}
     >
       <div
@@ -242,9 +243,11 @@ function SidebarNavItem(props: { item: NavItem }) {
   // remount this item (useState's initializer runs only at mount, so without
   // this the group stays stuck closed and the active page is hidden — petition
   // #4). Only OPENS; never auto-collapses, so a manual toggle is preserved.
-  useEffect(() => {
+  const [wasActive, setWasActive] = useState(hasActive);
+  if (hasActive !== wasActive) {
+    setWasActive(hasActive);
     if (hasActive) setOpen(true);
-  }, [hasActive]);
+  }
 
   if (!isGroup) {
     // Disabled rows render with a muted, dashed-border treatment plus a
@@ -260,7 +263,7 @@ function SidebarNavItem(props: { item: NavItem }) {
       const row = (
         <div
           aria-disabled="true"
-          className="flex h-8 w-full items-center gap-2 rounded-md border border-dashed border-muted-foreground/40 bg-muted/40 px-2 text-sm text-muted-foreground"
+          className="border-muted-foreground/40 bg-muted/40 text-muted-foreground flex h-8 w-full items-center gap-2 rounded-md border border-dashed px-2 text-sm"
           style={{ cursor: "not-allowed" }}
         >
           {renderNavIcon(item.icon, "size-4 shrink-0")}
@@ -529,6 +532,15 @@ export interface AppShellProps {
    * sticky footer sits below the shell).
    */
   fill?: boolean;
+  /**
+   * Extra classes for the scrolling `<main>` element.
+   *
+   * Exists so an app can paint its own page surface (Lore stamps a dot
+   * texture there) without every other consumer of the shell inheriting it.
+   * Layout classes are applied after this, so a caller cannot break the
+   * flex/overflow contract described above.
+   */
+  mainClassName?: string;
 }
 
 /**
@@ -591,11 +603,12 @@ export function AppShell(props: AppShellProps) {
     //   - For non-fill pages there's no height bound, so this collapses
     //     to "scroll whatever overflows" without further config.
     <main
-      className={
+      className={cn(
+        props.mainClassName,
         props.fill
           ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-          : "flex-1 overflow-auto"
-      }
+          : "flex-1 overflow-auto",
+      )}
     >
       {props.children ?? <NestedView />}
     </main>
@@ -616,7 +629,7 @@ export function AppShell(props: AppShellProps) {
         // selectors out-specify the base `.fixed`/`.h-svh` utilities.
         className={
           props.fill
-            ? "relative min-h-0 h-full [&_[data-slot=sidebar-container]]:absolute [&_[data-slot=sidebar-container]]:h-auto"
+            ? "relative h-full min-h-0 [&_[data-slot=sidebar-container]]:absolute [&_[data-slot=sidebar-container]]:h-auto"
             : undefined
         }
       >
@@ -656,7 +669,7 @@ export function AppShell(props: AppShellProps) {
           <SidebarInset
             className={
               variant === "inset"
-                ? "md:peer-data-[variant=inset]:overflow-hidden border"
+                ? "border md:peer-data-[variant=inset]:overflow-hidden"
                 : undefined
             }
           >

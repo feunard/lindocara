@@ -1,8 +1,10 @@
 import { basename, dirname } from "node:path";
+
 import { $inject, AlephaError } from "alepha";
 import type { RunnerMethod } from "alepha/command";
 import { $logger, ConsoleColorProvider } from "alepha/logger";
 import { FileSystemProvider, ShellProvider } from "alepha/system";
+
 import type { Preset } from "../schemas/presetSchema.ts";
 import { agentMd } from "../templates/agentMd.ts";
 import { alephaConfigTs } from "../templates/alephaConfigTs.ts";
@@ -10,7 +12,6 @@ import { apiHelloControllerTs } from "../templates/apiHelloControllerTs.ts";
 import { apiHelloResponseSchemaTs } from "../templates/apiHelloResponseSchemaTs.ts";
 import { apiIndexTs } from "../templates/apiIndexTs.ts";
 import { apiRealmTs } from "../templates/apiRealmTs.ts";
-import { biomeJson } from "../templates/biomeJson.ts";
 import { dummySpecTs } from "../templates/dummySpecTs.ts";
 import { editorconfig } from "../templates/editorconfig.ts";
 import { envExample } from "../templates/envExample.ts";
@@ -20,6 +21,8 @@ import { logoSvg } from "../templates/logoSvg.ts";
 import { mainBrowserTs } from "../templates/mainBrowserTs.ts";
 import { mainCss } from "../templates/mainCss.ts";
 import { mainServerTs } from "../templates/mainServerTs.ts";
+import { oxfmtrc } from "../templates/oxfmtrc.ts";
+import { oxlintrc } from "../templates/oxlintrc.ts";
 import { tsconfigJson } from "../templates/tsconfigJson.ts";
 import { viteConfigTs } from "../templates/viteConfigTs.ts";
 import {
@@ -40,7 +43,7 @@ import {
  *
  * Handles creation of:
  * - Project structure (src/api, src/web)
- * - Configuration files (tsconfig, biome, editorconfig)
+ * - Configuration files (tsconfig, oxlint/oxfmt, editorconfig)
  * - Entry points (main.server.ts, main.browser.ts)
  * - Example code (HelloController, Home component)
  */
@@ -88,7 +91,7 @@ export class ProjectScaffolder {
       checkWorkspace?: boolean;
       packageJson?: boolean | DependencyModes;
       tsconfigJson?: boolean;
-      biomeJson?: boolean;
+      oxc?: boolean;
       editorconfig?: boolean;
       /**
        * Write `.env.example`, the committed template for `.env`.
@@ -121,14 +124,17 @@ export class ProjectScaffolder {
             root,
             typeof opts.packageJson === "boolean" ? {} : opts.packageJson,
           )
+          // A deliberate no-op `.then` that erases the resolved type, so every entry in
+          // `tasks` is a `Promise<void>`.
+          // oxlint-disable-next-line promise/always-return
           .then(() => {}),
       );
     }
     if (opts.tsconfigJson) {
       tasks.push(this.ensureTsConfig(root, { force }));
     }
-    if (opts.biomeJson) {
-      tasks.push(this.ensureBiomeConfig(root, { force, checkWorkspace }));
+    if (opts.oxc) {
+      tasks.push(this.ensureOxcConfig(root, { force, checkWorkspace }));
     }
     if (opts.editorconfig) {
       tasks.push(this.ensureEditorConfig(root, { force, checkWorkspace }));
@@ -179,18 +185,28 @@ export class ProjectScaffolder {
     );
   }
 
-  public async ensureBiomeConfig(
+  /**
+   * Write the two files `alepha lint` reads: `.oxlintrc.json` for oxlint and
+   * `.oxfmtrc.json` for oxfmt.
+   *
+   * Both, or neither. They are checked for as a pair because a project that
+   * has one and not the other gets half a toolchain — a formatter with no
+   * linter silently stops gating, and a linter with no formatter reformats
+   * every file it touches to oxfmt's Prettier defaults, tabs included.
+   */
+  public async ensureOxcConfig(
     root: string,
     opts: { force?: boolean; checkWorkspace?: boolean } = {},
   ): Promise<void> {
     if (
       !opts.force &&
       opts.checkWorkspace &&
-      (await this.existsInParents(root, "biome.json"))
+      (await this.existsInParents(root, ".oxlintrc.json"))
     ) {
       return;
     }
-    await this.ensureFile(root, "biome.json", biomeJson(), opts.force);
+    await this.ensureFile(root, ".oxlintrc.json", oxlintrc(), opts.force);
+    await this.ensureFile(root, ".oxfmtrc.json", oxfmtrc(), opts.force);
   }
 
   public async ensureEditorConfig(
@@ -276,7 +292,7 @@ export class ProjectScaffolder {
   /**
    * Ensure `.vscode/` exists: `settings.json` puts the editor on the same
    * TypeScript and the same formatter as the CLI, and `extensions.json`
-   * recommends the Biome extension the settings depend on — see
+   * recommends the Oxc extension the settings depend on — see
    * `vscodeSettingsJson`.
    */
   public async ensureVscodeSettings(
@@ -572,6 +588,76 @@ export class ProjectScaffolder {
   /**
    * Full project init — scaffolds files, installs deps, sets up PM and git.
    */
+  /**
+   * Drop a foreign Yarn PnP runtime from a `NODE_OPTIONS` value.
+   *
+   * `yarn create alepha` runs create-alepha out of a **temporary PnP install**
+   * and exports `--require <tmp>/.pnp.cjs` into the environment. Every child
+   * this scaffolder spawns inherits it, the project's own CLI included, and
+   * Vite's oxc transform then insists on finding a PnP manifest inside a
+   * project that was just scaffolded with `nodeLinker: node-modules`:
+   *
+   * ```
+   * [TSCONFIG_ERROR] Failed to load tsconfig: Failed to find yarn pnp manifest in <project>
+   * ```
+   *
+   * The visible symptom was a scaffold that skipped its initial migration and
+   * warned about it, on `yarn create` only, with an error naming neither yarn
+   * nor the real cause. `npm create` and `bun create` have no equivalent
+   * runtime to leak, which is how it survived this long.
+   *
+   * Only the PnP entries go: a `NODE_OPTIONS` the user set for their own
+   * reasons is theirs, and is left alone.
+   */
+  protected withoutForeignPnpRuntime(
+    nodeOptions: string | undefined,
+  ): string | undefined {
+    if (!nodeOptions) {
+      return nodeOptions;
+    }
+
+    // Values can be quoted, and a flag can carry its value either as the next
+    // token or inline after `=`.
+    const tokens = nodeOptions.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [];
+    const unquote = (value: string) => value.replace(/^"|"$/g, "");
+    const preloadFlags = new Set([
+      "-r",
+      "--require",
+      "--import",
+      "--loader",
+      "--experimental-loader",
+    ]);
+    const isPnpRuntime = (value: string) =>
+      /\.pnp\.(?:c?js|loader\.mjs)$/.test(unquote(value));
+
+    const kept: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const bare = unquote(token);
+      const equals = bare.indexOf("=");
+      const flag = equals === -1 ? bare : bare.slice(0, equals);
+      const inlineValue = equals === -1 ? undefined : bare.slice(equals + 1);
+
+      if (!preloadFlags.has(flag)) {
+        kept.push(token);
+        continue;
+      }
+
+      const value = inlineValue ?? tokens[i + 1] ?? "";
+      if (!isPnpRuntime(value)) {
+        kept.push(token);
+        continue;
+      }
+
+      // Drop the flag, and the separate value token when there is one.
+      if (inlineValue === undefined) {
+        i++;
+      }
+    }
+
+    return kept.length > 0 ? kept.join(" ") : undefined;
+  }
+
   async init({
     run,
     root,
@@ -588,6 +674,17 @@ export class ProjectScaffolder {
     };
     args?: string;
   }) {
+    // Before anything is spawned into the new project. See the method.
+    // Assigning `undefined` to a `process.env` key stores the *string*
+    // "undefined", which node then rejects as a bad option, so an empty
+    // result has to be deleted rather than assigned.
+    const nodeOptions = this.withoutForeignPnpRuntime(process.env.NODE_OPTIONS);
+    if (nodeOptions === undefined) {
+      delete process.env.NODE_OPTIONS;
+    } else {
+      process.env.NODE_OPTIONS = nodeOptions;
+    }
+
     // Whether the user named a target directory. Distinguishes
     // `alepha init my-app` (create a project there) from a bare
     // `alepha init` (fill in whatever is missing, right here).
@@ -696,7 +793,7 @@ export class ProjectScaffolder {
             ui: saas,
           },
           tsconfigJson: !workspace.config.tsconfigJson,
-          biomeJson: true,
+          oxc: true,
           editorconfig: !workspace.config.editorconfig,
           // Same rule as the agent files: a project root owns its env, a
           // monorepo sub-package reads the workspace root's.
@@ -780,7 +877,7 @@ export class ProjectScaffolder {
     // computed from the entity declarations against the snapshot on disk, so
     // this needs no database connection and works offline.
     //
-    // Ahead of the lint pass on purpose. biome reformats drizzle's
+    // Ahead of the lint pass on purpose. oxfmt reformats drizzle's
     // `snapshot.json` — collapsing its arrays, semantically identical, and the
     // migration check reads the reformatted file happily. But whoever formats
     // it first wins, and if that is not init then it is the user's first

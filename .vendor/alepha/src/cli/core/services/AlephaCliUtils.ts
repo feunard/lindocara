@@ -1,10 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+
 import { $inject, Alepha, AlephaError } from "alepha";
 import { EnvUtils } from "alepha/command";
 import { $logger } from "alepha/logger";
 import { FileSystemProvider, ShellProvider } from "alepha/system";
+
 import {
   type AppEntry,
   AppEntryProvider,
@@ -55,7 +57,7 @@ export class AlephaCliUtils {
 
   /**
    * Resolve the absolute path to a toolchain binary that ships embedded in
-   * `alepha`'s own `dependencies` (typescript, vite, vitest, @biomejs/biome,
+   * `alepha`'s own `dependencies` (typescript, vite, vitest, oxlint, oxfmt,
    * drizzle-kit).
    *
    * The CLI runs the result via `node <path>` so the toolchain works under
@@ -69,25 +71,7 @@ export class AlephaCliUtils {
    *   package's only/first bin
    */
   public resolveBin(pkg: string, binName?: string): string {
-    const require = createRequire(import.meta.url);
-
-    // Locate the package root by scanning the `node_modules` directories
-    // Node would search, then reading `package.json` from disk directly.
-    // We deliberately avoid `require.resolve("<pkg>/package.json")` — a
-    // strict `exports` map (e.g. drizzle-kit) blocks that subpath.
-    let pkgDir: string | undefined;
-    for (const nm of require.resolve.paths(pkg) ?? []) {
-      const candidate = join(nm, pkg);
-      if (existsSync(join(candidate, "package.json"))) {
-        pkgDir = candidate;
-        break;
-      }
-    }
-    if (!pkgDir) {
-      throw new AlephaError(
-        `Cannot locate package '${pkg}' — is it installed alongside alepha?`,
-      );
-    }
+    const pkgDir = this.resolvePackageDir(pkg);
 
     const meta = JSON.parse(
       readFileSync(join(pkgDir, "package.json"), "utf8"),
@@ -104,6 +88,37 @@ export class AlephaCliUtils {
       throw new AlephaError(`Package '${pkg}' has no bin named '${binName}'`);
     }
     return join(pkgDir, rel);
+  }
+
+  /**
+   * Resolve the absolute directory of a package that ships embedded in
+   * `alepha`'s own `dependencies`, starting the lookup from `alepha`'s own
+   * location rather than the project's.
+   *
+   * Needed on top of {@link resolveBin} because an embedded bin may import a
+   * sibling embedded package at runtime: `drizzle-kit` reaches for
+   * `drizzle-orm`. When the installer hoists the two to different depths, the
+   * bin cannot see its sibling, and the caller has to say where it is.
+   *
+   * @param pkg - npm package name (e.g. `"drizzle-orm"`)
+   */
+  public resolvePackageDir(pkg: string): string {
+    const require = createRequire(import.meta.url);
+
+    // Locate the package root by scanning the `node_modules` directories
+    // Node would search, then reading `package.json` from disk directly.
+    // We deliberately avoid `require.resolve("<pkg>/package.json")` — a
+    // strict `exports` map (e.g. drizzle-kit) blocks that subpath.
+    for (const nm of require.resolve.paths(pkg) ?? []) {
+      const candidate = join(nm, pkg);
+      if (existsSync(join(candidate, "package.json"))) {
+        return candidate;
+      }
+    }
+
+    throw new AlephaError(
+      `Cannot locate package '${pkg}' — is it installed alongside alepha?`,
+    );
   }
 
   /**

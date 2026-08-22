@@ -12,6 +12,7 @@ import { $logger } from "alepha/logger";
 // dependency, `i18n → router`) is only consulted when it is also registered.
 import { RouterLocaleProvider } from "alepha/react/router";
 import { $cookie } from "alepha/server/cookies";
+
 import type { ServiceDictionary } from "../hooks/useI18n.ts";
 
 export class I18nProvider<
@@ -542,7 +543,7 @@ export interface I18nLocalizeOptions {
    * @see https://day.js.org/docs/en/display/format
    * @see https://day.js.org/docs/en/display/from-now
    */
-  date?: string | "fromNow" | Intl.DateTimeFormatOptions;
+  date?: (string & {}) | "fromNow" | Intl.DateTimeFormatOptions;
   /**
    * Timezone to display dates in (when value is a Date or DateTime)
    * Uses IANA timezone names (e.g., "America/New_York", "Europe/Paris", "Asia/Tokyo")

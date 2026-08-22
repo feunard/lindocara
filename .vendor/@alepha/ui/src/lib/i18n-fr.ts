@@ -4,7 +4,7 @@
  * ### Why this is a plain object and not a `$dictionary`
  *
  * `@alepha/ui` is a component library, not a module: it has no `$module`, no
- * entry point and no DI of its own — a consumer imports the components it wants
+ * entry point and no DI of its own: a consumer imports the components it wants
  * and nothing else. Shipping a `$dictionary` here would mean giving the package a
  * container to register into, which is a much larger change than the problem
  * warrants.
@@ -27,14 +27,14 @@
  *
  * The components already call `tr("…", { default: "English" })`, which reads as
  * "translatable" but behaves as "English unless somebody defines the key". Nobody
- * did, so a French application got a French interface with English dialogs — a
+ * did, so a French application got a French interface with English dialogs: a
  * confirmation that said "Cancel / Confirm", a table whose menu announced "Open
  * row actions", and an entire back office in English. `locale: "fr-FR"` changed
  * nothing, because the browser language was never the problem: the catalogue was.
  *
  * ### Coverage
  *
- * Every `tr()` key in the package, with no extras — the first version covered
+ * Every `tr()` key in the package, with no extras. The first version covered
  * only the three areas one application happened to walk through, which is a
  * sample and not a catalogue. Keys interpolate with `$1`, `$2` … positionally,
  * matching the `args` each call site passes.
@@ -59,6 +59,10 @@ export const uiFr: Record<string, string> = {
   "alephaTable.selectRow": "Sélectionner la ligne",
   "alephaTable.selected": "$1 sélectionné(s)",
   "alephaTable.toggleColumns": "Afficher ou masquer des colonnes",
+  // Same table, different prefix: the page-size select calls `table.pageSize`
+  // rather than `alephaTable.pageSize`. Filed under the component it belongs
+  // to, not under a `t` of its own.
+  "table.pageSize": "Lignes par page",
 
   // Schema-generated forms.
   "autoForm.cancel": "Annuler",
@@ -68,7 +72,7 @@ export const uiFr: Record<string, string> = {
   "autoForm.reset": "Réinitialiser",
   "autoForm.save": "Enregistrer",
 
-  // Array control — repeatable items.
+  // Array control: repeatable items.
   "controlArray.add": "Ajouter",
   "controlArray.cancel": "Annuler",
   "controlArray.collapse": "Replier",
@@ -80,7 +84,7 @@ export const uiFr: Record<string, string> = {
   "controlArray.moveUp": "Monter",
   "controlArray.remove": "Retirer",
 
-  // Object control — nested groups.
+  // Object control: nested groups.
   "controlObject.clear": "Vider",
   "controlObject.collapse": "Replier",
   "controlObject.expand": "Déplier",
@@ -207,7 +211,7 @@ export const uiFr: Record<string, string> = {
   "admin.audits.actionAll": "Toutes les actions",
   "admin.audits.bulkDelete": "Supprimer la sélection",
   "admin.audits.bulkDeleteConfirm":
-    "Supprimer $1 entrée(s) d'audit ? Ces journaux sont généralement conservés pour des raisons de conformité — l'opération est irréversible.",
+    "Supprimer $1 entrée(s) d'audit ? Ces journaux sont généralement conservés pour des raisons de conformité. L'opération est irréversible.",
   "admin.audits.bulkDeleteTitle": "Supprimer des entrées d'audit",
   "admin.audits.bulkDeleted": "$1 entrée(s) d'audit supprimée(s)",
   "admin.audits.colAction": "Action",
@@ -263,7 +267,7 @@ export const uiFr: Record<string, string> = {
   "admin.jobs.execsDescription": "Exécutions récentes de cette tâche.",
   "admin.jobs.noExecs": "Aucune exécution pour l'instant.",
   "admin.jobs.none": "Aucune tâche enregistrée.",
-  "admin.jobs.notStarted": "—",
+  "admin.jobs.notStarted": "Non démarré",
   "admin.jobs.priorityAll": "Toutes les priorités",
   "admin.jobs.retried": "Exécution remise en file",
   "admin.jobs.retry": "Relancer",
@@ -304,7 +308,7 @@ export const uiFr: Record<string, string> = {
   "admin.keys.revokeTitle": "Révoquer la clé d'API",
   "admin.keys.revoked": "Clé d'API révoquée",
   "admin.keys.tokenDescription":
-    "Copiez ce jeton maintenant — il n'est affiché qu'une seule fois et ne peut pas être récupéré.",
+    "Copiez ce jeton maintenant : il n'est affiché qu'une seule fois et ne peut pas être récupéré.",
   "admin.keys.tokenDone": "Terminé",
   "admin.keys.tokenTitle": "Clé d'API créée",
   "admin.notifications.bulkDelete": "Supprimer la sélection",
@@ -382,8 +386,10 @@ export const uiFr: Record<string, string> = {
   "admin.sessions.colDevice": "Appareil",
   "admin.sessions.colExpires": "Expire le",
   "admin.sessions.colIp": "IP",
+  "admin.sessions.colLastUsed": "Dernière activité",
   "admin.sessions.colStarted": "Ouverte le",
   "admin.sessions.colUser": "Utilisateur",
+  "admin.sessions.lastUsedNever": "Jamais",
   "admin.sessions.revoke": "Révoquer",
   "admin.sessions.revokeConfirm":
     "L'utilisateur sera déconnecté de cette session.",

@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@alepha/ui/components/ui/popover";
 import type { UserEntity } from "alepha/api/users";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export interface RoleMeta {
   name: string;
@@ -40,9 +40,11 @@ export const AdminUsersRolesPicker = (props: AdminUsersRolesPickerProps) => {
   // label and checkboxes reflect the change immediately; re-sync whenever the
   // row's roles change (e.g. a table refresh from another action).
   const [optimisticRoles, setOptimisticRoles] = useState<string[] | null>(null);
-  useEffect(() => {
+  const [syncedRoles, setSyncedRoles] = useState(props.user.roles);
+  if (props.user.roles !== syncedRoles) {
+    setSyncedRoles(props.user.roles);
     setOptimisticRoles(null);
-  }, [props.user.roles]);
+  }
 
   const userRoles = optimisticRoles ?? props.user.roles ?? [];
   const label =
@@ -74,7 +76,7 @@ export const AdminUsersRolesPicker = (props: AdminUsersRolesPickerProps) => {
         {label}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-1">
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+        <div className="text-muted-foreground px-2 py-1.5 text-xs">
           {props.rolesLabel}
         </div>
         <div className="flex flex-col">
@@ -87,7 +89,7 @@ export const AdminUsersRolesPicker = (props: AdminUsersRolesPickerProps) => {
                 className={
                   disabled
                     ? "flex cursor-not-allowed items-center gap-2 rounded-sm px-2 py-1.5 text-sm opacity-60"
-                    : "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    : "hover:bg-accent hover:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
                 }
               >
                 <Checkbox
@@ -112,7 +114,7 @@ export const AdminUsersRolesPicker = (props: AdminUsersRolesPickerProps) => {
                 />
                 <span className="flex-1">{role.name}</span>
                 {role.default && (
-                  <span className="text-[10px] uppercase text-muted-foreground">
+                  <span className="text-muted-foreground text-[10px] uppercase">
                     default
                   </span>
                 )}

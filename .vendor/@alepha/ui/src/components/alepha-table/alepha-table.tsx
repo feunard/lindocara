@@ -23,6 +23,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@alepha/ui/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@alepha/ui/components/ui/select";
 import { Skeleton } from "@alepha/ui/components/ui/skeleton";
 import {
   Table,
@@ -44,6 +51,9 @@ import { ClientOnly, useAlepha } from "alepha/react";
 import { type FormModel, useForm } from "alepha/react/form";
 import { useI18n } from "alepha/react/i18n";
 import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
   Columns3,
   FunnelX,
   Inbox,
@@ -61,6 +71,8 @@ import {
   useRef,
   useState,
 } from "react";
+
+import { paginateLocal } from "./paginate-local.ts";
 import { useTableSelection } from "./use-table-selection.ts";
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
@@ -73,6 +85,14 @@ export interface ColumnDef<T> {
    * Sort key sent to the API. Defaults to the column key.
    */
   sortKey?: string;
+  /**
+   * Static-data mode only: the value this column sorts on, for a column
+   * whose sort key is not a plain property of the row (a derived total, a
+   * joined label). Defaults to `item[sortKey]`.
+   *
+   * Ignored when the table fetches: there the server owns the ordering.
+   */
+  sortValue?: (item: T) => unknown;
   /**
    * When true, the column starts hidden. The user can still toggle it
    * on via the built-in column picker. Pass `hideColumnPicker` on the
@@ -87,6 +107,11 @@ export interface ColumnDef<T> {
  * Context passed to every row-action `onClick`. `refresh()` re-fires the
  * current fetch with the current filters/sort — call it after a mutation
  * so the table reflects the new state without a manual reload.
+ *
+ * ⚠️ In static-data mode there is no fetch to re-fire, so `refresh()` only
+ * returns to page 0: the rows belong to the caller, and a mutation has to
+ * be written back into the array passed as `data`. The table renders the
+ * new array on the same render, without it.
  */
 export interface RowActionContext {
   refresh: () => void;
@@ -142,6 +167,27 @@ export interface TableAction {
 export interface AlephaTableFilters {
   schema: ZObject;
   initialValues?: Record<string, any>;
+  /**
+   * Filter values that outrank the persisted ones on mount.
+   *
+   * `initialValues` is what the table starts from when the reader has never
+   * chosen anything; a persisted choice wins over it, which is the right
+   * default for a preference. This is the opposite case: values the caller
+   * derived from *how the reader got here* — typically a URL param on a
+   * drill-through link — where landing on last week's stored filter instead
+   * would ignore the link that was just clicked.
+   *
+   * Read once, at mount, exactly like `initialValues`. Change the
+   * component's `key` to re-seed on a later arrival.
+   *
+   * **Transient, and by construction.** Persistence is written from
+   * `form:change` / `form:submit:success` only, never on mount — so a seed
+   * shows in the toolbar and narrows the fetch without overwriting the
+   * filter the reader chose for themselves last time. Touch any control and
+   * the resulting values (seed included) become the stored choice, which is
+   * the right moment for it: that is the reader choosing.
+   */
+  seedValues?: Record<string, any>;
   render: (form: FormModel<ZObject>) => ReactNode;
 }
 
@@ -150,17 +196,61 @@ interface SortState {
   direction: "asc" | "desc";
 }
 
-export interface AlephaTableProps<T> {
-  /**
-   * Fetcher invoked with paging + sort + filters. Should return an
-   * Alepha `Page<T>`.
-   */
-  fetch: (params: {
-    page: number;
-    size: number;
-    sort?: string;
-    filters?: Record<string, any>;
-  }) => Promise<Page<T>>;
+export type TableFetcher<T> = (params: {
+  page: number;
+  size: number;
+  sort?: string;
+  filters?: Record<string, any>;
+}) => Promise<Page<T>>;
+
+/**
+ * Where the rows come from. Exactly one of the two.
+ *
+ * `data` is not sugar over `fetch`: a fetcher closing over an in-memory
+ * array cannot work, because the table holds `fetch` in a ref that is
+ * deliberately excluded from its load effect (see `fetchRef`), so the
+ * closure goes stale the moment the caller's array changes. Static rows
+ * therefore bypass the fetch path entirely and are derived synchronously.
+ */
+export type AlephaTableSource<T> =
+  | {
+      /**
+       * Fetcher invoked with paging + sort + filters. Should return an
+       * Alepha `Page<T>`.
+       */
+      fetch: TableFetcher<T>;
+      data?: never;
+      filter?: never;
+    }
+  | {
+      /**
+       * Rows the caller already holds. The table filters, sorts and pages
+       * them in memory and never issues a request.
+       *
+       * Use it when the array is the page's data rather than the table's —
+       * shared with a chart, a count, an aside — so that one array stays
+       * the single source of truth. For anything the reader can outgrow,
+       * pass `fetch` and let the server page it.
+       */
+      data: T[];
+      /**
+       * Static-data mode only: predicate replacing the built-in field
+       * matching, which pairs each filter value with the same-named
+       * property (strings as a case-insensitive substring, arrays by
+       * membership, everything else strictly).
+       *
+       * Reach for it as soon as a filter is not a field: a `search` box
+       * spanning several columns, a range, a joined label. Only ever
+       * called with filter values that are actually set.
+       */
+      filter?: (item: T, filters: Record<string, any>) => boolean;
+      fetch?: never;
+    };
+
+export type AlephaTableProps<T> = AlephaTableBaseProps<T> &
+  AlephaTableSource<T>;
+
+export interface AlephaTableBaseProps<T> {
   /**
    * Column definitions, keyed by the property name they read from.
    */
@@ -176,9 +266,17 @@ export interface AlephaTableProps<T> {
    */
   bulkActions?: BulkAction<T>[];
   /**
-   * Default page size.
+   * Page size the table opens on. The reader can change it from the footer;
+   * with `persistenceKey` set, their choice is remembered and wins over this.
    */
   defaultSize?: number;
+  /**
+   * Sizes offered in the footer picker. Defaults to {@link PAGE_SIZES}.
+   *
+   * Pass `[]` to hide the picker entirely, for a table whose page size is
+   * not the reader's business.
+   */
+  pageSizes?: number[];
   /**
    * Stable row identifier. Defaults to `item.id`.
    */
@@ -190,6 +288,9 @@ export interface AlephaTableProps<T> {
   onRowClick?: (item: T) => void;
   /**
    * Auto-refresh interval in ms (only when document is visible).
+   *
+   * Meaningless in static-data mode — there is no request to repeat, and a
+   * changed `data` array is already on screen the render it changes.
    */
   pollMs?: number;
   /**
@@ -199,6 +300,9 @@ export interface AlephaTableProps<T> {
    * already get `ctx.refresh()`; this is the escape hatch for everything
    * else. Changing it resets to page 0 and refetches; the initial value
    * is ignored (the table fetches on mount regardless).
+   *
+   * Not needed in static-data mode: a new `data` array is picked up on its
+   * own. Bumping this there only resets to page 0.
    */
   refreshSignal?: number | string;
   /**
@@ -285,6 +389,9 @@ export interface AlephaTableProps<T> {
 }
 
 const defaultRowKey = (item: unknown): string =>
+  // Coercion at a boundary: the value is a form/route/chart primitive whose
+  // declared type is wider than what can reach here.
+  // oxlint-disable-next-line typescript/no-base-to-string
   String((item as { id?: unknown })?.id ?? Math.random());
 
 const EMPTY_FILTERS_SCHEMA = z.object({}) as ZObject;
@@ -326,9 +433,31 @@ const writePersisted = (key: string, suffix: string, value: unknown): void => {
   }
 };
 
+/**
+ * Page sizes the footer offers.
+ *
+ * No "all". Pagination here is server-side, so an unbounded fetch is a query
+ * whose cost grows with the biggest table in the product and is paid by the
+ * reader who can least afford it. 100 covers "let me scan the lot" without
+ * that.
+ */
+export const PAGE_SIZES = [10, 20, 50, 100];
+
 export function AlephaTable<T>(props: AlephaTableProps<T>) {
   const rowKey = props.rowKey ?? defaultRowKey;
-  const size = props.defaultSize ?? 20;
+
+  // State, not a constant. It was `props.defaultSize ?? 20` read once, so a
+  // reader had no way to see more rows than the call site had decided for
+  // them. Already in `load`'s dependency array, so changing it refetches.
+  const [size, setSize] = useState<number>(
+    () =>
+      (props.persistenceKey
+        ? readPersisted<number>(props.persistenceKey, "size")
+        : undefined) ??
+      props.defaultSize ??
+      20,
+  );
+  const pageSizes = props.pageSizes ?? PAGE_SIZES;
   const alepha = useAlepha();
   const { tr } = useI18n();
 
@@ -344,10 +473,13 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
 
   const mergedFilterInitialValues = useMemo<Record<string, any>>(
     () => ({
-      ...(props.filters?.initialValues ?? {}),
-      ...(persistedFilterValues ?? {}),
+      ...props.filters?.initialValues,
+      ...persistedFilterValues,
+      // Last, so it beats the stored choice — see `seedValues`. A drill-through
+      // link that lost to a filter the reader set last week would be a link
+      // that does nothing.
+      ...props.filters?.seedValues,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -367,6 +499,22 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
   // -- Paging / sort / data --------------------------------------------------
 
   const [page, setPage] = useState(0);
+
+  /**
+   * Change the page size and go back to the first page.
+   *
+   * The reset is the whole point: raising the size while on page 5 can put
+   * the reader past the last page, which renders an empty table with no
+   * visible cause. Persisted so the choice survives a reload, alongside the
+   * filters, sort and columns this table already remembers.
+   */
+  const changeSize = (next: number) => {
+    setSize(next);
+    setPage(0);
+    if (props.persistenceKey) {
+      writePersisted(props.persistenceKey, "size", next);
+    }
+  };
   const [sort, setSort] = useState<SortState | null>(() => {
     if (props.persistenceKey) {
       const persisted = readPersisted<SortState>(props.persistenceKey, "sort");
@@ -374,8 +522,8 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
     }
     return props.defaultSort ?? null;
   });
-  const [data, setData] = useState<T[]>([]);
-  const [meta, setMeta] = useState<Page<T>["page"] | null>(null);
+  const [fetchedData, setData] = useState<T[]>([]);
+  const [fetchedMeta, setMeta] = useState<Page<T>["page"] | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -400,9 +548,13 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
   fetchRef.current = props.fetch;
 
   const load = useCallback(async () => {
+    // Static mode owns no request. Bail before touching `loading` too, so a
+    // table fed an array never flashes the skeleton over rows it already has.
+    const fetcher = fetchRef.current;
+    if (!fetcher) return;
     setLoading(true);
     try {
-      const res = await fetchRef.current({
+      const res = await fetcher({
         page,
         size,
         sort: sortParam,
@@ -427,6 +579,66 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Static mode's equivalent of `load` — derived, not stored.
+   *
+   * Deliberately NOT routed through `load`: putting `props.data` in that
+   * effect's dependencies reproduces the exact loop `fetchRef` exists to
+   * prevent (load → setData → re-render → new inline array → new load).
+   * Computed synchronously there is no state to go stale, an inline
+   * `data={rows.filter(…)}` is safe, and a changed array is on screen in
+   * the same render.
+   */
+  const staticPage = useMemo(() => {
+    if (!props.data) return null;
+    const sortValues: Record<string, (item: T) => unknown> = {};
+    for (const [key, column] of Object.entries(props.columns)) {
+      if (column.sortValue) {
+        sortValues[column.sortKey ?? key] = column.sortValue;
+      }
+    }
+    return paginateLocal(props.data, {
+      page,
+      size,
+      sort: sortParam,
+      sortValues,
+      filters: form?.currentValues,
+      filter: props.filter,
+    });
+    // `refreshKey` is what the filter-form subscriptions bump, so it is how
+    // a filter change reaches this memo — `form.currentValues` is mutated in
+    // place and its identity never changes.
+  }, [
+    props.data,
+    props.columns,
+    props.filter,
+    page,
+    size,
+    sortParam,
+    refreshKey,
+    form,
+  ]);
+
+  const data = staticPage ? staticPage.content : fetchedData;
+  const meta = staticPage ? staticPage.page : fetchedMeta;
+
+  /**
+   * Rows vanish under the reader in static mode: the caller detaches one and
+   * the page they are on stops existing. Nothing fetches, so nothing else
+   * would notice — the table would sit on an empty page with no visible
+   * cause. Fetch mode has the same hole, but there the server round-trip
+   * needed to see it makes this the wrong place to close it.
+   */
+  if (staticPage) {
+    const totalPages = staticPage.page.totalPages ?? 0;
+    if (page > 0 && page > totalPages - 1) {
+      // Guarded on `page`, so it settles in one pass and does not need an
+      // effect: the clamp lands before the rows render against a page that no
+      // longer exists.
+      setPage(Math.max(0, totalPages - 1));
+    }
+  }
 
   // Persist sort to localStorage on every change.
   useEffect(() => {
@@ -672,7 +884,7 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
           // WHITE wash that leaves the field lighter than the bar. Only the
           // dark-scoped rule (0,3,0) outranks it, and without it the two
           // controls disagreed: the trigger went dark, the input stayed light.
-          <div className="bg-muted flex flex-wrap items-end gap-2 rounded-md rounded-b-none border p-2 [&_:is(input,[role=combobox])]:bg-background dark:[&_:is(input,[role=combobox])]:bg-background">
+          <div className="bg-muted [&_:is(input,[role=combobox])]:bg-background dark:[&_:is(input,[role=combobox])]:bg-background flex flex-wrap items-end gap-2 rounded-md rounded-b-none border p-2">
             {props.filters && form ? (
               <form
                 {...form.props}
@@ -800,52 +1012,53 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
           </div>
         )}
 
-        {hasCheckbox && selection.size > 0 && (
-          // Linear-style floating action pill: fixed at the bottom-center of
-          // the viewport, dark surface that stays readable in both themes
-          // because the colors are hard-coded (theme-relative `bg-foreground`
-          // inverts awkwardly against a white container in dark mode).
-          <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
-            <div className="pointer-events-auto flex animate-in fade-in-0 slide-in-from-bottom-2 items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 text-zinc-100 shadow-lg ring-1 ring-white/10 duration-150">
-              <span className="text-sm pl-2">
-                {tr("alephaTable.selected", {
-                  default: `${selection.size} selected`,
-                  args: [String(selection.size)],
+        {hasCheckbox &&
+          selection.size > 0 && (
+            // Linear-style floating action pill: fixed at the bottom-center of
+            // the viewport, dark surface that stays readable in both themes
+            // because the colors are hard-coded (theme-relative `bg-foreground`
+            // inverts awkwardly against a white container in dark mode).
+            <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
+              <div className="animate-in fade-in-0 slide-in-from-bottom-2 pointer-events-auto flex items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 text-zinc-100 shadow-lg ring-1 ring-white/10 duration-150">
+                <span className="pl-2 text-sm">
+                  {tr("alephaTable.selected", {
+                    default: `${selection.size} selected`,
+                    args: [String(selection.size)],
+                  })}
+                </span>
+                <span className="mx-1 h-4 w-px bg-white/20" />
+                {props.bulkActions?.map((action) => {
+                  const ActionIcon = action.icon;
+                  return (
+                    <Button
+                      key={action.label}
+                      size="sm"
+                      className={
+                        action.destructive
+                          ? "h-8 bg-red-600 text-white hover:bg-red-500"
+                          : "h-8 bg-transparent text-zinc-100 hover:bg-white/10 hover:text-zinc-100"
+                      }
+                      onClick={() => action.onClick(selectedItems, bulkCtx)}
+                    >
+                      {ActionIcon && <ActionIcon className="size-4" />}
+                      {action.label}
+                    </Button>
+                  );
                 })}
-              </span>
-              <span className="mx-1 h-4 w-px bg-white/20" />
-              {props.bulkActions?.map((action) => {
-                const ActionIcon = action.icon;
-                return (
-                  <Button
-                    key={action.label}
-                    size="sm"
-                    className={
-                      action.destructive
-                        ? "h-8 bg-red-600 text-white hover:bg-red-500"
-                        : "h-8 bg-transparent text-zinc-100 hover:bg-white/10 hover:text-zinc-100"
-                    }
-                    onClick={() => action.onClick(selectedItems, bulkCtx)}
-                  >
-                    {ActionIcon && <ActionIcon className="size-4" />}
-                    {action.label}
-                  </Button>
-                );
-              })}
-              <span className="mx-1 h-4 w-px bg-white/20" />
-              <Button
-                size="icon"
-                className="size-8 bg-transparent text-zinc-300 hover:bg-white/10 hover:text-zinc-100"
-                onClick={clearSelection}
-                aria-label={tr("alephaTable.clearSelection", {
-                  default: "Clear selection",
-                })}
-              >
-                <X className="size-4" />
-              </Button>
+                <span className="mx-1 h-4 w-px bg-white/20" />
+                <Button
+                  size="icon"
+                  className="size-8 bg-transparent text-zinc-300 hover:bg-white/10 hover:text-zinc-100"
+                  onClick={clearSelection}
+                  aria-label={tr("alephaTable.clearSelection", {
+                    default: "Clear selection",
+                  })}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/*
           The toolbar, the rows and the footer are one panel: each facing edge
@@ -864,7 +1077,11 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
           )}
         >
           <Table>
-            <TableHeader className="bg-background sticky top-0 z-10 shadow-[inset_0_-1px_0_0_var(--border)]">
+            {/* `bg-muted`, fully opaque, NOT the base header's `bg-muted/50`:
+                this header is sticky, so anything translucent lets the rows
+                scroll visibly through the column labels. Same tint, no
+                transparency. */}
+            <TableHeader className="bg-muted sticky top-0 z-10 shadow-[inset_0_-1px_0_0_var(--border)]">
               <TableRow>
                 {hasCheckbox && (
                   <TableHead className="w-10">
@@ -903,13 +1120,35 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
                         <button
                           type="button"
                           onClick={() => toggleSort(key, def)}
-                          className="hover:text-foreground inline-flex cursor-pointer select-none items-center gap-1"
+                          className="group/sort hover:text-foreground inline-flex cursor-pointer items-center gap-1 select-none"
                         >
                           {def.label}
-                          {sorted && (
-                            <span aria-hidden>
-                              {sort?.direction === "asc" ? "↑" : "↓"}
-                            </span>
+                          {/* A sortable column says so at rest. The arrow
+                              used to appear only once a column WAS sorted,
+                              so an unsorted sortable header and a dead one
+                              were indistinguishable until you happened to
+                              hover one. The neutral glyph is dimmed so a row
+                              of them does not shout, and brightens under the
+                              cursor.
+
+                              Lucide, not the `↑` / `↓` characters this
+                              replaced: those render in the text font at text
+                              weight and sat visibly apart from every other
+                              icon in the table.
+
+                              `aria-hidden` throughout: `aria-sort` on the
+                              `th` already states this to assistive tech. */}
+                          {sorted ? (
+                            sort?.direction === "asc" ? (
+                              <ArrowUp className="size-3.5" aria-hidden />
+                            ) : (
+                              <ArrowDown className="size-3.5" aria-hidden />
+                            )
+                          ) : (
+                            <ChevronsUpDown
+                              className="size-3.5 opacity-40 transition-opacity group-hover/sort:opacity-100"
+                              aria-hidden
+                            />
                           )}
                         </button>
                       ) : (
@@ -1016,11 +1255,51 @@ export function AlephaTable<T>(props: AlephaTableProps<T>) {
 
         {/* `bg-muted`, paired with the filter bar above — see the note there. */}
         <div className="bg-muted -mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md rounded-t-none border p-2">
-          <p className="text-muted-foreground text-xs">
-            {meta
-              ? `Page ${meta.number + 1}${meta.totalPages ? ` of ${meta.totalPages}` : ""} · ${meta.numberOfElements} of ${meta.totalElements ?? "?"}`
-              : "—"}
-          </p>
+          {/* The size picker sits with the count, not in the toolbar above:
+              this line already answers "how many, where am I", while the
+              toolbar answers "which rows". Mixing the two turns the toolbar
+              into a junk drawer. */}
+          <div className="flex items-center gap-2">
+            {pageSizes.length > 0 && (
+              // The same Select the filter bar's controls are built on, not
+              // a bare `<select>`: a native control renders in the OS widget
+              // set and sat visibly apart from every other trigger in this
+              // table. `Control` itself is form-bound, so the picker uses the
+              // component underneath it.
+              <Select
+                value={String(size)}
+                onValueChange={(value) => changeSize(Number(value))}
+              >
+                <SelectTrigger
+                  // `bg-background`, because this bar is `bg-muted` and the
+                  // trigger is `bg-transparent` by default: on a plain form
+                  // surface that blending is right, on a tinted bar it made
+                  // the picker read as part of the bar while the pagination
+                  // buttons beside it sat on their own plane. Overridden here
+                  // rather than in `SelectTrigger`, which every form still
+                  // wants transparent.
+                  className="bg-background h-7 w-auto gap-1 text-xs"
+                  aria-label={String(
+                    tr("table.pageSize", { default: "Rows per page" }),
+                  )}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizes.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-muted-foreground text-xs">
+              {meta
+                ? `Page ${meta.number + 1}${meta.totalPages ? ` of ${meta.totalPages}` : ""} · ${meta.numberOfElements} of ${meta.totalElements ?? "?"}`
+                : "—"}
+            </p>
+          </div>
           {meta && meta.totalPages && meta.totalPages > 1 ? (
             <Pagination className="mx-0 w-auto justify-end">
               <PaginationContent>

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+
 import { createMiddleware, type Middleware } from "alepha";
 import { HttpError, type ServerRequest } from "alepha/server";
 
@@ -103,7 +104,6 @@ function timingSafeCredentialCheck(
   const passMatch = safeCompare(inputPassBuf, expectedPassBuf);
 
   // Both must match — bitwise AND avoids short-circuit evaluation
-  // eslint-disable-next-line no-bitwise
   return (userMatch & passMatch) === 1;
 }
 

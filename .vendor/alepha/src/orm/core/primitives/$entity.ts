@@ -5,6 +5,7 @@ import type {
   PgColumnBuilder,
   PgTableExtraConfigValue,
 } from "drizzle-orm/pg-core";
+
 import { insertSchema, type TObjectInsert } from "../schemas/insertSchema.ts";
 import { type TObjectUpdate, updateSchema } from "../schemas/updateSchema.ts";
 
@@ -107,7 +108,7 @@ export interface EntityPrimitiveOptions<
          * }]
          * ```
          */
-        expressions: (self: Record<Keys & string, any>) => (SQL | any)[];
+        expressions: (self: Record<Keys & string, any>) => any[];
         /**
          * Whether this should be a unique index (enforces uniqueness constraint).
          */

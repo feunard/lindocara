@@ -30,7 +30,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
-import type { FilterOperators } from "../interfaces/FilterOperators.ts";
+
 import type {
   PgQueryWhere,
   PgQueryWhereOrSQL,
@@ -57,9 +57,7 @@ export class QueryManager {
     if (isSQLWrapper(query)) {
       conditions.push(query as SQL);
     } else {
-      const keys = Object.keys(query) as Array<
-        keyof PgQueryWhere<ZObject> & string
-      >;
+      const keys = Object.keys(query) as Array<keyof PgQueryWhere<ZObject>>;
 
       for (const key of keys) {
         const operator = query[key] as SQL;
@@ -289,7 +287,7 @@ export class QueryManager {
    * Map a filter operator to a SQL query.
    */
   public mapOperatorToSql(
-    operator: FilterOperators<any> | any,
+    operator: any,
     column: PgColumn,
     columnSchema?: ZObject,
     columnName?: string,
