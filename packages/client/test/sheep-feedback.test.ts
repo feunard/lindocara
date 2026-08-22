@@ -1,5 +1,6 @@
 import type { WorldEventSnapshot } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
+
 import { SheepFeedbackTracker } from "../src/game/sheep-feedback.js";
 
 function sheep(hits: number, state: "intact" | "depleted" = "intact"): WorldEventSnapshot {

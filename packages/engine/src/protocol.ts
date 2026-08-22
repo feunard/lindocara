@@ -24,12 +24,6 @@
  */
 
 import {
-  type AdventureCameraMode,
-  type AdventureGameMode,
-  isAdventureCameraMode,
-  isAdventureGameMode,
-} from "./adventure.js";
-import {
   type AuthoredQuestMarker,
   type AuthoredQuestTracker,
   MAX_AUTHORED_QUESTS,
@@ -45,6 +39,12 @@ import {
   QUEST_REWARD_AMOUNT_MAX,
   QUEST_TITLE_MAX,
 } from "./adventure-state.js";
+import {
+  type AdventureCameraMode,
+  type AdventureGameMode,
+  isAdventureCameraMode,
+  isAdventureGameMode,
+} from "./adventure.js";
 import { type AmbienceState, parseAmbienceState } from "./ambience.js";
 import { type AdventureAudioConfig, parseAdventureAudioConfig } from "./audio-catalog.js";
 import { parseBuildingDimensions } from "./buildings.js";

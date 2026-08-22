@@ -83,7 +83,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
     setError(code);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload the picker each time it opens
+  // Reload the picker each time it opens
   useEffect(() => {
     if (!open || session) return;
     setError(null);
@@ -177,7 +177,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
           <div className="flex items-start justify-between gap-3 pr-8">
             <div>
               <DialogTitle>{t("editor.registry.title")}</DialogTitle>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 {t("editor.registry.intro")}
               </p>
             </div>
@@ -189,7 +189,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
         </DialogHeader>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-destructive text-sm">
             {authErrorText(error)}
           </p>
         )}
@@ -226,7 +226,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
                 {t("editor.back")}
               </Button>
               <div className="flex items-center gap-3">
-                {saveHint && <span className="text-xs text-muted-foreground">{saveHint}</span>}
+                {saveHint && <span className="text-muted-foreground text-xs">{saveHint}</span>}
                 <Button disabled={input === null || saving} onClick={() => void save()}>
                   {t("editor.registry.save")}
                 </Button>
@@ -239,7 +239,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
               {t("editor.registry.pick")}
             </p>
             {adventures && adventures.length === 0 && (
-              <p className="text-sm text-muted-foreground">{t("editor.shell.settings.empty")}</p>
+              <p className="text-muted-foreground text-sm">{t("editor.shell.settings.empty")}</p>
             )}
             <div className="flex flex-col gap-1">
               {adventures?.map((adventure) => (
@@ -272,7 +272,7 @@ export function RegistryDialog({ open, onOpenChange, onOpenHelp }: RegistryDialo
                 })}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {t("editor.registry.delete.confirm.body")}
             </p>
             <DialogFooter>
@@ -323,7 +323,7 @@ function RegistryList({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">{heading}</h3>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">{description}</p>
         </div>
         <Button
           size="sm"
@@ -336,7 +336,7 @@ function RegistryList({
         </Button>
       </div>
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("editor.registry.empty")}</p>
+        <p className="text-muted-foreground text-sm">{t("editor.registry.empty")}</p>
       ) : (
         <div className="flex flex-col gap-1">
           {entries.map((entry, index) => {
@@ -358,7 +358,7 @@ function RegistryList({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-destructive"
+                  className="text-destructive h-7"
                   aria-label={`${t("editor.registry.delete")} ${readableName}`}
                   onClick={() => onDelete(entry)}
                 >

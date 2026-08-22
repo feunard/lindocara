@@ -2,6 +2,7 @@ import { Badge } from "@alepha/ui/components/ui/badge";
 import { Button } from "@alepha/ui/components/ui/button";
 import { useStore } from "alepha/react";
 import { useEffect, useState } from "react";
+
 import { authErrorText, createAdventureTestSessionApi, errorCode } from "../api.js";
 import { leaveAdventureTest } from "../game/adventure-test.js";
 import { startGameAsHero } from "../game/session.js";
@@ -95,7 +96,7 @@ export function AdventureTestOverlay() {
   }
 
   return (
-    <aside className="fixed inset-x-0 top-3 z-[90] flex justify-center px-3 pointer-events-none">
+    <aside className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3">
       <div className="pointer-events-auto flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-lg border border-amber-300/60 bg-zinc-950/95 p-2 text-zinc-50 shadow-2xl backdrop-blur">
         <Badge className="bg-amber-400 text-zinc-950 hover:bg-amber-400">
           {t("editor.test.overlay.badge")}

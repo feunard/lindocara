@@ -72,8 +72,8 @@ import {
   WebSocketServerProvider,
 } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
-import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import {
   finishHeldPlayerAction,
   resolvePlayerAction,
@@ -86,6 +86,7 @@ import {
 } from "../src/api/realtime/world-combat.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
 import { applyReportedMove } from "../src/api/realtime/world-move-life.ts";
+import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { advanceWorldTick } from "../src/api/realtime/worldTick.ts";
 import { MapService } from "../src/api/services/MapService.ts";

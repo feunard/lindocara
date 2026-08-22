@@ -25,6 +25,7 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useEffect, useState } from "react";
+
 import { AudioConfigFields } from "./AudioConfigFields.js";
 
 interface AdventureSettingsDialogProps {
@@ -142,7 +143,7 @@ export function AdventureSettingsDialog({
         </DialogHeader>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-destructive text-sm">
             {authErrorText(error)}
           </p>
         )}
@@ -176,11 +177,11 @@ export function AdventureSettingsDialog({
                 {t("adventure.delete.title", { name: draft?.title ?? session?.draft.title ?? "" })}
               </DialogTitle>
             </DialogHeader>
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <div className="border-destructive/30 bg-destructive/5 flex items-start gap-2 rounded-md border p-3">
               <Checkbox id="force-delete-current-adventure" checked disabled />
               <div className="grid gap-1">
                 <Label htmlFor="force-delete-current-adventure">{t("editor.delete.force")}</Label>
-                <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+                <p className="text-muted-foreground text-xs">{t("editor.delete.force_warning")}</p>
               </div>
             </div>
             <DialogFooter>
@@ -259,7 +260,7 @@ function EditForm({
           />
           <div className="grid gap-1">
             <Label htmlFor="adventure-camera-orbit">{t("adventure.camera.orbit")}</Label>
-            <p className="text-xs text-muted-foreground">{t("adventure.camera.hint")}</p>
+            <p className="text-muted-foreground text-xs">{t("adventure.camera.hint")}</p>
           </div>
         </div>
       </section>
@@ -290,7 +291,7 @@ function EditForm({
           />
           <div className="grid gap-1">
             <Label htmlFor="adventure-hardcore-runner">{t("adventure.mode.hardcore")}</Label>
-            <p className="text-xs text-muted-foreground">{t("adventure.mode.hardcore.hint")}</p>
+            <p className="text-muted-foreground text-xs">{t("adventure.mode.hardcore.hint")}</p>
           </div>
         </div>
       </section>
@@ -298,7 +299,7 @@ function EditForm({
       <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
         <div>
           <h3 className="text-sm font-medium">{t("editor.audio.heading")}</h3>
-          <p className="text-xs text-muted-foreground">{t("editor.audio.adventureHint")}</p>
+          <p className="text-muted-foreground text-xs">{t("editor.audio.adventureHint")}</p>
         </div>
         <AudioConfigFields
           variant="adventure"

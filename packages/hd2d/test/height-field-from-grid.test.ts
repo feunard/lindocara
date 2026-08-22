@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { heightFieldFromGrid } from "../src/terrain/height-field-from-grid.js";
 
 const field = heightFieldFromGrid({

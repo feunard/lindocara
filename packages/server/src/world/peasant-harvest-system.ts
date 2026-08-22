@@ -33,6 +33,7 @@ import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import { sweptGroundTerrainImpact, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+
 import type { ActiveWorldEvent, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 /**
@@ -486,13 +487,11 @@ export function selectPeasantHarvestTargets(input: {
       return leftDistance - rightDistance || left.nodeId.localeCompare(right.nodeId);
     })
     .slice(0, primaryPlan.maximumTargets - 1)
-    .map(
-      (target): PlannedPeasantHarvestTarget => ({
-        ...target,
-        primary: false,
-        plan: resolvePeasantHarvestPlan(target.profile, effects),
-      }),
-    );
+    .map((target): PlannedPeasantHarvestTarget => ({
+      ...target,
+      primary: false,
+      plan: resolvePeasantHarvestPlan(target.profile, effects),
+    }));
   return [plannedPrimary, ...additional];
 }
 

@@ -42,7 +42,13 @@ body::after {
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgb(2 12 10 / 28%), transparent 24%, transparent 72%, rgb(2 10 8 / 38%)),
+    linear-gradient(
+      180deg,
+      rgb(2 12 10 / 28%),
+      transparent 24%,
+      transparent 72%,
+      rgb(2 10 8 / 38%)
+    ),
     radial-gradient(circle at center, transparent 55%, rgb(0 9 7 / 42%) 100%);
 }
 
@@ -1947,7 +1953,7 @@ kbd {
   background: #944e46;
 }
 
-/* biome-ignore lint/style/noDescendingSpecificity: game HUD is intentionally scoped below global legacy button rules. */
+/* Game HUD is intentionally scoped below global legacy button rules. */
 .quick-item-bar button {
   position: relative;
   width: 3.25rem;
@@ -2509,7 +2515,7 @@ kbd {
   padding: 0;
   border: 0;
 }
-/* biome-ignore lint/style/noDescendingSpecificity: inventory slot buttons intentionally refine legacy button rules. */
+/* Inventory slot buttons intentionally refine legacy button rules. */
 .item-card__slots button {
   width: 2rem;
   height: 1.7rem;
@@ -4459,7 +4465,7 @@ kbd {
   filter: drop-shadow(0 0.2rem 0.28rem rgb(0 0 0 / 70%));
 }
 
-/* biome-ignore lint/style/noDescendingSpecificity: game quick slots intentionally refine the global controls. */
+/* Game quick slots intentionally refine the global controls. */
 .quick-item-bar button {
   position: relative;
   z-index: 2;
@@ -4996,7 +5002,7 @@ kbd {
   letter-spacing: 0.1em;
 }
 
-/* biome-ignore lint/style/noDescendingSpecificity: journal filters intentionally refine global legacy button rules. */
+/* Journal filters intentionally refine global legacy button rules. */
 .quest-journal .quest-journal__filters button {
   min-height: 2.25rem;
   padding: 0.42rem 0.75rem;
@@ -5508,7 +5514,7 @@ kbd {
   letter-spacing: 0.075em;
 }
 
-/* biome-ignore lint/style/noDescendingSpecificity: inventory quick slots intentionally refine global legacy button rules. */
+/* Inventory quick slots intentionally refine global legacy button rules. */
 .item-overlay .item-overlay__quick-slots button {
   min-height: 2.2rem;
   padding: 0.42rem 0.65rem;

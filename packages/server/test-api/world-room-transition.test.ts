@@ -37,8 +37,8 @@
 
 import { buildingDoorGroundPoint } from "@lindocara/engine/buildings.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
+import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { functionalEvent, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
 import {
   defaultMapHeroSettings,
@@ -57,6 +57,7 @@ import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
+
 import { heroes } from "../src/api/entities/heroes.ts";
 import {
   type HitHarvestNodeResult,
@@ -64,8 +65,8 @@ import {
   type ReserveHarvestNodeResult,
 } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
-import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import { activeEventCentre } from "../src/api/realtime/worldEvents.ts";
+import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
@@ -267,7 +268,7 @@ function authed(token: string) {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
-        ...(init.headers ?? {}),
+        ...init.headers,
       },
     });
 }

@@ -1,4 +1,3 @@
-import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import {
   gamepadBindingLabel,
   gamepadControlPressed,
@@ -7,6 +6,7 @@ import {
   setGamepadBinding,
   setKeyboardBinding,
 } from "@lindocara/renderer/input-settings.js";
+import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -82,27 +82,27 @@
    maps alike. Restrict the relief to light game copy: editor/shadcn surfaces and the dark labels on
    Tiny Swords buttons keep their own shadows. */
 .game-ui
-:is(
-  #hud .identity-copy,
-  #hud .identity label,
-  #hud .panel-title,
-  #hud .party-save,
-  #hud .party-member,
-  #hud .quest,
-  #hud .inventory,
-  #event-log,
-  #prompt,
-  #chat,
-  .event-dialogue__name,
-  .event-dialogue__text,
-  .event-dialogue__legend,
-  .quest-dialogue,
-  .quest-journal__panel,
-  .world-map-panel,
-  .talent-panel,
-  .death-overlay,
-  .item-overlay
-) {
+  :is(
+    #hud .identity-copy,
+    #hud .identity label,
+    #hud .panel-title,
+    #hud .party-save,
+    #hud .party-member,
+    #hud .quest,
+    #hud .inventory,
+    #event-log,
+    #prompt,
+    #chat,
+    .event-dialogue__name,
+    .event-dialogue__text,
+    .event-dialogue__legend,
+    .quest-dialogue,
+    .quest-journal__panel,
+    .world-map-panel,
+    .talent-panel,
+    .death-overlay,
+    .item-overlay
+  ) {
   text-shadow: var(--game-text-shadow, 0 1px 2px #000);
 }
 

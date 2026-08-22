@@ -1,5 +1,6 @@
 import type { WorldPosition } from "@lindocara/engine/ground.js";
 import { $repository, DbEntityNotFoundError, sql } from "alepha/orm";
+
 import { heroes } from "../entities/heroes.ts";
 
 /**

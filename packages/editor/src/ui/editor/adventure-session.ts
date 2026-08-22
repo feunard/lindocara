@@ -18,6 +18,7 @@ import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { DEFAULT_MAP_FIXED_LIGHTING } from "@lindocara/engine/map-lighting.js";
 import { DEFAULT_FIRST_MAP_NAME, defaultMapInput } from "@lindocara/engine/map-template.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+
 import { solidMaskFromMapPayload } from "../../game/editor-state.js";
 
 /** The label a destination picker shows for one event: the author's own name where they gave one,

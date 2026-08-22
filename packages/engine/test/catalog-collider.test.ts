@@ -105,15 +105,11 @@ describe("catalogue colliders", () => {
     const placeableBuildings = PLACEABLE_EDITOR_ASSETS.filter(
       (asset) => asset.editor.category === "buildings",
     );
-    expect(placeableBuildings.map((asset) => buildingArchetype(asset.id)).sort()).toEqual([
-      "archery",
-      "barracks",
-      "castle",
-      "house",
-      "monastery",
-      "tower",
-      "windmill",
-    ]);
+    expect(
+      placeableBuildings
+        .map((asset) => buildingArchetype(asset.id))
+        .sort((a, b) => String(a).localeCompare(String(b))),
+    ).toEqual(["archery", "barracks", "castle", "house", "monastery", "tower", "windmill"]);
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {

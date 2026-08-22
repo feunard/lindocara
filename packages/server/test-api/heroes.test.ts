@@ -25,6 +25,7 @@ import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+
 import { heroEquipment } from "../src/api/entities/heroEquipment.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
@@ -86,7 +87,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

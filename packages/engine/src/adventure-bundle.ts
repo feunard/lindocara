@@ -1,3 +1,4 @@
+import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
 /**
  * The portable adventure bundle: ONE JSON document carrying a whole adventure — metadata, registry
  * (switches/variables/quests), every map (layers, elements, spawn, events) and the exit graph.
@@ -9,7 +10,6 @@
  * are left untouched rather than dropped: the server's validation owns the final verdict.
  */
 import { type AdventureGraph, type ExitDestination, parseAdventureGraph } from "./adventure.js";
-import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
 import {
   type AdventureAudioConfig,
   type MapAudioConfig,

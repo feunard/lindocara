@@ -3,6 +3,7 @@ import { type Billboard, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { CAMERA, HERO, WORLD } from "./settings.js";
 import { FOOT as CHEST_FOOT, TAILLE as CHEST_HEIGHT } from "./world/chest.js";
 import { mulberry32 } from "./world/island.js";

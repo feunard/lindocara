@@ -9,6 +9,7 @@
  * the observable this file protects.
  */
 import { describe, expect, it } from "vitest";
+
 import {
   ENEMY_RENDER_METRICS,
   type EnemyRenderMetrics,

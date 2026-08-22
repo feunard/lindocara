@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { createMoodBlend, createMoodMixer, type MoodConfig } from "../src/mood.js";
 
 const base: MoodConfig = {

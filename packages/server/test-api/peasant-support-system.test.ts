@@ -38,8 +38,8 @@ import {
   type PlayerRuntime,
   type ProjectileRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-
 import { describe, expect, it, vi } from "vitest";
+
 import type { WorldGlue } from "../src/api/realtime/world-glue.ts";
 import { sendPeasantCampsTo } from "../src/api/realtime/world-send.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";

@@ -3,6 +3,7 @@ import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { HarvestTool } from "@lindocara/engine/harvest.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
+
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";

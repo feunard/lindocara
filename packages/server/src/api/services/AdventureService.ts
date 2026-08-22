@@ -1,3 +1,4 @@
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 /**
  * Adventures as stored things on Alepha: create (atomic with the default first map), list, load,
  * update and delete. Ported from `packages/server/src/adventures.ts`, function-by-function, onto
@@ -34,12 +35,12 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
-import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { AdventureAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { $inject } from "alepha";
 import { users } from "alepha/api/users";
 import { $repository } from "alepha/orm";
+
 import {
   decodeStoredAdventureRegistry,
   prepareAdventureRegistry,
@@ -53,8 +54,8 @@ import { mapEvents } from "../entities/mapEvents.ts";
 import { maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { decodeAdventureAudio } from "./adventureAuthoring.ts";
-import { type MapPayload, MapService } from "./MapService.ts";
 import { DEFAULT_FIRST_MAP_NAME, type MapInput } from "./mapAuthoring.ts";
+import { type MapPayload, MapService } from "./MapService.ts";
 
 // `mapEventPages.deleteMany`'s `eventId: { inArray: [...] }` binds exactly one parameter per event
 // id (unlike an INSERT, there is no per-column multiplication — see `MapService`'s own docblock for

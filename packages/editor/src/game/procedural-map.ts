@@ -7,8 +7,8 @@
 
 import { presetEvent } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
-import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
+import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   ELEMENT_OFFSET_STEPS,
@@ -37,6 +37,7 @@ import {
   LINDOCARA_RUNNER_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import { canvasEditorMap, type EditorMap } from "./editor-state.js";
 
 export const PROCEDURAL_MAP_GENRES = [

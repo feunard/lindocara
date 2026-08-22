@@ -14,6 +14,7 @@ import {
 } from "@lindocara/engine/talents.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useState } from "react";
+
 import { t, useLocale } from "../i18n.js";
 import { partyMaterialCostText } from "../material-copy.js";
 import { useUiStore } from "../store.js";

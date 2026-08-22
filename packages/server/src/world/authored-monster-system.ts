@@ -16,6 +16,7 @@ import {
   hostileOnPage,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
 const AUTHORED_MONSTER_PREFIX = "mon-";

@@ -40,13 +40,13 @@ import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
 import { maxHpForLevel, xpForNextLevel } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
-import { type HarvestProfile, harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import {
   type HarvestPresetId,
   harvestPreset,
   harvestProfileFromPreset,
   NATIVE_HARVEST_RESPAWN_MS,
 } from "@lindocara/engine/harvest-presets.js";
+import { type HarvestProfile, harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import {
   authoredCellCentreGround,
@@ -78,14 +78,15 @@ import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
+
 import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
 import { heroQuests } from "../src/api/entities/heroQuests.ts";
 import { parties } from "../src/api/entities/parties.ts";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
-import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
+import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import {
@@ -323,7 +324,7 @@ function authed(token: string) {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
-        ...(init.headers ?? {}),
+        ...init.headers,
       },
     });
 }
@@ -1892,7 +1893,7 @@ describe("world room events (FakeClock)", () => {
       {
         t: "if",
         cond: { type: "variable", variableId: "0001", min: 1 },
-        // biome-ignore lint/suspicious/noThenProperty: `then` is the conditional's branch field, not a thenable.
+        // `then` is the conditional's branch field, not a thenable.
         then: [{ t: "say", text: "OUI", name: null }],
         else: [{ t: "say", text: "NON", name: null }],
       },

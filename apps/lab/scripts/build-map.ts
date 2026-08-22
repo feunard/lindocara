@@ -8,9 +8,11 @@
 // Run: npm run build:map -w @lindocara/lab
 
 import { writeFileSync } from "node:fs";
+
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { encodeMap, type MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+
 import { GROTA, NANUQ, SPAWN, WORLD } from "../src/settings.js";
 import { CHEST_RADIUS, decideChestPlacement } from "../src/world/chest.js";
 import {

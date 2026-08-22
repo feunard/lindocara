@@ -24,7 +24,10 @@ export const PLAYER_ATLAS_FRAMES: Readonly<
 };
 
 export const MAIN_HAND_ART: Readonly<
-  Record<MainHandItem, { source: "atlas" | string; frame?: string; width: number; height: number }>
+  Record<
+    MainHandItem,
+    { source: "atlas" | (string & {}); frame?: string; width: number; height: number }
+  >
 > = {
   weathered_sword: { source: "atlas", frame: "weapon.sword", width: 7, height: 16 },
   hunter_bow: {

@@ -36,6 +36,7 @@
 
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
 import {
   encodeMap,
   type HeightfieldElement,
@@ -48,6 +49,7 @@ import { BODY_PARSER_OPTIONS_SEED } from "@lindocara/server/api/bodySizeCap.js";
 import { LindocaraApi } from "@lindocara/server/api/index.js";
 import { MapService } from "@lindocara/server/api/services/MapService.js";
 import { Alepha } from "alepha";
+
 import { SPAWN, WORLD } from "../apps/lab/src/settings.js";
 import { generateIsland } from "../apps/lab/src/world/island.js";
 

@@ -17,6 +17,7 @@ import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import { createWaterfall } from "@lindocara/hd2d/terrain/waterfall.js";
 import { createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import {
   BENCH_CENTER_OFFSET,
   type BenchLevel,

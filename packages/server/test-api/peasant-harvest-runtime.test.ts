@@ -14,6 +14,7 @@ import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
+
 import {
   advancePeasantHarvestJobs,
   pruneInvalidPeasantHarvestJobs,
@@ -322,7 +323,7 @@ function installDepletedNode(w: WorldGlue, eventId: string, generation = 0): voi
     state: {
       ...w.state.adventureState.state,
       harvestNodes: {
-        ...(w.state.adventureState.state.harvestNodes ?? {}),
+        ...w.state.adventureState.state.harvestNodes,
         [eventId]: {
           eventId,
           generation,

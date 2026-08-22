@@ -40,6 +40,7 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import { $inject } from "alepha";
 import { $repository } from "alepha/orm";
+
 // Pure item catalogue reused as-is from the legacy source tree (same-package sibling — the same
 // sanctioned import `HeroService` already makes).
 import { HEALTH_POTION_ID, isMainHandItem, isOffHandItem } from "../../items.js";

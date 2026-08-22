@@ -21,6 +21,7 @@
  * a troll's large sprite block paths or terrain gaps.
  */
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const ROOT = `${TINY_SWORDS_ROOT}/enemies`;

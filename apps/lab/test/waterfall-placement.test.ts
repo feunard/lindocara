@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { WATERFALLS, WEST, WORLD, ZONES } from "../src/settings.js";
 import { generateIsland } from "../src/world/island.js";
 

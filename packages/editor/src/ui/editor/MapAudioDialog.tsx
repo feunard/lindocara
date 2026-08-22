@@ -9,6 +9,7 @@ import {
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { useEffect, useState } from "react";
+
 import { AudioConfigFields } from "./AudioConfigFields.js";
 
 interface MapAudioDialogProps {
@@ -53,7 +54,7 @@ export function MapAudioDialog({
         <DialogHeader>
           <DialogTitle>{t("editor.audio.mapTitle", { name: mapName })}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t("editor.audio.mapHint")}</p>
+        <p className="text-muted-foreground text-sm">{t("editor.audio.mapHint")}</p>
         <AudioConfigFields variant="map" value={audio} onChange={setAudio} />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

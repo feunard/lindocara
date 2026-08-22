@@ -16,6 +16,7 @@ import {
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
+
 import { createHeroController, type HeroControllerInput } from "@/game/hero-controller.js";
 
 const SIZE = 12;

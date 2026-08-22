@@ -59,7 +59,7 @@ function NumericField({
         aria-invalid={invalid}
         onChange={(event) => onChange(Number(event.currentTarget.value))}
       />
-      <p className={invalid ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+      <p className={invalid ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
         {t("editor.heroSettings.range", { min: limits.min, max: limits.max })}
       </p>
     </div>
@@ -158,7 +158,7 @@ export function MapHeroSettingsDialog({
         <DialogHeader>
           <DialogTitle>{t("editor.heroSettings.title", { name: mapName })}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t("editor.heroSettings.hint")}</p>
+        <p className="text-muted-foreground text-sm">{t("editor.heroSettings.hint")}</p>
         <Tabs defaultValue="warrior" className="min-h-0 flex-1 overflow-hidden">
           <TabsList className="grid w-full grid-cols-5">
             {PLAYER_CLASSES.map((playerClass) => (

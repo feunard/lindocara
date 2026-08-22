@@ -1,3 +1,5 @@
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import type { CreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
 import type {
   AdventureCameraMode,
   AdventureGameMode,
@@ -5,8 +7,6 @@ import type {
   AdventureInput,
   CreateAdventureInput,
 } from "@lindocara/engine/adventure.js";
-import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
-import type { CreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
 import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
@@ -18,6 +18,7 @@ import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
+
 import { t } from "./i18n.js";
 import { onUnauthorized } from "./state/navigation.js";
 
@@ -58,10 +59,13 @@ export function isUnauthorizedCode(code: string): boolean {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  // `HeadersInit` is `Headers | string[][] | Record<string, string>`, and only the
+  // last of the three survives an object spread — the other two spread to their
+  // indices. Building a real `Headers` accepts all three, and keeps the caller's
+  // own Content-Type when it set one.
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...init, headers });
   if (response.status === 204) return undefined as T;
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {

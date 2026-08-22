@@ -32,12 +32,12 @@ import {
   type MonsterSpecies,
   type MonsterTuning,
 } from "@lindocara/engine/game.js";
+import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import {
   cloneHarvestProfile,
   type HarvestProfile,
   parseHarvestProfile,
 } from "@lindocara/engine/harvest.js";
-import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";

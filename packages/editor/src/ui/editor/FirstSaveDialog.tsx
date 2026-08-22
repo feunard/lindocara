@@ -57,7 +57,7 @@ export function FirstSaveDialog({ open, defaultTitle, onConfirm, onCancel }: Fir
         <DialogHeader>
           <DialogTitle>{t("editor.firstSave.title")}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t("editor.firstSave.hint")}</p>
+        <p className="text-muted-foreground text-sm">{t("editor.firstSave.hint")}</p>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="first-save-title">{t("adventure.name")}</Label>
           <Input

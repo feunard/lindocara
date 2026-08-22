@@ -7,6 +7,7 @@ import {
   standingCeiling,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
+
 import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;

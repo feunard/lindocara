@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { parseCheatCommand } from "../src/cheats.js";
 
 describe("parseCheatCommand /tp", () => {

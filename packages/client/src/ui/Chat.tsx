@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
+
 import { currentLocale, t, useLocale } from "../i18n.js";
 import { type ChatLine, useUiStore } from "../store.js";
 

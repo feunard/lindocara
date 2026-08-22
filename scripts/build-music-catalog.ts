@@ -74,8 +74,19 @@ function serialise(value: unknown): string {
 }
 
 function formatTypeScript(source: string): string {
-  const biome = path.join(root, "node_modules", "@biomejs", "biome", "bin", "biome");
-  return execFileSync(process.execPath, [biome, "format", "--stdin-file-path", outputPath], {
+  // oxfmt ships inside `alepha` rather than being a dependency of this repo, so
+  // it is resolved out of the hoisted install exactly like `alepha lint` does.
+  const oxfmt = path.join(root, "node_modules", "oxfmt", "bin", "oxfmt");
+  // NOT `outputPath`: `.oxfmtrc.json` ignores `**/generated`, and oxfmt honours
+  // that for `--stdin-filepath` too — handed the real path it returns the input
+  // untouched. A root-level `.ts` name picks the same parser and the same
+  // (global) options, so the bytes match what formatting the file would give.
+  //
+  // The generated tree is ignored on purpose: `yarn music:check` compares this
+  // output BYTE FOR BYTE against what is committed, so a formatter that also
+  // rewrote the file in place would turn every `yarn lint` into catalogue drift.
+  const parserPath = path.join(root, "music-catalog.ts");
+  return execFileSync(process.execPath, [oxfmt, `--stdin-filepath=${parserPath}`], {
     cwd: root,
     encoding: "utf8",
     input: source,

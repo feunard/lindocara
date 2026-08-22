@@ -18,6 +18,7 @@ import type {
   ProjectileSnapshot,
   WorldView,
 } from "@lindocara/engine/protocol.js";
+
 import { navigationDebug as navigationDebugSnapshot } from "./navigation-system.js";
 import { isRogueStealthed } from "./rogue-state-system.js";
 import { type SeaGuardianRuntime, seaGuardianSnapshots } from "./sea-guardian-system.js";
@@ -43,9 +44,7 @@ function round(value: number): number {
   return Math.round(value * 6400) / 6400;
 }
 
-function combatActionSnapshot(
-  action: PlayerRuntime["action"] | MonsterRuntime["action"],
-): CombatActionSnapshot | null {
+function combatActionSnapshot(action: PlayerRuntime["action"]): CombatActionSnapshot | null {
   if (!action) return null;
   return {
     id: action.id,

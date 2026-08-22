@@ -33,6 +33,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
+
 import type { EditorMode } from "../../game/editor-state.js";
 import { EditorModeControl } from "./EditorModeControl.js";
 

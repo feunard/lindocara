@@ -22,6 +22,7 @@ import { HERO_CLASSES, isHeroClass } from "@lindocara/engine/hero.js";
 import type { AuthoredQuestDefinition, QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { AlertTriangle, FlaskConical, Footprints } from "lucide-react";
 import { useEffect, useId, useState } from "react";
+
 import { questDiagnosticText } from "./QuestDefinitionEditor.js";
 
 const ADVENTURE_START = "adventure-start";
@@ -111,7 +112,7 @@ export function AdventureTestDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {start === ADVENTURE_START
                 ? t("editor.test.start.adventureHint")
                 : t("editor.test.start.mapHint")}
@@ -171,17 +172,17 @@ export function AdventureTestDialog({
           )}
 
           {error && (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-destructive text-sm" role="alert">
               {error}
             </p>
           )}
 
-          <div className="rounded-lg border bg-muted/40 p-4">
+          <div className="bg-muted/40 rounded-lg border p-4">
             <div className="flex items-start gap-3">
               <Footprints className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="grid gap-1">
                 <strong className="text-sm">{t("editor.test.quick.title")}</strong>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   {t("editor.test.quick.description")}
                 </p>
               </div>

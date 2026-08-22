@@ -2,6 +2,7 @@ import { createAnimator, makeBillboard, makeFlatSprite } from "@lindocara/hd2d/b
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { CAMERA } from "../settings.js";
 import type { Room } from "./hero.js";
 

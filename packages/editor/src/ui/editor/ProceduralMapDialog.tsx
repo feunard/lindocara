@@ -19,6 +19,7 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { Dices, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import {
   PROCEDURAL_MAP_COMPLEXITIES,
   PROCEDURAL_MAP_GENRES,
@@ -80,7 +81,7 @@ export function ProceduralMapDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground">{t("editor.generator.hint")}</p>
+        <p className="text-muted-foreground text-sm">{t("editor.generator.hint")}</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
@@ -157,8 +158,8 @@ export function ProceduralMapDialog({
           </div>
         </div>
 
-        <div className="rounded-md border bg-muted/35 p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">
+        <div className="bg-muted/35 text-muted-foreground rounded-md border p-3 text-xs">
+          <p className="text-foreground font-medium">
             {optionLabel("editor.generator.genre", genre)} · {dimensions.cols}×{dimensions.rows} ·{" "}
             {optionLabel("editor.generator.complexity", complexity)}
           </p>

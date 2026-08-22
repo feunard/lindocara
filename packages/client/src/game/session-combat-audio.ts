@@ -1,4 +1,5 @@
 import type { EventCode, MonsterSnapshot } from "@lindocara/engine/protocol.js";
+
 import type { Connection } from "./net.js";
 
 type AttackConnection = Pick<Connection, "attack">;

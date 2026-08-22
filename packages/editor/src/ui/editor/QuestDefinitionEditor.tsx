@@ -14,13 +14,7 @@ import {
   type QuestDiagnostic,
 } from "@lindocara/engine/quests.js";
 import { Plus } from "lucide-react";
-import { QuestChoiceField } from "./QuestChoiceField.js";
-import { QuestDialoguesEditor } from "./QuestDialoguesEditor.js";
-import { QuestNumberInput } from "./QuestNumberInput.js";
-import { QuestObjectiveEditor } from "./QuestObjectiveEditor.js";
-import { QuestPrerequisitesEditor } from "./QuestPrerequisitesEditor.js";
-import { QuestRewardsEditor } from "./QuestRewardsEditor.js";
-import { QuestToggleField } from "./QuestToggleField.js";
+
 import {
   createStructuredQuestObjective,
   eventReferenceFromValue,
@@ -29,6 +23,13 @@ import {
   questEventLabel,
   questEventOptions,
 } from "./quest-editor-model.js";
+import { QuestChoiceField } from "./QuestChoiceField.js";
+import { QuestDialoguesEditor } from "./QuestDialoguesEditor.js";
+import { QuestNumberInput } from "./QuestNumberInput.js";
+import { QuestObjectiveEditor } from "./QuestObjectiveEditor.js";
+import { QuestPrerequisitesEditor } from "./QuestPrerequisitesEditor.js";
+import { QuestRewardsEditor } from "./QuestRewardsEditor.js";
+import { QuestToggleField } from "./QuestToggleField.js";
 import { useStableObjectKeys } from "./use-stable-object-keys.js";
 
 interface QuestDefinitionEditorProps {
@@ -127,7 +128,7 @@ export function QuestDefinitionEditor({
 
   return (
     <Tabs defaultValue="general" className="min-h-0 flex-1">
-      <TabsList className="sticky top-0 z-10 w-full justify-start rounded-none border-b border-border bg-background px-1 py-1">
+      <TabsList className="border-border bg-background sticky top-0 z-10 w-full justify-start rounded-none border-b px-1 py-1">
         <TabsTrigger value="general">{t("editor.quest.tab.general")}</TabsTrigger>
         <TabsTrigger value="objectives">{t("editor.quest.tab.objectives")}</TabsTrigger>
         <TabsTrigger value="prerequisites">{t("editor.quest.tab.prerequisites")}</TabsTrigger>
@@ -148,6 +149,9 @@ export function QuestDefinitionEditor({
                 id={`quest-title-${quest.id}`}
                 maxLength={64}
                 value={quest.title}
+                // The field this editor exists to fill, focused as it opens. The rule
+                // guards against stealing focus on page load, which this is not.
+                // oxlint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 onChange={(event) => onChange({ ...quest, title: event.currentTarget.value })}
               />
@@ -256,7 +260,7 @@ export function QuestDefinitionEditor({
             )}
           </section>
 
-          <section className="flex flex-wrap gap-x-5 gap-y-3 rounded-lg border border-border p-4">
+          <section className="border-border flex flex-wrap gap-x-5 gap-y-3 rounded-lg border p-4">
             <QuestToggleField
               label={t("editor.quest.repeatable")}
               checked={quest.repeatable}
@@ -301,7 +305,7 @@ export function QuestDefinitionEditor({
             </Button>
           </header>
           {quest.objectives.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="border-border text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm">
               {t("editor.quest.objective.empty")}
             </p>
           ) : (
@@ -392,7 +396,7 @@ export function QuestDefinitionEditor({
               ))}
             </ul>
           )}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {t("editor.quest.validation.saveDraftHint")}
           </p>
         </div>

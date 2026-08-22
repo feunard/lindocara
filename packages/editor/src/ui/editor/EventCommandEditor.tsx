@@ -26,6 +26,7 @@ import {
 } from "@lindocara/engine/sfx-catalog.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
+
 import {
   type CommandRow,
   commandAt,
@@ -215,7 +216,7 @@ function FieldSelect(props: React.ComponentProps<"select">) {
   const { className, ...rest } = props;
   return (
     <select
-      className={`h-7 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
+      className={`border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3 ${className ?? ""}`}
       {...rest}
     />
   );
@@ -246,7 +247,7 @@ function NumberField({
       aria-label={ariaLabel}
       min={min}
       max={max}
-      className={`h-7 rounded-lg border border-input bg-transparent px-2 text-xs tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
+      className={`border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 rounded-lg border bg-transparent px-2 text-xs tabular-nums outline-none focus-visible:ring-3 ${className ?? ""}`}
       value={value}
       onChange={(e) => onChange(Number(e.currentTarget.value))}
       onBlur={onBlur}
@@ -342,7 +343,7 @@ function commandLine(
   switches: readonly RegistryEntry[],
   variables: readonly RegistryEntry[],
   quests: readonly AuthoredQuestDefinition[],
-  defaultSpeakerName?: string | undefined,
+  defaultSpeakerName?: string,
 ): string {
   switch (command.t) {
     case "say": {
@@ -566,7 +567,7 @@ export function EventCommandEditor({
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+        <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
           {t("editor.event.commands")}
         </h3>
         <div className="relative flex gap-1.5">
@@ -584,7 +585,7 @@ export function EventCommandEditor({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 text-destructive"
+            className="text-destructive h-7"
             disabled={selection?.kind !== "command"}
             aria-label={t("editor.event.cmd.delete")}
             onClick={remove}
@@ -683,7 +684,7 @@ export function EventCommandEditor({
       </div>
 
       {hint && (
-        <p role="alert" className="text-[11px] text-destructive">
+        <p role="alert" className="text-destructive text-[11px]">
           {hint === "count"
             ? t("editor.event.cmd.limit.count", { max: MAX_COMMANDS_PER_PAGE })
             : t("editor.event.cmd.limit.depth", { max: MAX_COMMAND_DEPTH })}
@@ -807,7 +808,7 @@ function ParamEditor({
   const label = t(`editor.event.cmd.new.${command.t}`);
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+      <div className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
         {t("editor.event.cmd.param", { label })}
       </div>
       <ParamBody
@@ -1123,7 +1124,7 @@ function ParamBody({
         <Field label={t("editor.event.cmd.field.comment")}>
           <input
             aria-label={t("editor.event.cmd.field.comment")}
-            className="h-7 w-full rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 w-full rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3"
             maxLength={COMMAND_TEXT_MAX}
             value={command.text}
             onChange={(e) => onChange({ ...command, text: e.currentTarget.value })}
@@ -1150,7 +1151,7 @@ function QuestFactIdField({
     <Field label={label}>
       <input
         aria-label={label}
-        className="h-7 w-full rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 w-full rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3"
         maxLength={ITEM_ID_MAX}
         value={value.replaceAll("_", " ")}
         onChange={(event) =>
@@ -1303,20 +1304,20 @@ function SayParams({
       {mode === "custom" && (
         <input
           aria-label={t("editor.event.cmd.speaker.custom")}
-          className="h-7 w-44 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 w-44 rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3"
           maxLength={COMMAND_TEXT_MAX}
           placeholder={t("editor.event.cmd.field.name.placeholder")}
           value={command.name ?? ""}
           onChange={(e) => onChange({ ...command, name: e.currentTarget.value })}
         />
       )}
-      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+      <p className="text-muted-foreground text-[10.5px] leading-relaxed">
         {t("editor.event.cmd.field.name.hint")}
       </p>
       <Field label={t("editor.event.cmd.field.text")}>
         <textarea
           aria-label={t("editor.event.cmd.field.text")}
-          className="h-16 w-full resize-none rounded-lg border border-input bg-transparent px-2 py-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-16 w-full resize-none rounded-lg border bg-transparent px-2 py-1.5 text-xs outline-none focus-visible:ring-3"
           maxLength={COMMAND_TEXT_MAX}
           value={command.text}
           onChange={(e) => onChange({ ...command, text: e.currentTarget.value })}
@@ -1362,7 +1363,7 @@ function AmbienceParams({
           ))}
         </FieldSelect>
       </Field>
-      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+      <p className="text-muted-foreground text-[10.5px] leading-relaxed">
         {t("editor.event.cmd.field.ambience.hint")}
       </p>
     </div>
@@ -1422,7 +1423,7 @@ function PlaySoundParams({
           {t("editor.event.cmd.field.sound.preview")}
         </Button>
       </div>
-      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+      <p className="text-muted-foreground text-[10.5px] leading-relaxed">
         {t("editor.event.cmd.field.sound.hint")}
       </p>
     </div>
@@ -1455,7 +1456,7 @@ function ChoicesParams({
       <Field label={t("editor.event.cmd.field.prompt")}>
         <input
           aria-label={t("editor.event.cmd.field.prompt")}
-          className="h-7 w-full rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 w-full rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3"
           maxLength={COMMAND_TEXT_MAX}
           value={command.prompt}
           onChange={(e) => onChange({ ...command, prompt: e.currentTarget.value })}
@@ -1463,11 +1464,11 @@ function ChoicesParams({
       </Field>
       <div className="flex flex-col gap-1.5">
         {command.options.map((option, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: options are positional, no stable id
+          // Options are positional, no stable id
           <div key={index} className="flex items-center gap-1.5">
             <input
               aria-label={t("editor.event.cmd.field.option", { n: index + 1 })}
-              className="h-7 flex-1 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 flex-1 rounded-lg border bg-transparent px-2 text-xs outline-none focus-visible:ring-3"
               maxLength={COMMAND_TEXT_MAX}
               value={option.label}
               onChange={(e) => setLabel(index, e.currentTarget.value)}
@@ -1476,7 +1477,7 @@ function ChoicesParams({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 text-destructive"
+              className="text-destructive h-7"
               disabled={command.options.length <= 1}
               aria-label={t("editor.event.cmd.field.removeOption", { n: index + 1 })}
               onClick={() => removeOption(index)}

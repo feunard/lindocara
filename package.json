@@ -2,17 +2,13 @@
   "name": "lindocara",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*",
     ".vendor/alepha",
     ".vendor/@alepha/*"
   ],
-  "engines": {
-    "node": ">=22"
-  },
-  "packageManager": "yarn@4.18.0",
+  "type": "module",
   "scripts": {
     "dev": "yarn workspace @lindocara/main run dev",
     "build": "yarn workspace @lindocara/main run build",
@@ -41,10 +37,10 @@
     "adventure:showcase": "tsx scripts/seed-showcase-adventure.ts",
     "seed:brumeval": "tsx scripts/legacy/seed-brumeval.ts",
     "seed:sombregue": "tsx scripts/legacy/seed-sombregue.ts",
-    "adventure:build:liin": "tsx scripts/legacy/liin-adventure/build.ts && biome format --write adventures/legacy/liin-adventure-ia.json",
+    "adventure:build:liin": "tsx scripts/legacy/liin-adventure/build.ts",
     "adventure:render": "tsx scripts/render-adventure-maps.ts",
-    "adventure:build:baie": "tsx scripts/legacy/baie-cent-voiles/build.ts && biome format --write adventures/legacy/baie-cent-voiles.json",
-    "adventure:build:city": "tsx scripts/legacy/cite-assiegee/build.ts && biome format --write adventures/legacy/cite-assiegee.json",
+    "adventure:build:baie": "tsx scripts/legacy/baie-cent-voiles/build.ts",
+    "adventure:build:city": "tsx scripts/legacy/cite-assiegee/build.ts",
     "adventure:export": "tsx scripts/adventure-io.ts export",
     "adventure:import": "tsx scripts/adventure-io.ts import",
     "map:check": "yarn map:build && git diff --exit-code -- packages/engine/src/generated/zones/verdant-reach-tiles.ts packages/engine/src/generated/zones/mmo-test-zone-tiles.ts packages/engine/src/generated/zones/sunken-isles-tiles.ts",
@@ -52,7 +48,6 @@
     "catalog:check": "yarn workspace @lindocara/catalog run catalog:check",
     "music:catalog": "tsx scripts/build-music-catalog.ts",
     "music:check": "tsx scripts/build-music-catalog.ts --check",
-    "format": "biome format --write .",
     "typecheck": "yarn typecheck:engine && yarn typecheck:hd2d && yarn typecheck:audio && yarn typecheck:lab && yarn typecheck:server && yarn typecheck:renderer && yarn typecheck:client && yarn typecheck:editor && yarn typecheck:testing && yarn typecheck:catalog && yarn typecheck:main && tsc -p tsconfig.tooling.json && tsc -p tsconfig.tooling.api.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
     "typecheck:hd2d": "tsc -p packages/hd2d/tsconfig.json",
@@ -73,7 +68,6 @@
     "v": "yarn alepha verify"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.3",
     "@tailwindcss/vite": "^4.3.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -101,5 +95,9 @@
     "@esbuild-kit/core-utils/esbuild": "^0.25.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "yarn@4.18.0"
 }

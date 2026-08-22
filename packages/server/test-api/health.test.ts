@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, test } from "vitest";
+
 import { HealthController } from "../src/api/controllers/HealthController.ts";
 import { createTestApp } from "./helpers.ts";
 

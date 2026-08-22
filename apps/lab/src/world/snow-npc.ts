@@ -3,6 +3,7 @@ import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
+
 import { CAMERA, NANUQ } from "../settings.js";
 import { type NpcHandle, planStaticNpc } from "./npc-base.js";
 

@@ -1,5 +1,6 @@
 import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import { groundUnder, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
+
 import { hasRogueLineOfSight, shadowStepDestination } from "./rogue-skill-system.js";
 
 export interface ShadowDanceCandidate extends GroundVector {

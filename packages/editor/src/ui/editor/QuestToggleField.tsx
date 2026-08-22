@@ -11,7 +11,7 @@ interface QuestToggleFieldProps {
 export function QuestToggleField({ label, checked, disabled, onChange }: QuestToggleFieldProps) {
   const id = useId();
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-xs text-foreground">
+    <label htmlFor={id} className="text-foreground flex items-center gap-2 text-xs">
       <Checkbox
         id={id}
         checked={checked}

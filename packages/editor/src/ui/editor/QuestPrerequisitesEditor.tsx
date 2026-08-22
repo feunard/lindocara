@@ -7,6 +7,7 @@ import type {
   QuestPrerequisiteCondition,
 } from "@lindocara/engine/adventure-state.js";
 import { Trash2 } from "lucide-react";
+
 import { QuestChoiceField } from "./QuestChoiceField.js";
 import { QuestNumberInput } from "./QuestNumberInput.js";
 import { useStableObjectKeys } from "./use-stable-object-keys.js";
@@ -95,7 +96,7 @@ export function QuestPrerequisitesEditor({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold">{t("editor.quest.prerequisite.conditions")}</h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {t("editor.quest.prerequisite.conditionsHint")}
             </p>
           </div>
@@ -158,14 +159,14 @@ export function QuestPrerequisitesEditor({
         </div>
 
         {prerequisites.conditions.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+          <p className="border-border text-muted-foreground rounded-md border border-dashed p-3 text-sm">
             {t("editor.quest.prerequisite.empty")}
           </p>
         ) : (
           conditionRows.map(({ item: condition, key }, index) => (
             <div
               key={key}
-              className="grid grid-cols-[1fr_auto] items-end gap-2 rounded-lg border border-border p-3"
+              className="border-border grid grid-cols-[1fr_auto] items-end gap-2 rounded-lg border p-3"
             >
               {condition.type === "switch" && (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

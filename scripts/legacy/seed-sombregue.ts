@@ -21,6 +21,7 @@ import { type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import { validateAuthoredQuests } from "@lindocara/engine/quests.js";
 import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+
 import {
   type BuiltWorld,
   buildSombregue,
@@ -320,7 +321,7 @@ async function main(): Promise<void> {
     problems.push(...validateMapLocally(map, [...map.events, ...map.linkedEvents(fakeIds)]));
   }
   const questProblems = validateAuthoredQuests(buildQuests(fakeIds, world.refs));
-  problems.push(...questProblems.map((problem) => `quests: ${problem}`));
+  problems.push(...questProblems.map((problem) => `quests: ${JSON.stringify(problem)}`));
   if (problems.length > 0) {
     for (const problem of problems) console.error(`  ✗ ${problem}`);
     throw new Error(`${problems.length} content problem(s) — nothing was written`);

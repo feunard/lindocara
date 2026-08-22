@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+
 import type { Rect } from "@lindocara/engine/game.js";
 import type {
   AssetDomain,
@@ -851,20 +852,18 @@ function updateTreeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefin
     { x: 0, y: 192 },
     { x: 192, y: 192 },
   ];
-  const trees = treeCells.map(
-    (cell, index): EditorAssetDefinition => ({
-      ...common,
-      id: `resource.resources-trees.tree-${index + 1}`,
-      editor: {
-        category: "trees",
-        allowedTerrain: ["grass"],
-        renderLayer: "canopy",
-        visualFootprint: treeFootprint,
-        collider: { x: -12, y: -20, width: 24, height: 20 },
-        sourceRect: { ...cell, width: 192, height: 192 },
-      },
-    }),
-  );
+  const trees = treeCells.map((cell, index): EditorAssetDefinition => ({
+    ...common,
+    id: `resource.resources-trees.tree-${index + 1}`,
+    editor: {
+      category: "trees",
+      allowedTerrain: ["grass"],
+      renderLayer: "canopy",
+      visualFootprint: treeFootprint,
+      collider: { x: -12, y: -20, width: 24, height: 20 },
+      sourceRect: { ...cell, width: 192, height: 192 },
+    },
+  }));
   return [
     ...trees,
     {

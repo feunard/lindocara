@@ -2,6 +2,7 @@ import { Label } from "@alepha/ui/components/ui/label";
 import { Textarea } from "@alepha/ui/components/ui/textarea";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition, QuestDialogues } from "@lindocara/engine/quests.js";
+
 import {
   eventReferenceValue,
   type QuestMapCatalog,
@@ -68,7 +69,7 @@ export function QuestDialoguesEditor({ quest, maps, onChange }: QuestDialoguesEd
         {t("editor.quest.dialogue.intro")}
       </p>
 
-      <section className="rounded-lg border border-border p-4">
+      <section className="border-border rounded-lg border p-4">
         <header className="mb-4">
           <h3 className="font-semibold">
             {t("editor.quest.dialogue.giverGroup", {
@@ -78,14 +79,14 @@ export function QuestDialoguesEditor({ quest, maps, onChange }: QuestDialoguesEd
                   : t("editor.quest.dialogue.automaticSpeaker"),
             })}
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
             {t("editor.quest.dialogue.giverGroupHint")}
           </p>
         </header>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{renderFields(GIVER_FIELDS)}</div>
       </section>
 
-      <section className="rounded-lg border border-border p-4">
+      <section className="border-border rounded-lg border p-4">
         <header className="mb-4">
           <h3 className="font-semibold">
             {t("editor.quest.dialogue.turnInGroup", {
@@ -95,7 +96,7 @@ export function QuestDialoguesEditor({ quest, maps, onChange }: QuestDialoguesEd
                   : t("editor.quest.dialogue.automaticSpeaker"),
             })}
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
             {t("editor.quest.dialogue.turnInGroupHint")}
           </p>
         </header>

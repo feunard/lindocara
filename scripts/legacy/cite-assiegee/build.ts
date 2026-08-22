@@ -8,6 +8,7 @@
  * so CI can validate the deterministic source bundle without requiring image output.
  */
 import { writeFileSync } from "node:fs";
+
 import {
   ADVENTURE_BUNDLE_FORMAT,
   ADVENTURE_BUNDLE_VERSION,
@@ -17,6 +18,7 @@ import {
 import { parseAdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
+
 import {
   validateBundleMaps,
   validateStateReferences,

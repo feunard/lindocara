@@ -6,6 +6,7 @@
 
 import { type Input, NO_INPUT } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
+
 import {
   type ControlId,
   firstConnectedGamepad,

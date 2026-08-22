@@ -43,6 +43,7 @@ import {
 } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
+
 import type { BillboardScene } from "./billboards.js";
 import {
   type BuildingVolumeArt,

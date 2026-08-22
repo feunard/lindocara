@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import { fetchAll } from "./loader.js";
 
 export interface TextureSpec {

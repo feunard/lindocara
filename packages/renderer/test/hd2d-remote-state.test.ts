@@ -19,6 +19,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
 import { combatArt } from "../src/combat-art.js";
 import type { ActorView, BillboardScene } from "../src/hd2d/billboards.js";
 import {

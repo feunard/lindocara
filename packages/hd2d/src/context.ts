@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import { DEFAULT_CONFIG, type Hd2dConfig } from "./config.js";
 
 /**

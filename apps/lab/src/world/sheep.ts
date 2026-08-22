@@ -8,6 +8,7 @@ import {
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { bleat, pop } from "../core/audio.js";
 import { CAMERA } from "../settings.js";
 

@@ -6,11 +6,12 @@
  */
 import { useRouter } from "alepha/react/router";
 import type { CSSProperties } from "react";
+
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
 import type { AppRouter } from "./AppRouter.js";
-import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav } from "./tiny-swords/menu-nav.js";
+import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 interface Credit {
   work: string;

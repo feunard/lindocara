@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
 import type { Billboard } from "../src/billboard.js";
 import {
   billboardHeight,

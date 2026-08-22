@@ -1,6 +1,7 @@
 import { canReclaim } from "@lindocara/engine/death.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
+
 import { type PlayerRuntime, toAttachment } from "./world-runtime.js";
 
 /**

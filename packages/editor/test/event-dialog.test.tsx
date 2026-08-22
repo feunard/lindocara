@@ -3,8 +3,8 @@ import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { MONSTER_RESPAWN_MS } from "@lindocara/engine/game.js";
-import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
+import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,

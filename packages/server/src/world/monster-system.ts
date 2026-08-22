@@ -35,6 +35,7 @@ import {
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
+
 import {
   advanceWaypoint,
   invalidateBlockedWaypoint,
@@ -244,7 +245,7 @@ export function advanceMonsters<TSocket>(
     const activeSilhouette = player.rogueSilhouette && player.rogueSilhouette.expiresAt > now;
     return Boolean(
       player.forgottenUntil <= now &&
-        ((player.invisibleUntil <= now && !isRogueStealthed(player, now)) || activeSilhouette),
+      ((player.invisibleUntil <= now && !isRogueStealthed(player, now)) || activeSilhouette),
     );
   });
   for (let index = 0; index < context.monsters.length; index++) {

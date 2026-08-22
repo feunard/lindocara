@@ -18,6 +18,7 @@ import { makeBillboard, makeFlatSprite, makeRipple } from "@lindocara/hd2d/billb
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { CHARACTER_ATLAS_SIZE, CHARACTER_ATLAS_URL, LOOT_ATLAS_FRAMES } from "../character-art.js";
 import {
   type CombatProjectileArt,

@@ -7,9 +7,7 @@ import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { AuthoredQuestObjective } from "@lindocara/engine/quests.js";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { QuestChoiceField } from "./QuestChoiceField.js";
-import { QuestNumberInput } from "./QuestNumberInput.js";
-import { QuestToggleField } from "./QuestToggleField.js";
+
 import {
   changeQuestObjectiveType,
   createStructuredQuestObjective,
@@ -22,6 +20,9 @@ import {
   STRUCTURED_OBJECTIVE_TYPES,
   type StructuredObjectiveType,
 } from "./quest-editor-model.js";
+import { QuestChoiceField } from "./QuestChoiceField.js";
+import { QuestNumberInput } from "./QuestNumberInput.js";
+import { QuestToggleField } from "./QuestToggleField.js";
 
 interface QuestObjectiveEditorProps {
   objective: AuthoredQuestObjective;
@@ -77,7 +78,7 @@ export function QuestObjectiveEditor({
     onChange({ ...objective, ...patch } as AuthoredQuestObjective);
 
   return (
-    <article className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
+    <article className="border-border bg-card flex flex-col gap-3 rounded-lg border p-3">
       <header className="flex items-start gap-2">
         <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-2">
           <QuestChoiceField
@@ -203,7 +204,7 @@ export function QuestObjectiveEditor({
               }
             />
             {objective.mapScope.kind === "maps" && (
-              <fieldset className="flex flex-col gap-2 rounded-md border border-border p-2">
+              <fieldset className="border-border flex flex-col gap-2 rounded-md border p-2">
                 <legend className="px-1 text-xs font-medium">
                   {t("editor.quest.objective.allowedMaps")}
                 </legend>
@@ -448,7 +449,7 @@ export function QuestObjectiveEditor({
         </p>
       )}
 
-      <footer className="grid grid-cols-1 gap-3 border-t border-border pt-3 sm:grid-cols-[8rem_1fr]">
+      <footer className="border-border grid grid-cols-1 gap-3 border-t pt-3 sm:grid-cols-[8rem_1fr]">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`quest-objective-target-${objective.id}`}>
             {t("editor.quest.target")}

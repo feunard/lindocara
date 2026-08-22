@@ -1,6 +1,7 @@
 import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { skillWithTalents, type TalentEffect, talentEffects } from "@lindocara/engine/talents.js";
+
 import {
   consumeDamageOverTimePower,
   type DamageOverTimeRuntime,

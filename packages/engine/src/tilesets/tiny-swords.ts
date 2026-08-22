@@ -162,7 +162,7 @@ export const SUNKEN_MATERIAL_SLOTS = {
   glace: [55, 59, 63],
 } as const satisfies Readonly<Record<TerrainMaterial, SunkenLevelSlots>>;
 
-const RETIRED_THIN_ICE_SLOTS: readonly number[] = [16, 17, 18, 23];
+const RETIRED_THIN_ICE_SLOTS: ReadonlySet<number> = new Set([16, 17, 18, 23]);
 export const CLIFF_WALL_SLOT = 3;
 export const CLIFF_WATER_SLOT = 4;
 export const CLIFF_WALL_HIGH_2_SLOT = 5;
@@ -551,7 +551,7 @@ export function materialOfSlot(slot: number): TerrainMaterial {
     if ((TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
     if ((SUNKEN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
   }
-  if (RETIRED_THIN_ICE_SLOTS.includes(slot)) return "glace";
+  if (RETIRED_THIN_ICE_SLOTS.has(slot)) return "glace";
   return "herbe";
 }
 

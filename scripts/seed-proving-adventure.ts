@@ -42,6 +42,7 @@
  */
 
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+
 import { buildProvingMap } from "./build-proving-map.js";
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 

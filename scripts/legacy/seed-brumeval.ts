@@ -20,6 +20,7 @@ import { elementFitsMap, parseMapData, terrainFromMap } from "@lindocara/engine/
 import { eventCellCentre, type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import { collectQuestCommandBindings, validateAuthoredQuests } from "@lindocara/engine/quests.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+
 import { type BuiltWorld, buildWorld, type MapContent } from "./brumeval/maps.js";
 import { buildRegistry, type MapIdByKey } from "./brumeval/quests.js";
 

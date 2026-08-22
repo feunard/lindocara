@@ -1,4 +1,5 @@
 import { INTERIORS } from "@lindocara/renderer/interiors.js";
+
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 

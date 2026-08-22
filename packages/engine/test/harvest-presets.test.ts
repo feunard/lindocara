@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHarvestProfile } from "../src/harvest.js";
+
 import {
   HARVEST_PRESET_IDS,
   HARVEST_PRESETS,
@@ -10,6 +10,7 @@ import {
   NATIVE_HARVEST_RESPAWN_MS,
   nativeHarvestProfileForAsset,
 } from "../src/harvest-presets.js";
+import { parseHarvestProfile } from "../src/harvest.js";
 import { editorAsset } from "../src/tiny-swords-catalog.js";
 
 describe("semantic harvest presets", () => {

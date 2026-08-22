@@ -9,14 +9,6 @@ import {
 import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { PartyMaterialAmounts } from "@lindocara/engine/party-harvest-state.js";
 import {
-  type PeasantBombPlan as EnginePeasantBombPlan,
-  type PeasantConstructionPlan,
-  type PeasantRationPlan,
-  resolvePeasantBombPlan,
-  resolvePeasantConstructionPlan,
-  resolvePeasantRationPlan,
-} from "@lindocara/engine/peasant.js";
-import {
   PEASANT_RATION_ARC_HEIGHT,
   PEASANT_RATION_DROP_COUNT,
   PEASANT_RATION_FADE_MS,
@@ -25,6 +17,14 @@ import {
   PEASANT_RATION_LAUNCH_RADIUS,
   PEASANT_SUPPORT_SKILLS,
 } from "@lindocara/engine/peasant-support.js";
+import {
+  type PeasantBombPlan as EnginePeasantBombPlan,
+  type PeasantConstructionPlan,
+  type PeasantRationPlan,
+  resolvePeasantBombPlan,
+  resolvePeasantConstructionPlan,
+  resolvePeasantRationPlan,
+} from "@lindocara/engine/peasant.js";
 import type { SkillDefinition, SkillSlot } from "@lindocara/engine/skills.js";
 import { peasantTalentEffects } from "@lindocara/engine/talents.js";
 import {
@@ -36,6 +36,7 @@ import {
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+
 import { startCombatAction } from "./combat-action-system.js";
 import {
   canSpawnProjectile,

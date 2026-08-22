@@ -14,6 +14,7 @@ import type {
   QuestEventReference,
 } from "@lindocara/engine/quests.js";
 import { emptyQuestDialogues, emptyQuestRewards } from "@lindocara/engine/quests.js";
+
 import { AREA_CAMP, ITEM_CRATE, type MapKey, SWITCH_GRUMLOK, type WorldRefs } from "./maps.js";
 
 export type MapIdByKey = Record<MapKey, string>;

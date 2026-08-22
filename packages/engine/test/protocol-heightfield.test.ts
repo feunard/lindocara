@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { encodeMap, type MapData } from "../src/hd2d/map-data.js";
 import { parseServerMessage } from "../src/protocol.js";
 import { emptyLayer, encodeTileLayer } from "../src/tile-layer-codec.js";

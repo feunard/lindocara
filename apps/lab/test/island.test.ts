@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { NORD, WEST, WORLD } from "../src/settings.js";
 import {
   generateIsland,
@@ -278,7 +279,7 @@ describe("the west island", () => {
   it("carries every terrace from 0 to 4, so no wall is ever taller than one level", () => {
     const seen = new Set<number>();
     for (const c of westCells()) seen.add(c.h);
-    expect([...seen].sort()).toEqual([0, 1, 2, 3, 4]);
+    expect([...seen].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("renders levels 3 and up with the rock atlas, and 0/1/2 with the grass bands", () => {

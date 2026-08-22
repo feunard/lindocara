@@ -18,7 +18,7 @@ const FIREFLIES = Array.from({ length: 18 }, (_, i) => ({
   style: {
     left: `${(i * 37 + 11) % 100}%`,
     top: `${(i * 53 + 5) % 60}%`,
-    animationDelay: `${-((i * 1.7) % 11).toFixed(2)}s`,
+    animationDelay: `${(-((i * 1.7) % 11)).toFixed(2)}s`,
     animationDuration: `${8 + (i % 6)}s`,
   } as CSSProperties,
 }));
@@ -28,7 +28,7 @@ const BIRDS = Array.from({ length: 6 }, (_, i) => ({
   id: `bird-${i}`,
   style: {
     top: `${6 + ((i * 9 + 3) % 26)}%`,
-    animationDelay: `${-((i * 6.5) % 34).toFixed(2)}s`,
+    animationDelay: `${(-((i * 6.5) % 34)).toFixed(2)}s`,
     animationDuration: `${26 + (i % 4) * 5}s`,
     scale: `${(0.65 + (i % 3) * 0.18).toFixed(2)}`,
   } as CSSProperties,

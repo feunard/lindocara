@@ -6,10 +6,10 @@
   "exports": {
     "./*": "./src/*"
   },
-  "devDependencies": {
-    "vitest": "^4.1.10"
-  },
   "scripts": {
     "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

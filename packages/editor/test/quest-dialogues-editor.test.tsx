@@ -1,7 +1,7 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
-import { QuestDialoguesEditor } from "@lindocara/editor/ui/editor/QuestDialoguesEditor.js";
 import type { QuestMapCatalog } from "@lindocara/editor/ui/editor/quest-editor-model.js";
+import { QuestDialoguesEditor } from "@lindocara/editor/ui/editor/QuestDialoguesEditor.js";
 import { createAuthoredQuestDefinition } from "@lindocara/engine/quests.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

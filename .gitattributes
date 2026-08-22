@@ -1,2 +1,2 @@
-# Biome formats with LF. Keep checks reproducible when Git checks the repository out on Windows.
+# oxfmt writes LF. Keep checks reproducible when Git checks the repository out on Windows.
 * text=auto eol=lf

@@ -46,6 +46,7 @@ import {
   editorAssetCollisionElevation,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneTerrain } from "@lindocara/engine/zones.js";
+
 import {
   activeAuthoredGuardDefinitions,
   authoredGuardRuntimeId,

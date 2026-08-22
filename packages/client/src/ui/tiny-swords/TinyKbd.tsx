@@ -12,7 +12,7 @@ function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
       data-slot="kbd"
       className={cn(
         "pixel-font",
-        "inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 p-2 font-sans text-xs select-none pointer-events-none",
+        "pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 p-2 font-sans text-xs select-none",
         "[background-color:var(--tiny-surface-sunken)] [color:var(--tiny-surface-sunken-ink)]",
         "[&_svg:not([class*='size-'])]:size-3",
         className,

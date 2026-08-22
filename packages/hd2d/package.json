@@ -6,14 +6,14 @@
   "exports": {
     "./*": "./src/*"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/three": "^0.185.0",
     "vitest": "^4.1.10"
-  },
-  "scripts": {
-    "test": "vitest run"
   }
 }

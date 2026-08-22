@@ -14,6 +14,7 @@ import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
+
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
@@ -136,7 +137,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

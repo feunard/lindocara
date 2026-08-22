@@ -1,5 +1,6 @@
 import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 import { describe, expect, it } from "vitest";
+
 import type { AdventureBundleMap } from "../src/adventure-bundle.js";
 import {
   buildAuthoredTransitionGraph,

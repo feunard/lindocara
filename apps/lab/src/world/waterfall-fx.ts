@@ -1,6 +1,7 @@
 import { type Billboard, createAnimator, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
+
 import { MIST, RAINBOW, SPRAY, WATER_FOG } from "../settings.js";
 
 // Procedural textures, built once in canvas and never rebuilt — the same pattern as

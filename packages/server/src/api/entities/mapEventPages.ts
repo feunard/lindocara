@@ -1,6 +1,7 @@
 import { EVENT_TRIGGERS, MOVE_TYPES, SELF_SWITCHES } from "@lindocara/engine/map-events.js";
 import { type Infer, z } from "alepha";
 import { $entity, db } from "alepha/orm";
+
 import { mapEvents } from "./mapEvents.ts";
 
 /**

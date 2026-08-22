@@ -15,6 +15,7 @@ import {
   damageBuilding,
 } from "@lindocara/server/world/building-system.js";
 import { describe, expect, it } from "vitest";
+
 import { zoneFromMapPayload } from "../src/api/realtime/worldState.ts";
 import type { MapPayload } from "../src/api/services/MapService.ts";
 

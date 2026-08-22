@@ -13,6 +13,7 @@ import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { useState } from "react";
+
 import type { ElementEventBinding } from "../../game/editor-state.js";
 import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
 
@@ -131,7 +132,7 @@ export function ObjectBindingDialog({
           )}
           <div>
             <strong className="text-sm">{t("editor.binding.caption")}</strong>
-            <p className="text-xs text-muted-foreground">{t("editor.binding.hint")}</p>
+            <p className="text-muted-foreground text-xs">{t("editor.binding.hint")}</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -176,7 +177,7 @@ export function ObjectBindingDialog({
           <div className="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3">
             {quests.length === 0 ? (
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">{t("editor.binding.noQuest")}</p>
+                <p className="text-muted-foreground text-xs">{t("editor.binding.noQuest")}</p>
                 <Button size="sm" variant="outline" onClick={onOpenQuestDatabase}>
                   {t("editor.binding.createQuest")}
                 </Button>
@@ -185,7 +186,7 @@ export function ObjectBindingDialog({
               <>
                 <select
                   aria-label={t("editor.event.cmd.field.quest")}
-                  className="h-8 rounded-md border border-input bg-white px-2 text-xs"
+                  className="border-input h-8 rounded-md border bg-white px-2 text-xs"
                   value={selectedQuest?.id ?? ""}
                   onChange={(event) => {
                     const id = event.currentTarget.value;
@@ -206,7 +207,7 @@ export function ObjectBindingDialog({
                   matchingObjectives.length > 0 && (
                     <select
                       aria-label={t("editor.event.cmd.field.objective")}
-                      className="h-8 rounded-md border border-input bg-white px-2 text-xs"
+                      className="border-input h-8 rounded-md border bg-white px-2 text-xs"
                       value={objectiveId}
                       onChange={(event) => setObjectiveId(event.currentTarget.value)}
                     >
@@ -223,7 +224,7 @@ export function ObjectBindingDialog({
                   kind === "quest-activity") &&
                   matchingObjectives.length === 0 && (
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {t("editor.binding.noMatchingObjective")}
                       </p>
                       <Button size="sm" variant="outline" onClick={onOpenQuestDatabase}>

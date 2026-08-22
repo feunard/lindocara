@@ -12,8 +12,8 @@ import {
   toMapData,
   toSaveInput,
 } from "@lindocara/editor/game/editor-state.js";
-import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-session.js";
+import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
@@ -1769,12 +1769,16 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady(alepha);
     const cursorCb = stageMock.openMapEditorStage.mock.calls[0]?.[2];
 
-    act(() => cursorCb?.(3, 5));
+    act(() => {
+      cursorCb?.(3, 5);
+    });
     expect(
       screen.getByText(t("editor.shell.status.cursor", { col: 4, row: 6 })),
     ).toBeInTheDocument();
 
-    act(() => cursorCb?.(null, null));
+    act(() => {
+      cursorCb?.(null, null);
+    });
     expect(
       screen.getByText(t("editor.shell.status.cursor", { col: "—", row: "—" })),
     ).toBeInTheDocument();

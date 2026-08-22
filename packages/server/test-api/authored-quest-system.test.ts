@@ -15,6 +15,7 @@ import {
   createAuthoredQuestDefinition,
 } from "@lindocara/engine/quests.js";
 import { describe, expect, it, vi } from "vitest";
+
 import { processAuthoredQuestEvent } from "../src/authored-quest-system.js";
 
 const MAP_ID = "11111111-1111-4111-8111-111111111111";
@@ -93,7 +94,7 @@ async function process(input: {
     savePersonal:
       input.save ??
       (async (actor, questId, progress) => {
-        personal[actor.heroId] = { ...(personal[actor.heroId] ?? {}), [questId]: progress };
+        personal[actor.heroId] = { ...personal[actor.heroId], [questId]: progress };
         return true;
       }),
   });

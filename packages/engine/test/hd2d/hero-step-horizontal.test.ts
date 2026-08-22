@@ -1,6 +1,7 @@
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { describe, expect, it } from "vitest";
+
 import { depsPlates } from "./helpers/step-deps.js";
 
 describe("stepHero — horizontal movement", () => {

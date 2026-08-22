@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
 import {
   CATALOG_SOURCE_PATH,
   COVERAGE_REPORT_PATH,

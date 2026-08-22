@@ -9,6 +9,7 @@ import type {
   QuestEventReference,
 } from "@lindocara/engine/quests.js";
 import { emptyQuestDialogues, emptyQuestRewards } from "@lindocara/engine/quests.js";
+
 import { AREA_CAMP_GNOLL, type BrumevalRefs, ITEM_FIOLE, SWITCH_MALGRIN } from "./maps.js";
 
 export type MapIdByKey = Record<"abbaye" | "ronceclair" | "antre", string>;

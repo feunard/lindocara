@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+
 import { describe, expect, it } from "vitest";
+
 import {
   COMBINED_TROOP_SHEET_IDS,
   editorDefinitions,

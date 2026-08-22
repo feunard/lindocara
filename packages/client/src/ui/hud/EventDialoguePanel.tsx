@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+
 import { t, useLocale } from "../../i18n.js";
 import { type EventDialogue, useUiStore } from "../../store.js";
 import { MenuNav, useMenuItem } from "../tiny-swords/menu-nav.js";

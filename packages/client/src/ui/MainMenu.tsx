@@ -7,6 +7,7 @@ import { useStore } from "alepha/react";
 import { useAuth } from "alepha/react/auth";
 import { useRouter } from "alepha/react/router";
 import { useEffect, useState } from "react";
+
 import { fetchParties } from "../api.js";
 import {
   getAudioSettings,
@@ -20,8 +21,8 @@ import { useUiStore } from "../store.js";
 import type { AppRouter } from "./AppRouter.js";
 import { LaunchBackdrop } from "./LaunchBackdrop.js";
 import { Hint, MenuHints } from "./MenuHints.js";
-import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
+import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 function MenuItemButton({
   label,

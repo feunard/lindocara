@@ -22,6 +22,7 @@ import { skillWithTalents } from "@lindocara/engine/talents.js";
 import { BODY_RADIUS } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
+
 import {
   type BuildingRuntime,
   buildingSnapshot,

@@ -3,6 +3,7 @@ import type { QuestState } from "@lindocara/engine/protocol.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { useStore } from "alepha/react";
 import { useEffect, useRef, useState } from "react";
+
 import { t, useLocale } from "../../i18n.js";
 import { questObjectiveProgressText } from "../../quest-presentation.js";
 import { activePartyAtom, questTrackingAtom } from "../../state/atoms.js";
@@ -107,7 +108,7 @@ export function Hud() {
               <span>{t("hud.level", { level: self.level })}</span>
               <span>{t(`class.${self.class}`)}</span>
             </div>
-            {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
+            {/* Reuses the legacy `.identity label`
               grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a
               form control, so there is nothing to htmlFor. */}
             <label>
@@ -118,7 +119,7 @@ export function Hud() {
               </span>
             </label>
             {selfState.resource && (
-              // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the rows above/below.
+              // Read-only progress row, matching the rows above/below.
               <label>
                 <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
                 <Bar
@@ -132,7 +133,7 @@ export function Hud() {
               </label>
             )}
             {self.breath && (
-              // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching HP.
+              // Read-only progress row, matching HP.
               <label>
                 <span>{t("hud.breath")}</span>
                 <Bar value={self.breath.current} max={self.breath.max} variant="mana" />

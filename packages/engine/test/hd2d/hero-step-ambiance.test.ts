@@ -1,6 +1,7 @@
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { describe, expect, it } from "vitest";
+
 import { depsPlates } from "./helpers/step-deps.js";
 
 const arret = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: true };

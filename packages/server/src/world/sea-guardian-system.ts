@@ -9,6 +9,7 @@ import {
   SEA_GUARDIAN_PATROL_SPEED,
   type SeaGuardianState,
 } from "@lindocara/engine/sea-guardian.js";
+
 import type { PlayerRuntime } from "./world-runtime.js";
 
 interface WaterCell extends GroundVector {

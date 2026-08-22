@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import type { TerrainAtlas } from "./atlas.js";
 import { blockOrigin, CLIFF_EDGE_COL, tileUV } from "./atlas.js";
 import { AO_WALL, AO_WALL_HEIGHT } from "./field.js";

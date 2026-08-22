@@ -6,6 +6,7 @@
 
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   isSoundEffectId,

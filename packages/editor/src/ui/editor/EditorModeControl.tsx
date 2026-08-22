@@ -1,5 +1,6 @@
 import { Segmented } from "@alepha/ui/components/ui/segmented";
 import { t } from "@lindocara/client/i18n.js";
+
 import type { EditorMode } from "../../game/editor-state.js";
 
 const MODES: readonly EditorMode[] = ["field", "element", "event"];

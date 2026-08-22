@@ -56,6 +56,7 @@ import { isHarvestNodeId } from "@lindocara/engine/party-harvest-state.js";
 import type { QuestItemReward } from "@lindocara/engine/quests.js";
 import { z } from "alepha";
 import { $repository, sql } from "alepha/orm";
+
 import { decodeStoredAdventureRegistry } from "../../adventure-registry.js";
 import { adventures } from "../entities/adventures.ts";
 import { authoredQuestRewardClaims } from "../entities/authoredQuestRewardClaims.ts";
@@ -568,14 +569,14 @@ export class AdventureStateService {
     const existing = await this.harvestGoldClaims.findById(input.claimId);
     return Boolean(
       existing &&
-        existing.partyId === input.partyId &&
-        existing.nodeId === input.nodeId &&
-        existing.generation === input.generation &&
-        existing.recipientHeroId === input.heroId &&
-        existing.amount === input.amount &&
-        existing.ledgerAmount === input.amount &&
-        existing.ledgerStatus === "settled" &&
-        existing.settledAt !== undefined,
+      existing.partyId === input.partyId &&
+      existing.nodeId === input.nodeId &&
+      existing.generation === input.generation &&
+      existing.recipientHeroId === input.heroId &&
+      existing.amount === input.amount &&
+      existing.ledgerAmount === input.amount &&
+      existing.ledgerStatus === "settled" &&
+      existing.settledAt !== undefined,
     );
   }
 

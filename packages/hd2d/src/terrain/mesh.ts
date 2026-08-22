@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import { applyCloudShadow } from "../clouds.js";
 import type { Hd2dContext } from "../context.js";
 import type { TerrainAtlas } from "./atlas.js";

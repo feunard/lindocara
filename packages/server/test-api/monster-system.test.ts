@@ -954,7 +954,7 @@ describe("monster action attacker identity", () => {
     advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
 
     expect(startAttack).toHaveBeenCalledTimes(2);
-    const attackerIds = startAttack.mock.calls.map((call) => call[0]?.id);
-    expect(attackerIds.sort()).toEqual(["goblin-a", "goblin-b"]);
+    const attackerIds = startAttack.mock.calls.map((call) => String(call[0]?.id ?? ""));
+    expect(attackerIds.sort((a, b) => a.localeCompare(b))).toEqual(["goblin-a", "goblin-b"]);
   });
 });

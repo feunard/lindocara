@@ -1,5 +1,7 @@
 import { installTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
+
 import { currentLocale } from "./i18n.js";
+
 import "./styles/app.css";
 
 document.documentElement.lang = currentLocale();

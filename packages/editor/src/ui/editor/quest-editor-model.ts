@@ -9,6 +9,7 @@ import type {
   QuestValidationContext,
 } from "@lindocara/engine/quests.js";
 import { collectQuestCommandBindings } from "@lindocara/engine/quests.js";
+
 import type { ElementEventBinding } from "../../game/editor-state.js";
 
 export type StructuredObjectiveType = Exclude<AuthoredQuestObjective["type"], "manual">;

@@ -14,6 +14,7 @@ import {
   hostileOnPage,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+
 import { createGuards, type GuardRuntime } from "./world-runtime.js";
 
 const AUTHORED_GUARD_PREFIX = "guard-";

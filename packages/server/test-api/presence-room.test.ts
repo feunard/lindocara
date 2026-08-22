@@ -13,6 +13,7 @@ import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+
 import { heroes } from "../src/api/entities/heroes.ts";
 import { PRESENCE_TTL_MS, PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { createTestApp } from "./helpers.ts";
@@ -64,7 +65,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

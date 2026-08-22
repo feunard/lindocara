@@ -18,7 +18,7 @@ UI is localized in French and English, with a live toggle.
 ## Stack
 
 TypeScript · Alepha (server, realtime rooms, ORM, router) · Vite · PixiJS · React 19 ·
-Tailwind v4 · Radix/PixelAct UI · Zustand · Alepha Bay + SQLite in production · Biome · Vitest
+Tailwind v4 · Radix/PixelAct UI · Zustand · Alepha Bay + SQLite in production · oxlint/oxfmt · Vitest
 
 The HUD, player screens and overlays use accessible React/Radix structure with a strong Tiny Swords
 identity. Map and adventure editors deliberately use denser, sober tool surfaces: compact forms,

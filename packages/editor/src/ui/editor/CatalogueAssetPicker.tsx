@@ -256,7 +256,7 @@ export function CatalogueAssetPicker({
       />
       <select
         disabled={disabled}
-        className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="border-input focus-visible:border-ring focus-visible:ring-ring/40 h-7 w-full rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2"
         value={category}
         aria-label={t("editor.palette.category.all")}
         onChange={(event) => {

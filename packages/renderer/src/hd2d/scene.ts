@@ -51,6 +51,7 @@ import type { Water } from "@lindocara/hd2d/terrain/water.js";
 import { createWater } from "@lindocara/hd2d/terrain/water.js";
 import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
 
 // --- art direction ------------------------------------------------------------------------------

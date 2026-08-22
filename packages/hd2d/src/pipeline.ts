@@ -4,6 +4,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { TexturePass } from "three/addons/postprocessing/TexturePass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
 import type { Hd2dContext } from "./context.js";
 import { GradeShader, TiltShiftShader } from "./shaders.js";
 
@@ -105,13 +106,13 @@ export function pipelineViewport(input: PipelineViewportInput): {
 }
 
 /**
- * Restaure les deux Ã©tats d'unpack qu'un `WebGLRenderer` neuf suppose dÃ©sactivÃ©s.
+ * Restaure les deux états d'unpack qu'un `WebGLRenderer` neuf suppose désactivés.
  *
- * Le canvas du jeu survit Ã  une session. Son contexte WebGL aussi : Three construit alors un
- * nouveau cache d'Ã©tat autour d'un contexte que l'ancien renderer a pu laisser avec `flipY` ou
- * `premultiplyAlpha` actifs. Le cache croit ces valeurs dÃ©jÃ  fausses et ne les rÃ©Ã©crit pas avant
+ * Le canvas du jeu survit à une session. Son contexte WebGL aussi : Three construit alors un
+ * nouveau cache d'état autour d'un contexte que l'ancien renderer a pu laisser avec `flipY` ou
+ * `premultiplyAlpha` actifs. Le cache croit ces valeurs déjà fausses et ne les réécrit pas avant
  * le premier upload de texture 3D, que WebGL refuse. L'alignement explicite doit donc avoir lieu
- * juste aprÃ¨s la construction du renderer, avant la crÃ©ation des cibles et des passes.
+ * juste après la construction du renderer, avant la création des cibles et des passes.
  */
 export function resetInheritedPixelStore(
   gl: Pick<

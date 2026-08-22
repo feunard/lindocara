@@ -1,5 +1,6 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Check, CircleDashed } from "lucide-react";
+
 import type { EditorMode } from "../../game/editor-state.js";
 
 interface EditorStatusBarProps {

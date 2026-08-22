@@ -40,6 +40,7 @@ import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
+
 import {
   authoredEventPreviewSnapshots,
   authoredSeaGuardianPreviewSnapshots,

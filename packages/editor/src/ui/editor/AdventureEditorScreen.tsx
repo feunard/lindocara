@@ -102,6 +102,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import {
   canvasEditorMap,
   croppedForSave,
@@ -123,13 +124,13 @@ import {
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
 import { generateProceduralMap, type ProceduralMapOptions } from "../../game/procedural-map.js";
-import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
-import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import {
   createSandboxSession,
   loadAdventureSession,
   loadLastAdventureSession,
 } from "./adventure-session.js";
+import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
+import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -145,8 +146,8 @@ import { MapHeroSettingsDialog } from "./MapHeroSettingsDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { ProceduralMapDialog } from "./ProceduralMapDialog.js";
-import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
 import { bindQuestTarget, type QuestMapCatalog } from "./quest-editor-model.js";
+import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
@@ -360,9 +361,7 @@ export function AdventureEditorScreen(props: { adventureId?: string }) {
           adventureId={session.adventureId}
           onLeave={leave}
         />
-      ) : leaving ? // On the way out: render nothing rather than a screen that acts. The pending `router.push`
-      // owns what comes next.
-      null : (
+      ) : leaving ? null : ( // owns what comes next. // On the way out: render nothing rather than a screen that acts. The pending `router.push`
         // Keyed by the target so the bootstrap's fire-once latch resets when the URL names a
         // different adventure — a ref on a component that is never remounted would load the first
         // id and ignore every later one.
@@ -727,7 +726,7 @@ function AdventureEditorInner({
 
   // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
   // this is the minimal seam that keeps the stage fed.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: one contextual auto-open on mount
+  // One contextual auto-open on mount
   useEffect(() => {
     if (autoOpened.current) return;
     autoOpened.current = true;
@@ -763,7 +762,7 @@ function AdventureEditorInner({
   // and reopened from the captured edits when the preview ends. Opening is async; a screen unmount or
   // a preview start before it resolves still disposes it. `mode` is intentionally excluded
   // from the deps: it is pushed live through the handle below, never by re-opening the stage.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: stage identity is (map, previewing)
+  // Stage identity is (map, previewing)
   useEffect(() => {
     if (previewing || !map) return;
     let cancelled = false;
@@ -1861,12 +1860,12 @@ function AdventureEditorInner({
     // D16: one TooltipProvider for the whole shell, so every icon-only button's tooltip (toolbar,
     // menu bar, Cartes panel) shares the same hover/focus timing instead of each mounting its own.
     <TooltipProvider>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: focus host, not an interactive widget */}
+      {/* Focus host, not an interactive widget */}
       <div
         ref={containerRef}
         tabIndex={-1}
         onBlur={handleContainerBlur}
-        className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
+        className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 outline-none select-none"
       >
         <EditorMenuBar
           canUndo={canUndo && stageStatus === "ready"}
@@ -1984,13 +1983,13 @@ function AdventureEditorInner({
               aria-label={t("editor.shell.stage.aria")}
             >
               {stageStatus === "loading" && (
-                <p className="absolute left-3 top-3 z-10 text-sm text-zinc-500" role="status">
+                <p className="absolute top-3 left-3 z-10 text-sm text-zinc-500" role="status">
                   {t("editor.shell.stage.loading")}
                 </p>
               )}
               {savingMap && (
                 <p
-                  className="pointer-events-none absolute right-3 top-3 z-10 rounded-md bg-white/90 px-2 py-1 text-xs text-zinc-600 shadow-sm"
+                  className="pointer-events-none absolute top-3 right-3 z-10 rounded-md bg-white/90 px-2 py-1 text-xs text-zinc-600 shadow-sm"
                   role="status"
                 >
                   {t("editor.shell.saving")}
@@ -2001,7 +2000,7 @@ function AdventureEditorInner({
                 // click itself, which otherwise leaves no trace at all (the placed count just stays
                 // put). Non-intrusive: a small fading pill, not a blocking dialog.
                 <p
-                  className="pointer-events-none absolute bottom-3 right-3 z-10 rounded-md bg-red-600/90 px-2 py-1 text-xs font-medium text-white shadow-sm"
+                  className="pointer-events-none absolute right-3 bottom-3 z-10 rounded-md bg-red-600/90 px-2 py-1 text-xs font-medium text-white shadow-sm"
                   role="status"
                 >
                   {t("editor.error.placement")}
@@ -2019,7 +2018,7 @@ function AdventureEditorInner({
                 </p>
               )}
               {stageStatus === "error" && (
-                <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
+                <p className="absolute top-3 left-3 z-10 text-sm text-red-600" role="alert">
                   {t("editor.shell.stage.error")}
                 </p>
               )}
@@ -2037,7 +2036,7 @@ function AdventureEditorInner({
                 </div>
               )}
               {error && (
-                <p className="absolute left-3 bottom-3 z-10 text-sm text-red-600" role="alert">
+                <p className="absolute bottom-3 left-3 z-10 text-sm text-red-600" role="alert">
                   {authErrorText(error)}
                 </p>
               )}
@@ -2450,7 +2449,7 @@ function SelectionInspector({
           <Button variant="outline" size="sm" onClick={onOpenEditor}>
             {t("editor.binding.makeInteractive")}
           </Button>
-          <p className="text-[10.5px] text-muted-foreground">
+          <p className="text-muted-foreground text-[10.5px]">
             {t("editor.binding.doubleClickHint")}
           </p>
         </>
@@ -2498,7 +2497,7 @@ function SelectionInspector({
               </Label>
               <select
                 id="inspector-building-color"
-                className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                className="border-input focus-visible:border-ring focus-visible:ring-ring/40 h-7 w-full rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2"
                 value={selectedBuildingColor}
                 onChange={(event) => {
                   const variant = selectedBuildingColorVariants.find(
@@ -2570,7 +2569,7 @@ function SelectionInspector({
                   </div>
                 ))}
               </div>
-              <p className="text-[10.5px] text-muted-foreground">
+              <p className="text-muted-foreground text-[10.5px]">
                 {t("editor.inspector.building.sizeHint")}
               </p>
             </div>
@@ -2613,7 +2612,7 @@ function SelectionInspector({
             />
           </div>
           {destroyedAsset && (
-            <p className="text-[10.5px] text-muted-foreground">
+            <p className="text-muted-foreground text-[10.5px]">
               {t("editor.inspector.building.ruin")}: {assetDisplayName(destroyedAsset)}
             </p>
           )}
@@ -2644,7 +2643,7 @@ function SelectionInspector({
             </Label>
             <select
               id="inspector-bridge-orientation"
-              className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+              className="border-input focus-visible:border-ring focus-visible:ring-ring/40 h-7 w-full rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2"
               value={bridgeOrientation(selectedElement.assetId) ?? "horizontal"}
               onChange={(event) => {
                 const next = BRIDGE_ASSET_IDS[event.currentTarget.value as BridgeOrientation];
@@ -2717,7 +2716,7 @@ function SelectionInspector({
               />
             </div>
           </div>
-          <p className="text-[10.5px] text-muted-foreground">{t("editor.inspector.bridge.hint")}</p>
+          <p className="text-muted-foreground text-[10.5px]">{t("editor.inspector.bridge.hint")}</p>
         </div>
       )}
 

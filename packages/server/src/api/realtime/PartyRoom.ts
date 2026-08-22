@@ -41,6 +41,7 @@ import {
 import type { AuthoredQuestDefinition, QuestEventReference } from "@lindocara/engine/quests.js";
 import { $inject } from "alepha";
 import { $room } from "alepha/websocket";
+
 // Pure, D1-free authored-quest business-event engine reused as-is from the legacy source tree —
 // same-package sibling, not `@lindocara/engine` (mirrors `AdventureStateService`'s own
 // `../../adventure-registry.js` import). Unlike `game-session.ts`/`world.ts`/the other files the
@@ -864,7 +865,7 @@ export class PartyRoom {
       if (current.state.defeatedMonsters?.[eventId] === true) return;
       await this.commitState(partyId, state, {
         ...current.state,
-        defeatedMonsters: { ...(current.state.defeatedMonsters ?? {}), [eventId]: true },
+        defeatedMonsters: { ...current.state.defeatedMonsters, [eventId]: true },
       });
     });
   }
@@ -1413,30 +1414,27 @@ export class PartyRoom {
       if (state.partyCompleted) return { ok: false, reason: "party" };
       const activated = new Set(request.activatedIds);
       let materials = current.state.materials ?? EMPTY_PARTY_MATERIALS;
-      let supportSpends = current.supportSpends;
+      // One copy up front, then written by key: the previous shape rebuilt the
+      // entire record on every settled reservation, which is quadratic in the
+      // number of spends a room can hold open at once.
+      const supportSpends = { ...current.supportSpends };
       let changed = false;
       for (const [reservationId, entry] of Object.entries(current.supportSpends)) {
         if (entry.roomKey !== request.roomKey || entry.status !== "committed") continue;
         if (activated.has(reservationId)) {
-          supportSpends = {
-            ...supportSpends,
-            [reservationId]: {
-              ...entry,
-              status: "settled",
-              resolvedAt: Math.max(now, entry.createdAt),
-            },
+          supportSpends[reservationId] = {
+            ...entry,
+            status: "settled",
+            resolvedAt: Math.max(now, entry.createdAt),
           };
         } else {
           const refunded = addPartyMaterials(materials, entry.costs);
           if (!refunded) return { ok: false, reason: "overflow" };
           materials = refunded;
-          supportSpends = {
-            ...supportSpends,
-            [reservationId]: {
-              ...entry,
-              status: "refunded",
-              resolvedAt: Math.max(now, entry.createdAt),
-            },
+          supportSpends[reservationId] = {
+            ...entry,
+            status: "refunded",
+            resolvedAt: Math.max(now, entry.createdAt),
           };
         }
         changed = true;
@@ -1624,7 +1622,7 @@ export class PartyRoom {
         progress?.completionCount ?? 0,
       );
       if (definition.scope === "party") {
-        const quests = { ...(current.state.quests ?? {}), [questId]: accepted };
+        const quests = { ...current.state.quests, [questId]: accepted };
         await this.commitState(partyId, state, { ...current.state, quests });
       } else {
         const saved = await this.adventureStateService.savePersonalQuestProgress({
@@ -1668,7 +1666,7 @@ export class PartyRoom {
       const abandoned: AuthoredQuestProgress = { ...progress, status: "abandoned" };
       if (definition.scope === "party") {
         if (!partyProgress) return { ok: false, reason: "quest" };
-        const quests = { ...(current.state.quests ?? {}), [questId]: abandoned };
+        const quests = { ...current.state.quests, [questId]: abandoned };
         await this.commitState(partyId, state, { ...current.state, quests });
       } else {
         if (!personalProgress) return { ok: false, reason: "quest" };
@@ -1790,7 +1788,7 @@ export class PartyRoom {
       if (definition.scope === "party") {
         nextPartyState = {
           ...nextPartyState,
-          quests: { ...(nextPartyState.quests ?? {}), [questId]: completed },
+          quests: { ...nextPartyState.quests, [questId]: completed },
         };
       } else {
         nextPersonal = completed;
@@ -1822,7 +1820,7 @@ export class PartyRoom {
         nextPartyState = {
           ...nextPartyState,
           quests: {
-            ...(nextPartyState.quests ?? {}),
+            ...nextPartyState.quests,
             [nextDefinition.id]: createAuthoredQuestProgress(nextDefinition),
           },
         };

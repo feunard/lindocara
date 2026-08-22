@@ -2,6 +2,7 @@ import { AdminRoleProvider } from "@lindocara/server/api/providers/AdminRoleProv
 import type { UserEntity } from "alepha/api/users";
 import { UserService } from "alepha/api/users";
 import { afterEach, describe, expect, it } from "vitest";
+
 import { createTestApp } from "./helpers.ts";
 
 let alepha: ReturnType<typeof createTestApp> | undefined;

@@ -1,6 +1,7 @@
 import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+
 import type { Hd2dScene } from "../src/hd2d/scene.js";
 import {
   AUTHORED_EFFECT_FOOT,

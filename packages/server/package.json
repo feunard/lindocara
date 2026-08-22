@@ -6,11 +6,11 @@
   "exports": {
     "./*": "./src/*"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "@lindocara/engine": "*",
     "alepha": "*"
-  },
-  "scripts": {
-    "test": "vitest run"
   }
 }

@@ -117,7 +117,7 @@ export function EditorHelpDialog({
         >
           <TabsList
             variant="line"
-            className="w-full flex-none justify-start overflow-x-auto border-b border-border pb-1"
+            className="border-border w-full flex-none justify-start overflow-x-auto border-b pb-1"
           >
             {EDITOR_HELP_SECTIONS.map((value) => (
               <TabsTrigger key={value} value={value}>
@@ -142,13 +142,13 @@ export function EditorHelpDialog({
                 </div>
                 <ol className="grid gap-3 md:grid-cols-2">
                   {START_STEPS.map(([title, body], index) => (
-                    <li key={title} className="flex gap-3 rounded-lg border border-border p-3">
+                    <li key={title} className="border-border flex gap-3 rounded-lg border p-3">
                       <span className="flex size-7 flex-none items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white">
                         {index + 1}
                       </span>
                       <div>
                         <h4 className="font-medium">{t(title)}</h4>
-                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                           {t(body)}
                         </p>
                       </div>
@@ -157,9 +157,9 @@ export function EditorHelpDialog({
                 </ol>
               </section>
 
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-border rounded-lg border p-4">
                 <h3 className="font-semibold">{t("editor.help.start.where.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.start.where.body")}
                 </p>
               </section>
@@ -170,30 +170,30 @@ export function EditorHelpDialog({
             <div className="mx-auto flex max-w-5xl flex-col gap-5 py-3">
               <header>
                 <h3 className="text-base font-semibold">{t("editor.help.maps.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.maps.intro")}
                 </p>
               </header>
 
               <section className="grid gap-3 md:grid-cols-3">
                 {MAP_MODE_ROWS.map(([title, body]) => (
-                  <article key={title} className="rounded-lg border border-border p-3">
+                  <article key={title} className="border-border rounded-lg border p-3">
                     <h4 className="font-medium">{t(title)}</h4>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(body)}</p>
+                    <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t(body)}</p>
                   </article>
                 ))}
               </section>
 
               <section>
                 <h3 className="mb-2 font-semibold">{t("editor.help.maps.tools.title")}</h3>
-                <div className="overflow-hidden rounded-lg border border-border">
+                <div className="border-border overflow-hidden rounded-lg border">
                   {MAP_TOOL_ROWS.map(([title, body]) => (
                     <div
                       key={title}
-                      className="grid gap-1 border-b border-border p-3 last:border-b-0 sm:grid-cols-[10rem_1fr]"
+                      className="border-border grid gap-1 border-b p-3 last:border-b-0 sm:grid-cols-[10rem_1fr]"
                     >
                       <strong className="text-sm">{t(title)}</strong>
-                      <span className="text-sm text-muted-foreground">{t(body)}</span>
+                      <span className="text-muted-foreground text-sm">{t(body)}</span>
                     </div>
                   ))}
                 </div>
@@ -211,15 +211,15 @@ export function EditorHelpDialog({
               </section>
 
               <section className="grid gap-3 md:grid-cols-2">
-                <article className="rounded-lg border border-border p-4">
+                <article className="border-border rounded-lg border p-4">
                   <h3 className="font-semibold">{t("editor.help.maps.multimap.title")}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                     {t("editor.help.maps.multimap.body")}
                   </p>
                 </article>
-                <article className="rounded-lg border border-border p-4">
+                <article className="border-border rounded-lg border p-4">
                   <h3 className="font-semibold">{t("editor.help.maps.collision.title")}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                     {t("editor.help.maps.collision.body")}
                   </p>
                 </article>
@@ -231,23 +231,23 @@ export function EditorHelpDialog({
             <div className="mx-auto flex max-w-5xl flex-col gap-5 py-3">
               <header>
                 <h3 className="text-base font-semibold">{t("editor.help.story.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.story.intro")}
                 </p>
               </header>
 
               <section className="grid gap-3 md:grid-cols-2">
                 {EVENT_ROWS.map(([title, body]) => (
-                  <article key={title} className="rounded-lg border border-border p-3">
+                  <article key={title} className="border-border rounded-lg border p-3">
                     <h4 className="font-medium">{t(title)}</h4>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(body)}</p>
+                    <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t(body)}</p>
                   </article>
                 ))}
               </section>
 
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-border rounded-lg border p-4">
                 <h3 className="font-semibold">{t("editor.help.story.eventEditor.title")}</h3>
-                <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-muted-foreground">
+                <ol className="text-muted-foreground mt-2 list-decimal space-y-2 pl-5 text-sm leading-relaxed">
                   <li>{t("editor.help.story.eventEditor.page")}</li>
                   <li>{t("editor.help.story.eventEditor.condition")}</li>
                   <li>{t("editor.help.story.eventEditor.trigger")}</li>
@@ -262,9 +262,9 @@ export function EditorHelpDialog({
                     {t("editor.help.story.dialogue.body")}
                   </p>
                 </article>
-                <article className="rounded-lg border border-border p-4">
+                <article className="border-border rounded-lg border p-4">
                   <h3 className="font-semibold">{t("editor.help.story.interactive.title")}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                     {t("editor.help.story.interactive.body")}
                   </p>
                 </article>
@@ -276,7 +276,7 @@ export function EditorHelpDialog({
             <div className="mx-auto flex max-w-5xl flex-col gap-5 py-3">
               <header>
                 <h3 className="text-base font-semibold">{t("editor.help.quests.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.quests.intro")}
                 </p>
               </header>
@@ -285,13 +285,13 @@ export function EditorHelpDialog({
                 <h3 className="mb-2 font-semibold">{t("editor.help.quests.workflow")}</h3>
                 <ol className="grid gap-3 md:grid-cols-2">
                   {QUEST_STEPS.map(([title, body], index) => (
-                    <li key={title} className="flex gap-3 rounded-lg border border-border p-3">
+                    <li key={title} className="border-border flex gap-3 rounded-lg border p-3">
                       <span className="flex size-7 flex-none items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white">
                         {index + 1}
                       </span>
                       <div>
                         <h4 className="font-medium">{t(title)}</h4>
-                        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                           {t(body)}
                         </p>
                       </div>
@@ -302,14 +302,14 @@ export function EditorHelpDialog({
 
               <section>
                 <h3 className="mb-2 font-semibold">{t("editor.help.quests.objectives.title")}</h3>
-                <div className="overflow-hidden rounded-lg border border-border">
+                <div className="border-border overflow-hidden rounded-lg border">
                   {OBJECTIVE_ROWS.map(([title, body]) => (
                     <div
                       key={title}
-                      className="grid gap-1 border-b border-border p-3 last:border-b-0 sm:grid-cols-[13rem_1fr]"
+                      className="border-border grid gap-1 border-b p-3 last:border-b-0 sm:grid-cols-[13rem_1fr]"
                     >
                       <strong className="text-sm">{t(title)}</strong>
-                      <span className="text-sm leading-relaxed text-muted-foreground">
+                      <span className="text-muted-foreground text-sm leading-relaxed">
                         {t(body)}
                       </span>
                     </div>
@@ -338,16 +338,16 @@ export function EditorHelpDialog({
             <div className="mx-auto flex max-w-5xl flex-col gap-5 py-3">
               <header>
                 <h3 className="text-base font-semibold">{t("editor.help.state.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.state.intro")}
                 </p>
               </header>
 
               <section className="grid gap-3 md:grid-cols-3">
                 {STATE_ROWS.map(([title, body]) => (
-                  <article key={title} className="rounded-lg border border-border p-4">
+                  <article key={title} className="border-border rounded-lg border p-4">
                     <h4 className="font-medium">{t(title)}</h4>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(body)}</p>
+                    <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t(body)}</p>
                   </article>
                 ))}
               </section>
@@ -362,9 +362,9 @@ export function EditorHelpDialog({
                 </ol>
               </section>
 
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-border rounded-lg border p-4">
                 <h3 className="font-semibold">{t("editor.help.state.pages.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.state.pages.body")}
                 </p>
               </section>
@@ -375,16 +375,16 @@ export function EditorHelpDialog({
             <div className="mx-auto flex max-w-5xl flex-col gap-5 py-3">
               <header>
                 <h3 className="text-base font-semibold">{t("editor.help.test.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.test.intro")}
                 </p>
               </header>
 
               <section className="grid gap-3 md:grid-cols-3">
                 {TEST_ROWS.map(([title, body]) => (
-                  <article key={title} className="rounded-lg border border-border p-4">
+                  <article key={title} className="border-border rounded-lg border p-4">
                     <h4 className="font-medium">{t(title)}</h4>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(body)}</p>
+                    <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{t(body)}</p>
                   </article>
                 ))}
               </section>
@@ -401,9 +401,9 @@ export function EditorHelpDialog({
                 </ul>
               </section>
 
-              <section className="rounded-lg border border-border p-4">
+              <section className="border-border rounded-lg border p-4">
                 <h3 className="font-semibold">{t("editor.help.shortcuts.title")}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                   {t("editor.help.shortcuts.body")}
                 </p>
               </section>

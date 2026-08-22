@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { ZONE_FALLS, ZONE_LARGE, ZONE_POLAIRE, ZONES } from "../src/settings.js";
 import { NORD_EMPRISE, WEST_REACH_MAX } from "../src/world/island.js";
 

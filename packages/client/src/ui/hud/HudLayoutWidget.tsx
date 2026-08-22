@@ -1,6 +1,7 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from "react";
 import { useRef } from "react";
+
 import { t, useLocale } from "../../i18n.js";
 import {
   type HudWidgetId,

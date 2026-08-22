@@ -39,8 +39,8 @@ import {
   type MonsterTuning,
   type MonsterWeakness,
 } from "./game.js";
-import { type HarvestProfile, parseHarvestProfile } from "./harvest.js";
 import { migrateLegacyHarvestGraphicAsset } from "./harvest-presets.js";
+import { type HarvestProfile, parseHarvestProfile } from "./harvest.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
 import { TILE_SIZE } from "./tilemap.js";

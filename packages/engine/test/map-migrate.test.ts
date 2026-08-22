@@ -1,7 +1,7 @@
 import { bakeCollision } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
-import { kindAt } from "@lindocara/engine/tilemap.js";
 import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import { kindAt } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
 

@@ -1,5 +1,6 @@
 import { npcMovementDurationMs } from "@lindocara/engine/event-movement.js";
 import { describe, expect, it } from "vitest";
+
 import { WorldEventMotionTracker } from "../src/world-event-motion.js";
 
 const event = {

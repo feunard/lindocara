@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { fetchAll } from "../src/loader.js";
 
 /** Une réponse qui livre son corps en morceaux de tailles données, avec un content-length honnête. */

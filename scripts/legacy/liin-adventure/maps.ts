@@ -3,6 +3,7 @@ import type { EventCommand, TransitionCategory } from "@lindocara/engine/event-c
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEventPage } from "@lindocara/engine/map-events.js";
+
 import {
   activity,
   addVar,

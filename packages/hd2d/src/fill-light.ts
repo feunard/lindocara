@@ -1,4 +1,5 @@
 import * as THREE from "three";
+
 import type { Hd2dContext } from "./context.js";
 
 /** Sous cette distance, l'appoint cesse de croître : un sprite au contact ne divise pas par zéro. */

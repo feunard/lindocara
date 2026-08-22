@@ -11,6 +11,7 @@
  * diff illisible et l'import en production recrée une aventure au lieu d'en reconnaître une.
  */
 import { createHash } from "node:crypto";
+
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
 import {

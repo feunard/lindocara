@@ -8,6 +8,7 @@
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { PlayerSnapshot, WorldInfo } from "@lindocara/engine/protocol.js";
+
 import {
   bakeTerrain,
   clampToRing,

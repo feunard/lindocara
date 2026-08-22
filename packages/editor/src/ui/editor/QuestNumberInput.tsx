@@ -2,8 +2,10 @@ import { Input } from "@alepha/ui/components/ui/input";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 
-interface QuestNumberInputProps
-  extends Omit<ComponentProps<typeof Input>, "type" | "value" | "onChange"> {
+interface QuestNumberInputProps extends Omit<
+  ComponentProps<typeof Input>,
+  "type" | "value" | "onChange"
+> {
   value: number | null;
   min?: number;
   max?: number;

@@ -1,3 +1,4 @@
+import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 /**
  * A client-side adventure under construction, as pure rules — the AdventureEditor screen's
  * counterpart to editor-state.ts. Since the graph teardown, a draft carries only the adventure's
@@ -16,7 +17,6 @@ import {
   DEFAULT_ADVENTURE_GAME_MODE,
   MAX_ADVENTURE_MAPS,
 } from "@lindocara/engine/adventure.js";
-import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import {
   type AdventureAudioConfig,
   DEFAULT_ADVENTURE_AUDIO,

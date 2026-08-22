@@ -2,6 +2,7 @@ import { canAct } from "@lindocara/engine/death.js";
 import { LOOT_PICKUP_RANGE } from "@lindocara/engine/game.js";
 import { groundDistance } from "@lindocara/engine/ground.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GroundLoot, PlayerRuntime } from "./world-runtime.js";
 

@@ -1,3 +1,4 @@
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 /**
  * Maps as stored things on Alepha: load, create, save, delete, and the rules that keep the world
  * enterable. Ported from `packages/server/src/maps.ts`, function-by-function, onto `$repository`
@@ -17,7 +18,6 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
-import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { bridgeOrientation, encodeBridgeDimensions } from "@lindocara/engine/bridges.js";
 import { createBuildingInteriorInput } from "@lindocara/engine/building-interior.js";
 import { encodeBuildingTransform, isStandingBuildingAsset } from "@lindocara/engine/buildings.js";
@@ -49,6 +49,7 @@ import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
 import { users } from "alepha/api/users";
 import { $repository, sql } from "alepha/orm";
+
 // Pure, D1-free helper: reused as-is rather than re-ported (see its own docblock).
 import {
   decodeStoredAdventureRegistry,

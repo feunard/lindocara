@@ -1,3 +1,6 @@
+// `?raw` is a Vite virtual module: the plugin hands back the file's TEXT as the
+// default export, which no static resolver can see on the module itself.
+// oxlint-disable-next-line import/default
 import sessionSource from "@lindocara/client/game/session.ts?raw";
 import { describe, expect, it } from "vitest";
 

@@ -1,6 +1,7 @@
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
+
 import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
 import {
   authoredActorSheet,

@@ -1,6 +1,7 @@
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
+
 import { advanceNpcEvents, reconcileNpcMovement } from "../src/world/npc-movement-system.js";
 import type { ActiveWorldEvent } from "../src/world/world-runtime.js";
 

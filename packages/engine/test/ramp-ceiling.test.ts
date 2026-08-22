@@ -19,6 +19,7 @@ import {
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
+
 import { depsPlates } from "./hd2d/helpers/step-deps.js";
 
 const SIZE = 16;

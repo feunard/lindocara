@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import type { HeightField } from "../src/terrain/field.js";
 import { foamPlacements } from "../src/terrain/foam.js";
 import { fieldFrom } from "./helpers/field.js";

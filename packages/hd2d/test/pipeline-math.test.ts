@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { pipelineViewport, resetInheritedPixelStore, tiltShiftRadius } from "../src/pipeline.js";
 
 describe("tiltShiftRadius", () => {

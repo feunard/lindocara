@@ -33,6 +33,7 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it, vi } from "vitest";
+
 import { collectLoot } from "../src/world/loot-system.js";
 import {
   advanceMonsters,

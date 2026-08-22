@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
 import { DEFAULT_CONFIG } from "../src/config.js";
 import { createHd2dContext } from "../src/context.js";
 

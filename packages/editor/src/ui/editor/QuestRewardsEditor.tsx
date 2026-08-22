@@ -16,10 +16,11 @@ import {
   type QuestStateReward,
 } from "@lindocara/engine/quests.js";
 import { Plus, Trash2 } from "lucide-react";
+
 import { EventCommandEditor } from "./EventCommandEditor.js";
+import type { QuestMapCatalog } from "./quest-editor-model.js";
 import { QuestChoiceField } from "./QuestChoiceField.js";
 import { QuestNumberInput } from "./QuestNumberInput.js";
-import type { QuestMapCatalog } from "./quest-editor-model.js";
 import { useStableObjectKeys } from "./use-stable-object-keys.js";
 
 interface QuestRewardsEditorProps {
@@ -93,7 +94,7 @@ function RewardItems({
             type="button"
             size="icon-sm"
             variant="ghost"
-            className="mb-0.5 text-destructive"
+            className="text-destructive mb-0.5"
             aria-label={t("editor.quest.reward.deleteItem")}
             onClick={() => onChange(items.filter((_, currentIndex) => currentIndex !== index))}
           >
@@ -148,7 +149,7 @@ export function QuestRewardsEditor({
       <section className="flex flex-col gap-3">
         <div>
           <h3 className="text-sm font-semibold">{t("editor.quest.reward.guaranteed")}</h3>
-          <p className="text-xs text-muted-foreground">{t("editor.quest.reward.guaranteedHint")}</p>
+          <p className="text-muted-foreground text-xs">{t("editor.quest.reward.guaranteedHint")}</p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
@@ -175,11 +176,11 @@ export function QuestRewardsEditor({
         <RewardItems items={rewards.items} onChange={(items) => update({ items })} />
       </section>
 
-      <section className="flex flex-col gap-3 border-t border-border pt-5">
+      <section className="border-border flex flex-col gap-3 border-t pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold">{t("editor.quest.reward.choice")}</h3>
-            <p className="text-xs text-muted-foreground">{t("editor.quest.reward.choiceHint")}</p>
+            <p className="text-muted-foreground text-xs">{t("editor.quest.reward.choiceHint")}</p>
           </div>
           <Button
             type="button"
@@ -202,14 +203,14 @@ export function QuestRewardsEditor({
           </Button>
         </div>
         {rewards.choices.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+          <p className="border-border text-muted-foreground rounded-md border border-dashed p-3 text-sm">
             {t("editor.quest.reward.noChoice")}
           </p>
         ) : (
           rewards.choices.map((choice, index) => (
             <article
               key={choice.id}
-              className="flex flex-col gap-3 rounded-lg border border-border p-3"
+              className="border-border flex flex-col gap-3 rounded-lg border p-3"
             >
               <header className="flex items-end gap-2">
                 <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -229,7 +230,7 @@ export function QuestRewardsEditor({
                   type="button"
                   size="icon-sm"
                   variant="ghost"
-                  className="mb-0.5 text-destructive"
+                  className="text-destructive mb-0.5"
                   aria-label={t("editor.quest.reward.deleteChoice")}
                   onClick={() =>
                     update({
@@ -283,7 +284,7 @@ export function QuestRewardsEditor({
         )}
       </section>
 
-      <section className="flex flex-col gap-3 border-t border-border pt-5">
+      <section className="border-border flex flex-col gap-3 border-t pt-5">
         <h3 className="text-sm font-semibold">{t("editor.quest.reward.chainAndState")}</h3>
         <QuestChoiceField
           label={t("editor.quest.reward.nextQuest")}
@@ -342,7 +343,7 @@ export function QuestRewardsEditor({
         {stateRows.map(({ item: change, key }, index) => (
           <div
             key={key}
-            className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-md border border-border p-3"
+            className="border-border grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-md border p-3"
           >
             {change.type === "switch" ? (
               <>
@@ -405,7 +406,7 @@ export function QuestRewardsEditor({
               type="button"
               size="icon-sm"
               variant="ghost"
-              className="mb-0.5 text-destructive"
+              className="text-destructive mb-0.5"
               aria-label={t("editor.quest.reward.deleteState")}
               onClick={() =>
                 update({
@@ -421,11 +422,11 @@ export function QuestRewardsEditor({
         ))}
       </section>
 
-      <details className="border-t border-border pt-5">
+      <details className="border-border border-t pt-5">
         <summary className="cursor-pointer text-sm font-semibold">
           {t("editor.quest.reward.advanced")}
         </summary>
-        <p className="mb-3 mt-1 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mt-1 mb-3 text-xs">
           {t("editor.quest.reward.advancedHint")}
         </p>
         <EventCommandEditor

@@ -3,6 +3,7 @@
  * to join. Left/right (D-pad or stick) move focus, A selects, B goes back. No dropdowns, no lists.
  */
 import type { ReactNode } from "react";
+
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
 import { Hint, MenuHints } from "./MenuHints.js";

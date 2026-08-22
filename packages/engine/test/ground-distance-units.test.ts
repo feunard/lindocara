@@ -18,6 +18,7 @@
  * across the packages' sources and reading what each one is compared to.
  */
 import { describe, expect, it } from "vitest";
+
 import { REWARD_DISTANCE, THREAT_LEASH_DISTANCE } from "../src/cooperation.js";
 import { CORPSE_RECLAIM_RANGE } from "../src/death.js";
 import { DIALOGUE_CLOSE_RADIUS } from "../src/event-commands.js";

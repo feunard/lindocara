@@ -12,7 +12,7 @@
  */
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import type { AdventureGraph } from "@lindocara/engine/adventure.js";
+
 import {
   ADVENTURE_BUNDLE_FORMAT,
   ADVENTURE_BUNDLE_VERSION,
@@ -22,11 +22,13 @@ import {
   parseAdventureBundle,
   rewriteBundleIds,
 } from "@lindocara/engine/adventure-bundle.js";
+import type { AdventureGraph } from "@lindocara/engine/adventure.js";
 import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { parseMapData } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
+
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 
 const DEFAULT_USERNAME = "brumevalauthor";

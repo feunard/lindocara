@@ -1,11 +1,11 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { harvestPreset } from "@lindocara/engine/harvest-presets.js";
 import {
   type HarvestProfile,
   harvestColliderAt,
   PEASANT_CARRY_DURATION_MS,
 } from "@lindocara/engine/harvest.js";
-import { harvestPreset } from "@lindocara/engine/harvest-presets.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { functionalEvent } from "@lindocara/engine/map-events.js";
@@ -13,6 +13,7 @@ import { resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
+
 import { playerSnapshot } from "../src/world/interest-system.ts";
 import {
   catalogueCarcassNodeId,

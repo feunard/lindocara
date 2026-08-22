@@ -3,6 +3,7 @@ import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import {
   addVar,
   bundleMap,

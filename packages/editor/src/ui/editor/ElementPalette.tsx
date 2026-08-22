@@ -2,6 +2,7 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
 import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 
 interface ElementPaletteProps {
@@ -47,7 +48,7 @@ export function ElementPalette({
           }`}
         >
           <span>{t("editor.mapBudget.scenery")}</span>
-          <span className="tabular-nums lowercase">
+          <span className="lowercase tabular-nums">
             {elementCount.toLocaleString(locale)}/{MAX_MAP_ELEMENTS.toLocaleString(locale)}
           </span>
         </div>

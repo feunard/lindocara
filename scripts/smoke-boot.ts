@@ -27,6 +27,7 @@ import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+
 import WebSocket from "ws";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -179,14 +180,16 @@ async function main(): Promise<void> {
   const missingColumns: string[] = [];
   try {
     const requireColumns = (table: string, expected: readonly string[]): void => {
-      const columns = database
-        .prepare(`PRAGMA table_info("${table}")`)
-        .all()
-        .flatMap((row) => {
-          const name = (row as { name?: unknown }).name;
-          return typeof name === "string" ? [name] : [];
-        });
-      const missing = expected.filter((column) => !columns.includes(column));
+      const columns = new Set(
+        database
+          .prepare(`PRAGMA table_info("${table}")`)
+          .all()
+          .flatMap((row) => {
+            const name = (row as { name?: unknown }).name;
+            return typeof name === "string" ? [name] : [];
+          }),
+      );
+      const missing = expected.filter((column) => !columns.has(column));
       missingColumns.push(...missing.map((column) => `${table}.${column}`));
     };
     requireColumns("adventures", ["camera_mode"]);

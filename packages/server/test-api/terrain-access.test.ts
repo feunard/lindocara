@@ -46,12 +46,7 @@ const WATER_LEVEL = -0.25;
  * (props, `ColliderIndex.blocked`) has something to refuse that terrain height alone would allow.
  */
 function terrain(): ZoneTerrain {
-  const levels: (number | null)[] = [
-    ...[0, 0, 0, 0],
-    ...[null, 0, 0, 0],
-    ...[1, 1, 1, 1],
-    ...[1, 1, 1, 1],
-  ];
+  const levels: (number | null)[] = [0, 0, 0, 0, null, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1];
   const map: MapData = {
     version: 1,
     size: 4,

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
 import { textureFiltering } from "../src/textures.js";
 
 describe("textureFiltering", () => {

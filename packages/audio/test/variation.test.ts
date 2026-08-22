@@ -15,7 +15,7 @@ describe("pickVariant", () => {
     for (const value of [0, 0.24, 0.25, 0.49, 0.5, 0.74, 0.75, 0.99]) {
       seen.add(pickVariant(4, () => value));
     }
-    expect([...seen].sort()).toEqual([0, 1, 2, 3]);
+    expect([...seen].sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
   });
 
   it("never indexes past the last take, whatever the generator returns", () => {

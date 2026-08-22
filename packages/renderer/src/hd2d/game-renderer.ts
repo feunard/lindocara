@@ -64,6 +64,7 @@ import type {
 } from "@lindocara/hd2d/textures.js";
 import { createTextureCache, createTextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { ACTOR_FRAME_MS, type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
 import { CHARACTER_ATLAS_URL } from "../character-art.js";
@@ -516,8 +517,10 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
  * `StaticSpriteArt` minus its texture, because the sheet has to be NAMED before it can be
  * downloaded and TEXTURED only afterwards — see `staticAssetSpec`.
  */
-export interface StaticAssetSpec
-  extends Omit<StaticSpriteArt, "texture" | "companions" | "coldVariant" | "buildingVolume"> {
+export interface StaticAssetSpec extends Omit<
+  StaticSpriteArt,
+  "texture" | "companions" | "coldVariant" | "buildingVolume"
+> {
   url: string;
   companions?: readonly StaticAssetSpec[];
   coldVariant?: StaticAssetSpec;
@@ -1075,9 +1078,13 @@ export class Hd2dRenderer implements RendererLike {
         this.#water.dispose();
         this.#water = null;
       }
-      scene = createHd2dScene(this.#canvas, heightfield, this.#textures, zoneId, {
-        ...(this.#water ? { water: this.#water } : {}),
-      });
+      scene = createHd2dScene(
+        this.#canvas,
+        heightfield,
+        this.#textures,
+        zoneId,
+        this.#water ? { water: this.#water } : {},
+      );
       this.#water = scene.water;
       this.#waterKey = waterKey;
       scene.setDayCycleOverride(this.#dayCycleOverride);

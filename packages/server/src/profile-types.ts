@@ -12,6 +12,7 @@ import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { Inventory, QuestState } from "@lindocara/engine/protocol.js";
 import type { ClassResourceState } from "@lindocara/engine/resources.js";
+
 // Type-only, so nothing of `world-runtime.ts`'s import graph reaches a program that only wants
 // this shape — the whole reason this module was split out of `profile.ts` in the first place. The
 // convention is declared once, there, where every runtime entity reads it; a second structurally

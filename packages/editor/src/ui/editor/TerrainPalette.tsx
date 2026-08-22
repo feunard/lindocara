@@ -3,6 +3,7 @@ import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { ElevationStep, StairsDirection } from "@lindocara/engine/tile-brush.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
+
 import type { RectFillContent } from "../../game/editor-state.js";
 
 /**

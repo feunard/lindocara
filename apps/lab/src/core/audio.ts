@@ -299,7 +299,7 @@ export async function initAudio(
 export function unlockAudio(): void {
   if (!ctx || debloque) return;
   debloque = true;
-  ctx.resume();
+  void ctx.resume();
   demarrerBoucles();
   demarrerMusique(MUSIQUE_ATTENTE);
 }

@@ -58,6 +58,7 @@ import {
   seedEventCache,
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
+
 import { resolveJoin } from "../api.js";
 import { createHeroController, type HeroController } from "./hero-controller.js";
 

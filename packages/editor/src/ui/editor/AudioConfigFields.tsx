@@ -200,7 +200,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
     return track ? optionLabel(track) : t("editor.audio.none");
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the live preview must stop only when this render changes the selected source behind it
+  // The live preview must stop only when this render changes the selected source behind it
   useEffect(() => {
     if (!preview) return;
     const current = previewTarget(preview.field);

@@ -49,6 +49,7 @@ import { restoreStandablePosition, type ZoneTerrain } from "@lindocara/engine/te
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
+
 import type { PlayerProfile, SaveableProfile } from "../profile-types.js";
 import { SpatialGrid } from "./spatial-grid.js";
 

@@ -3,6 +3,7 @@ import { ButtonLanguage } from "@alepha/ui/components/button-language/button-lan
 import { ButtonUser } from "@alepha/ui/components/button-user/button-user";
 import { useRouter } from "alepha/react/router";
 import { ArrowLeft, LayoutDashboard } from "lucide-react";
+
 import type { AppRouter } from "../AppRouter.js";
 
 /**
@@ -22,7 +23,7 @@ const AdminBrand = () => {
   const router = useRouter<AppRouter>();
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center">
+    <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0">
       <button
         type="button"
         onClick={() => void router.push("menu")}

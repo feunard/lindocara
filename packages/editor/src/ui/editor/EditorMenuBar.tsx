@@ -11,6 +11,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@alepha/ui/components/ui/tooltip";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Box, LogOut } from "lucide-react";
+
 import type { EditorMode } from "../../game/editor-state.js";
 import type { EditorPaintTool } from "./EditorToolbar.js";
 

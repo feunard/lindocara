@@ -27,7 +27,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `yarn loadtest --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test (`/api/join` + `/ws/world`); remote targets require explicit opt-in |
 | `yarn lab` | `vite dev` on `apps/lab` â€” the HD-2D render witness (`@lindocara/hd2d` + `three`), see below |
 | `yarn workspace @lindocara/lab run deploy` | ship the witness to [lindocara-lab.bay.alepha.dev](https://lindocara-lab.bay.alepha.dev) as a **static site** â€” files with no process behind them, `target: "static"` + `static.source`; needs `LORE_API_KEY`, see [`apps/lab/AGENTS.md`](./apps/lab/AGENTS.md) |
-| `yarn lint` | `alepha lint` â€” Biome, **and it fixes**: `biome check --fix`, so it rewrites your files rather than only reporting. There is no `lint:fix` any more; this is it |
+| `yarn lint` | `alepha lint`: **oxlint `--fix`, then oxfmt**, both shipped inside `alepha`. It rewrites your files rather than only reporting, so there is no `lint:fix`; this is it |
 | `yarn typecheck` | one tsc per package + `apps/main` + a Node tooling program (see below). Deliberately NOT `alepha typecheck` â€” see below |
 | `yarn test` | `alepha test` â€” Vitest over every package's project (all Node/jsdom; the `server` project drives the real Alepha app over HTTP/WebSocket) |
 | `yarn build` | `alepha build` â€” bundles `apps/main`; CI builds the production shape via `yarn workspace @lindocara/main run build --target bare` |
@@ -69,17 +69,31 @@ it finds, and takes the `yarn alepha build` branch here.
 
 `dev`, `build`, `deploy`, `db:generate` and `check:migrations` always were `alepha` commands, and
 `verify` is itself an `$command` declared in the root [`alepha.config.ts`](./alepha.config.ts).
-`lint` and `test` joined them: **`yarn lint` is `alepha lint`** (Biome) and **`yarn test` is
-`alepha test`** (Vitest). Both resolve the same binaries the project already had — the hoisted
-`@biomejs/biome`, and a `vitest` at the identical 4.1.10 — and `alepha test` finds the root
-`vitest.config.ts`, so it runs all nine projects (287 files, 2 725 tests) exactly as before.
+`lint` and `test` joined them: **`yarn lint` is `alepha lint`** (oxlint + oxfmt) and **`yarn
+test` is `alepha test`** (Vitest). `test` resolves the `vitest` the project already had, at the
+identical 4.1.10, and finds the root `vitest.config.ts`, so it runs all nine projects exactly as
+before. `lint` resolves **oxlint and oxfmt out of alepha's own dependencies**: this repo declares
+no linter and no formatter of its own, which is why `@biomejs/biome` is gone from `package.json`
+and `biome.json` with it.
 
-**`alepha lint` FIXES, and that changes what a green lint means.** It is `biome check --fix`: given
-a badly formatted file it rewrites it and exits **0**. Locally that is what you want and it replaces
-the old `lint:fix`. In CI it would wave through the very PR the step exists to stop, so the
-workflow's Lint step runs `git diff --exit-code` behind it — on a runner the tree is pristine, so
-anything biome touched is a fix the author owed. Never copy that diff guard into `verify` or a local
-script: it fires on any uncommitted work in progress.
+**`alepha lint` FIXES, and that changes what a green lint means.** It runs `oxlint --fix` and then
+`oxfmt`, in that order and never the reverse: `--fix` rewrites code with no regard for line width,
+so the formatter has to run after it for the tree to reach a state the next `lint` agrees with.
+Given a badly formatted file it rewrites it and exits **0**. Locally that is what you want and it
+replaces the old `lint:fix`. In CI it would wave through the very PR the step exists to stop, so the
+workflow's Lint step runs `git diff --exit-code` behind it: on a runner the tree is pristine, so
+anything the toolchain touched is a fix the author owed. Never copy that diff guard into `verify` or
+a local script: it fires on any uncommitted work in progress.
+
+The two configs are [`.oxlintrc.json`](./.oxlintrc.json) and [`.oxfmtrc.json`](./.oxfmtrc.json), and
+both carry their reasoning inline; read the config before arguing with a finding. The short version:
+`correctness` + `perf` as errors with **type-aware** rules on (the half Biome could not do at all),
+and every rule turned off carries the count measured in THIS repo rather than an inherited opinion.
+Formatting is 100 columns, not the framework's 80, because the prose in these comments is wrapped at
+100 and no formatter rewraps a comment. Markdown, `studio/`, `adventures/` and every `generated/`
+tree are out of scope for both tools: the generated ones because `map:check`, `catalog:check` and
+`music:check` compare them byte for byte against a fresh generation, so a formatter that also
+rewrote them in place would turn every `yarn lint` into content drift.
 
 Two scripts deliberately do **not** delegate, and both were tried:
 
@@ -272,7 +286,9 @@ per-lane guides; `python3 studio/studio.py doctor` proves the plumbing on a new 
 
 - Browser checks (running the app, screenshots, driving the editor UI): use the `playwright-cli`
   skill, never the Claude-in-Chrome extension.
-- Biome formats and lints. `noNonNullAssertion` is on: no `!`, narrow properly.
+- oxlint lints and oxfmt formats, both through `yarn lint`. `noNonNullAssertion` carried over as
+  `typescript/no-non-null-assertion`, named explicitly in `.oxlintrc.json` because oxlint files
+  it under `restriction` rather than `correctness`: no `!`, narrow properly.
 - Never trust a client message. `parseClientMessage` returns `null` and the frame is dropped.
 - Prefer a test that drives the real app over one that mocks it. `packages/server/test-api/`
   boots the Alepha app and opens real HTTP requests and WebSockets; follow that. No `vi.mock`.
@@ -307,6 +323,10 @@ per-lane guides; `python3 studio/studio.py doctor` proves the plumbing on a new 
   is `:not(:where([data-slot], .editor-root *))` â€” `:where()` contributes zero specificity, every
   shadcn control carries `data-slot`, and every editor-authored raw control lives under
   `.editor-root`.
-- `Label` is a generic passthrough that spreads props, so Biome's `noLabelWithoutControl` cannot see
-  that call sites supply the control. The agreed resolution is a scoped `biome-ignore` on the JSX
-  element, not an unconditional `for` attribute the component doesn't own.
+- `Label` is a generic passthrough that spreads props, so a label rule cannot see that call sites
+  supply the control (Biome's `noLabelWithoutControl` could not; oxlint's jsx-a11y equivalent has
+  the same blind spot and simply does not fire on these sites today). The agreed resolution is a
+  scoped suppression on the JSX element (now `// oxlint-disable-next-line <rule>`, placed on the line
+  above the ELEMENT rather than above the attribute, which is where oxlint anchors the report), not
+  an unconditional `for` attribute the component doesn't own. oxlint reports an unused suppression as
+  an error, so a directive that stops suppressing anything gets deleted rather than re-read.

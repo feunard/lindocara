@@ -53,6 +53,7 @@ import type { QuestEventReference } from "@lindocara/engine/quests.js";
 import { unlockTalent } from "@lindocara/engine/talents.js";
 import { BODY_RADIUS, canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
 import { executeCheatCommand } from "../../world/cheat-command-system.js";
 import {
@@ -1212,6 +1213,7 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         sync.then(
           () => {
             if (w.state.eventStateSync === sync) w.state.eventStateSync = null;
+            return;
           },
           (error: unknown) => {
             if (w.state.eventStateSync === sync) {

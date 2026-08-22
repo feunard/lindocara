@@ -6,6 +6,7 @@ import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
 import { useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
 import { useEffect } from "react";
+
 import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
 import { backdropVersionAtom } from "../state/atoms.js";

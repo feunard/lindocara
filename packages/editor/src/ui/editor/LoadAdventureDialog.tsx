@@ -93,17 +93,17 @@ export function LoadAdventureDialog({
         </DialogHeader>
 
         {error && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-destructive text-sm">
             {authErrorText(error)}
           </p>
         )}
 
         {adventures === null ? (
-          <p className="text-sm text-muted-foreground" role="status">
+          <p className="text-muted-foreground text-sm" role="status">
             {t("editor.picker.loading")}
           </p>
         ) : adventures.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("editor.load.empty")}</p>
+          <p className="text-muted-foreground text-sm">{t("editor.load.empty")}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {adventures.map((adventure) => (
@@ -121,7 +121,7 @@ export function LoadAdventureDialog({
                       </span>
                     )}
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
                         adventure.playable
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-amber-100 text-amber-700"
@@ -165,11 +165,11 @@ export function LoadAdventureDialog({
                 {t("adventure.delete.title", { name: confirmingDelete?.title ?? "" })}
               </DialogTitle>
             </DialogHeader>
-            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <div className="border-destructive/30 bg-destructive/5 flex items-start gap-2 rounded-md border p-3">
               <Checkbox id="force-delete-loaded-adventure" checked disabled />
               <div className="grid gap-1">
                 <Label htmlFor="force-delete-loaded-adventure">{t("editor.delete.force")}</Label>
-                <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+                <p className="text-muted-foreground text-xs">{t("editor.delete.force_warning")}</p>
               </div>
             </div>
             <DialogFooter>

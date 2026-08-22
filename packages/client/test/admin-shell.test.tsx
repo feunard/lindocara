@@ -1,7 +1,7 @@
 import { adminRouterOptionsAtom } from "@alepha/ui/components/admin/admin-router-options";
 import { setLocale } from "@lindocara/client/i18n.js";
-import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { lindocaraAdminOptions } from "@lindocara/client/ui/admin/adminChrome.js";
+import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { screen, waitFor } from "@testing-library/dom";
 import { Alepha } from "alepha";
 import { AlephaReact } from "alepha/react";

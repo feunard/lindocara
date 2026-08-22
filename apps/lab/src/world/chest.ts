@@ -5,6 +5,7 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { closeChest, openChest } from "../core/audio.js";
 import { CAMERA } from "../settings.js";
 

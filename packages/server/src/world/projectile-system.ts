@@ -25,6 +25,7 @@ import {
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+
 import { isRogueStealthed } from "./rogue-state-system.js";
 import type {
   GroundIndexQuery,

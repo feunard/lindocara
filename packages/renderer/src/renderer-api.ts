@@ -33,6 +33,7 @@ import type {
   WorldBuildingSnapshot,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
+
 import type { MonsterImpactSound } from "./combat-art.js";
 import type { HealthBarMode } from "./display-settings.js";
 import type { DayCycleOverride } from "./hd2d/day-cycle.js";

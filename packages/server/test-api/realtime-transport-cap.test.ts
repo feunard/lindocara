@@ -21,6 +21,7 @@ import { UserController } from "alepha/api/users";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { WebSocket } from "ws";
+
 import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, provingHeightfield } from "./helpers.ts";
 
@@ -75,7 +76,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

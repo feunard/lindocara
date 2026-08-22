@@ -5,6 +5,7 @@ import {
   type PartyMaterialAmounts,
   type PartyMaterialType,
 } from "@lindocara/engine/party-harvest-state.js";
+
 import { t } from "./i18n.js";
 
 export const MATERIAL_SHORT_LABEL: Readonly<Record<PartyMaterialType, MessageKey>> = {

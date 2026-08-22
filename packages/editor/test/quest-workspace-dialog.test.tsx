@@ -2,11 +2,11 @@ import { DialogProvider } from "@alepha/ui/components/use-dialog/use-dialog";
 import { type AdventureDraft, emptyDraft } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { adventureEditorSessionAtom } from "@lindocara/client/state/atoms.js";
-import { QuestWorkspaceDialog } from "@lindocara/editor/ui/editor/QuestWorkspaceDialog.js";
 import {
   createStructuredQuestObjective,
   type QuestMapCatalog,
 } from "@lindocara/editor/ui/editor/quest-editor-model.js";
+import { QuestWorkspaceDialog } from "@lindocara/editor/ui/editor/QuestWorkspaceDialog.js";
 import {
   type AuthoredQuestDefinition,
   createAuthoredQuestDefinition,

@@ -72,6 +72,7 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { type RoomClock, RoomEngine, type RoomSocket } from "alepha/websocket";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+
 import { heroes } from "../src/api/entities/heroes.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
@@ -201,7 +202,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

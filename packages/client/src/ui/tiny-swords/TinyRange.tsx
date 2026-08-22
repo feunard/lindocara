@@ -1,5 +1,6 @@
 import { cn } from "@alepha/ui/lib/utils";
 import type * as React from "react";
+
 import { TinyBarTrack } from "./TinyBarTrack.js";
 
 export function TinyRange({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {

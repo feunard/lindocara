@@ -55,6 +55,7 @@ import { type CreateHeroInput, MAX_HEROES_PER_PARTY } from "@lindocara/engine/he
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { z } from "alepha";
 import { $repository, sql } from "alepha/orm";
+
 // Pure, D1-free catalogue reused as-is from the legacy source tree (same-package sibling, not
 // `@lindocara/engine` — mirrors `AdventureService`'s own `../../adventure-registry.js` import).
 import { HEALTH_POTION_ID, ITEM_DEFINITIONS } from "../../items.js";

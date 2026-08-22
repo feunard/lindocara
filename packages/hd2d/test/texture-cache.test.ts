@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
 import type { TextureRegistry, TextureSpec } from "../src/textures.js";
 import { createTextureCache } from "../src/textures.js";
 

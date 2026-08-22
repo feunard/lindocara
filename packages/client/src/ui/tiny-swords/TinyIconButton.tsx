@@ -1,4 +1,5 @@
 import { cn } from "@alepha/ui/lib/utils";
+
 import { TinyButton, type TinyButtonProps } from "./TinyButton.js";
 
 export function TinyIconButton({ className, ...props }: TinyButtonProps) {

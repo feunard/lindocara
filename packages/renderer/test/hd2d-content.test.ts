@@ -11,6 +11,7 @@ import { billboardHeight } from "@lindocara/hd2d/billboard.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+
 import type { BillboardScene } from "../src/hd2d/billboards.js";
 import { shouldStartWorldEventTextureLoad, staticAssetSpec } from "../src/hd2d/game-renderer.js";
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "../src/hd2d/scene.js";

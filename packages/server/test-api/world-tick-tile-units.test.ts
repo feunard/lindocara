@@ -37,6 +37,7 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
+
 import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
 import { authoredTeleportTarget, teleportSameMap } from "../src/api/realtime/world-interactions.ts";

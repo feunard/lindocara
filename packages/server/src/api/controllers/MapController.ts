@@ -26,18 +26,19 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+
 import {
   enforceBodySizeCap,
   MAX_HEIGHTFIELD_JSON_BYTES,
   MAX_MAP_JSON_BYTES,
 } from "../bodySizeCap.ts";
-import { MapService } from "../services/MapService.ts";
 import {
   parseCreateMapBody,
   parseHeightfieldBody,
   parseMapBody,
   rethrowAsMapError,
 } from "../services/mapAuthoring.ts";
+import { MapService } from "../services/MapService.ts";
 
 const mapSummarySchema = z.object({
   id: z.string(),

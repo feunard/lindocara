@@ -38,6 +38,8 @@ yarn workspace @lindocara/catalog run test     # or: yarn test:catalog — Node
 
 - After changing the source catalogue or the generators, run `yarn catalog:build` and commit the
   regenerated files in `engine`/`client`/`docs` — `catalog:check` (and CI) fails otherwise.
-- The generated `.generated.ts` is excluded from Biome (do not hand-edit it).
+- The generated files are excluded from oxlint and oxfmt alike (`**/generated` in both configs),
+  because `catalog:check` compares them byte for byte against a fresh build. Do not hand-edit one,
+  and do not take one out of those ignore lists.
 
 See the root [`AGENTS.md`](../../AGENTS.md) for the tileset / catalogued-element model.

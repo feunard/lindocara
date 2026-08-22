@@ -14,7 +14,9 @@ import {
   subscribeInputSettings,
 } from "@lindocara/renderer/input-settings.js";
 import { useEffect, useState, useSyncExternalStore } from "react";
+
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+
 import { t, useLocale } from "../i18n.js";
 import { TinySelect } from "./tiny-swords/TinySelect.js";
 

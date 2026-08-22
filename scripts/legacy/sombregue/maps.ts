@@ -22,6 +22,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import {
   BUSHES,
   blob,

@@ -40,6 +40,7 @@ import { $page, NestedView, Redirection, useRouter, useRouterState } from "aleph
 import { $secure, currentUserAtom } from "alepha/security";
 import { HttpError } from "alepha/server";
 import { useEffect } from "react";
+
 import { menuAudio } from "../game/menu-audio.js";
 import { stopActiveGameSession } from "../game/session.js";
 import { useLocale } from "../i18n.js";

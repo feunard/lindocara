@@ -85,6 +85,7 @@ import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interior
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
 import type { RenderContext, RendererLike } from "@lindocara/renderer/renderer-api.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
+
 import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { localizedHarvestGain, localizedMissingMaterials } from "../material-copy.js";
@@ -1460,9 +1461,9 @@ async function startGameIdentity(
     sound.setSeaGuardianNearby(
       Boolean(
         self?.swimming &&
-          sample.seaGuardians.some(
-            (guardian) => groundDistance(self, guardian) <= SEA_GUARDIAN_AMBIENCE_RADIUS,
-          ),
+        sample.seaGuardians.some(
+          (guardian) => groundDistance(self, guardian) <= SEA_GUARDIAN_AMBIENCE_RADIUS,
+        ),
       ),
     );
     currentSelf = self;

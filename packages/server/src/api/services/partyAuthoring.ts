@@ -30,7 +30,7 @@ import { HttpError } from "alepha/server";
  * columns, e.g. `"UNIQUE constraint failed: partyMembers.party_id, partyMembers.color"`.
  */
 function deepestErrorMessage(error: unknown): string {
-  let current: Error | unknown = error;
+  let current: unknown = error;
   let message = error instanceof Error ? error.message : "";
   const seen = new Set<unknown>();
   while (current instanceof Error && current.cause instanceof Error && !seen.has(current)) {

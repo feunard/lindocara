@@ -7,6 +7,7 @@ import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
 import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
 import { useStore } from "alepha/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import { t, useLocale } from "../i18n.js";
 import { quickItemsAtom } from "../state/atoms.js";
 import { useUiStore } from "../store.js";

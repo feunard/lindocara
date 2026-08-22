@@ -1,6 +1,7 @@
 import type { Clip } from "@lindocara/hd2d/billboard.js";
 import type { MoodConfig } from "@lindocara/hd2d/mood.js";
 import type { TextureSpec } from "@lindocara/hd2d/textures.js";
+
 import type { Zone } from "./world/zones.js";
 
 // Tous les réglages du labo au même endroit : c'est ce fichier qu'on triture pour faire bouger

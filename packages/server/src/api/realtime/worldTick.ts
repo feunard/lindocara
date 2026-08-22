@@ -49,6 +49,7 @@ import {
 } from "@lindocara/engine/peasant-support.js";
 import { NETWORK_TICKS_PER_SNAPSHOT, TICK_HZ } from "@lindocara/engine/simulation.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+
 import { buildingAtImpact } from "../../world/building-system.js";
 import { advanceCombatActions } from "../../world/combat-action-system.js";
 import { applyGuardDamage } from "../../world/combat-system.js";
@@ -263,9 +264,9 @@ export function advanceWorldTick(w: WorldGlue): void {
       const source = playerById(state, sourceId);
       return Boolean(
         source?.authorized &&
-          !source.transitioning &&
-          source.life === "alive" &&
-          source.roomKey === state.location?.roomKey,
+        !source.transitioning &&
+        source.life === "alive" &&
+        source.roomKey === state.location?.roomKey,
       );
     },
     targetIsActive: (targetKind, targetId) =>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { nativeHarvestEvents } from "../src/native-harvest.js";
 
 describe("native harvest scenery", () => {

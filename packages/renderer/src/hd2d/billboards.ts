@@ -22,6 +22,7 @@ import { billboardHeight, makeBillboard } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { HD2D_CAMERA } from "./scene.js";
 
 export type ActorKind = "player" | "sea_guardian" | "monster" | "guard" | "corpse" | "event";

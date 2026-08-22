@@ -18,6 +18,7 @@ import {
   groundUnder,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
+
 import type { ActiveWorldEvent, PlayerRuntime } from "./world-runtime.js";
 
 export interface NpcMovementDefinition {

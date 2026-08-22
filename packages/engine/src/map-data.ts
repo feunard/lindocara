@@ -545,10 +545,10 @@ export function elementFitsMap(element: MapElement, cols: number, rows: number):
       const collider = elementWorldCollider(element);
       return Boolean(
         collider &&
-          collider.x >= 0 &&
-          collider.y >= 0 &&
-          collider.x + collider.width <= cols * TILE_SIZE &&
-          collider.y + collider.height <= rows * TILE_SIZE,
+        collider.x >= 0 &&
+        collider.y >= 0 &&
+        collider.x + collider.width <= cols * TILE_SIZE &&
+        collider.y + collider.height <= rows * TILE_SIZE,
       );
     }
     return (
@@ -562,10 +562,10 @@ export function elementFitsMap(element: MapElement, cols: number, rows: number):
     const collider = elementWorldCollider(element);
     return Boolean(
       collider &&
-        collider.x >= 0 &&
-        collider.y >= 0 &&
-        collider.x + collider.width <= cols * TILE_SIZE &&
-        collider.y + collider.height <= rows * TILE_SIZE,
+      collider.x >= 0 &&
+      collider.y >= 0 &&
+      collider.x + collider.width <= cols * TILE_SIZE &&
+      collider.y + collider.height <= rows * TILE_SIZE,
     );
   }
   // The authored foot is the placement. Art may overhang any map edge: clouds, crowns and large

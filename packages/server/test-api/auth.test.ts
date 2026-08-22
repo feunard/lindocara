@@ -4,6 +4,7 @@ import { CacheProvider } from "alepha/cache";
 import { DatabaseCacheProvider } from "alepha/cache/database";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, test } from "vitest";
+
 import { createTestApp } from "./helpers.ts";
 
 // Meets the realm's default password policy (min length 8, upper + lower +

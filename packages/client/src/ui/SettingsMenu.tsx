@@ -4,7 +4,9 @@ import {
   subscribeDisplaySettings,
 } from "@lindocara/renderer/display-settings.js";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
+
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+
 import {
   getAudioSettings,
   setAudioSettings,
@@ -76,6 +78,9 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
   const percent = (value: number) => Math.round(value * 100);
 
   return (
+    // `onMouseDown` is click-outside-to-dismiss on the backdrop. The keyboard
+    // equivalent is MenuNav's `onBack` below, not a key handler out here.
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
       id="settings-menu"
       role="dialog"

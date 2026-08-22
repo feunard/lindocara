@@ -6,6 +6,7 @@ import {
 } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
+
 import {
   MOUNTAIN,
   MOUNTAIN_FACE_Z,

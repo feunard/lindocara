@@ -9,8 +9,17 @@
         color-scheme: dark;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { height: 100%; overflow: hidden; background: #0b1020; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        background: #0b1020;
+      }
       /* Le pointeur du pack, doublé au plus proche voisin et annoncé en 2x :
          un curseur CSS est rendu à sa taille intrinsèque en pixels CSS, donc
          livré en 64 il baverait sur un écran Retina. Le point chaud est la
@@ -20,11 +29,15 @@
         display: block;
         width: 100vw;
         height: 100vh;
-        cursor: image-set(url('/ui/cursor.png') 2x) 22 17, default;
+        cursor:
+          image-set(url("/ui/cursor.png") 2x) 22 17,
+          default;
       }
       /* Sur un mouton : il est cliquable, le curseur doit le dire. */
       #view.pointe {
-        cursor: image-set(url('/ui/cursor-hand.png') 2x) 23 17, pointer;
+        cursor:
+          image-set(url("/ui/cursor-hand.png") 2x) 23 17,
+          pointer;
       }
 
       #hud {
@@ -43,11 +56,15 @@
         user-select: none;
         pointer-events: none;
       }
-      #hud.hidden { opacity: 0; }
+      #hud.hidden {
+        opacity: 0;
+      }
       /* Le bloc d'aide et le bandeau de dialogue occupent le même bas d'écran.
          Pendant qu'on parle, l'aide s'efface — et c'est une classe à part de
          `hidden`, sinon la conversation annulerait le choix fait avec H. */
-      #hud.parle { opacity: 0; }
+      #hud.parle {
+        opacity: 0;
+      }
       #hud kbd {
         display: inline-block;
         min-width: 18px;
@@ -117,9 +134,14 @@
         pointer-events: none;
         opacity: 0;
         transform: translate(-50%, calc(-50% + 10px));
-        transition: opacity 0.18s ease, transform 0.18s ease;
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
       }
-      #dialog.on { opacity: 1; transform: translate(-50%, -50%); }
+      #dialog.on {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
 
       #dialog-avatar {
         width: 88px;
@@ -156,10 +178,17 @@
         transition: opacity 0.15s ease;
         animation: bob 1.1s ease-in-out infinite;
       }
-      #dialog.ready #dialog-next { opacity: 1; }
+      #dialog.ready #dialog-next {
+        opacity: 1;
+      }
       @keyframes bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(3px); }
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(3px);
+        }
       }
 
       /* Invite d'action, PARTAGÉE : sans elle, personne ne devine qu'il y a
@@ -175,7 +204,9 @@
         transition: opacity 0.28s ease;
         z-index: 40;
       }
-      #fade.on { opacity: 1; }
+      #fade.on {
+        opacity: 1;
+      }
 
       #loading {
         position: fixed;
@@ -191,7 +222,10 @@
         letter-spacing: 0.14em;
         transition: opacity 0.45s ease;
       }
-      #loading.hidden { opacity: 0; pointer-events: none; }
+      #loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
 
       #load-bar {
         width: 260px;
@@ -207,7 +241,9 @@
         /* Pas de transition : la barre est pilotée en continu par les octets
            reçus, une interpolation CSS ne ferait que la faire traîner. */
       }
-      #load-text { font-variant-numeric: tabular-nums; }
+      #load-text {
+        font-variant-numeric: tabular-nums;
+      }
 
       #play {
         display: none;
@@ -220,23 +256,44 @@
         font: inherit;
         letter-spacing: 0.2em;
         cursor: inherit;
-        transition: background 0.15s ease, transform 0.08s ease;
+        transition:
+          background 0.15s ease,
+          transform 0.08s ease;
       }
-      #play.on { display: block; }
-      #play:hover { background: rgba(255, 255, 255, 0.15); }
-      #play:active { transform: translateY(1px); border-bottom-width: 2px; }
+      #play.on {
+        display: block;
+      }
+      #play:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      #play:active {
+        transform: translateY(1px);
+        border-bottom-width: 2px;
+      }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
 
     <div id="hud">
-      <div><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>WASD</kbd> / flèches — se déplacer</div>
-      <div><kbd>espace</kbd> — sauter &nbsp;·&nbsp; <kbd>1</kbd> — attaquer &nbsp;·&nbsp; <kbd>N</kbd> — jour / nuit &nbsp;·&nbsp; molette — zoom<br />clic droit + glisser — pivoter la caméra</div>
+      <div>
+        <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>WASD</kbd> / flèches — se déplacer
+      </div>
+      <div>
+        <kbd>espace</kbd> — sauter &nbsp;·&nbsp; <kbd>1</kbd> — attaquer &nbsp;·&nbsp;
+        <kbd>N</kbd> — jour / nuit &nbsp;·&nbsp; molette — zoom<br />clic droit + glisser — pivoter
+        la caméra
+      </div>
       <div><kbd>F</kbd> — parler &nbsp;·&nbsp; clic sur un mouton — il bêle. Insistez.</div>
-      <div><kbd>B</kbd> — volumes de collision &nbsp;·&nbsp; <kbd>M</kbd> — musique &nbsp;·&nbsp; <kbd>H</kbd> — masquer cette aide</div>
+      <div>
+        <kbd>B</kbd> — volumes de collision &nbsp;·&nbsp; <kbd>M</kbd> — musique &nbsp;·&nbsp;
+        <kbd>H</kbd> — masquer cette aide
+      </div>
       <div>entrer dans l'eau — on nage, on ne saute plus, le souffle est compté</div>
-      <div class="meta"><span id="mood">☀︎ jour</span><span id="fps">— fps</span><span id="bench"></span><span id="debug"></span><span id="sound"></span></div>
+      <div class="meta">
+        <span id="mood">☀︎ jour</span><span id="fps">— fps</span><span id="bench"></span
+        ><span id="debug"></span><span id="sound"></span>
+      </div>
     </div>
 
     <div id="breath"><div id="breath-bar"></div></div>

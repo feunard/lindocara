@@ -2,6 +2,7 @@ import { maxHpForLevel } from "@lindocara/engine/game.js";
 import { groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import type { SkillDefinition } from "@lindocara/engine/skills.js";
 import { type TalentEffect, talentEffect } from "@lindocara/engine/talents.js";
+
 import type { PlayerRuntime } from "./world-runtime.js";
 
 type AllyPredicate = (source: PlayerRuntime, target: PlayerRuntime) => boolean;

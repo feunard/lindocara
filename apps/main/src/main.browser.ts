@@ -12,8 +12,8 @@
 import { AlephaSigil } from "@alepha/sigil";
 import { adminRouterOptionsAtom } from "@alepha/ui/components/admin/admin-router-options";
 import { bootClient } from "@lindocara/client/main.js";
-import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { lindocaraAdminOptions } from "@lindocara/client/ui/admin/adminChrome.js";
+import { AppRouter } from "@lindocara/client/ui/AppRouter.js";
 import { Alepha, run } from "alepha";
 import { reactBrowserOptions } from "alepha/react/router";
 

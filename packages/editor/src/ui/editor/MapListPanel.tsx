@@ -140,7 +140,7 @@ export function MapListPanel({
     }
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch names/dims when the screen bumps the nonce or the adventure changes
+  // Refetch names/dims when the screen bumps the nonce or the adventure changes
   useEffect(() => {
     void refresh();
   }, [refreshNonce, adventureId]);
@@ -148,7 +148,7 @@ export function MapListPanel({
   // UX wave #16: a new map defaults to the lowest free `MapN` — never the adventure title. Prefill the
   // dialog's name field each time it opens (the author can still rename before creating). Computed
   // from the loaded list, so the server stays dumb and simply stores the name it is handed.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: seed the default only on the open transition, not on every list churn
+  // Seed the default only on the open transition, not on every list churn
   useEffect(() => {
     if (newMapOpen) {
       setNewName(nextMapName(maps.map((map) => map.name)));
@@ -426,7 +426,7 @@ export function MapListPanel({
                 onChange={(event) => setNewName(event.currentTarget.value)}
               />
             </div>
-            <p className="text-xs text-muted-foreground">{t("editor.shell.maps.ocean_hint")}</p>
+            <p className="text-muted-foreground text-xs">{t("editor.shell.maps.ocean_hint")}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onNewMapOpenChange(false)}>
@@ -485,11 +485,11 @@ export function MapListPanel({
           <DialogHeader>
             <DialogTitle>{t("editor.delete.title", { name: deleting?.name ?? "" })}</DialogTitle>
           </DialogHeader>
-          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <div className="border-destructive/30 bg-destructive/5 flex items-start gap-2 rounded-md border p-3">
             <Checkbox id="force-delete-map" checked disabled />
             <div className="grid gap-1">
               <Label htmlFor="force-delete-map">{t("editor.delete.force")}</Label>
-              <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+              <p className="text-muted-foreground text-xs">{t("editor.delete.force_warning")}</p>
             </div>
           </div>
           <DialogFooter>

@@ -105,7 +105,7 @@ function withChildBody(
   branch: Branch,
   next: (body: readonly EventCommand[]) => readonly EventCommand[],
 ): EventCommand {
-  // biome-ignore lint/suspicious/noThenProperty: `then` is the conditional's branch field, not a thenable.
+  // `then` is the conditional's branch field, not a thenable.
   if (branch === "then" && command.t === "if") return { ...command, then: next(command.then) };
   if (branch === "else" && command.t === "if") return { ...command, else: next(command.else) };
   if (branch === "loop" && command.t === "loop") return { ...command, body: next(command.body) };

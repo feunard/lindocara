@@ -72,6 +72,7 @@ import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
 import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
 import type { SceneSample } from "@lindocara/renderer/scene-sample.js";
+
 import type {
   EditorMap,
   EditorMode,
@@ -760,8 +761,8 @@ export function openMapEditorStage(
       const guide = selectedRotationGuide();
       return Boolean(
         guide &&
-          Math.hypot(point.x - guide.handle.x, point.z - guide.handle.z) <=
-            BUILDING_RESIZE_HANDLE_HIT_RADIUS,
+        Math.hypot(point.x - guide.handle.x, point.z - guide.handle.z) <=
+          BUILDING_RESIZE_HANDLE_HIT_RADIUS,
       );
     };
     const resizeAt = (point: {

@@ -1,5 +1,6 @@
 import { applyDamage } from "@lindocara/engine/game.js";
 import { talentEffect } from "@lindocara/engine/talents.js";
+
 import type { GuardRuntime, PlayerRuntime } from "./world-runtime.js";
 
 /**
@@ -21,10 +22,10 @@ export function isLumenCloudInvulnerable(player: PlayerRuntime, now: number): bo
   const action = player.action;
   return Boolean(
     action?.skillId === "blink" &&
-      action.channelMaxEndsAt !== undefined &&
-      action.channelEndsAt === undefined &&
-      now >= action.impactAt &&
-      now < action.channelMaxEndsAt,
+    action.channelMaxEndsAt !== undefined &&
+    action.channelEndsAt === undefined &&
+    now >= action.impactAt &&
+    now < action.channelMaxEndsAt,
   );
 }
 
@@ -33,9 +34,9 @@ export function isPlayerInvulnerable(player: PlayerRuntime, now: number): boolea
   const dashInvulnerability = talentEffect(player.class, player.talents, "dash_invulnerability", 4);
   const dashing = Boolean(
     dashInvulnerability &&
-      player.action?.skillId === "dash" &&
-      now >= player.action.impactAt &&
-      now < player.action.recoveryEndsAt,
+    player.action?.skillId === "dash" &&
+    now >= player.action.impactAt &&
+    now < player.action.recoveryEndsAt,
   );
   return (
     player.cheatInvulnerable ||
@@ -50,10 +51,10 @@ export function guardedDamage(player: PlayerRuntime, damage: number, now = Date.
   const parry = talentEffect(player.class, player.talents, "perfect_parry", 2);
   const perfectParry = Boolean(
     player.guarding &&
-      parry &&
-      player.guardActivatedAt > 0 &&
-      now >= player.guardActivatedAt &&
-      now - player.guardActivatedAt <= parry.windowMs,
+    parry &&
+    player.guardActivatedAt > 0 &&
+    now >= player.guardActivatedAt &&
+    now - player.guardActivatedAt <= parry.windowMs,
   );
   if (perfectParry) {
     const retaliation = talentEffect(player.class, player.talents, "perfect_retaliation", 2);

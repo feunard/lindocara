@@ -1,6 +1,7 @@
 import type { PlayerClass } from "./game.js";
 import { roundGroundLength } from "./ground.js";
 import type { HarvestProfile } from "./harvest.js";
+import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import {
   isPeasantTalentEffect,
   PEASANT_TALENT_BALANCE,
@@ -12,7 +13,6 @@ import {
   resolvePeasantConstructionPlan,
   resolvePeasantHarvestPlan,
 } from "./peasant.js";
-import { PEASANT_SUPPORT_SKILLS } from "./peasant-support.js";
 import { ROGUE_BALANCE } from "./rogue.js";
 import { isSkillUnlocked, type SkillDefinition, type SkillSlot, skillFor } from "./skills.js";
 import { TILE_SIZE } from "./tilemap.js";
@@ -1326,9 +1326,9 @@ function prerequisitesMet(node: TalentNode, selected: ReadonlySet<string>, level
     const prerequisite = talentNode(node.class, id);
     return Boolean(
       prerequisite &&
-        (prerequisite.root
-          ? isSkillUnlocked(level, prerequisite.slot)
-          : selected.has(prerequisite.id)),
+      (prerequisite.root
+        ? isSkillUnlocked(level, prerequisite.slot)
+        : selected.has(prerequisite.id)),
     );
   };
   const ordinaryRequirementsMet = node.requiresAll

@@ -1,5 +1,6 @@
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { describe, expect, it } from "vitest";
+
 import {
   BENCH_CENTER_OFFSET,
   BENCH_DRIFT_TOLERANCE,

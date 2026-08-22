@@ -2,6 +2,7 @@ import type { ColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import * as THREE from "three";
+
 import { HERO, WORLD } from "../settings.js";
 import type { Hero } from "./hero.js";
 

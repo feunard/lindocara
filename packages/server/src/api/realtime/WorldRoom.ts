@@ -33,17 +33,17 @@
  * brief sanctions for α.
  */
 
+import type {
+  AdventureRegistry,
+  AuthoredQuestProgress,
+  PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
 import {
   type AdventureCameraMode,
   type AdventureGameMode,
   DEFAULT_ADVENTURE_CAMERA_MODE,
   DEFAULT_ADVENTURE_GAME_MODE,
 } from "@lindocara/engine/adventure.js";
-import type {
-  AdventureRegistry,
-  AuthoredQuestProgress,
-  PartyAdventureState,
-} from "@lindocara/engine/adventure-state.js";
 import {
   type AdventureAudioConfig,
   DEFAULT_ADVENTURE_AUDIO,
@@ -82,6 +82,7 @@ import {
   type RoomContext,
   type RoomPrimitiveOptions,
 } from "alepha/websocket";
+
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
 import { buildingSnapshot } from "../../world/building-system.js";
 import { cancelCombatAction } from "../../world/combat-action-system.js";
@@ -110,9 +111,9 @@ import {
 } from "../../world/world-runtime.js";
 import { adventures } from "../entities/adventures.ts";
 import { parties } from "../entities/parties.ts";
+import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { AdventureService, type StoredAdventure } from "../services/AdventureService.ts";
 import { AdventureStateService } from "../services/AdventureStateService.ts";
-import { decodeAdventureAudio } from "../services/adventureAuthoring.ts";
 import { HeroEpochService } from "../services/HeroEpochService.ts";
 import { type HeroSaveResult, HeroSaveService } from "../services/HeroSaveService.ts";
 import { HeroService } from "../services/HeroService.ts";
@@ -127,8 +128,8 @@ import {
   type QuestTurnInResult,
   type ReconcilePartyMaterialSpendsResult,
 } from "./PartyRoom.ts";
-import { PresenceRoom } from "./PresenceRoom.ts";
 import { runPeasantSupportSaga } from "./peasantSupportSaga.ts";
+import { PresenceRoom } from "./PresenceRoom.ts";
 import { frameByteLength } from "./wire.ts";
 import {
   activatePeasantSupportRequest,
@@ -748,6 +749,7 @@ export class WorldRoom {
         if (cooldownStarted) {
           return this.checkpointCooldownsOrReject(room, state, connectionId, player);
         }
+        return;
       });
     }
     if (message.t === "peasant.camp_gold") {

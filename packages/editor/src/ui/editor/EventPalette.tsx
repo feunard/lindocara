@@ -16,6 +16,7 @@ import {
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { SEA_GUARDIAN_SWIM_TEXTURE_URL } from "@lindocara/renderer/hd2d/game-renderer.js";
+
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
@@ -383,6 +384,10 @@ export function EventPalette({
         {events.length === 0 ? (
           <p className="px-1 text-[11px] text-zinc-400">{t("editor.event.list.empty")}</p>
         ) : (
+          // `onMouseLeave` clears the hover PREVIEW only; the keyboard path never
+          // enters that state, and every control in the list is a <button> with its
+          // own handlers.
+          // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           <ul
             data-testid="event-list"
             aria-label={t("editor.event.list.heading")}

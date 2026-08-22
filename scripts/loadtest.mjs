@@ -1,4 +1,5 @@
 import process from "node:process";
+
 import WebSocket from "ws";
 
 const SCENARIOS = new Set(["idle", "movement", "combat", "mixed", "reconnect", "zone-transition"]);
@@ -219,7 +220,10 @@ function ensureNamedEvent(map, definition) {
 
 function ensureCombatEvents(map, role) {
   let changed = false;
-  for (const [number, offsets] of [
+  // Annotated because a bare `[[1, [[1, 0], …]], [2, …]]` infers its elements as
+  // `number | number[][]`, so `number` below is not a number to the checker.
+  /** @type {ReadonlyArray<readonly [number, ReadonlyArray<readonly [number, number]>]>} */
+  const packs = [
     [
       1,
       [
@@ -236,7 +240,8 @@ function ensureCombatEvents(map, role) {
         [0, -1],
       ],
     ],
-  ]) {
+  ];
+  for (const [number, offsets] of packs) {
     const ensured = ensureNamedEvent(map, {
       name: `loadtest-${role}-mob-${number}`,
       kind: "monster",
@@ -760,13 +765,17 @@ class VirtualPlayer {
         reject(new Error("websocket welcome timed out"));
       }, timeoutMs);
       socket.on("message", (data) => {
-        const bytes = data.byteLength;
+        // `RawData` is `Buffer | ArrayBuffer | Buffer[]`; a fragmented frame arrives
+        // as the array, whose `toString()` joins with commas and whose `byteLength`
+        // is undefined. Normalise once, then both reads below are honest.
+        const frame = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data);
+        const bytes = frame.byteLength;
         this.metrics.messages += 1;
         this.metrics.bytes += bytes;
         this.metrics.maxMessageBytes = Math.max(this.metrics.maxMessageBytes, bytes);
         let message;
         try {
-          message = JSON.parse(data.toString());
+          message = JSON.parse(frame.toString("utf8"));
         } catch {
           this.metrics.protocolErrors += 1;
           return;

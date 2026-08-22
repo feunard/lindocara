@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+
 import type { EditorMode } from "../../game/editor-state.js";
 import { ElementPalette } from "./ElementPalette.js";
 import { EventPalette } from "./EventPalette.js";

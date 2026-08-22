@@ -29,6 +29,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import { menuAudio } from "../../game/menu-audio.js";
 
 type Orientation = "vertical" | "horizontal";

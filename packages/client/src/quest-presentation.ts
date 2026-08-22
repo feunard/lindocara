@@ -1,5 +1,6 @@
 import type { AuthoredQuestTracker } from "@lindocara/engine/adventure-state.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+
 import { t } from "./i18n.js";
 
 export type TrackedQuestObjective = AuthoredQuestTracker["objectives"][number];

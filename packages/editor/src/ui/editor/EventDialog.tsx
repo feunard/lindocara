@@ -63,6 +63,7 @@ import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-c
 import { CircleHelp } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";
+
 import {
   addEventDraftPage,
   deleteEventDraftPage,
@@ -212,7 +213,7 @@ function validateEventStats(draft: MapEvent): EventStatErrors {
 function StatFieldError({ id, error }: { id: string; error: EventStatError | undefined }) {
   if (!error) return null;
   return (
-    <span id={id} className="text-[10.5px] leading-tight text-destructive" role="alert">
+    <span id={id} className="text-destructive text-[10.5px] leading-tight" role="alert">
       {t(`editor.event.validation.${error.reason}`, {
         min: error.min,
         max: error.max,
@@ -265,7 +266,7 @@ function NpcRoutineEditor({
       )}
       {route.map((step, index) => (
         <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: routine steps are positional by design
+          // Routine steps are positional by design
           key={index}
           className="grid grid-cols-[auto_1fr_1fr_1.2fr_auto] items-end gap-1.5 rounded bg-zinc-50 p-1.5"
         >
@@ -390,7 +391,7 @@ function FieldSelect(props: React.ComponentProps<"select">) {
   const { className, ...rest } = props;
   return (
     <select
-      className={`h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
+      className={`border-input focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-lg border bg-transparent px-2 text-sm outline-none focus-visible:ring-3 ${className ?? ""}`}
       {...rest}
     />
   );
@@ -829,7 +830,7 @@ function NpcEventFields({
   };
   return (
     <section className="grid gap-3 border-y border-zinc-200 py-3">
-      <p className="text-xs text-muted-foreground">{t("editor.event.kind.npc.hint")}</p>
+      <p className="text-muted-foreground text-xs">{t("editor.event.kind.npc.hint")}</p>
       <div className="grid grid-cols-3 gap-3">
         <label
           htmlFor="npc-patrol-radius"
@@ -970,10 +971,10 @@ function HarvestEventFields({
   return (
     <section className="flex flex-col gap-4 border-y border-zinc-200 py-3">
       <div>
-        <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+        <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
           {t("editor.harvest.profile.heading")}
         </h3>
-        <p className="text-xs text-muted-foreground">{t("editor.harvest.profile.hint")}</p>
+        <p className="text-muted-foreground text-xs">{t("editor.harvest.profile.hint")}</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -1098,7 +1099,7 @@ function HarvestEventFields({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-          <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+          <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
             {t("editor.harvest.appearance.intact")}
           </h3>
           <div data-testid="harvest-intact-preview">
@@ -1118,7 +1119,7 @@ function HarvestEventFields({
         </div>
 
         <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-          <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+          <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
             {t("editor.harvest.appearance.exhausted")}
           </h3>
           <div data-testid="harvest-exhausted-preview">
@@ -1256,7 +1257,7 @@ export function EventDialog({
         <DialogHeader className="flex-row items-center gap-3">
           <div className="flex flex-1 flex-col gap-0.5">
             <DialogTitle>{t("editor.event.dialog.title")}</DialogTitle>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {t("editor.event.dialog.caption", {
                 id: eventDisplayId(draft.ordinal),
                 col: draft.col,
@@ -1265,7 +1266,7 @@ export function EventDialog({
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+            <span className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
               {t("editor.event.name")}
             </span>
             <Input
@@ -1322,7 +1323,7 @@ export function EventDialog({
               }
             />
             <div className="rounded-lg border border-zinc-200 p-3">
-              <p className="mb-2 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mb-2 text-xs">
                 {t("editor.event.monster.defeatHint")}
               </p>
               <EventCommandEditor
@@ -1348,7 +1349,7 @@ export function EventDialog({
 
         {draft.kind === "guard" && (
           <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
-            <p className="text-xs text-muted-foreground">{t("editor.event.kind.guard.hint")}</p>
+            <p className="text-muted-foreground text-xs">{t("editor.event.kind.guard.hint")}</p>
             <label
               htmlFor="guard-patrol-radius"
               className="flex max-w-xs flex-col gap-1 text-[11px] text-zinc-500"
@@ -1404,12 +1405,12 @@ export function EventDialog({
         {/* Entry/exit events are pure anchors: their only field is the label (the header Name
             input), so no body is shown — a hint states what the placement binds. */}
         {(draft.kind === "entry" || draft.kind === "exit") && (
-          <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
+          <p className="text-muted-foreground border-y border-zinc-200 py-3 text-[12.5px]">
             {t("editor.event.kind.anchor.hint")}
           </p>
         )}
         {draft.kind === "sea-guardian" && (
-          <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
+          <p className="text-muted-foreground border-y border-zinc-200 py-3 text-[12.5px]">
             {t("editor.event.kind.seaGuardian.hint")}
           </p>
         )}
@@ -1425,7 +1426,7 @@ export function EventDialog({
             />
             {t("editor.event.marker.visible")}
           </label>
-          <p className="pl-6 text-[11px] text-muted-foreground">
+          <p className="text-muted-foreground pl-6 text-[11px]">
             {t("editor.event.marker.visible.hint")}
           </p>
         </section>
@@ -1445,7 +1446,7 @@ export function EventDialog({
             >
               {draft.pages.map((_page, i) => (
                 <button
-                  // biome-ignore lint/suspicious/noArrayIndexKey: pages are positional, no stable id
+                  // Pages are positional, no stable id
                   key={i}
                   type="button"
                   role="tab"
@@ -1474,7 +1475,7 @@ export function EventDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 text-destructive"
+                className="text-destructive h-7"
                 disabled={draft.pages.length <= 1}
                 aria-label={t("editor.event.page.delete")}
                 onClick={deletePage}
@@ -1483,7 +1484,7 @@ export function EventDialog({
               </Button>
             </div>
 
-            <p className="-mt-1 text-[11px] text-muted-foreground">
+            <p className="text-muted-foreground -mt-1 text-[11px]">
               {t("editor.event.guide.pageChoice")}
             </p>
 
@@ -1507,7 +1508,7 @@ export function EventDialog({
               <TabsContent value="conditions" className={TAB_PANEL}>
                 <div className="flex flex-col gap-4">
                   <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
                       {t("editor.event.conditions")}
                     </h3>
                     <CheckRow
@@ -1615,7 +1616,7 @@ export function EventDialog({
                       run", one by existing and one by starting. */}
                   {(draft.kind === "normal" || draft.kind === "npc") && (
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
                         {t("editor.event.trigger")}
                       </h3>
                       <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
@@ -1647,7 +1648,7 @@ export function EventDialog({
                 <div className="flex flex-col gap-4">
                   {(draft.kind === "normal" || draft.kind === "npc") && (
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
                         {t("editor.event.appearance")}
                       </h3>
                       <CatalogueAssetPicker
@@ -1684,7 +1685,7 @@ export function EventDialog({
                             />
                             {t("editor.event.opt.hostile")}
                           </label>
-                          <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+                          <p className="text-muted-foreground text-[10.5px] leading-relaxed">
                             {t("editor.event.opt.hostile.hint")}
                           </p>
                         </>
@@ -1694,7 +1695,7 @@ export function EventDialog({
 
                   {draft.kind === "npc" && (
                     <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      <h3 className="text-muted-foreground text-[10.5px] font-semibold tracking-wide uppercase">
                         {t("editor.event.movement")}
                       </h3>
                       <label

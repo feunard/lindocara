@@ -5,6 +5,7 @@
  * Run with: yarn map:build
  */
 import { writeFileSync } from "node:fs";
+
 import {
   BOUNDARY_OBSTACLES,
   OBSTACLES,
@@ -15,6 +16,7 @@ import {
 } from "@lindocara/engine/game.js";
 import { VERDANT_REACH_BOUNDS, type WorldBounds } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE, type TileKind } from "@lindocara/engine/tilemap.js";
+import { TEST_ZONE_TERRAIN } from "@lindocara/engine/zones.js";
 import {
   SUNKEN_ISLES_BOUNDS,
   SUNKEN_ISLES_FORESTS,
@@ -22,7 +24,6 @@ import {
   SUNKEN_ISLES_LAND,
   SUNKEN_ISLES_LANDMARKS,
 } from "@lindocara/engine/zones/sunken-isles.js";
-import { TEST_ZONE_TERRAIN } from "@lindocara/engine/zones.js";
 
 /**
  * How much of a cell must be blocked before the cell is a wall.
@@ -112,13 +113,11 @@ function rasteriseVerdant(bounds: WorldBounds): {
   // move the solid mask, only the label a solid cell gets.
   const layers: Layer[] = [
     { rects: BOUNDARY_OBSTACLES, kind: "water" },
-    ...TERRAIN_BLOCKERS.map(
-      (blocker): Layer => ({
-        rects: [blocker.rect],
-        // A cliff is a sheer drop: to a player it is exactly as impassable as deep water.
-        kind: blocker.kind === "forest" ? "forest" : "water",
-      }),
-    ),
+    ...TERRAIN_BLOCKERS.map((blocker): Layer => ({
+      rects: [blocker.rect],
+      // A cliff is a sheer drop: to a player it is exactly as impassable as deep water.
+      kind: blocker.kind === "forest" ? "forest" : "water",
+    })),
     ...WORLD_LANDMARKS.flatMap((landmark): Layer[] =>
       landmark.collider === undefined ? [] : [{ rects: [landmark.collider], kind: "building" }],
     ),

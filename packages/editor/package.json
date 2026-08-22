@@ -6,6 +6,9 @@
   "exports": {
     "./*": "./src/*"
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "@alepha/ui": "*",
     "@lindocara/client": "*",
@@ -13,8 +16,5 @@
     "@lindocara/renderer": "*",
     "lucide-react": "^1.25.0",
     "react": "^19.2.7"
-  },
-  "scripts": {
-    "test": "vitest run"
   }
 }

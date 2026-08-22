@@ -2,6 +2,7 @@
 
 import { AMBIENCE_FULL, AMBIENCE_NONE } from "@lindocara/renderer/ambience.js";
 import { setHd2dGroundPalette } from "@lindocara/renderer/hd2d/scene.js";
+
 import {
   buildBuildingRoofMap,
   parseRoofWitnessBuilding,

@@ -22,6 +22,7 @@ import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
 import { SOUND_EFFECTS, soundEffect } from "@lindocara/engine/sfx-catalog.js";
 import type { MonsterImpactSound } from "@lindocara/renderer/combat-art.js";
+
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
   COMBAT_SAMPLES,
@@ -459,6 +460,7 @@ export class GameSound {
     this.#movementLoad = bank.load([...bank.sources(), skidLoopUrl(), rainLoopUrl()]).then(() => {
       this.#openSkid();
       this.#openRain();
+      return;
     });
     return this.#movementLoad;
   }

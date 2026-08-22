@@ -42,6 +42,7 @@ import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
 import { z } from "alepha";
 import { $repository, sql } from "alepha/orm";
+
 import type { SaveableProfile } from "../../profile-types.ts";
 import { heroEquipment } from "../entities/heroEquipment.ts";
 import { heroes } from "../entities/heroes.ts";

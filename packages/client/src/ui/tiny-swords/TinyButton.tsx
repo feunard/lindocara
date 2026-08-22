@@ -7,7 +7,7 @@ import type * as React from "react";
 // Accessible PixelAct/shadcn structure, skinned by Tiny Swords' authored 3-slice states. The data
 // attributes expose the stable semantic ids to tests and developer tools.
 const pixelButtonVariants = cva(
-  "tiny-button inline-flex w-fit items-center justify-center whitespace-nowrap text-sm disabled:cursor-not-allowed",
+  "tiny-button inline-flex w-fit items-center justify-center text-sm whitespace-nowrap disabled:cursor-not-allowed",
   {
     variants: {
       variant: {
@@ -32,8 +32,7 @@ const pixelButtonVariants = cva(
 );
 
 export interface TinyButtonProps
-  extends React.ComponentProps<"button">,
-    VariantProps<typeof pixelButtonVariants> {
+  extends React.ComponentProps<"button">, VariantProps<typeof pixelButtonVariants> {
   asChild?: boolean;
 }
 

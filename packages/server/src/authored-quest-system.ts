@@ -141,7 +141,7 @@ export async function processAuthoredQuestEvent(
   const actors = eventActors(context.event);
   const representative = actors[0];
   const currentCandidates = candidateQuestIds(context.currentIndex, context.event);
-  const partyQuests = { ...(context.partyState.quests ?? {}) };
+  const partyQuests = { ...context.partyState.quests };
   let partyChanged = false;
   const changes: AuthoredQuestChange[] = [];
 

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
+
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { describe, expect, it } from "vitest";
+
 import { GROTA, NANUQ, SPAWN, WORLD } from "../src/settings.js";
 import { CHEST_RADIUS, decideChestPlacement } from "../src/world/chest.js";
 import {

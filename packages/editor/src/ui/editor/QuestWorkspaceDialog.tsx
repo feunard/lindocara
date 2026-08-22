@@ -33,12 +33,13 @@ import {
 import { useAlepha, useStore } from "alepha/react";
 import { CircleHelp, Copy, LoaderCircle, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { QuestDefinitionEditor } from "./QuestDefinitionEditor.js";
+
 import {
   duplicateAuthoredQuest,
   type QuestMapCatalog,
   questValidationContext,
 } from "./quest-editor-model.js";
+import { QuestDefinitionEditor } from "./QuestDefinitionEditor.js";
 
 interface QuestWorkspaceDialogProps {
   open: boolean;
@@ -106,7 +107,7 @@ export function QuestWorkspaceDialog({
   // Opening is a fresh editing transaction. The current map is intentionally sampled once here:
   // all changes made before opening are captured, while edits inside this modal cannot also mutate
   // the Pixi stage because its pointer/focus surface is covered.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: initialize once per open/adventure
+  // Initialize once per open/adventure
   useEffect(() => {
     if (!open || !session?.adventureId) return;
     const adventureId = session.adventureId;
@@ -260,11 +261,11 @@ export function QuestWorkspaceDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : void requestClose())}>
       <DialogContent className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[96vw]">
-        <DialogHeader className="border-b border-border px-5 py-4">
+        <DialogHeader className="border-border border-b px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
             <div>
               <DialogTitle>{t("editor.quest.workspace.title")}</DialogTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-xs">
                 {t("editor.quest.workspace.subtitle")}
               </p>
             </div>
@@ -299,10 +300,10 @@ export function QuestWorkspaceDialog({
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-[18rem_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-border bg-muted/20">
-            <div className="flex flex-col gap-3 border-b border-border p-3">
+          <aside className="border-border bg-muted/20 flex min-h-0 flex-col border-r">
+            <div className="border-border flex flex-col gap-3 border-b p-3">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
                 <Input
                   className="pl-8"
                   type="search"
@@ -324,7 +325,7 @@ export function QuestWorkspaceDialog({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               {filteredQuests.length === 0 ? (
-                <p className="p-4 text-center text-sm text-muted-foreground">
+                <p className="text-muted-foreground p-4 text-center text-sm">
                   {quests.length === 0 ? t("editor.quest.empty") : t("editor.quest.searchEmpty")}
                 </p>
               ) : (
@@ -340,8 +341,8 @@ export function QuestWorkspaceDialog({
                         type="button"
                         className={`flex w-full items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
                           selectedId === quest.id
-                            ? "border-zinc-400 bg-background shadow-sm"
-                            : "border-transparent hover:bg-background/70"
+                            ? "bg-background border-zinc-400 shadow-sm"
+                            : "hover:bg-background/70 border-transparent"
                         }`}
                         onClick={() => setSelectedId(quest.id)}
                       >
@@ -349,7 +350,7 @@ export function QuestWorkspaceDialog({
                           <span className="block truncate text-sm font-medium">
                             {quest.title || t("editor.quest.untitled")}
                           </span>
-                          <span className="block truncate text-xs text-muted-foreground">
+                          <span className="text-muted-foreground block truncate text-xs">
                             {quest.objectives.length === 0
                               ? t("editor.quest.noObjectives")
                               : t("editor.quest.objectiveCount", {
@@ -368,7 +369,7 @@ export function QuestWorkspaceDialog({
                 </div>
               )}
             </div>
-            <div className="flex gap-2 border-t border-border p-3">
+            <div className="border-border flex gap-2 border-t p-3">
               <Button
                 type="button"
                 size="sm"
@@ -397,7 +398,7 @@ export function QuestWorkspaceDialog({
           <main className="flex min-h-0 min-w-0 flex-col">
             {loadingMaps ? (
               <div
-                className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"
+                className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm"
                 role="status"
               >
                 <LoaderCircle className="size-4 animate-spin" />
@@ -415,7 +416,7 @@ export function QuestWorkspaceDialog({
               />
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-                <p className="max-w-md text-sm text-muted-foreground">
+                <p className="text-muted-foreground max-w-md text-sm">
                   {t("editor.quest.workspace.emptySelection")}
                 </p>
                 {quests.length === 0 && (
@@ -429,9 +430,9 @@ export function QuestWorkspaceDialog({
           </main>
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-3">
+        <DialogFooter className="border-border border-t px-5 py-3">
           <div className="flex w-full flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {dirty ? t("editor.quest.unsaved") : t("editor.quest.saved")}
             </p>
             <div className="flex items-center gap-2">
@@ -462,7 +463,7 @@ export function QuestWorkspaceDialog({
                 })}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-muted-foreground">{t("editor.quest.deleteConfirm.body")}</p>
+            <p className="text-muted-foreground text-sm">{t("editor.quest.deleteConfirm.body")}</p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setConfirmDeleteId(null)}>
                 {t("editor.event.cancel")}

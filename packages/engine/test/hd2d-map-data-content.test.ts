@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { decodeMap, encodeMap, type MapData } from "../src/hd2d/map-data.js";
 
 const base: MapData = {

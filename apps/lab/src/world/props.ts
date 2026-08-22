@@ -12,6 +12,7 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
+
 import { CAMERA, NORD, VAPEUR_SOURCE, WATERFALLS, WORLD } from "../settings.js";
 import { mulberry32 } from "./island.js";
 import { createFlock, type Flock } from "./sheep.js";

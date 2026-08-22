@@ -27,6 +27,7 @@
  */
 
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
+
 import { buildShowcaseMap, showcaseAscii } from "./build-showcase-map.js";
 import {
   type ApiClient,

@@ -13,6 +13,7 @@ import {
   LINDOCARA_BUILDING_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
+
 import { createHeroController } from "@/game/hero-controller.js";
 
 const SIZE = 16;

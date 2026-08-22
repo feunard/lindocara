@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { type Zone, zoneAt } from "../src/world/zones.js";
 
 const DEFAUT: Zone = {

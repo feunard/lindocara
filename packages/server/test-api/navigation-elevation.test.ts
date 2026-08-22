@@ -24,6 +24,7 @@ import {
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
 import { describe, expect, it } from "vitest";
+
 import {
   createNavigationRuntime,
   type NavigationRuntime,

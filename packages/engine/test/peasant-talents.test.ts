@@ -1,5 +1,6 @@
 import type { HarvestProfile } from "@lindocara/engine/harvest.js";
 import { dictionaries } from "@lindocara/engine/i18n/index.js";
+import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import {
   isPeasantTalentEffect,
   PEASANT_TALENT_EFFECT_KINDS,
@@ -9,7 +10,6 @@ import {
   resolvePeasantRallyPlan,
   resolvePeasantRationPlan,
 } from "@lindocara/engine/peasant.js";
-import { PEASANT_SUPPORT_SKILLS } from "@lindocara/engine/peasant-support.js";
 import { SKILL_UNLOCK_LEVEL, type SkillSlot, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,

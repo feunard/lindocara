@@ -17,6 +17,7 @@
  * running app, not about a function.
  */
 import { gzipSync } from "node:zlib";
+
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { decodeMap, MAX_HEIGHTFIELD_SIZE } from "@lindocara/engine/hd2d/map-data.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
@@ -26,11 +27,12 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { WebSocket } from "ws";
+
 import { MAX_HEIGHTFIELD_JSON_BYTES, MAX_MAP_JSON_BYTES } from "../src/api/bodySizeCap.ts";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { maps } from "../src/api/entities/maps.ts";
-import { MapService } from "../src/api/services/MapService.ts";
 import { defaultMapInput, MAX_HEIGHTFIELD_BYTES } from "../src/api/services/mapAuthoring.ts";
+import { MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
@@ -197,7 +199,7 @@ function authedFetch(path: string, token: string, init: RequestInit = {}): Promi
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
 }

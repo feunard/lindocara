@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+
 import { type EventLine, useUiStore } from "../store.js";
 
 const MARKERS: Record<EventLine["tone"], string> = {

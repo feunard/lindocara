@@ -27,6 +27,7 @@ import {
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+
 import {
   BUSHES,
   blob,

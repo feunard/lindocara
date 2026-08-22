@@ -4,6 +4,7 @@ import {
   LINDOCARA_CHEST_OPEN_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
+
 import { ChestFeedbackTracker } from "../src/game/chest-feedback.js";
 
 function chest(graphicAssetId: string): WorldEventSnapshot {

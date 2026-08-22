@@ -3,6 +3,7 @@ import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/eng
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { DEFAULT_GUARD_APPEARANCE_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
+
 import {
   activeAuthoredGuardDefinitions,
   reconcileActiveGuards,

@@ -1,0 +1,296 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // `alepha lint` runs `oxlint --fix` then `oxfmt`. Both ship embedded in
+  // `alepha`'s own dependencies, so this repo declares no toolchain of its own
+  // — the Biome devDependency it used to carry is gone.
+  //
+  // This config is the framework's (`/Users/nfo/git/alepha/.oxlintrc.json`),
+  // re-measured against this repo rather than copied. Where a rule is off, the
+  // count next to it was counted HERE, and the reason is this codebase's, not
+  // an inherited one. `../club` did the same exercise and lands in a similar
+  // place for the same React and Vitest reasons; the divergences below
+  // (`unbound-method`, `no-thenable`, `erasing-op`, `no-new-array`) are game
+  // code and have no equivalent there.
+  "ignorePatterns": [
+    // Vendored upstream, verbatim. Linting it would report findings whose only
+    // fix is a local edit, and a local edit in `.vendor/` is precisely what
+    // `vendor diff` exists to keep at zero.
+    ".vendor/**",
+    // Agent worktrees and local agent state: checkouts of this same repo.
+    ".claude/**",
+    // Machine-written, and never to be read or edited by hand — see AGENTS.md.
+    // `music-catalog.ts` in particular is compared BYTE FOR BYTE against a
+    // fresh generation by `yarn music:check`, so a formatter or an autofix
+    // touching it turns a green tree red on the next run.
+    "**/generated/**",
+    // Generated SQL and its Drizzle snapshots.
+    "apps/main/migrations/**",
+    "packages/server/migrations/meta/**",
+    // Generated catalogues and baked map payloads.
+    "packages/catalog/assets/index.json",
+    "packages/catalog/assets/lindocara-asset-catalog.json",
+    "apps/lab/public/maps/**",
+    // Written by wrangler, from the retired Worker deploy.
+    "packages/server/src/worker-configuration.d.ts"
+  ],
+  // `correctness` (code that is outright wrong) and `perf`, both errors, so
+  // `yarn lint` fails on a new finding. The wider categories are not a matter
+  // of taste: `suspicious` is dominated by `react/react-in-jsx-scope`, which
+  // predates the automatic JSX runtime this app compiles with.
+  "categories": {
+    "correctness": "error",
+    "perf": "error"
+  },
+  "options": {
+    // Type-aware rules, via the `oxlint-tsgolint` binary shipped alongside
+    // oxlint. This is the half Biome could not do at all: `no-floating-promises`
+    // found 4 unawaited promises here, `no-base-to-string` 37 `[object Object]`
+    // renders, and `require-array-sort-compare` four lexicographic number sorts.
+    "typeAware": true,
+    // A suppression that no longer suppresses anything is a lie about the code
+    // under it. Reported as an error so they get deleted rather than re-read.
+    "reportUnusedDisableDirectives": "error"
+  },
+  "plugins": ["typescript", "unicorn", "oxc", "react", "import", "promise", "vitest", "jsx-a11y"],
+  "rules": {
+    // ---------------------------------------------------------------------
+    // Enabled by name out of `suspicious`, which is otherwise far too noisy.
+    // ---------------------------------------------------------------------
+    // A component declared inside another component is a NEW type on every
+    // render, so React unmounts and remounts the subtree, losing its state and
+    // its DOM. `allowAsProps` because the default flags render props too, and
+    // the editor's dialogs pass cell/row renderers down by the dozen. Those are
+    // CALLED, never mounted, so no remount can happen.
+    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
+    // A `.then()` branch that returns nothing silently resolves the chain to
+    // `undefined`, so the next link receives nothing and the bug surfaces
+    // somewhere else entirely. `ignoreLastCallback` because the LAST callback
+    // in a chain is where side effects belong and has nothing to hand on.
+    "promise/always-return": ["error", { "ignoreLastCallback": true }],
+    // `noNonNullAssertion` was an error under Biome and is a stated project
+    // rule ("no `!`, narrow properly"). oxlint files its equivalent under
+    // `restriction` rather than `correctness`, so it has to be named here or
+    // the rule would have been lost in the move without anyone noticing. The
+    // repo passes it at zero findings today, which is what makes it free.
+    "typescript/no-non-null-assertion": "error",
+    // An import kept only for its side effects, in a codebase where side
+    // effects belong in the DI container. The `allow` list is the set where a
+    // side-effect import IS the interface: a stylesheet has nothing to export,
+    // and `jest-dom/vitest` registers its matchers onto the shared `expect` by
+    // being imported (`packages/testing/src/jsdom-setup.ts`, the setup file
+    // every jsdom project loads).
+    "import/no-unassigned-import": [
+      "error",
+      { "allow": ["**/*.css", "@testing-library/jest-dom/vitest"] }
+    ],
+
+    // ---------------------------------------------------------------------
+    // Off, each because its premise does not hold in this codebase.
+    // ---------------------------------------------------------------------
+    // Deliberately NOT enabled, unlike `../alepha` and `../club`: its fix is
+    // `toReversed()`, which is ES2023, and every program here except
+    // `packages/server` extends the repo's own `tsconfig.json` at `ES2022`
+    // (server extends alepha's base instead, which is newer). All 7 findings
+    // were checked and none is the in-place mutation of a SHARED array the
+    // rule exists for — five already spell it `[...x].reverse()` and the other
+    // two reverse an array the function just built. Worth turning on the day
+    // the base target moves; not worth moving the base target for.
+    //   "unicorn/no-array-reverse": "error",
+    // 287 findings, and NOT ONE of them is the bug the rule describes. The
+    // shapes were read rather than counted: React props destructured out of an
+    // interface that declares them with method shorthand (`onExit(): void`),
+    // Zustand selectors (`useUiStore((s) => s.setMerchantOpen)`), and closure
+    // objects whose "methods" are captured arrow functions — `billboard.ts`'s
+    // sprite sheet, `scene.ts`'s pipeline, `w.deps.now`.
+    //
+    // Every one is a plain function value with no `this` to lose. The rule
+    // fires on the TYPE, and TypeScript's method shorthand makes a function
+    // property indistinguishable from a prototype method. This repo has no
+    // class whose method is torn off and passed as a callback: the framework's
+    // DI classes are injected and called on the instance. Kept on in `../alepha`
+    // and `../club` because there it found 15 findings and here it finds 287
+    // false ones — a gate that noisy is a gate nobody keeps.
+    "typescript/unbound-method": "off",
+    // 33 findings, all of them the authored-event language's own vocabulary:
+    // the interpreter's `if` node is `{ t: "if", cond, then, else }`, and the
+    // editor builds and reads that shape. Biome's equivalent (`noThenProperty`)
+    // was suppressed at the same files by name in `biome.json`; this is that
+    // override, made repo-wide because the AST leaks into scripts and tests.
+    // The node is data the server walks, never a value anything awaits.
+    // → docs/event-system.md
+    "unicorn/no-thenable": "off",
+    // 14 findings, every one a unit-consistent table entry: `range: 0 /
+    // TILE_SIZE` sits in a column where each sibling is `<pixels> / TILE_SIZE`,
+    // and `dist[0 * size + 3]` is the `row * size + col` index idiom with the
+    // first row. Writing the zero bare would hide which unit the column is in.
+    // The rule's real target — a stray `x * 0` — cannot be told apart from it.
+    "oxc/erasing-op": "off",
+    // 13 findings, and every one is a SNAPSHOT TAKEN BEFORE A MUTATION —
+    // `for (const child of [...this.#editorRoot.children]) disposeObject(child)`,
+    // where `disposeObject` calls `removeFromParent()` and so shortens the very
+    // list being walked. Also `[...runtime.contexts]` in `abortRunsForHero`,
+    // `[...this.#camps.keys()]` before `removeCamp`, and the fake clocks whose
+    // handlers unregister themselves as they fire.
+    //
+    // The rule reads the spread as redundant because a Map is already iterable.
+    // It cannot see the body, so its "fix" removes the copy and introduces the
+    // skip-every-other-entry bug the copy exists to prevent. This is the one
+    // rule here whose autofix would be actively wrong.
+    "unicorn/no-useless-spread": "off",
+    // 83 findings, and the hole hazard the rule exists for is absent: 75 are
+    // `new Array(size * size).fill(…)`, which fills every slot before anything
+    // reads it, and the other 8 pre-size a heightfield buffer that the next
+    // loop writes by index. Both are deliberate single-allocation grid buffers;
+    // the suggested `Array.from({ length: n })` allocates and iterates instead.
+    // The ambiguity the rule guards (`new Array(5)` meaning `[5]`) needs a
+    // literal argument, and every call here computes one.
+    "unicorn/no-new-array": "off",
+    // `perf`, and wrong here: 380 findings, no bugs. Sequential awaits in a
+    // loop are the point — the map builders and adventure seeders write ordered
+    // rows, and the test-api specs drive one HTTP request after the next
+    // precisely to observe the order the server handles them in.
+    "no-await-in-loop": "off",
+    // `perf`, and was `noArrayIndexKey: off` at these very files under Biome:
+    // the 21 lists that use an index key are positional and never reordered
+    // (the event-command editor's branch rows, the palette grids).
+    "react/no-array-index-key": "off",
+    // The latest-ref pattern, refs that cache a value across renders precisely
+    // so re-rendering is NOT triggered, and refs passed down as a `ref` prop
+    // all read as violations. The rule encodes React Compiler semantics, which
+    // this app does not opt into.
+    "react/refs": "off",
+    // Fires on `{Icon && <Icon />}` where `Icon` came out of a module-level
+    // registry. The rule cannot follow the lookup, so it reads a capitalised
+    // local as a component built during render.
+    "react/static-components": "off",
+    // Not a correctness rule at all: it reports where React Compiler would
+    // have to skip a component. This app does not compile with it.
+    "react/preserve-manual-memoization": "off",
+    // Same family, same reason. All 7 findings are the HUD's one deliberate
+    // impurity: `useMemo(() => performance.now() + remaining, [serverNow, …])`,
+    // which converts a SERVER deadline into a local monotonic one exactly when
+    // the server's numbers change. Reading the clock is the whole point, and
+    // the dependency array is what pins when it may be read.
+    // → packages/client/src/ui/hud/SkillBar.tsx
+    "react/purity": "off",
+    "react/immutability": "off",
+    // 20 findings, and the same React Compiler premise. The effects that set
+    // state here are synchronising with something outside React — a resize
+    // observer, a websocket snapshot, a dialog opening — which is what an
+    // effect is for.
+    "react/set-state-in-effect": "off",
+    // 5 findings, 4 of them a test helper's `initial = []` default. React
+    // Compiler again: a fresh identity per render matters only to a memoizing
+    // compiler this app does not use.
+    "react/no-object-type-as-default-prop": "off",
+    // Was `useExhaustiveDependencies: off` under Biome. Alepha's hooks take
+    // primitives from the DI container, which are stable for the lifetime of
+    // the container and which the rule cannot know are stable.
+    "react-hooks/exhaustive-deps": "off",
+    // Biome split unused bindings in two: `noUnusedImports` was an error with
+    // a safe fix, `noUnusedVariables` an error too. oxlint has one rule for
+    // both halves.
+    //
+    // Parameters stay exempt (`args: "none"`): an `$action` handler and a
+    // system tick routinely destructure more of the context than they read,
+    // and renaming those to `_` across every call site is churn with no reader
+    // benefit. `^_` is the escape hatch for the rare deliberate binding.
+    "no-unused-vars": [
+      "error",
+      {
+        "args": "none",
+        "caughtErrors": "none",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ],
+    // Every spec here takes `expect` from the Vitest fixture rather than
+    // importing it, and the rule counts assertions by identifier — so it
+    // reports tests full of assertions as having none.
+    "vitest/expect-expect": "off",
+    // Style, not correctness: `expect(fn).toThrow()` without a message reads
+    // fine and is what the one site does.
+    "vitest/require-to-throw-message": "off",
+    // Would require a type argument on all 604 `vi.fn()` calls here. The mocks
+    // that matter are fetch and transport substitutions, not typed call
+    // recorders — and `packages/testing/` exists precisely so the specs drive
+    // the real app instead.
+    "vitest/require-mock-type-parameters": "off",
+    // 47 findings, all specs that legitimately assert different things per
+    // branch — a world-room spec asserting on whichever event arrived.
+    "vitest/no-conditional-expect": "off",
+    // Vitest's `expect` takes an optional message as its second argument
+    // (`expect(value, "which tile failed")`), which Jest's does not. The rule
+    // defaults to Jest's arity and reports all 101 uses of it.
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    // The `perf` category's one bad rule here. All 39 findings are the standard
+    // immutable map (`rows.map(r => ({ ...r, extra }))`), and its only
+    // mechanical fix is `Object.assign(r, …)`, which MUTATES the row it was
+    // handed — in a codebase whose room state must never be mutated in place.
+    // Spreading each item is linear anyway; the quadratic case is spreading an
+    // ACCUMULATOR, and `oxc/no-accumulating-spread` stays on to catch that.
+    "oxc/no-map-spread": "off",
+    // Tag purity, not accessibility, and it fights the Tiny Swords skin
+    // head-on. 29 findings, three shapes: `role="status"` on the overlays and
+    // inline notices (the rule wants `<output>`, a form-associated element for
+    // calculation results, where `role="status"` + `aria-live` IS the live
+    // region pattern); `role="progressbar"` on the HUD bar and `role="img"` on
+    // a composed pixel glyph (the rule wants `<progress>` and `<img>`, both of
+    // which the UA renders itself, which is exactly what a hand-drawn skin
+    // cannot use); and `role="dialog"` on overlays the game positions with its
+    // own CSS rather than the top layer.
+    //
+    // The rules that catch a genuinely inaccessible element stay on —
+    // `click-events-have-key-events`, `no-static-element-interactions`,
+    // `no-noninteractive-element-interactions`, `no-autofocus`. The last two
+    // have one deliberate exception each, suppressed at the site with a reason
+    // rather than switched off here.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // Lexicographic `.sort()` on numbers is the bug this catches
+    // (`[1, 2, 10]` sorts to `[1, 10, 2]`). `ignoreStringArrays` matches
+    // typescript-eslint's own default: on a real `string[]` the default sort
+    // IS the intended order.
+    "typescript/require-array-sort-compare": ["error", { "ignoreStringArrays": true }],
+    // Numbers and booleans in a template are unambiguous and universal in log
+    // and error messages, and this codebase counts in integers — tiles, hit
+    // points, epochs. What the rule is worth having for is objects and nullish
+    // values, which render as `[object Object]` and `undefined`.
+    //
+    // `allowNever` covers the exhaustiveness guard — a `throw` after every
+    // case is handled, where the value is `never` by construction.
+    "typescript/restrict-template-expressions": [
+      "error",
+      {
+        "allowNumber": true,
+        "allowBoolean": true,
+        "allowRegExp": true,
+        "allowNever": true
+      }
+    ]
+  },
+  "overrides": [
+    {
+      // Test fixtures build their own `RequestInit` and then spread its
+      // `headers` back out. `no-misused-spread` is right that `HeadersInit`
+      // admits an array of pairs, which would spread to `{0: […]}` — and that
+      // is why the one SRC occurrence was fixed rather than suppressed
+      // (`packages/client/src/api.ts` now builds a real `Headers`). In a
+      // fixture the object literal is three lines up.
+      //
+      // `no-base-to-string` is the same story: `JSON.parse(String(init.body))`
+      // reading back a body the same helper just stringified.
+      "files": [
+        "**/test/**",
+        "**/test-api/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
+      ],
+      "rules": {
+        "typescript/no-misused-spread": "off",
+        "typescript/no-base-to-string": "off"
+      }
+    }
+  ]
+}

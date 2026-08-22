@@ -2,6 +2,7 @@ import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
 import { useSelector } from "alepha/react";
 import { useEffect, useMemo, useState } from "react";
+
 import { t, useLocale } from "../../i18n.js";
 import { quickItemsAtom } from "../../state/atoms.js";
 import { useUiStore } from "../../store.js";

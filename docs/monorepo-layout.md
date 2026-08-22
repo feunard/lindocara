@@ -8,7 +8,7 @@ rule; this is the reasoning.
 
 The old single `src/` is now **workspace packages under `packages/*` plus the deployable app under
 `apps/*`**. The **repo root holds only project setup** â€” the workspace `package.json`, the shared
-`tsconfig.json`/`biome.json`, the `vitest.config.ts` aggregator, docs, and the root `scripts/`.
+`tsconfig.json`, `.oxlintrc.json`/`.oxfmtrc.json`, the `vitest.config.ts` aggregator, docs, and the root `scripts/`.
 Nothing deliverable lives at the root; a second site would be a sibling `apps/<name>`. **Each package
 has its own `AGENTS.md`** (linked below) â€” read it before working inside that package. The old `src/â€¦`
 prefixes in the file map further down map straight onto these homes:

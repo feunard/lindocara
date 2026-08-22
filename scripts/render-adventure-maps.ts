@@ -1,5 +1,6 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+
 import { parseAdventureBundle } from "@lindocara/engine/adventure-bundle.js";
 import { parseMapData } from "@lindocara/engine/map-data.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -26,11 +27,11 @@ interface RenderOptions {
 }
 
 function optionsFrom(argv: readonly string[]): RenderOptions {
-  const positional = argv.filter((value) => !value.startsWith("--"));
+  const positional = argv.find((value) => !value.startsWith("--"));
   const option = (prefix: string) =>
     argv.find((value) => value.startsWith(prefix))?.slice(prefix.length) ?? null;
   return {
-    bundlePath: path.resolve(positional[0] ?? "adventures/liin-adventure-ia.json"),
+    bundlePath: path.resolve(positional ?? "adventures/liin-adventure-ia.json"),
     outputDir: path.resolve(option("--out=") ?? "artifacts/adventure-map-previews"),
     mapFilter: option("--map="),
     maxWidth: Number(option("--max-width=") ?? 1800),

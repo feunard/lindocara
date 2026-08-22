@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
+
 import { type AdventureBundle, parseAdventureBundle } from "../src/adventure-bundle.js";
 import { DEFAULT_ADVENTURE_AUDIO } from "../src/audio-catalog.js";
 import type { EventCommand } from "../src/event-commands.js";
