@@ -270,13 +270,14 @@ export function placeStaticContent(
     rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
+    dimensions?: BuildingDimensions,
     elevationOffset = 0,
     floating = false,
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
     const native = sprite.runnerProp
-      ? makeRunnerPropVolume(sprite.runnerProp, orientation, rotation)
+      ? makeRunnerPropVolume(sprite.runnerProp, orientation, rotation, dimensions)
       : sprite.buildingVolume
         ? makeBuildingVolume({
             front: sprite.texture,
@@ -431,6 +432,7 @@ export function placeStaticContent(
         rotation,
         undefined,
         undefined,
+        undefined,
         elevationOffset,
         floating,
       );
@@ -478,6 +480,7 @@ export function placeStaticContent(
     rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
+    dimensions?: BuildingDimensions,
     elevationOffset = 0,
     floating = false,
   ): void {
@@ -500,6 +503,7 @@ export function placeStaticContent(
       rotation,
       bridge,
       building,
+      dimensions,
       elevationOffset,
       floating,
     );
@@ -510,7 +514,7 @@ export function placeStaticContent(
         x,
         anchorY +
           (sprite.runnerProp
-            ? runnerPropHeight(sprite.runnerProp) + 0.4
+            ? runnerPropHeight(sprite.runnerProp, dimensions) + 0.4
             : sprite.buildingVolume
               ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
                 0.4
@@ -523,7 +527,7 @@ export function placeStaticContent(
 
   const elementKey = (index: number): string => `element:${index}`;
   const elementVisual = (element: HeightfieldElement): string =>
-    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}`;
+    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}:${element.dimensions?.width ?? ""}:${element.dimensions?.depth ?? ""}`;
 
   for (const [index, element] of map.elements.entries()) {
     const key = elementKey(index);
@@ -538,6 +542,7 @@ export function placeStaticContent(
       element.rotation,
       element.bridge,
       element.building,
+      element.dimensions,
     );
   }
   for (const event of map.events) {
@@ -559,6 +564,7 @@ export function placeStaticContent(
       staticEvent.rotation,
       undefined,
       staticEvent.building,
+      undefined,
       staticEvent.elevationOffset,
       staticEvent.floating,
     );
@@ -649,6 +655,7 @@ export function placeStaticContent(
           element.rotation,
           element.bridge,
           element.building,
+          element.dimensions,
         );
       }
       flushSkipped();
@@ -676,6 +683,7 @@ export function placeStaticContent(
             event.rotation,
             undefined,
             event.building,
+            undefined,
             event.elevationOffset,
             event.floating,
           );

@@ -44,6 +44,7 @@ import {
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
+import { isNativeSceneryAsset } from "@lindocara/engine/native-scenery.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { $inject } from "alepha";
@@ -806,7 +807,9 @@ export class MapService {
             ? encodeBridgeDimensions(element.bridge)
             : isStandingBuildingAsset(element.assetId)
               ? encodeBuildingTransform(element.orientation, element.building?.dimensions)
-              : (element.orientation ?? 0),
+              : isNativeSceneryAsset(element.assetId)
+                ? encodeBuildingTransform(element.orientation, element.dimensions)
+                : (element.orientation ?? 0),
           element.rotation,
         ),
         buildingDestructible: element.building?.destructible,

@@ -14,10 +14,12 @@ import {
   parseBridgeDimensions,
 } from "@lindocara/engine/bridges.js";
 import {
+  type BuildingDimensions,
   type BuildingSettings,
   defaultBuildingSettings,
   isStandingBuildingAsset,
   parseBuildingSettings,
+  parseBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import {
   type ElementOrientation,
@@ -82,6 +84,7 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
+import { isNativeSceneryAsset } from "@lindocara/engine/native-scenery.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -570,6 +573,7 @@ export function moveSelection(
                 ...(element.orientation ? { orientation: element.orientation } : {}),
                 ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
                 ...(element.bridge ? { bridge: element.bridge } : {}),
+                ...(element.dimensions ? { dimensions: element.dimensions } : {}),
               }
             : candidate,
         ),
@@ -640,6 +644,9 @@ export function updateSelectedElementAsset(
               ? { building: existing.building }
               : {}),
             ...(bridgeOrientation(assetId) && existing.bridge ? { bridge: existing.bridge } : {}),
+            ...(isNativeSceneryAsset(assetId) && existing.dimensions
+              ? { dimensions: existing.dimensions }
+              : {}),
           }
         : candidate,
     ),
@@ -690,6 +697,7 @@ export function updateSelectedElementOffset(
             ...(element.orientation ? { orientation: element.orientation } : {}),
             ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
             ...(element.bridge ? { bridge: element.bridge } : {}),
+            ...(element.dimensions ? { dimensions: element.dimensions } : {}),
           }
         : candidate,
     ),
@@ -788,6 +796,27 @@ export function updateSelectedBuildingSettings(
   const parsed = parseBuildingSettings(settings);
   if (!parsed) return null;
   const resized = { ...element, building: parsed };
+  if (!placementFitsMap(map, resized)) return null;
+  const next: EditorMap = {
+    ...map,
+    elements: map.elements.map((candidate) =>
+      sameElementSlot(candidate, selection) ? resized : candidate,
+    ),
+  };
+  return keepsSpawnClear(next) ? next : null;
+}
+
+/** Resize a native 3D prop with the same authored-front-edge contract as a building. */
+export function updateSelectedNativeSceneryDimensions(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  dimensions: BuildingDimensions,
+): EditorMap | null {
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!element || !isNativeSceneryAsset(element.assetId)) return null;
+  const parsed = parseBuildingDimensions(dimensions);
+  if (!parsed) return null;
+  const resized = { ...element, dimensions: parsed };
   if (!placementFitsMap(map, resized)) return null;
   const next: EditorMap = {
     ...map,

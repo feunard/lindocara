@@ -20,10 +20,8 @@ import {
   BUILDING_DIMENSION_STEP,
   type BuildingDimensions,
   type BuildingSettings,
-  buildingDimensionsOrDefault,
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
-  proportionalBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import {
   type ElementOrientation,
@@ -58,6 +56,10 @@ import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
+import {
+  nativeSceneryDimensionsOrDefault,
+  proportionalNativeSceneryDimensions,
+} from "@lindocara/engine/native-scenery.js";
 import { inferStairsPlacement, type RampDirection } from "@lindocara/engine/tile-brush.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
@@ -107,6 +109,7 @@ import {
   updateSelectedElementOffset,
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
+  updateSelectedNativeSceneryDimensions,
 } from "./editor-state.js";
 import {
   authoredEventPreviewSnapshots,
@@ -145,6 +148,7 @@ export interface MapEditorStageHandle {
   setSelectedElementRotation(rotation: number): boolean;
   setSelectedBridgeDimensions(dimensions: BridgeDimensions): boolean;
   setSelectedBuildingSettings(settings: BuildingSettings): boolean;
+  setSelectedNativeSceneryDimensions(dimensions: BuildingDimensions): boolean;
   deleteSelected(): boolean;
   beginEventDraft(id: string): MapEvent | null;
   commitEventDraft(draft: MapEvent): void;
@@ -258,9 +262,9 @@ export function buildingResizeGuide(
   mapSize: number,
   override?: BuildingDimensions,
 ): BuildingResizeGuide | null {
-  const dimensions = buildingDimensionsOrDefault(
+  const dimensions = nativeSceneryDimensionsOrDefault(
     element.assetId,
-    override ?? element.building?.dimensions,
+    override ?? element.building?.dimensions ?? element.dimensions,
   );
   if (!dimensions) return null;
   const anchor = authoredElementGroundPoint(element, mapSize);
@@ -299,7 +303,10 @@ export function buildingDimensionsAtPoint(
   axis: BuildingResizeAxis,
   world: { x: number; z: number },
 ): BuildingDimensions | null {
-  const current = buildingDimensionsOrDefault(element.assetId, element.building?.dimensions);
+  const current = nativeSceneryDimensionsOrDefault(
+    element.assetId,
+    element.building?.dimensions ?? element.dimensions,
+  );
   if (!current) return null;
   const anchor = authoredElementGroundPoint(element, mapSize);
   let x = world.x - anchor.x;
@@ -316,7 +323,7 @@ export function buildingDimensionsAtPoint(
       Math.round(raw / BUILDING_DIMENSION_STEP) * BUILDING_DIMENSION_STEP,
     ),
   );
-  return proportionalBuildingDimensions(element.assetId, axis, snapped);
+  return proportionalNativeSceneryDimensions(element.assetId, axis, snapped);
 }
 
 /**
@@ -628,7 +635,6 @@ export function openMapEditorStage(
           kind: "building";
           axis: BuildingResizeAxis;
           selection: Extract<EditorSelection, { kind: "element" }>;
-          settings: BuildingSettings;
         }
       | {
           kind: "bridge";
@@ -727,7 +733,7 @@ export function openMapEditorStage(
     };
     const selectedBuildingElement = (): MapElement | null => {
       const element = selectedElement();
-      return element?.building ? element : null;
+      return element && nativeSceneryDimensionsOrDefault(element.assetId) ? element : null;
     };
     const selectedBridgeElement = (): MapElement | null => {
       const element = selectedElement();
@@ -1351,10 +1357,12 @@ export function openMapEditorStage(
         ) {
           return;
         }
-        next = updateSelectedBuildingSettings(map, drag.selection, {
-          ...drag.settings,
-          dimensions: nextDimensions,
-        });
+        next = sourceElement.building
+          ? updateSelectedBuildingSettings(map, drag.selection, {
+              ...sourceElement.building,
+              dimensions: nextDimensions,
+            })
+          : updateSelectedNativeSceneryDimensions(map, drag.selection, nextDimensions);
         resizePreview = {
           kind: "building",
           dimensions: nextDimensions,
@@ -1442,8 +1450,11 @@ export function openMapEditorStage(
       const resize = point ? resizeAt(point) : null;
       const building = selectedBuildingElement();
       const bridge = selectedBridgeElement();
-      const currentDimensions = building?.building
-        ? buildingDimensionsOrDefault(building.assetId, building.building.dimensions)
+      const currentDimensions = building
+        ? nativeSceneryDimensionsOrDefault(
+            building.assetId,
+            building.building?.dimensions ?? building.dimensions,
+          )
         : null;
       const rotationGuide = selectedRotationGuide();
       if (rotation && selected?.kind === "element" && rotationGuide) {
@@ -1458,14 +1469,13 @@ export function openMapEditorStage(
       if (
         resize?.kind === "building" &&
         selected?.kind === "element" &&
-        building?.building &&
+        building &&
         currentDimensions
       ) {
         resizeDrag = {
           kind: "building",
           axis: resize.axis,
           selection: selected,
-          settings: building.building,
         };
         resizePreview = {
           kind: "building",
@@ -1881,6 +1891,12 @@ export function openMapEditorStage(
       setSelectedBuildingSettings(settings) {
         if (selected?.kind !== "element") return false;
         return commitInspectorChange(updateSelectedBuildingSettings(map, selected, settings));
+      },
+      setSelectedNativeSceneryDimensions(dimensions) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(
+          updateSelectedNativeSceneryDimensions(map, selected, dimensions),
+        );
       },
       deleteSelected() {
         if (!selected || selected.kind === "spawn") return false;

@@ -89,6 +89,10 @@ export interface EditorPlacementMetadata {
   /** A bridge can replace solid water with walkable ground under its authored deck. */
   terrainOverride?: "walkable";
   sourceRect?: AssetSourceRect;
+  /** Native world-space footprint for fixed 3D scenery. The authored point is the centre of the
+   * front edge, matching buildings, so every future native prop inherits the same rotation and
+   * proportional-resize tools without an asset-specific editor branch. */
+  native3d?: { readonly width: number; readonly depth: number };
 }
 
 /**
@@ -345,7 +349,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     pack: "LindoCara Lab",
     domain: "decoration",
     category: "Lindocara/Runner",
-    role: "event-state",
+    role: "world-obstacle",
     tags: ["runner", "trap", "spikes", "generated", "hd2d"],
     width: 107,
     height: 94,
@@ -359,6 +363,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
       visualFootprint: [{ col: 0, row: 0 }],
       collider: { x: -28, y: -38, width: 56, height: 38 },
       collisionElevation: 1,
+      native3d: { width: 1.5, depth: 1.5 },
     },
   },
   {
@@ -385,6 +390,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
       ],
       collider: { x: -58, y: -48, width: 116, height: 48 },
       collisionElevation: 2,
+      native3d: { width: 2.75, depth: 1.125 },
     },
   },
   {

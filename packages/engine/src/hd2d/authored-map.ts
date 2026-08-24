@@ -644,6 +644,7 @@ function authoredContent(
         ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
         : {}),
       ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
+      ...(element.dimensions ? { dimensions: element.dimensions } : {}),
     })),
     events: events.map((event) => ({
       id: event.id,

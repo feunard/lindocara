@@ -27,6 +27,7 @@ import {
   parseMapEnvironment,
 } from "../map-environment.js";
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
+import { isNativeSceneryAsset } from "../native-scenery.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
@@ -122,6 +123,8 @@ export interface HeightfieldElement {
   bridge?: BridgeDimensions;
   /** Custom native-building footprint; height remains archetype-authored. */
   building?: BuildingDimensions;
+  /** Custom footprint for native 3D scenery that is not a building. */
+  dimensions?: BuildingDimensions;
 }
 
 /** An authored event's active page, appearance only. Mirrors `WorldInfo.events`. */
@@ -236,6 +239,11 @@ function toElement(value: unknown): HeightfieldElement | null {
     value.building === undefined ? undefined : parseBuildingDimensions(value.building);
   if (building === null || (building !== undefined && !buildingArchetype(value.assetId)))
     return null;
+  const dimensions =
+    value.dimensions === undefined ? undefined : parseBuildingDimensions(value.dimensions);
+  if (dimensions === null || (dimensions !== undefined && !isNativeSceneryAsset(value.assetId))) {
+    return null;
+  }
   return {
     assetId: value.assetId,
     x: value.x,
@@ -244,6 +252,7 @@ function toElement(value: unknown): HeightfieldElement | null {
     ...(hasRotation ? { rotation } : {}),
     ...(bridge ? { bridge } : {}),
     ...(building ? { building } : {}),
+    ...(dimensions ? { dimensions } : {}),
   };
 }
 

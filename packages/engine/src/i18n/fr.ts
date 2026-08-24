@@ -1210,6 +1210,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.element.rotation": "Rotation 3D",
   "editor.inspector.element.rotation.hint":
     "Angle libre en degrés. Vous pouvez aussi tirer la poignée violette directement sur la carte.",
+  "editor.inspector.element.size": "Dimensions de l’objet 3D",
+  "editor.inspector.element.sizeHint":
+    "Proportions liées ; la hauteur du modèle et sa collision suivent.",
   "editor.inspector.building.color": "Coloris",
   "editor.inspector.building.color.blue": "Bleu",
   "editor.inspector.building.color.red": "Rouge",

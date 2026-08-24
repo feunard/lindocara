@@ -93,11 +93,19 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(2);
   });
 
-  it("offers the runner obstacle while keeping the trap in the event appearance catalogue", () => {
+  it("offers both native runner props as placeable world obstacles", () => {
     const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
     expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.barricade);
-    expect(placeableIds).not.toContain(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
-    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.role).toBe("event-state");
+    expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
+    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.role).toBe("world-obstacle");
+    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.editor.native3d).toEqual({
+      width: 1.5,
+      depth: 1.5,
+    });
+    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.barricade)?.editor.native3d).toEqual({
+      width: 2.75,
+      depth: 1.125,
+    });
   });
 
   it("offers one palette card for every native 3D building archetype", () => {

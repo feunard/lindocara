@@ -1,3 +1,4 @@
+import type { BuildingDimensions } from "@lindocara/engine/buildings.js";
 import {
   type ElementOrientation,
   type ElementRotation,
@@ -14,8 +15,17 @@ const PROP_HEIGHTS: Record<RunnerPropKind, number> = {
   barricade: 1.48,
 };
 
-export function runnerPropHeight(kind: RunnerPropKind): number {
-  return PROP_HEIGHTS[kind];
+const PROP_DIMENSIONS: Record<RunnerPropKind, BuildingDimensions> = {
+  "spike-trap": { width: 1.5, depth: 1.5 },
+  barricade: { width: 2.75, depth: 1.125 },
+};
+
+export function runnerPropHeight(kind: RunnerPropKind, dimensions?: BuildingDimensions): number {
+  const native = PROP_DIMENSIONS[kind];
+  const scale = dimensions
+    ? Math.sqrt((dimensions.width / native.width) * (dimensions.depth / native.depth))
+    : 1;
+  return PROP_HEIGHTS[kind] * scale;
 }
 
 function disposeObject(root: THREE.Object3D): void {
@@ -175,14 +185,23 @@ export function makeRunnerPropVolume(
   kind: RunnerPropKind,
   orientation: ElementOrientation = 0,
   rotation?: ElementRotation,
+  dimensions?: BuildingDimensions,
 ): NativeStaticVisual {
   const group = new THREE.Group();
   group.name = `runner-prop-${kind}`;
   group.rotation.y = THREE.MathUtils.degToRad(
     -elementRotationDegrees({ orientation, ...(rotation === undefined ? {} : { rotation }) }),
   );
-  if (kind === "spike-trap") buildSpikeTrap(group);
-  else buildBarricade(group);
+  const model = new THREE.Group();
+  model.name = `runner-prop-${kind}-model`;
+  const native = PROP_DIMENSIONS[kind];
+  const size = dimensions ?? native;
+  const verticalScale = Math.sqrt((size.width / native.width) * (size.depth / native.depth));
+  model.position.z = -size.depth / 2;
+  model.scale.set(size.width / native.width, verticalScale, size.depth / native.depth);
+  group.add(model);
+  if (kind === "spike-trap") buildSpikeTrap(model);
+  else buildBarricade(model);
 
   return {
     mesh: group,

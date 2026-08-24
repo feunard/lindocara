@@ -17,6 +17,7 @@ import {
   parseBridgeDimensions,
 } from "./bridges.js";
 import {
+  type BuildingDimensions,
   type BuildingSettings,
   defaultBuildingSettings,
   isStandingBuildingAsset,
@@ -39,6 +40,7 @@ import {
   parseMapEnvironment,
 } from "./map-environment.js";
 import type { MapWeather } from "./map-weather.js";
+import { isNativeSceneryAsset, nativeSceneryDimensionsOrDefault } from "./native-scenery.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
@@ -71,6 +73,8 @@ export interface MapElement {
   bridge?: BridgeDimensions;
   /** Present only on standing building assets; legacy payloads receive catalogue-derived defaults. */
   building?: BuildingSettings;
+  /** Optional footprint for native 3D scenery that is not a building. */
+  dimensions?: BuildingDimensions;
 }
 
 export interface LegacyMapElement {
@@ -129,7 +133,11 @@ export const MAP_LAYERS = 3;
 
 /** Native world geometry that may be freely rotated without turning a billboard sideways. */
 export function isRotatable3dElementAsset(assetId: string): boolean {
-  return isStandingBuildingAsset(assetId) || bridgeOrientation(assetId) !== null;
+  return (
+    isStandingBuildingAsset(assetId) ||
+    bridgeOrientation(assetId) !== null ||
+    isNativeSceneryAsset(assetId)
+  );
 }
 
 export function element3dRotationDegrees(
@@ -391,7 +399,12 @@ export function elementCells(element: MapElement): { col: number; row: number }[
       })),
     ).flat();
   }
-  if (element.building?.dimensions || element.rotation !== undefined) {
+  if (
+    element.building?.dimensions ||
+    element.dimensions ||
+    isNativeSceneryAsset(element.assetId) ||
+    element.rotation !== undefined
+  ) {
     const collider = elementWorldCollider(element);
     return collider ? rectCells(collider) : [];
   }
@@ -427,7 +440,10 @@ export function elementWorldColliderGeometry(
       rotation: (rotation * Math.PI) / 180,
     };
   }
-  const dimensions = element.building?.dimensions;
+  const dimensions = nativeSceneryDimensionsOrDefault(
+    element.assetId,
+    element.building?.dimensions ?? element.dimensions,
+  );
   const collider = dimensions
     ? {
         x: (-dimensions.width * TILE_SIZE) / 2,
@@ -558,7 +574,7 @@ export function elementFitsMap(element: MapElement, cols: number, rows: number):
       bridge.startRow + bridge.rows <= rows
     );
   }
-  if (element.building?.dimensions) {
+  if (element.building?.dimensions || element.dimensions || isNativeSceneryAsset(element.assetId)) {
     const collider = elementWorldCollider(element);
     return Boolean(
       collider &&
@@ -695,6 +711,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       assetId = legacyElementAssetId(item.kind, item.variant as number);
     } else return null;
     let building: BuildingSettings | undefined;
+    let dimensions: BuildingDimensions | undefined;
     if (isStandingBuildingAsset(assetId)) {
       const settings =
         item.building === undefined
@@ -705,15 +722,26 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     } else if (item.building !== undefined) {
       return null;
     }
+    if (isNativeSceneryAsset(assetId)) {
+      const parsedDimensions =
+        item.dimensions === undefined
+          ? undefined
+          : nativeSceneryDimensionsOrDefault(assetId, item.dimensions as BuildingDimensions);
+      if (item.dimensions !== undefined && !parsedDimensions) return null;
+      dimensions = parsedDimensions ?? undefined;
+    } else if (item.dimensions !== undefined) {
+      return null;
+    }
     const bridgeAsset = bridgeOrientation(assetId);
+    const nativeScenery = isNativeSceneryAsset(assetId);
     const orientation = parseElementOrientation(item.orientation);
     const rotation = parseElementRotation(item.rotation);
     const hasRotation = item.rotation !== undefined && item.rotation !== null;
     if (
       orientation === null ||
       rotation === null ||
-      (orientation !== 0 && !building) ||
-      (rotation !== 0 && !building && !bridgeAsset) ||
+      (orientation !== 0 && !building && !nativeScenery) ||
+      (rotation !== 0 && !building && !bridgeAsset && !nativeScenery) ||
       (orientation !== 0 && hasRotation)
     )
       return null;
@@ -730,6 +758,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       ...(hasRotation ? { rotation } : {}),
       ...(bridge ? { bridge } : {}),
       ...(building ? { building } : {}),
+      ...(dimensions ? { dimensions } : {}),
     });
   }
   return parsed;

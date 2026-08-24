@@ -519,6 +519,33 @@ describe("staticAssetSpec", () => {
     expect(ctx.billboards()).toHaveLength(0);
   });
 
+  it("resizes native runner geometry behind the same front-edge anchor as buildings", () => {
+    const map = flatMap(8, {
+      elements: [
+        {
+          assetId: "barricade",
+          x: 1,
+          z: 2,
+          dimensions: { width: 5.5, depth: 2.25 },
+        },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(
+      createHd2dContext(),
+      scene,
+      map,
+      resolverFor({ barricade: art({ runnerProp: "barricade" }) }),
+    );
+    const barricade = scene.root.getObjectByName("runner-prop-barricade");
+    if (!barricade) throw new Error("expected resized barricade");
+    const bounds = new THREE.Box3().setFromObject(barricade);
+    expect(bounds.max.x - bounds.min.x).toBeGreaterThan(5.3);
+    expect(bounds.max.z).toBeLessThanOrEqual(2.01);
+    expect(bounds.min.z).toBeLessThan(0);
+    expect(bounds.max.y).toBeGreaterThan(2.7);
+  });
+
   it("reads a catalogue sheet's grid, scale and ground line", () => {
     // `tree3` is a 192x192 frame repeated 8 times along x, its measured ground line 22px up.
     const spec = staticAssetSpec("resource.terrain-resources-wood-trees.tree3");

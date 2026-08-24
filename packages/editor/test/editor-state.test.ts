@@ -36,6 +36,7 @@ import {
   updateSelectedBuildingSettings,
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
+  updateSelectedNativeSceneryDimensions,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -71,6 +72,7 @@ import {
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_NPC_MODEL_ASSET_ID,
+  LINDOCARA_RUNNER_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
@@ -1786,6 +1788,33 @@ describe("building element settings", () => {
     );
     expect(vertical?.elements[2]?.rotation).toBe(0);
     expect(updateSelectedElementRotation(turned, buildingSelection, 360)).toBeNull();
+  });
+});
+
+describe("native 3D prop settings", () => {
+  it("resizes, rotates and moves a trap while preserving its native transform", () => {
+    const placed = applyTool(
+      blankMap("runner", 30, 30),
+      { kind: "element", assetId: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap },
+      10,
+      10,
+      true,
+      "element",
+    ) as EditorMap;
+    const selection = { kind: "element", col: 10, row: 10, offsetX: 0, offsetY: 0 } as const;
+    const resized = updateSelectedNativeSceneryDimensions(placed, selection, {
+      width: 3,
+      depth: 3,
+    });
+    const rotated = resized && updateSelectedElementRotation(resized, selection, 45);
+    const moved = rotated && moveSelection(rotated, selection, 22, 22);
+    expect(moved?.elements[0]).toMatchObject({
+      col: 22,
+      row: 22,
+      rotation: 45,
+      dimensions: { width: 3, depth: 3 },
+    });
+    expect(placed.elements[0]?.dimensions).toBeUndefined();
   });
 });
 

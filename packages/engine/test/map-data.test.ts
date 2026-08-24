@@ -18,7 +18,7 @@ import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { editorAsset, LINDOCARA_RUNNER_ASSET_IDS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 import { describe, expect, it } from "vitest";
 
@@ -194,6 +194,43 @@ describe("parsing a map off the wire", () => {
           elements: [
             { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH, bridge: bridge.bridge },
           ],
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("parses, rotates and resizes catalogue-native 3D scenery", () => {
+    const barricade = {
+      col: 4,
+      row: 4,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: LINDOCARA_RUNNER_ASSET_IDS.barricade,
+      rotation: 90,
+      dimensions: { width: 4, depth: 1.5 },
+    } as const;
+    expect(elementWorldCollider(barricade)).toMatchObject({ width: 96, height: 256 });
+    expect(elementFitsMap(barricade, 10, 10)).toBe(true);
+    const parsed = parseMapData(
+      wire({
+        cols: 10,
+        rows: 10,
+        layers: [
+          encodeTileLayer(emptyLayer(10, 10)),
+          encodeTileLayer(emptyLayer(10, 10)),
+          encodeTileLayer(emptyLayer(10, 10)),
+        ],
+        elements: [barricade],
+      }),
+    );
+    expect(parsed?.elements[0]).toMatchObject({
+      rotation: 90,
+      dimensions: { width: 4, depth: 1.5 },
+    });
+    expect(
+      parseMapData(
+        wire({
+          elements: [{ ...barricade, col: 0, row: 0, dimensions: { width: 1.1, depth: 2 } }],
         }),
       ),
     ).toBeNull();

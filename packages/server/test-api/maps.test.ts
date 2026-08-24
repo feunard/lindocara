@@ -48,6 +48,7 @@ const OTHER_TREE_ASSET_ID = "resource.terrain-resources-wood-trees.tree2";
 const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
 const HOUSE_ASSET_ID = "building.buildings-blue-buildings.house1";
 const BRIDGE_ASSET_ID = "terrain.bridge.wood.horizontal";
+const BARRICADE_ASSET_ID = "decoration.lindocara-runner.barricade";
 const HARVEST_PROFILE: HarvestProfile = {
   resource: "wood",
   tool: "axe",
@@ -893,6 +894,29 @@ describe("list, get, update, delete", () => {
 
     const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
     expect(rows[0]?.variant).toBeGreaterThan(3);
+  });
+
+  test("round-trips native prop rotation and dimensions through the existing transform column", async () => {
+    const { userId, token } = await registerAndLogin("mapnativeprop");
+    const id = await newMapId(await newAdventure(userId), token, "Runner props");
+    const barricade = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: BARRICADE_ASSET_ID,
+      rotation: 90,
+      dimensions: { width: 5.5, depth: 2.25 },
+    };
+
+    expect((await putMap(id, token, mapBody({ elements: [barricade] }))).status).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { elements: unknown[] };
+    expect(payload.elements).toEqual([expect.objectContaining(barricade)]);
+
+    const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    expect(rows[0]?.variant).toBeGreaterThan(1_000_000);
   });
 
   test("round-trips free 3D rotation through the existing transform column", async () => {

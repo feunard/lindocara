@@ -79,6 +79,7 @@ import {
   MAP_WEATHERS,
   parseMapWeather,
 } from "@lindocara/engine/map-weather.js";
+import { isNativeSceneryAsset } from "@lindocara/engine/native-scenery.js";
 import {
   emptyLayer,
   encodeTileLayer,
@@ -560,6 +561,21 @@ export function elementToWire(row: {
         ...(transform.orientation === 0 ? {} : { orientation: transform.orientation }),
         ...(stored.rotation === undefined ? {} : { rotation: stored.rotation }),
         building,
+      };
+    }
+    if (isNativeSceneryAsset(row.kind)) {
+      const transform = decodeBuildingTransform(stored.baseCode);
+      if (!transform) return null;
+      return {
+        id: row.id,
+        col: row.col,
+        row: row.row,
+        offsetX: row.offsetX,
+        offsetY: row.offsetY,
+        assetId: row.kind,
+        ...(transform.orientation === 0 ? {} : { orientation: transform.orientation }),
+        ...(stored.rotation === undefined ? {} : { rotation: stored.rotation }),
+        ...(transform.dimensions ? { dimensions: transform.dimensions } : {}),
       };
     }
     if (!isElementOrientation(stored.baseCode) || stored.rotation !== undefined) return null;

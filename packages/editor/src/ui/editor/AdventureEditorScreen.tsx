@@ -49,15 +49,14 @@ import {
 } from "@lindocara/engine/bridges.js";
 import {
   BUILDING_DIMENSION_STEP,
+  type BuildingDimensions,
   type BuildingSettings,
   buildingColor,
   buildingColorVariants,
-  buildingDimensionsOrDefault,
   defaultBuildingSettings,
   destroyedBuildingAssetId,
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
-  proportionalBuildingDimensions,
 } from "@lindocara/engine/buildings.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
@@ -83,6 +82,10 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
+import {
+  nativeSceneryDimensionsOrDefault,
+  proportionalNativeSceneryDimensions,
+} from "@lindocara/engine/native-scenery.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
@@ -2061,6 +2064,9 @@ function AdventureEditorInner({
                     onSetBuilding={(settings) =>
                       handleRef.current?.setSelectedBuildingSettings(settings)
                     }
+                    onSetNativeDimensions={(dimensions) =>
+                      handleRef.current?.setSelectedNativeSceneryDimensions(dimensions)
+                    }
                     onOpenInterior={requestBuildingInterior}
                     buildingInteriorBusy={buildingInteriorBusy}
                     onOpenEditor={() => {
@@ -2340,6 +2346,7 @@ function SelectionInspector({
   onSetElementAsset,
   onSetBridgeDimensions,
   onSetBuilding,
+  onSetNativeDimensions,
   onOpenInterior,
   buildingInteriorBusy,
   onOpenEditor,
@@ -2354,6 +2361,7 @@ function SelectionInspector({
   onSetElementAsset(assetId: EditorAssetId): void;
   onSetBridgeDimensions(dimensions: BridgeDimensions): void;
   onSetBuilding(settings: BuildingSettings): void;
+  onSetNativeDimensions(dimensions: BuildingDimensions): void;
   onOpenInterior(element: MapElement): void;
   buildingInteriorBusy: boolean;
   onOpenEditor(): void;
@@ -2371,10 +2379,12 @@ function SelectionInspector({
   const selectedBuilding = selectedElement
     ? (selectedElement.building ?? defaultBuildingSettings(selectedElement.assetId))
     : null;
-  const selectedBuildingDimensions =
-    selectedElement && selectedBuilding
-      ? buildingDimensionsOrDefault(selectedElement.assetId, selectedBuilding.dimensions)
-      : null;
+  const selectedNativeDimensions = selectedElement
+    ? nativeSceneryDimensionsOrDefault(
+        selectedElement.assetId,
+        selectedBuilding?.dimensions ?? selectedElement.dimensions,
+      )
+    : null;
   const selectedBuildingColor = selectedElement ? buildingColor(selectedElement.assetId) : null;
   const selectedBuildingColorVariants = selectedElement
     ? buildingColorVariants(selectedElement.assetId)
@@ -2488,6 +2498,60 @@ function SelectionInspector({
         </div>
       )}
 
+      {selectedElement && selectedNativeDimensions && !selectedBuilding && (
+        <div className="flex flex-col gap-1 rounded-md border border-zinc-200 p-2">
+          <Label className="text-[11px] text-zinc-600">{t("editor.inspector.element.size")}</Label>
+          <div className="flex gap-2">
+            {(
+              [
+                ["width", "editor.inspector.building.width"],
+                ["depth", "editor.inspector.building.depth"],
+              ] as const
+            ).map(([dimension, label]) => (
+              <div key={dimension} className="flex flex-1 flex-col gap-1">
+                <Label
+                  htmlFor={`inspector-element-${dimension}`}
+                  className="text-[11px] text-zinc-500"
+                >
+                  {t(label)}
+                </Label>
+                <Input
+                  id={`inspector-element-${dimension}`}
+                  key={`element-${dimension}:${selectedNativeDimensions[dimension]}`}
+                  type="number"
+                  className="h-7 text-xs"
+                  min={MIN_BUILDING_DIMENSION}
+                  max={MAX_BUILDING_DIMENSION}
+                  step={BUILDING_DIMENSION_STEP}
+                  defaultValue={selectedNativeDimensions[dimension]}
+                  onBlur={(event) => {
+                    const value = Number(event.currentTarget.value);
+                    const normalized = Number.isFinite(value)
+                      ? Math.max(
+                          MIN_BUILDING_DIMENSION,
+                          Math.min(
+                            MAX_BUILDING_DIMENSION,
+                            Math.round(value / BUILDING_DIMENSION_STEP) * BUILDING_DIMENSION_STEP,
+                          ),
+                        )
+                      : selectedNativeDimensions[dimension];
+                    const dimensions = proportionalNativeSceneryDimensions(
+                      selectedElement.assetId,
+                      dimension,
+                      normalized,
+                    );
+                    if (dimensions) onSetNativeDimensions(dimensions);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-muted-foreground text-[10.5px]">
+            {t("editor.inspector.element.sizeHint")}
+          </p>
+        </div>
+      )}
+
       {selectedElement && selectedBuilding && (
         <div className="flex flex-col gap-2 rounded-md border border-zinc-200 p-2">
           {selectedBuildingColor && selectedBuildingColorVariants.length > 1 && (
@@ -2518,7 +2582,7 @@ function SelectionInspector({
               </select>
             </div>
           )}
-          {selectedBuildingDimensions && (
+          {selectedNativeDimensions && (
             <div className="flex flex-col gap-1">
               <Label className="text-[11px] text-zinc-600">
                 {t("editor.inspector.building.size")}
@@ -2539,13 +2603,13 @@ function SelectionInspector({
                     </Label>
                     <Input
                       id={`inspector-building-${dimension}`}
-                      key={`building-${dimension}:${selectedBuildingDimensions[dimension]}`}
+                      key={`building-${dimension}:${selectedNativeDimensions[dimension]}`}
                       type="number"
                       className="h-7 text-xs"
                       min={MIN_BUILDING_DIMENSION}
                       max={MAX_BUILDING_DIMENSION}
                       step={BUILDING_DIMENSION_STEP}
-                      defaultValue={selectedBuildingDimensions[dimension]}
+                      defaultValue={selectedNativeDimensions[dimension]}
                       onBlur={(event) => {
                         const value = Number(event.currentTarget.value);
                         const normalized = Number.isFinite(value)
@@ -2557,8 +2621,8 @@ function SelectionInspector({
                                   BUILDING_DIMENSION_STEP,
                               ),
                             )
-                          : selectedBuildingDimensions[dimension];
-                        const dimensions = proportionalBuildingDimensions(
+                          : selectedNativeDimensions[dimension];
+                        const dimensions = proportionalNativeSceneryDimensions(
                           selectedElement.assetId,
                           dimension,
                           normalized,
