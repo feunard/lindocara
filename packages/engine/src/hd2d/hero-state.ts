@@ -58,6 +58,8 @@ export interface HeroState {
   coyote: number;
   /** The canopy is open: a slow, steady descent instead of gravity. */
   gliding: boolean;
+  /** Extra mid-air jumps still available before the next landing. */
+  airJumpsRemaining: number;
   /** Was the jump key down on the PREVIOUS step. `HeroInput.jump` is a LEVEL, not an edge — the
    *  jump itself can live with that because `coyote` is zeroed on take-off, but the canopy cannot:
    *  without this latch, the very press that starts a jump would still be down on the next frame
@@ -143,6 +145,8 @@ export interface HeroSettings {
   friction: { herbe: number; neige: number; glace: number };
   vitesseSol: { herbe: number; neige: number; glace: number };
   jump: { speed: number; gravity: number; coyote: number };
+  /** Extra jumps allowed between take-off and landing. Zero is the historical behaviour. */
+  airJumps?: number;
   /** The glider. `fall` is the descent speed, in world units per second, POSITIVE — the rule
    *  negates it. A constant, not a terminal velocity: a glide never accelerates. */
   glide: { fall: number };
@@ -202,6 +206,7 @@ export function createHeroState(
     breath,
     coyote: 0,
     gliding: false,
+    airJumpsRemaining: 0,
     jumpHeld: false,
     groundY: y,
     facing: 1,

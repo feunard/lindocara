@@ -21,10 +21,12 @@ import {
   type MapEvent,
   type MapEventPage,
 } from "./map-events.js";
+import { MOVEMENT_EFFECT_DEFAULTS, type MovementEffectKind } from "./movement-effects.js";
 import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
   LINDOCARA_RUNNER_ASSET_IDS,
+  LINDOCARA_PICKUP_ASSET_IDS,
 } from "./tiny-swords-catalog.js";
 
 export const EVENT_PRESETS = [
@@ -35,8 +37,37 @@ export const EVENT_PRESETS = [
   "trap",
   "pursuer",
   "endgame",
+  "pickup-speed-boost",
+  "pickup-light-gravity",
+  "pickup-double-jump",
+  "pickup-speed-slow",
+  "pickup-heavy-gravity",
+  "pickup-inverted-controls",
 ] as const;
 export type EventPreset = (typeof EVENT_PRESETS)[number];
+
+export const MOVEMENT_PICKUP_PRESETS = [
+  "pickup-speed-boost",
+  "pickup-light-gravity",
+  "pickup-double-jump",
+  "pickup-speed-slow",
+  "pickup-heavy-gravity",
+  "pickup-inverted-controls",
+] as const;
+export type MovementPickupPreset = (typeof MOVEMENT_PICKUP_PRESETS)[number];
+
+export const MOVEMENT_PICKUP_EFFECT: Readonly<Record<MovementPickupPreset, MovementEffectKind>> = {
+  "pickup-speed-boost": "speed_boost",
+  "pickup-light-gravity": "light_gravity",
+  "pickup-double-jump": "double_jump",
+  "pickup-speed-slow": "speed_slow",
+  "pickup-heavy-gravity": "heavy_gravity",
+  "pickup-inverted-controls": "inverted_controls",
+};
+
+export function isMovementPickupPreset(value: EventPreset): value is MovementPickupPreset {
+  return (MOVEMENT_PICKUP_PRESETS as readonly string[]).includes(value);
+}
 
 /** The default gold a `chest` preset grants until the author edits it — a positive, non-zero amount
  *  the `changeGold` parser accepts. */
@@ -83,6 +114,26 @@ export function presetPageContent(
       // The optional adventure goal: stepping on this cell marks the party's save complete. The
       // author retargets the trigger or adds an epilogue `say` in the dialog.
       return { trigger: "player-touch", commands: [{ t: "endAdventure" }] };
+    case "pickup-speed-boost":
+    case "pickup-light-gravity":
+    case "pickup-double-jump":
+    case "pickup-speed-slow":
+    case "pickup-heavy-gravity":
+    case "pickup-inverted-controls": {
+      const effect = MOVEMENT_PICKUP_EFFECT[preset];
+      const defaults = MOVEMENT_EFFECT_DEFAULTS[effect];
+      return {
+        trigger: "player-touch",
+        commands: [
+          {
+            t: "movementEffect",
+            effect,
+            durationMs: defaults.durationMs,
+            power: defaults.power,
+          },
+        ],
+      };
+    }
   }
 }
 
@@ -138,6 +189,10 @@ export function presetEvent(params: {
   );
   const chest = params.preset === "chest";
   const trap = params.preset === "trap";
+  const pickupEffect = isMovementPickupPreset(params.preset)
+    ? MOVEMENT_PICKUP_EFFECT[params.preset]
+    : null;
+  const pickup = pickupEffect !== null;
   const page: MapEventPage = {
     ...defaultEventPage(),
     trigger,
@@ -145,7 +200,10 @@ export function presetEvent(params: {
       ? LINDOCARA_CHEST_CLOSED_ASSET_ID
       : trap
         ? LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
-        : null,
+        : pickupEffect
+          ? LINDOCARA_PICKUP_ASSET_IDS[pickupEffect]
+          : null,
+    ...(pickup ? { graphicElevation: 0.55, optFloat: true } : {}),
     commands: chest
       ? [...commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
       : commands,
@@ -170,6 +228,7 @@ export function presetEvent(params: {
     species: null,
     patrolRadius: null,
     ...(trap ? { showMarker: false } : {}),
+    ...(pickup ? { showMarker: false } : {}),
     pages,
   };
 }

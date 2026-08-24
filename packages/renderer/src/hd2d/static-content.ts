@@ -119,6 +119,10 @@ export interface StaticContentEvent extends HeightfieldEvent {
   rotation?: ElementRotation;
   building?: BuildingDimensions;
   health?: { value: number; max: number; visible: boolean };
+  /** Stable authored height above the terrain/water surface, in world units. */
+  elevationOffset?: number;
+  /** Gives collectible art a gentle presentation-only vertical motion. */
+  floating?: boolean;
 }
 
 export interface StaticContent {
@@ -210,6 +214,7 @@ export function placeStaticContent(
     anchorZ: number;
     depthKey: string;
     wind: boolean;
+    floating: boolean;
   }[] = [];
   /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
    *  this build cannot draw — the sub-rect crops are a real such family — would otherwise emit one
@@ -251,6 +256,8 @@ export function placeStaticContent(
     rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
+    elevationOffset = 0,
+    floating = false,
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
@@ -315,13 +322,14 @@ export function placeStaticContent(
           : z;
     // A bridge receives the exact platform top authored into the heightfield. Other offshore art
     // still falls back to the sea rather than inventing a gameplay surface from its appearance.
-    const anchorY = sky
+    const surfaceY = sky
       ? authoredSkyAltitude(map)
       : sprite.bridgeOrientation
         ? (scene.query.surfaceAt?.(x, bridgeSampleZ, Number.POSITIVE_INFINITY) ??
           scene.query.heightAt(x, bridgeSampleZ) ??
           scene.waterLevel)
         : (scene.query.heightAt(x, z) ?? scene.waterLevel);
+    const anchorY = surfaceY + (sky ? 0 : elevationOffset);
     if (native) {
       native.placeAt(x, anchorY, z);
     } else if (flat || sprite.renderMode === "cloud-volume") {
@@ -350,16 +358,19 @@ export function placeStaticContent(
         assetId,
         x,
         z,
-        sprite.animationDurationMs ?? sprite.sway?.durationMs ?? 1,
+        sprite.animationDurationMs ?? sprite.sway?.durationMs ?? (floating ? 1_800 : 1),
       ),
       lastFrame: 0,
       swayAmplitude: Math.max(0, sprite.sway?.amplitudeRadians ?? 0),
       swayDurationMs: Math.max(0, sprite.sway?.durationMs ?? 0),
       anchorX: x,
-      anchorY,
+      // Preserve the visual's placed origin (billboards apply their foot offset in `placeAt`).
+      // Floating is presentation-only and must bob around that exact authored pose.
+      anchorY: billboard.mesh.position.y,
       anchorZ: z,
       depthKey,
       wind: sky,
+      floating,
     });
     if (sprite.fireLight) {
       const source = sprite.fireLight;
@@ -390,7 +401,19 @@ export function placeStaticContent(
       });
     }
     for (const companion of sprite.companions ?? []) {
-      placeArt(assetId, companion, x, z, contentKey, orientation, rotation);
+      placeArt(
+        assetId,
+        companion,
+        x,
+        z,
+        contentKey,
+        orientation,
+        rotation,
+        undefined,
+        undefined,
+        elevationOffset,
+        floating,
+      );
     }
   }
 
@@ -435,6 +458,8 @@ export function placeStaticContent(
     rotation?: ElementRotation,
     bridge?: BridgeDimensions,
     building?: BuildingDimensions,
+    elevationOffset = 0,
+    floating = false,
   ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
@@ -445,7 +470,19 @@ export function placeStaticContent(
       isColdBiomeMaterial(authoredMaterialAt(map, x, z)) && resolved.coldVariant
         ? resolved.coldVariant
         : resolved;
-    placeArt(assetId, sprite, x, z, contentKey, orientation, rotation, bridge, building);
+    placeArt(
+      assetId,
+      sprite,
+      x,
+      z,
+      contentKey,
+      orientation,
+      rotation,
+      bridge,
+      building,
+      elevationOffset,
+      floating,
+    );
     if (contentKey && health) {
       const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
       placeHealthBar(
@@ -487,7 +524,7 @@ export function placeStaticContent(
     const staticEvent = event as StaticContentEvent;
     const health = staticEvent.health;
     const orientation = staticEvent.orientation ?? 0;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}`;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}:${staticEvent.elevationOffset ?? 0}:${staticEvent.floating ? 1 : 0}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
     place(
@@ -500,6 +537,8 @@ export function placeStaticContent(
       staticEvent.rotation,
       undefined,
       staticEvent.building,
+      staticEvent.elevationOffset,
+      staticEvent.floating,
     );
   }
   function flushSkipped(): void {
@@ -600,7 +639,7 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
@@ -615,6 +654,8 @@ export function placeStaticContent(
             event.rotation,
             undefined,
             event.building,
+            event.elevationOffset,
+            event.floating,
           );
         }
       }
@@ -643,6 +684,9 @@ export function placeStaticContent(
             placement.anchorY,
             placement.anchorZ + wind.z,
           );
+        } else if (placement.floating) {
+          const phase = ((now + placement.phaseMs) / 1_800) * Math.PI * 2;
+          placement.sprite.mesh.position.y = placement.anchorY + Math.sin(phase) * 0.14;
         }
         if ("update" in placement.sprite) placement.sprite.update(now);
       }

@@ -254,6 +254,12 @@ export type EventEffect =
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
   | { readonly kind: "damage"; readonly amount: number; readonly lethal: boolean }
   | {
+      readonly kind: "movementEffect";
+      readonly effect: import("./movement-effects.js").MovementEffectKind;
+      readonly durationMs: number;
+      readonly power: number;
+    }
+  | {
       readonly kind: "questFact";
       readonly fact:
         | { readonly type: "areaEntered"; readonly areaId: string }
@@ -500,6 +506,18 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "damage", amount: command.amount, lethal: command.lethal }],
+      };
+    case "movementEffect":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [
+          {
+            kind: "movementEffect",
+            effect: command.effect,
+            durationMs: command.durationMs,
+            power: command.power,
+          },
+        ],
       };
     case "teleport":
       return {

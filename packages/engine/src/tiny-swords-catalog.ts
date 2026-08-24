@@ -219,6 +219,14 @@ export const LINDOCARA_RUNNER_ASSET_IDS = {
   spikeTrap: "decoration.lindocara-runner.spike-trap",
   barricade: "decoration.lindocara-runner.barricade",
 } as const;
+export const LINDOCARA_PICKUP_ASSET_IDS = {
+  speed_boost: "resource.lindocara-pickup.speed-boost",
+  light_gravity: "resource.lindocara-pickup.light-gravity",
+  double_jump: "resource.lindocara-pickup.double-jump",
+  speed_slow: "resource.lindocara-pickup.speed-slow",
+  heavy_gravity: "resource.lindocara-pickup.heavy-gravity",
+  inverted_controls: "resource.lindocara-pickup.inverted-controls",
+} as const;
 
 /**
  * Removed runner art, accepted only while old authored maps are migrated to their species model.
@@ -289,7 +297,46 @@ function lindocaraInteriorProp<const Id extends string>(
   } as const satisfies EditorAssetDefinition;
 }
 
+function lindocaraPickup<const Id extends string>(id: Id, file: string, tags: readonly string[]) {
+  return {
+    id,
+    sourcePath: `/assets/lindocara/hd2d/pickups/${file}`,
+    pack: "LindoCara Lab",
+    domain: "resource",
+    category: "Lindocara/Pickups",
+    role: "event-state",
+    tags: ["pickup", "movement", "generated", "hd2d", ...tags],
+    width: 192,
+    height: 192,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "runner",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: [{ col: 0, row: 0 }],
+    },
+  } as const satisfies EditorAssetDefinition;
+}
+
 const LINDOCARA_LAB_EDITOR_ASSETS = [
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.speed_boost, "speed-boost.png", ["buff", "speed"]),
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.light_gravity, "light-gravity.png", [
+    "buff",
+    "gravity",
+    "feather",
+  ]),
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.double_jump, "double-jump.png", ["buff", "jump"]),
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.speed_slow, "speed-slow.png", ["debuff", "speed"]),
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.heavy_gravity, "heavy-gravity.png", [
+    "debuff",
+    "gravity",
+  ]),
+  lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.inverted_controls, "inverted-controls.png", [
+    "debuff",
+    "controls",
+  ]),
   {
     id: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
     sourcePath: "/assets/lindocara/hd2d/runner/spike-trap.png",

@@ -33,6 +33,12 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   trap: "editor.event.preset.trap",
   pursuer: "editor.event.preset.pursuer",
   endgame: "editor.event.preset.endgame",
+  "pickup-speed-boost": "editor.event.preset.pickup.speedBoost",
+  "pickup-light-gravity": "editor.event.preset.pickup.lightGravity",
+  "pickup-double-jump": "editor.event.preset.pickup.doubleJump",
+  "pickup-speed-slow": "editor.event.preset.pickup.speedSlow",
+  "pickup-heavy-gravity": "editor.event.preset.pickup.heavyGravity",
+  "pickup-inverted-controls": "editor.event.preset.pickup.invertedControls",
 };
 
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring

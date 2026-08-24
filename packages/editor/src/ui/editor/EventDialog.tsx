@@ -45,6 +45,7 @@ import {
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
+  EVENT_GRAPHIC_ELEVATION_LIMITS,
   EVENT_NAME_MAX,
   type EventTrigger,
   MAX_NPC_ROUTINE_STEPS,
@@ -1673,6 +1674,33 @@ export function EventDialog({
                         />
                         {t("editor.event.opt.onTop")}
                       </label>
+                      <label className="flex max-w-xs flex-col gap-1 text-[11px] text-zinc-500">
+                        {t("editor.event.graphic.elevation")}
+                        <Input
+                          type="number"
+                          min={EVENT_GRAPHIC_ELEVATION_LIMITS.min}
+                          max={EVENT_GRAPHIC_ELEVATION_LIMITS.max}
+                          step={0.05}
+                          value={page.graphicElevation ?? 0}
+                          onChange={(event) =>
+                            update({ graphicElevation: Number(event.currentTarget.value) })
+                          }
+                        />
+                      </label>
+                      <p className="text-muted-foreground text-[10.5px] leading-relaxed">
+                        {t("editor.event.graphic.elevation.hint")}
+                      </p>
+                      <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
+                        <input
+                          type="checkbox"
+                          checked={page.optFloat === true}
+                          onChange={(event) => update({ optFloat: event.currentTarget.checked })}
+                        />
+                        {t("editor.event.opt.float")}
+                      </label>
+                      <p className="text-muted-foreground text-[10.5px] leading-relaxed">
+                        {t("editor.event.opt.float.hint")}
+                      </p>
                       {draft.kind === "npc" && (
                         <>
                           <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">

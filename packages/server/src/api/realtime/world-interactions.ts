@@ -1147,6 +1147,31 @@ export function dispatchDamage(
   damagePlayerFromEvent(w, connectionId, player, effect.amount, effect.lethal, now);
 }
 
+/** Grant one temporary locomotion modifier to the triggering hero. The authored command selects
+ * neither a target nor a deadline: the room derives both and immediately republishes self state. */
+export function dispatchMovementEffect(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "movementEffect" }>,
+  now: number,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (
+    connectionId === undefined ||
+    !player?.authorized ||
+    player.transitioning ||
+    player.life !== "alive"
+  )
+    return;
+  player.movementEffects.set(effect.effect, {
+    kind: effect.effect,
+    power: effect.power,
+    until: now + effect.durationMs,
+  });
+  sendStateTo(w, connectionId, player);
+}
+
 /**
  * Port of `#drainEventRuns` (`world.ts:4455`): step every live run its budgeted slice, then
  * dispatch the effects that need this room's authority. State mutations are batched into ONE
@@ -1186,6 +1211,8 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         dispatchItems(w, dispatch, effect);
       } else if (effect.kind === "damage") {
         dispatchDamage(w, dispatch, effect, now);
+      } else if (effect.kind === "movementEffect") {
+        dispatchMovementEffect(w, dispatch, effect, now);
       } else if (effect.kind === "ambience") {
         dispatchAmbience(w, effect);
       } else {

@@ -33,6 +33,10 @@ import {
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
 import type { HarvestTool, PeasantCarryKind } from "@lindocara/engine/harvest.js";
 import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
+import type {
+  ActiveMovementEffect,
+  MovementEffectKind,
+} from "@lindocara/engine/movement-effects.js";
 import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
 import type {
   CombatActionKind,
@@ -414,6 +418,8 @@ export interface PlayerRuntime extends PlayerProfile {
   forgottenUntil: number;
   invisibleUntil: number;
   resurrectionAt: number;
+  /** Temporary authored pickup grants. Room-local and never persisted. */
+  movementEffects: Map<MovementEffectKind, ActiveMovementEffect>;
   /**
    * The counter of the shop this hero currently has open, in tile units — the cell of the `openShop`
    * event that served them. Room-local and never persisted: a shop is a conversation, not a state.
@@ -775,6 +781,7 @@ export function newPlayer(
     rogueSilhouette: null,
     rogueDanceMarks: [],
     negativeEffects: new Map(),
+    movementEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],

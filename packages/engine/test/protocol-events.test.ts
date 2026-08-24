@@ -459,6 +459,30 @@ describe("events on the wire", () => {
       parseServerMessage(JSON.stringify(welcome([event({ moveAnimation: "yes" })]))),
     ).toBeNull();
     expect(parseServerMessage(JSON.stringify(welcome([event({ directionFixed: 0 })])))).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify(welcome([event({ elevationOffset: 2.25, floating: true })])),
+      ),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ elevationOffset: 16.01 })]))),
+    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ floating: false })])))).toBeNull();
+  });
+
+  it("validates authoritative movement-effect deadlines on self state", () => {
+    const valid = welcome([]);
+    Object.assign(valid.self, {
+      serverNow: 1_000,
+      movementEffects: [{ kind: "speed_boost", power: 1.35, until: 7_000 }],
+    });
+    expect(parseServerMessage(JSON.stringify(valid))).not.toBeNull();
+
+    const invalid = welcome([]);
+    Object.assign(invalid.self, {
+      movementEffects: [{ kind: "double_jump", power: 1.5, until: 7_000 }],
+    });
+    expect(parseServerMessage(JSON.stringify(invalid))).toBeNull();
   });
 
   it("drops a delta whose events collection is not an entity delta", () => {

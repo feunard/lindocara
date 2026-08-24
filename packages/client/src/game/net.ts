@@ -9,6 +9,10 @@ import {
   type MapHeroSettings,
   mapHeroClassSettings,
 } from "@lindocara/engine/map-hero-settings.js";
+import type {
+  ActiveMovementEffect,
+  MovementEffectKind,
+} from "@lindocara/engine/movement-effects.js";
 import {
   type ClientMessage,
   type CombatAnimation,
@@ -310,6 +314,12 @@ export class WorldClient {
    *  (gravity, water and thin ice do not pause) but is fed no input for its duration. */
   #shadowDanceMovementBlockedUntil = 0;
 
+  /** Server-granted map pickups, expressed on this browser's monotonic clock. */
+  readonly #movementEffects = new Map<
+    MovementEffectKind,
+    Omit<ActiveMovementEffect, "until"> & { until: number }
+  >();
+
   get selfId(): string | null {
     return this.#selfId;
   }
@@ -457,18 +467,24 @@ export class WorldClient {
     const playerClass = this.#selfSnapshot?.class ?? "warrior";
     // A corpse is frozen over its body; a ghost walks, and faster than the living. The rule reads
     // one speed, so the life state is folded into it rather than branched on twice.
+    const now = performance.now();
+    const movement = this.#activeMovementModifiers(now);
     hero.setSpeed(
       speedForLife(
         life,
         playerClass,
         mapHeroClassSettings(this.#heroSettings, playerClass).stats.movementSpeed,
-      ),
+      ) * movement.speedMultiplier,
     );
+    hero.setMovementModifiers({
+      gravityMultiplier: movement.gravityMultiplier,
+      extraAirJumps: movement.extraAirJumps,
+    });
 
     // A corpse does not move at all, and a server-owned Shadow Dance sequence owns the body for its
     // duration — both feed the rule no input rather than skipping the step, so gravity, the water
     // and the thin ice keep running underneath.
-    const frozen = !canMove(life) || performance.now() < this.#shadowDanceMovementBlockedUntil;
+    const frozen = !canMove(life) || now < this.#shadowDanceMovementBlockedUntil;
     const movementAxis = (
       axis: number | undefined,
       negative: boolean,
@@ -479,8 +495,12 @@ export class WorldClient {
         : Number(positive) - Number(negative);
     const events = hero.step(
       {
-        x: frozen ? 0 : movementAxis(input.axisX, input.left, input.right),
-        z: frozen ? 0 : movementAxis(input.axisY, input.up, input.down),
+        x:
+          (frozen ? 0 : movementAxis(input.axisX, input.left, input.right)) *
+          movement.controlMultiplier,
+        z:
+          (frozen ? 0 : movementAxis(input.axisY, input.up, input.down)) *
+          movement.controlMultiplier,
         jump: !frozen && (input.jump ?? false),
       },
       Math.min(Math.max(dt, 0), MAX_FRAME_SECONDS),
@@ -652,6 +672,7 @@ export class WorldClient {
       // A welcome carries the same self state a `state` frame does, so a hero readmitted mid-hold
       // resumes its grant on the new controller instead of standing in a channel it cannot spend.
       this.#applyMobilityGrant(message.self);
+      this.#applyMovementEffects(message.self);
       handlers.onWelcome(message.selfId, message.world, message.self);
       return;
     }
@@ -717,6 +738,7 @@ export class WorldClient {
     if (message.t === "state") {
       this.#adoptDisplacement(message.self.displacement);
       this.#applyMobilityGrant(message.self);
+      this.#applyMovementEffects(message.self);
       handlers.onState(message.self);
       return;
     }
@@ -987,6 +1009,46 @@ export class WorldClient {
       distance: grant.distance,
       duration: Math.max(0, grant.until - (self.serverNow ?? Date.now())) / 1_000,
     });
+  }
+
+  #applyMovementEffects(self: SelfState): void {
+    const serverNow = self.serverNow ?? Date.now();
+    const localNow = performance.now();
+    this.#movementEffects.clear();
+    for (const effect of self.movementEffects ?? []) {
+      const remaining = effect.until - serverNow;
+      if (remaining <= 0) continue;
+      this.#movementEffects.set(effect.kind, {
+        kind: effect.kind,
+        power: effect.power,
+        until: localNow + remaining,
+      });
+    }
+  }
+
+  #activeMovementModifiers(now: number): {
+    speedMultiplier: number;
+    gravityMultiplier: number;
+    extraAirJumps: number;
+    controlMultiplier: number;
+  } {
+    let speedMultiplier = 1;
+    let gravityMultiplier = 1;
+    let extraAirJumps = 0;
+    let controlMultiplier = 1;
+    for (const [kind, effect] of this.#movementEffects) {
+      if (effect.until <= now) {
+        this.#movementEffects.delete(kind);
+        continue;
+      }
+      if (kind === "speed_boost" || kind === "speed_slow") speedMultiplier *= effect.power;
+      else if (kind === "light_gravity" || kind === "heavy_gravity") {
+        gravityMultiplier *= effect.power;
+      } else if (kind === "double_jump") {
+        extraAirJumps = Math.max(extraAirJumps, Math.floor(effect.power));
+      } else if (kind === "inverted_controls") controlMultiplier = -1;
+    }
+    return { speedMultiplier, gravityMultiplier, extraAirJumps, controlMultiplier };
   }
 
   #rememberReportedFromHero(): void {

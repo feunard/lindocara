@@ -57,6 +57,22 @@ describe("authored event preview projection", () => {
     );
   });
 
+  it("preserves authored pickup height and visual levitation in the preview", () => {
+    const pickup = event("normal");
+    pickup.pages = [
+      {
+        ...defaultEventPage(),
+        graphicAssetId: "resource.lindocara-pickup.speed-boost",
+        graphicElevation: 2.25,
+        optFloat: true,
+      },
+    ];
+
+    expect(authoredEventPreviewSnapshots([pickup], "map-editor")).toMatchObject([
+      { id: pickup.id, elevationOffset: 2.25, floating: true },
+    ]);
+  });
+
   it("uses the gameplay monster actor in the editor instead of a separate event sprite", () => {
     const pursuer = {
       ...event("monster"),

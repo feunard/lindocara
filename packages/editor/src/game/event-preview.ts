@@ -42,6 +42,8 @@ export function authoredEventPreviewSnapshots(
         moveFrequency: page.moveFreq,
         moveAnimation: page.optMoveAnim,
         directionFixed: page.optDirFix,
+        ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),
+        ...(page.optFloat === true ? { floating: true as const } : {}),
         presentation: event.kind === "harvestable" ? "native" : "marker",
         showMarker: event.showMarker !== false,
         ...(profile

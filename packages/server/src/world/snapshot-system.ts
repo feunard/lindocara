@@ -115,6 +115,9 @@ export function selfState(
       invisibleUntil: player.invisibleUntil,
       resurrectionAt: player.resurrectionAt,
     },
+    movementEffects: [...player.movementEffects.values()].filter(
+      (effect) => effect.until > serverNow,
+    ),
     ...(player.class === "rogue"
       ? {
           rogue: {

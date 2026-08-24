@@ -114,6 +114,30 @@ describe("the per-hero dialogue cap (T4 review, one conversation at a time)", ()
 });
 
 describe("the per-tick budget", () => {
+  it("keeps a movement pickup addressed to the hero that triggered it", () => {
+    const runtime = createEventRunRuntime();
+    begin(
+      runtime,
+      "pickup",
+      [{ t: "movementEffect", effect: "light_gravity", durationMs: 7_000, power: 0.55 }],
+      { heroId: "runner" },
+    );
+
+    expect(drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 }).effects).toEqual([
+      {
+        heroId: "runner",
+        runId: "run-pickup",
+        eventId: "pickup",
+        effect: {
+          kind: "movementEffect",
+          effect: "light_gravity",
+          durationMs: 7_000,
+          power: 0.55,
+        },
+      },
+    ]);
+  });
+
   it("executes exactly the budget across a finite over-budget program", () => {
     // 30 sequential setVariable adds — more than the 16 budget. One drain does exactly 16.
     const program: EventCommand[] = Array.from({ length: 30 }, () => ({

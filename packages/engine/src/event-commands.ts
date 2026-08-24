@@ -20,6 +20,12 @@ import { isMusicTrackId, type MusicTrackId } from "./audio-catalog.js";
 import { isUuid } from "./identifiers.js";
 import { CONDITION_ID_PATTERN, isSelfSwitch, type SelfSwitch } from "./map-events.js";
 import { type MapWeather, parseMapWeather } from "./map-weather.js";
+import {
+  isMovementEffectKind,
+  MOVEMENT_EFFECT_DURATION_LIMITS,
+  type MovementEffectKind,
+  validMovementEffectPower,
+} from "./movement-effects.js";
 import { isSoundEffectId } from "./sfx-catalog.js";
 
 /**
@@ -152,6 +158,12 @@ export type EventCommand =
   | { readonly t: "exitRun" }
   | { readonly t: "wait"; readonly frames: number }
   | { readonly t: "damage"; readonly amount: number; readonly lethal: boolean }
+  | {
+      readonly t: "movementEffect";
+      readonly effect: MovementEffectKind;
+      readonly durationMs: number;
+      readonly power: number;
+    }
   | {
       readonly t: "teleport";
       readonly mapId: string;
@@ -371,6 +383,22 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       if (amount < EVENT_DAMAGE_LIMITS.min || amount > EVENT_DAMAGE_LIMITS.max) return null;
       if (typeof record.lethal !== "boolean") return null;
       return { t: "damage", amount, lethal: record.lethal };
+    }
+    case "movementEffect": {
+      if (!isMovementEffectKind(record.effect)) return null;
+      if (!Number.isSafeInteger(record.durationMs)) return null;
+      const durationMs = record.durationMs as number;
+      if (
+        durationMs < MOVEMENT_EFFECT_DURATION_LIMITS.min ||
+        durationMs > MOVEMENT_EFFECT_DURATION_LIMITS.max
+      )
+        return null;
+      if (
+        typeof record.power !== "number" ||
+        !validMovementEffectPower(record.effect, record.power)
+      )
+        return null;
+      return { t: "movementEffect", effect: record.effect, durationMs, power: record.power };
     }
     case "teleport": {
       if (!isUuid(record.mapId)) return null;

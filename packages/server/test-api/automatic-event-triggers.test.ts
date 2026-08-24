@@ -7,6 +7,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import {
   detectEventTouch,
+  detectPlayerTouch,
   startAutomaticEventRuns,
 } from "@lindocara/server/api/realtime/worldEvents.ts";
 import type { WorldRoomState } from "@lindocara/server/api/realtime/worldState.ts";
@@ -83,5 +84,51 @@ describe("authoritative automatic authored-event triggers", () => {
     expect(detectEventTouch(state)).toBe(1);
     expect(state.eventRuns.contexts.get(event.id)?.heroId).toBe("hero-a");
     expect(detectEventTouch(state)).toBe(0);
+  });
+
+  it("fires an elevated pickup when the hero crosses its stable capture height", () => {
+    const pickup: MapEvent = {
+      ...authoredEvent("pickup", "player-touch"),
+      col: 1,
+      row: 1,
+      kind: "normal",
+      patrolRadius: null,
+      pages: [
+        {
+          ...defaultEventPage(),
+          trigger: "player-touch",
+          graphicElevation: 1.8,
+          optFloat: true,
+          commands: [{ t: "movementEffect", effect: "double_jump", durationMs: 9_000, power: 1 }],
+        },
+      ],
+    };
+    const state = stateFor([pickup]);
+    const player = state.players.get("connection-a");
+    if (!player) throw new Error("hero fixture missing");
+    Object.assign(player, { x: -0.5, y: 1.8, z: -0.5 });
+    state.activeEvents = [
+      {
+        id: pickup.id,
+        col: 1,
+        row: 1,
+        graphicAssetId: null,
+        onTop: false,
+        moveSpeed: 3,
+        moveFrequency: 3,
+        moveAnimation: true,
+        directionFixed: false,
+      },
+    ];
+    if (!state.location) throw new Error("location fixture missing");
+    state.location.definition.terrain = {
+      size: 4,
+      waterLevel: -0.05,
+      query: { heightAt: () => 0 },
+    } as unknown as typeof state.location.definition.terrain;
+
+    detectPlayerTouch(state, player, { x: -0.5, y: 0, z: -0.5 });
+
+    expect(state.eventRuns.contexts.get(pickup.id)?.heroId).toBe("hero-a");
   });
 });

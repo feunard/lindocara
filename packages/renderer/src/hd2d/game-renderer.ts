@@ -1396,6 +1396,10 @@ export class Hd2dRenderer implements RendererLike {
               // map elements. Marker events stay centred in their logical cell.
               z: event.row + (event.presentation === "native" ? 1 : 0.5) - map.size / 2,
               graphicAssetId: assetId,
+              ...(event.elevationOffset === undefined
+                ? {}
+                : { elevationOffset: event.elevationOffset }),
+              ...(event.floating ? { floating: true } : {}),
             },
           ];
     });

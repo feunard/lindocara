@@ -4,6 +4,7 @@ import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
+  LINDOCARA_PICKUP_ASSET_IDS,
   LINDOCARA_RUNNER_ASSET_IDS,
   RETIRED_RUNNER_HOUND_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -148,6 +149,32 @@ describe("presetEvent", () => {
       monsterOneHitKill: true,
       pages: [{ graphicAssetId: null }],
     });
+  });
+
+  it("creates floating reusable movement pickups with dedicated art", () => {
+    const pickup = presetEvent({
+      id: crypto.randomUUID(),
+      col: 5,
+      row: 3,
+      ordinal: 3,
+      preset: "pickup-double-jump",
+      selfMapId: MAP_ID,
+    });
+
+    expect(pickup).toMatchObject({
+      kind: "normal",
+      showMarker: false,
+      pages: [
+        {
+          trigger: "player-touch",
+          graphicAssetId: LINDOCARA_PICKUP_ASSET_IDS.double_jump,
+          graphicElevation: 0.55,
+          optFloat: true,
+          commands: [{ t: "movementEffect", effect: "double_jump", durationMs: 9_000, power: 1 }],
+        },
+      ],
+    });
+    expect(parseMapEvents([pickup], 20, 15)).not.toBeNull();
   });
 
   it("migrates the retired runner hound appearance to the species-owned pig model", () => {

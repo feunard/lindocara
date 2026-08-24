@@ -136,6 +136,41 @@ describe("the hero controller", () => {
     expect(events.map((event) => event.t)).toEqual(["glisse", "saut"]);
   });
 
+  it("uses a granted air jump before opening the glider", () => {
+    const hero = controller();
+    hero.setMovementModifiers({ gravityMultiplier: 1, extraAirJumps: 1 });
+
+    hero.step(press({ jump: true }), FRAME);
+    for (let frame = 0; frame < 10; frame++) hero.step(press(), FRAME);
+    const beforeSecondJump = hero.state.y;
+    const secondJump = hero.step(press({ jump: true }), FRAME);
+
+    expect(secondJump.some((event) => event.t === "saut")).toBe(true);
+    expect(hero.state.y).toBeGreaterThan(beforeSecondJump);
+    expect(hero.state.gliding).toBe(false);
+
+    hero.step(press(), FRAME);
+    const glider = hero.step(press({ jump: true }), FRAME);
+    expect(glider.some((event) => event.t === "glider-open")).toBe(true);
+    expect(hero.state.gliding).toBe(true);
+  });
+
+  it("applies light and heavy gravity without changing the authored jump impulse", () => {
+    const light = controller();
+    const heavy = controller();
+    light.setMovementModifiers({ gravityMultiplier: 0.55, extraAirJumps: 0 });
+    heavy.setMovementModifiers({ gravityMultiplier: 1.65, extraAirJumps: 0 });
+
+    light.step(press({ jump: true }), FRAME);
+    heavy.step(press({ jump: true }), FRAME);
+    for (let frame = 0; frame < 18; frame++) {
+      light.step(press(), FRAME);
+      heavy.step(press(), FRAME);
+    }
+
+    expect(light.state.y).toBeGreaterThan(heavy.state.y);
+  });
+
   it("reports a unit heading, seeded before the first step and never zero-length", () => {
     const hero = controller();
     expect(Math.hypot(hero.facing.x, hero.facing.z)).toBeCloseTo(1, 6);

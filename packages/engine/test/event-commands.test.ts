@@ -47,6 +47,7 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "exitRun" },
   { t: "wait", frames: 1 },
   { t: "damage", amount: 25, lethal: false },
+  { t: "movementEffect", effect: "speed_boost", durationMs: 6_000, power: 1.35 },
   { t: "teleport", mapId: UUID, col: 0, row: 12, category: "geographic" },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
@@ -187,6 +188,15 @@ describe("parseEventCommands: totality — every malformed field lands on null",
     "damage: above the ceiling": [{ t: "damage", amount: 100_001, lethal: false }],
     "damage: non-integer": [{ t: "damage", amount: 1.5, lethal: false }],
     "damage: non-boolean lethal": [{ t: "damage", amount: 1, lethal: 1 }],
+    "movement effect: unknown kind": [
+      { t: "movementEffect", effect: "flight", durationMs: 5_000, power: 1 },
+    ],
+    "movement effect: duration too short": [
+      { t: "movementEffect", effect: "speed_boost", durationMs: 999, power: 1.2 },
+    ],
+    "movement effect: invalid double-jump count": [
+      { t: "movementEffect", effect: "double_jump", durationMs: 5_000, power: 1.5 },
+    ],
     "teleport: non-uuid mapId": [{ t: "teleport", mapId: "map1", col: 0, row: 0 }],
     "teleport: negative col": [{ t: "teleport", mapId: UUID, col: -1, row: 0 }],
     "teleport: non-integer row": [{ t: "teleport", mapId: UUID, col: 0, row: 1.5 }],

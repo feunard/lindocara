@@ -118,8 +118,8 @@ export function applyReportedMove(
   if (!withinRoomBounds(zone(w.state).terrain, move)) return;
   if (!knowsCurrentDisplacement(player, move)) return;
 
-  const previousPosition = { x: player.x, z: player.z };
-  const moved = move.x !== player.x || move.z !== player.z;
+  const previousPosition = { x: player.x, y: player.y, z: player.z };
+  const moved = move.x !== player.x || move.y !== player.y || move.z !== player.z;
   // All three axes, every time: `x`/`z` are the ground and `y` is ELEVATION. A write that carries
   // two of them puts the world on its side.
   player.x = move.x;
@@ -272,6 +272,7 @@ export function grantReviveGrace(w: WorldGlue, player: PlayerRuntime, now: numbe
 export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
   player.life = "corpse";
   player.corpse = { x: player.x, y: player.y, z: player.z };
+  player.movementEffects.clear();
   for (const monster of w.state.monsters) monster.threat.delete(player.id);
   freeze(w, player);
   sendSpatialEvent(

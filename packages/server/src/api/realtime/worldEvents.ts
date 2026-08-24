@@ -68,6 +68,20 @@ function gridSize(state: WorldRoomState): number {
   return state.location?.definition.terrain.size ?? 0;
 }
 
+function programGrantsMovementEffect(commands: readonly EventCommand[]): boolean {
+  return commands.some((command) => {
+    if (command.t === "movementEffect") return true;
+    if (command.t === "if") {
+      return programGrantsMovementEffect(command.then) || programGrantsMovementEffect(command.else);
+    }
+    if (command.t === "loop") return programGrantsMovementEffect(command.body);
+    if (command.t === "choices") {
+      return command.options.some((option) => programGrantsMovementEffect(option.body));
+    }
+    return false;
+  });
+}
+
 function colliderTuple(
   rect: Rect | null,
   elevation: CollisionElevation,
@@ -315,6 +329,8 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       ...(page.trigger === "action" ? { interactive: true as const } : {}),
       presentation: event.kind === "harvestable" ? "native" : "marker",
       showMarker: event.showMarker !== false,
+      ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),
+      ...(page.optFloat === true ? { floating: true as const } : {}),
       ...(profile && harvestNode
         ? {
             harvest: {
@@ -658,7 +674,7 @@ export function detectEventTouch(state: WorldRoomState): number {
 export function detectPlayerTouch(
   state: WorldRoomState,
   player: PlayerRuntime,
-  previous: GroundVector,
+  previous: WorldPosition,
 ): void {
   if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
   const events = state.location?.definition.events;
@@ -668,11 +684,25 @@ export function detectPlayerTouch(
   for (const event of events) {
     if (!isActiveWorldEventKind(event.kind)) continue;
     const runnable = runnablePage(state, event, "player-touch");
-    if (
-      runnable !== null &&
-      !touchesEventCell(state, previous, event, 0) &&
-      touchesEventCell(state, player, event, movementTolerance)
-    ) {
+    if (runnable !== null) {
+      const page = event.pages[runnable.pageIndex];
+      if (!page) continue;
+      const movementPickup = programGrantsMovementEffect(runnable.program);
+      const verticalContact = (position: WorldPosition): boolean => {
+        if (!movementPickup) return true;
+        const terrain = state.location?.definition.terrain;
+        if (!terrain) return false;
+        const centre = activeEventCentre(state, event);
+        const surface = terrain.query.heightAt(centre.x, centre.z) ?? terrain.waterLevel;
+        const targetY = surface + (page.graphicElevation ?? 0);
+        return Math.abs(position.y - targetY) <= 0.85;
+      };
+      if (
+        (touchesEventCell(state, previous, event, 0) && verticalContact(previous)) ||
+        !touchesEventCell(state, player, event, movementTolerance) ||
+        !verticalContact(player)
+      )
+        continue;
       startRun(state.eventRuns, {
         event,
         pageIndex: runnable.pageIndex,

@@ -104,6 +104,12 @@ import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import { parseMapHeroSettings } from "./map-hero-settings.js";
 import { type MapFixedLighting, parseMapFixedLighting } from "./map-lighting.js";
 import type { MerchantDefinition } from "./merchant.js";
+import {
+  type ActiveMovementEffect,
+  isMovementEffectKind,
+  MOVEMENT_EFFECT_KINDS,
+  validMovementEffectPower,
+} from "./movement-effects.js";
 import { isPartyMaterials, MAX_HARVEST_HITS, type PartyMaterials } from "./party-harvest-state.js";
 import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
@@ -411,6 +417,8 @@ export interface SelfState {
     invisibleUntil: number;
     resurrectionAt: number;
   };
+  /** Room-local movement pickups currently granted by the authoritative event runtime. */
+  movementEffects?: readonly ActiveMovementEffect[];
   /** Present only for the Rogue; all values are server deadlines and never persisted. */
   rogue?: RogueSelfState;
   /** Present only for the Ranger; the swap window is room-local. */
@@ -678,6 +686,10 @@ export interface WorldEventSnapshot {
   presentation?: "marker" | "native";
   /** Explicit authored choice for the small ground marker. Legacy omission means visible. */
   showMarker?: boolean;
+  /** Stable authored height above the surface; visual bobbing never changes pickup contact. */
+  elevationOffset?: number;
+  /** Gentle renderer-owned levitation. Omitted for ordinary world events. */
+  floating?: true;
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
   harvest?: {
     state: "intact" | "depleted";
@@ -1832,6 +1844,22 @@ function isSelfState(value: unknown): value is SelfState {
       return false;
     }
   }
+  if (
+    value.movementEffects !== undefined &&
+    (!Array.isArray(value.movementEffects) ||
+      value.movementEffects.length > MOVEMENT_EFFECT_KINDS.length ||
+      !value.movementEffects.every(
+        (effect) =>
+          isRecord(effect) &&
+          isMovementEffectKind(effect.kind) &&
+          isFiniteNumber(effect.until) &&
+          effect.until >= 0 &&
+          isFiniteNumber(effect.power) &&
+          validMovementEffectPower(effect.kind, effect.power),
+      ))
+  ) {
+    return false;
+  }
   if (value.rogue !== undefined) {
     const rogue = value.rogue;
     if (
@@ -2079,6 +2107,11 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
       value.presentation === "marker" ||
       value.presentation === "native") &&
     (value.showMarker === undefined || typeof value.showMarker === "boolean") &&
+    (value.elevationOffset === undefined ||
+      (isFiniteNumber(value.elevationOffset) &&
+        value.elevationOffset >= 0 &&
+        value.elevationOffset <= 16)) &&
+    (value.floating === undefined || value.floating === true) &&
     (harvest === undefined ||
       (isRecord(harvest) &&
         (harvest.state === "intact" || harvest.state === "depleted") &&

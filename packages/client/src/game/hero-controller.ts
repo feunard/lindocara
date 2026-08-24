@@ -126,6 +126,13 @@ export interface HeroMobilityGrant {
   duration: number;
 }
 
+export interface HeroMovementModifiers {
+  /** Multiplies the ordinary downward acceleration. */
+  gravityMultiplier: number;
+  /** Extra jumps available after the normal take-off. */
+  extraAirJumps: number;
+}
+
 export interface HeroControllerOptions {
   terrain: ZoneTerrain;
   /** Where the hero enters, all three axes; `y` is ELEVATION. */
@@ -154,6 +161,8 @@ export interface HeroController {
   step(input: HeroControllerInput, dt: number): HeroEvent[];
   /** Re-resolves the full-tilt speed (a class change, a life transition, a new map's hero rules). */
   setSpeed(speed: number): void;
+  /** Applies temporary movement-pickup physics without replacing the underlying map tuning. */
+  setMovementModifiers(modifiers: HeroMovementModifiers): void;
   /** Replaces live collision/query data without resetting any hero-owned movement state. */
   setTerrain(terrain: ZoneTerrain): void;
   /**
@@ -207,6 +216,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
   let mobility: { remaining: number; window: number } | null = null;
   /** The last action a grant was armed from, live or spent. See `setMobility`'s once-per-id rule. */
   let armedActionId: string | null = null;
+  let configuredAirJumps = 0;
 
   function place(position: WorldPosition): void {
     state.x = position.x;
@@ -299,6 +309,20 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     },
     setSpeed(speed) {
       hero.speed = speed;
+    },
+    setMovementModifiers(modifiers) {
+      hero.jump = {
+        ...HERO_PHYSICS.jump,
+        gravity: HERO_PHYSICS.jump.gravity * Math.max(0.1, modifiers.gravityMultiplier),
+      };
+      const nextAirJumps = Math.max(0, Math.floor(modifiers.extraAirJumps));
+      if (nextAirJumps > configuredAirJumps && state.airborne && !state.gliding) {
+        state.airJumpsRemaining += nextAirJumps - configuredAirJumps;
+      } else {
+        state.airJumpsRemaining = Math.min(state.airJumpsRemaining, nextAirJumps);
+      }
+      configuredAirJumps = nextAirJumps;
+      hero.airJumps = nextAirJumps;
     },
     setTerrain(nextTerrain) {
       terrain = nextTerrain;

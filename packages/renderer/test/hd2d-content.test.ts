@@ -239,6 +239,38 @@ describe("static map content", () => {
     expect(placed.map((mesh) => mesh.position.x)).toEqual([-1.5, 0.5]);
   });
 
+  it("bobs a floating event around its authored elevation without horizontal drift", () => {
+    const pickup = art({ cols: 1, rows: 1, foot: 0.2 });
+    const map = flatMap(4);
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const content = placeStaticContent(ctx, scene, map, resolverFor({ pickup }));
+    content.syncEvents([
+      {
+        id: "floating-pickup",
+        x: 0.5,
+        z: -0.5,
+        graphicAssetId: "pickup",
+        elevationOffset: 1.5,
+        floating: true,
+      },
+    ]);
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("floating pickup was not placed");
+    const authoredVisualY = 1.5 - footOffsetOf(ctx, pickup);
+    expect(mesh.position.y).toBeCloseTo(authoredVisualY, 6);
+
+    const heights = [0, 450, 900, 1_350].map((now) => {
+      content.update(now);
+      expect(mesh.position.x).toBe(0.5);
+      expect(mesh.position.z).toBe(-0.5);
+      return mesh.position.y;
+    });
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.2);
+    expect(heights.every((height) => Math.abs(height - authoredVisualY) <= 0.141)).toBe(true);
+    content.dispose();
+  });
+
   it("updates one harvested event without rebuilding every other resource billboard", () => {
     const npc = art();
     const stump = art({ cols: 1, height: 1 });

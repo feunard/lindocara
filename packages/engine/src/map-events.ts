@@ -111,6 +111,8 @@ export const MOVE_TYPES = ["fixed", "random", "approach", "custom"] as const;
 export type MoveType = (typeof MOVE_TYPES)[number];
 
 export const EVENT_GRAPHIC_TINT_DEFAULT = 0xffffff;
+/** Relative height in tile units for airborne event art and its pickup contact volume. */
+export const EVENT_GRAPHIC_ELEVATION_LIMITS = { min: 0, max: 16 } as const;
 export const MAX_NPC_ROUTINE_STEPS = 16;
 export const NPC_ROUTINE_OFFSET_LIMIT = 32;
 export const NPC_ROUTINE_WAIT_LIMITS = { min: 0, max: 60_000 } as const;
@@ -220,6 +222,10 @@ export interface MapEventPage {
   graphicAssetId: EditorAssetId | null;
   /** RGB multiplier applied by the renderer. Missing legacy data means neutral white. */
   graphicTint?: number;
+  /** Relative height above the authored surface, in tile units. Legacy omission means grounded. */
+  graphicElevation?: number;
+  /** Gentle visual levitation around `graphicElevation`; contact keeps the stable authored height. */
+  optFloat?: boolean;
   moveType: MoveType;
   /** Authored custom route. An empty legacy route keeps the historical deterministic circuit. */
   moveRoute?: readonly NpcRoutineStep[];
@@ -602,6 +608,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     condSelfSwitch,
     graphicAssetId,
     graphicTint,
+    graphicElevation,
     moveType,
     moveRoute,
     moveSpeed,
@@ -611,6 +618,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     optDirFix,
     optThrough,
     optOnTop,
+    optFloat,
     optHostile,
     trigger,
     commands,
@@ -619,6 +627,14 @@ function parseEventPage(raw: unknown): MapEventPage | null {
   if (
     condSwitchId !== null &&
     !(typeof condSwitchId === "string" && CONDITION_ID_PATTERN.test(condSwitchId))
+  )
+    return null;
+  if (
+    graphicElevation !== undefined &&
+    (typeof graphicElevation !== "number" ||
+      !Number.isFinite(graphicElevation) ||
+      graphicElevation < EVENT_GRAPHIC_ELEVATION_LIMITS.min ||
+      graphicElevation > EVENT_GRAPHIC_ELEVATION_LIMITS.max)
   )
     return null;
   if (
@@ -657,6 +673,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     typeof optDirFix !== "boolean" ||
     typeof optThrough !== "boolean" ||
     typeof optOnTop !== "boolean" ||
+    (optFloat !== undefined && typeof optFloat !== "boolean") ||
     (optHostile !== undefined && typeof optHostile !== "boolean")
   )
     return null;
@@ -676,6 +693,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     condSelfSwitch: condSelfSwitch as SelfSwitch | null,
     graphicAssetId: retiredRunnerGraphic ? null : (graphicAssetId as EditorAssetId | null),
     graphicTint: parsedTint as number,
+    ...(graphicElevation === undefined ? {} : { graphicElevation }),
     moveType,
     moveRoute: parsedRoute,
     moveSpeed: speed,
@@ -685,6 +703,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     optDirFix,
     optThrough,
     optOnTop,
+    ...(optFloat === undefined ? {} : { optFloat }),
     // Absent stays absent: every page authored before this is peaceful, and writing `false` into
     // all of them would rewrite maps that never changed.
     ...(optHostile === undefined ? {} : { optHostile }),

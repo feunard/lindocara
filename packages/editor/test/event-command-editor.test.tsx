@@ -145,6 +145,25 @@ describe("EventCommandEditor", () => {
     expect(latest.current).toEqual([{ t: "damage", amount: 40, lethal: true }]);
   });
 
+  it("authors a configurable movement bonus or penalty", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness latest={latest} />);
+
+    await insertVia(user, "movementEffect")();
+    expect(latest.current).toEqual([
+      { t: "movementEffect", effect: "speed_boost", durationMs: 6_000, power: 1.35 },
+    ]);
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cmd.field.movementEffect") }),
+      "double_jump",
+    );
+    expect(latest.current).toEqual([
+      { t: "movementEffect", effect: "double_jump", durationMs: 9_000, power: 1 },
+    ]);
+  });
+
   it("inserts AFTER the selected command, not at the end (mutation proof a)", async () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };
@@ -407,14 +426,17 @@ describe("EventCommandEditor", () => {
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
     // The core event language plus the authored quest/fact commands, the endAdventure beat, the
-    // `openShop` counter, the reusable damage trap, the authored cue and the three ambience
-    // commands; deferred common-event and screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(26);
+    // `openShop` counter, the reusable damage trap and movement modifiers, the authored cue and
+    // the three ambience commands; deferred common-event and screen commands remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(27);
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
     ).toBeEnabled();
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.playSound") }),
+    ).toBeEnabled();
+    expect(
+      within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.movementEffect") }),
     ).toBeEnabled();
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();

@@ -19,6 +19,13 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
 import { MAP_WEATHERS, type MapWeather } from "@lindocara/engine/map-weather.js";
 import {
+  MOVEMENT_EFFECT_DEFAULTS,
+  MOVEMENT_EFFECT_DURATION_LIMITS,
+  MOVEMENT_EFFECT_KINDS,
+  MOVEMENT_EFFECT_POWER_LIMITS,
+  type MovementEffectKind,
+} from "@lindocara/engine/movement-effects.js";
+import {
   SOUND_EFFECT_FAMILIES,
   SOUND_EFFECT_IDS,
   SOUND_EFFECTS,
@@ -94,7 +101,7 @@ const COMMAND_CATEGORIES: readonly {
   },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
-  { key: "character", kinds: ["teleport", "wait", "damage"] },
+  { key: "character", kinds: ["teleport", "wait", "damage", "movementEffect"] },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
   { key: "ambience", kinds: ["playSound", "setMusic", "setWeather", "setDayCycle"] },
   { key: "other", kinds: ["comment"] },
@@ -172,6 +179,15 @@ function defaultCommand(
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "damage":
       return { t: "damage", amount: 25, lethal: false };
+    case "movementEffect": {
+      const defaults = MOVEMENT_EFFECT_DEFAULTS.speed_boost;
+      return {
+        t: "movementEffect",
+        effect: defaults.kind,
+        durationMs: defaults.durationMs,
+        power: defaults.power,
+      };
+    }
     case "teleport": {
       const mapId = ctx.maps[0]?.mapId;
       return mapId === undefined
@@ -232,6 +248,7 @@ function NumberField({
   className,
   min,
   max,
+  step,
 }: {
   ariaLabel: string;
   value: number;
@@ -240,6 +257,7 @@ function NumberField({
   className?: string;
   min?: number;
   max?: number;
+  step?: number;
 }) {
   return (
     <input
@@ -247,6 +265,7 @@ function NumberField({
       aria-label={ariaLabel}
       min={min}
       max={max}
+      step={step}
       className={`border-input focus-visible:border-ring focus-visible:ring-ring/50 h-7 rounded-lg border bg-transparent px-2 text-xs tabular-nums outline-none focus-visible:ring-3 ${className ?? ""}`}
       value={value}
       onChange={(e) => onChange(Number(e.currentTarget.value))}
@@ -410,6 +429,11 @@ function commandLine(
     case "damage":
       return t(command.lethal ? "editor.event.cmd.damage.lethal" : "editor.event.cmd.damage", {
         amount: command.amount,
+      });
+    case "movementEffect":
+      return t("editor.event.cmd.movementEffect", {
+        effect: t(`editor.event.effect.${command.effect}`),
+        seconds: command.durationMs / 1_000,
       });
     case "teleport": {
       const map = maps.find((m) => m.mapId === command.mapId);
@@ -1045,6 +1069,83 @@ function ParamBody({
           </Field>
         </div>
       );
+    case "movementEffect": {
+      const changeEffect = (effect: MovementEffectKind): void => {
+        const defaults = MOVEMENT_EFFECT_DEFAULTS[effect];
+        onChange({
+          t: "movementEffect",
+          effect,
+          durationMs: defaults.durationMs,
+          power: defaults.power,
+        });
+      };
+      const defaultPower = MOVEMENT_EFFECT_DEFAULTS[command.effect].power;
+      return (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={t("editor.event.cmd.field.movementEffect")}>
+            <FieldSelect
+              aria-label={t("editor.event.cmd.field.movementEffect")}
+              className="w-48"
+              value={command.effect}
+              onChange={(event) => changeEffect(event.currentTarget.value as MovementEffectKind)}
+            >
+              {MOVEMENT_EFFECT_KINDS.map((effect) => (
+                <option key={effect} value={effect}>
+                  {t(`editor.event.effect.${effect}`)}
+                </option>
+              ))}
+            </FieldSelect>
+          </Field>
+          <Field label={t("editor.event.cmd.field.durationMs")}>
+            <NumberField
+              ariaLabel={t("editor.event.cmd.field.durationMs")}
+              className="w-28"
+              value={command.durationMs}
+              min={MOVEMENT_EFFECT_DURATION_LIMITS.min}
+              max={MOVEMENT_EFFECT_DURATION_LIMITS.max}
+              onChange={(durationMs) => onChange({ ...command, durationMs })}
+              onBlur={() =>
+                onChange({
+                  ...command,
+                  durationMs: clampInt(
+                    command.durationMs,
+                    MOVEMENT_EFFECT_DURATION_LIMITS.min,
+                    MOVEMENT_EFFECT_DURATION_LIMITS.max,
+                    MOVEMENT_EFFECT_DEFAULTS[command.effect].durationMs,
+                  ),
+                })
+              }
+            />
+          </Field>
+          {command.effect !== "inverted_controls" && (
+            <Field label={t("editor.event.cmd.field.effectPower")}>
+              <NumberField
+                ariaLabel={t("editor.event.cmd.field.effectPower")}
+                className="w-24"
+                value={command.power}
+                min={command.effect === "double_jump" ? 1 : MOVEMENT_EFFECT_POWER_LIMITS.min}
+                max={command.effect === "double_jump" ? 2 : MOVEMENT_EFFECT_POWER_LIMITS.max}
+                step={command.effect === "double_jump" ? 1 : 0.05}
+                onChange={(power) => onChange({ ...command, power })}
+                onBlur={() => {
+                  const min =
+                    command.effect === "double_jump" ? 1 : MOVEMENT_EFFECT_POWER_LIMITS.min;
+                  const max =
+                    command.effect === "double_jump" ? 2 : MOVEMENT_EFFECT_POWER_LIMITS.max;
+                  const power = Number.isFinite(command.power)
+                    ? Math.min(max, Math.max(min, command.power))
+                    : defaultPower;
+                  onChange({
+                    ...command,
+                    power: command.effect === "double_jump" ? Math.round(power) : power,
+                  });
+                }}
+              />
+            </Field>
+          )}
+        </div>
+      );
+    }
     case "teleport":
       return <TeleportParams command={command} maps={maps} onChange={onChange} />;
     case "changeGold":

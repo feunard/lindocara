@@ -387,6 +387,7 @@ export function stepHero(
         state.y = ground;
         state.groundY = ground;
         state.coyote = hero.jump.coyote;
+        state.airJumpsRemaining = hero.airJumps ?? 0;
       }
 
       // No jumping from the water, and coyote time: a few frames are forgiven after leaving an
@@ -400,12 +401,29 @@ export function stepHero(
         events.push({ t: "saut" });
       }
 
+      // A movement pickup may grant one or more extra jumps. They are consumed before the same
+      // fresh press is interpreted as the canopy toggle, so double-jump and gliding remain usable
+      // together: jump, jump again, then press once more to open the glider.
+      let justAirJumped = false;
+      if (
+        jumpPressed &&
+        !justJumped &&
+        state.airborne &&
+        !state.gliding &&
+        state.airJumpsRemaining > 0
+      ) {
+        state.vy = hero.jump.speed;
+        state.airJumpsRemaining -= 1;
+        justAirJumped = true;
+        events.push({ t: "saut" });
+      }
+
       // The canopy: a fresh press while ALREADY in the air opens it, another folds it. Two guards,
       // both load-bearing. `!justJumped` — the same press that just started the jump is still a
       // rising edge on this very frame, and without it every take-off would pop the canopy.
       // `state.airborne` — there is nothing to glide from on the ground. Not swimming and not
       // indoors come for free: this whole block is nested inside those two branches.
-      if (jumpPressed && !justJumped && state.airborne) {
+      if (jumpPressed && !justJumped && !justAirJumped && state.airborne) {
         if (state.gliding) {
           state.gliding = false;
           events.push({ t: "glider-close" });
@@ -435,6 +453,7 @@ export function stepHero(
           events.push({ t: "reception", force: impact });
           state.vy = 0;
           state.airborne = false;
+          state.airJumpsRemaining = hero.airJumps ?? 0;
           state.distanceDepuisLePas = 0;
         }
       }
