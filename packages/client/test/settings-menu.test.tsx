@@ -117,10 +117,11 @@ describe("SettingsMenu", () => {
     expect(screen.getByRole("button", { name: "Remap Ability 2" })).toHaveTextContent("Triangle");
     expect(screen.getByRole("button", { name: "Remap Ability 3" })).toHaveTextContent("Circle");
     expect(screen.getByRole("button", { name: "Remap Ultimate" })).toHaveTextContent("R3");
-    await userEvent.click(screen.getByText("Menus & shortcuts"));
-    expect(screen.getByRole("button", { name: "Remap Options / back" })).toHaveTextContent(
+    expect(screen.getByRole("button", { name: "Remap Release spirit" })).toHaveTextContent(
       "Options",
     );
+    await userEvent.click(screen.getByText("Menus & shortcuts"));
+    expect(screen.getByRole("button", { name: "Remap Options / back" })).toHaveTextContent("L3");
   });
 
   it("owns the switch-character and back-to-title actions instead of the player frame", async () => {
