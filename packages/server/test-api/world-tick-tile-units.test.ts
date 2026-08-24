@@ -25,6 +25,7 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { resurrectHp } from "@lindocara/engine/death.js";
+import { presetEvent } from "@lindocara/engine/event-presets.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
@@ -40,13 +41,21 @@ import { describe, expect, it } from "vitest";
 
 import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
-import { authoredTeleportTarget, teleportSameMap } from "../src/api/realtime/world-interactions.ts";
+import {
+  authoredTeleportTarget,
+  dispatchMovementEffect,
+  teleportSameMap,
+} from "../src/api/realtime/world-interactions.ts";
 import {
   applyReportedMove,
   handleRelease,
   killPlayer,
 } from "../src/api/realtime/world-move-life.ts";
-import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
+import {
+  activeEventCentre,
+  evaluateActiveEvents,
+  touchesEventCell,
+} from "../src/api/realtime/worldEvents.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
 import { createMonsters, newPlayer, type PlayerRuntime } from "../src/world/world-runtime.js";
 
@@ -534,6 +543,51 @@ describe("releasing a spirit", () => {
       { id: "runner-pursuer", x: -3.5, z: -2.5 },
       { id: "runner-ambush", x: 1.5, z: 2.5 },
     ]);
+  });
+
+  it("consumes a movement pickup and restores it only when a hardcore attempt restarts", () => {
+    const built = terrain();
+    const player = hero(0.5, 0.5);
+    const pickup = presetEvent({
+      id: "pickup-speed",
+      col: 8,
+      row: 8,
+      ordinal: 1,
+      preset: "pickup-speed-boost",
+      selfMapId: MAP_ID,
+    });
+    const w = glue(built, player, { x: -1.5, z: -1.5 }, [pickup]);
+    w.state.gameMode = "hardcore_runner";
+    evaluateActiveEvents(w.state, NOW);
+    expect(w.state.activeEvents.some((event) => event.id === pickup.id)).toBe(true);
+
+    const effect = {
+      kind: "movementEffect" as const,
+      effect: "speed_boost" as const,
+      durationMs: 6_000,
+      power: 1.35,
+    };
+    dispatchMovementEffect(
+      w,
+      {
+        heroId: player.id,
+        runId: "pickup-run",
+        eventId: pickup.id,
+        effect,
+      },
+      effect,
+      NOW,
+    );
+
+    expect(player.movementEffects.get("speed_boost")?.until).toBe(NOW + 6_000);
+    expect(w.state.consumedMovementPickupIds).toContain(pickup.id);
+    expect(w.state.activeEvents.some((event) => event.id === pickup.id)).toBe(false);
+
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(w.state.consumedMovementPickupIds.size).toBe(0);
+    expect(w.state.activeEvents.some((event) => event.id === pickup.id)).toBe(true);
   });
 
   it("ignores another release after the hero is already alive", () => {

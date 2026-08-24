@@ -105,6 +105,7 @@ import {
 } from "./world-send.ts";
 import {
   activeEventCentre,
+  consumeMovementPickup,
   logGoldRefusedOnce,
   logItemRefusedOnce,
   logTeleportRefusedOnce,
@@ -1169,6 +1170,7 @@ export function dispatchMovementEffect(
     power: effect.power,
     until: now + effect.durationMs,
   });
+  consumeMovementPickup(w.state, dispatch.eventId);
   sendStateTo(w, connectionId, player);
 }
 

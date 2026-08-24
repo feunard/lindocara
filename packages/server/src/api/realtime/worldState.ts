@@ -449,6 +449,8 @@ export interface WorldRoomState {
   heroPartyBroadcasts: Map<string, string>;
   /** Authored events whose page currently holds, reconciled whenever adventure state changes. */
   activeEvents: readonly ActiveWorldEvent[];
+  /** Room-local one-shot movement pickups already collected during this attempt. */
+  consumedMovementPickupIds: Set<string>;
   /** Static map/element collision, kept separate so dynamic harvest footprints can be rebuilt. In
    *  tile units, grid centre as origin — the heightfield's own authored rects. */
   staticColliders: readonly ColliderRect[];
@@ -572,6 +574,7 @@ export function createWorldRoomState(
       : null,
     heroPartyBroadcasts: new Map(),
     activeEvents: [],
+    consumedMovementPickupIds: new Set(),
     staticColliders,
     staticColliderIndex,
     harvestColliders: [],

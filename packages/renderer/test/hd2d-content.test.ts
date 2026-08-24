@@ -266,8 +266,8 @@ describe("static map content", () => {
       expect(mesh.position.z).toBe(-0.5);
       return mesh.position.y;
     });
-    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.2);
-    expect(heights.every((height) => Math.abs(height - authoredVisualY) <= 0.141)).toBe(true);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.3);
+    expect(heights.every((height) => Math.abs(height - authoredVisualY) <= 0.221)).toBe(true);
     content.dispose();
   });
 
@@ -422,6 +422,13 @@ describe("static map content", () => {
  * a tree in the ground fails here rather than on screen.
  */
 describe("staticAssetSpec", () => {
+  it("renders high-resolution movement pickups at collectible scale", () => {
+    expect(staticAssetSpec("resource.lindocara-pickup.speed-boost")).toMatchObject({
+      height: 1.05,
+      aspect: 1,
+    });
+  });
+
   it("reads a catalogue sheet's grid, scale and ground line", () => {
     // `tree3` is a 192x192 frame repeated 8 times along x, its measured ground line 22px up.
     const spec = staticAssetSpec("resource.terrain-resources-wood-trees.tree3");

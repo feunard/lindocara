@@ -51,6 +51,7 @@ import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
   LINDOCARA_INTERIOR_ASSET_IDS,
+  LINDOCARA_PICKUP_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -115,6 +116,9 @@ import {
  *  catalogue entry, not a hardcoded URL, so a future recolour of the warrior sheet updates the
  *  marker too. */
 const EDITOR_SPAWN_KNIGHT_ASSET_ID = "character.units-blue-units-warrior.warrior-idle";
+const LINDOCARA_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set(
+  Object.values(LINDOCARA_PICKUP_ASSET_IDS),
+);
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -781,7 +785,10 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     url,
     cols: crop ? 1 : alongX ? count : 1,
     rows: crop ? 1 : alongX ? 1 : count,
-    height: framePx.height / TILE_SIZE,
+    // Pickup source canvases are authored at 192 px for clean detail, not as three-tile-tall
+    // scenery. Keep their in-world silhouette close to a hero's boot instead of applying the
+    // catalogue's ordinary 64 px-per-tile prop scale.
+    height: LINDOCARA_PICKUP_ASSET_ID_SET.has(assetId) ? 1.05 : framePx.height / TILE_SIZE,
     aspect: framePx.width / framePx.height,
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
     renderLayer:

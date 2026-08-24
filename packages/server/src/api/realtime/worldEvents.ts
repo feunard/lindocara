@@ -44,6 +44,7 @@ import {
 import {
   type CollisionElevation,
   editorAssetCollisionElevation,
+  LINDOCARA_PICKUP_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { ZoneTerrain } from "@lindocara/engine/zones.js";
 
@@ -80,6 +81,38 @@ function programGrantsMovementEffect(commands: readonly EventCommand[]): boolean
     }
     return false;
   });
+}
+
+const MOVEMENT_PICKUP_ASSET_IDS: ReadonlySet<string> = new Set(
+  Object.values(LINDOCARA_PICKUP_ASSET_IDS),
+);
+
+function isMovementPickupPage(event: MapEvent, pageIndex: number): boolean {
+  const page = event.pages[pageIndex];
+  return Boolean(
+    page &&
+    page.graphicAssetId &&
+    MOVEMENT_PICKUP_ASSET_IDS.has(page.graphicAssetId) &&
+    programGrantsMovementEffect(page.commands),
+  );
+}
+
+/** Consume a dedicated movement pickup for the room's current attempt. The effect remains scoped
+ * to its triggering hero, while the collectible itself is shared world state and disappears for
+ * everyone. Scripted movement effects using another appearance remain repeatable. */
+export function consumeMovementPickup(state: WorldRoomState, eventId: string): boolean {
+  const event = state.location?.definition.events?.find((candidate) => candidate.id === eventId);
+  if (!event) return false;
+  const pageIndex = activePageIndex(event, state.adventureState.state);
+  if (pageIndex === null || !isMovementPickupPage(event, pageIndex)) return false;
+  state.consumedMovementPickupIds.add(eventId);
+  state.activeEvents = state.activeEvents.filter((active) => active.id !== eventId);
+  state.npcMovement.delete(eventId);
+  state.eventTouchActorPositions.delete(eventId);
+  for (const contact of state.eventTouchContacts) {
+    if (contact.startsWith(`${eventId}:`)) state.eventTouchContacts.delete(contact);
+  }
+  return true;
 }
 
 function colliderTuple(
@@ -289,6 +322,8 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
     if (!isActiveWorldEventKind(event.kind)) continue;
     const index = activePageIndex(event, adventureState);
     if (index === null) continue;
+    if (state.consumedMovementPickupIds.has(event.id) && isMovementPickupPage(event, index))
+      continue;
     // A character the active page turned hostile has a body already: the monster projected above.
     // Drawing its peaceful sprite here too would leave the villager standing inside the thing that
     // is attacking, and would keep its dialogue interactable mid-fight.
@@ -532,6 +567,7 @@ export function runnablePage(
   trigger: EventTrigger,
 ): { pageIndex: number; program: readonly EventCommand[] } | null {
   if (!isInteractiveWorldEventKind(event.kind)) return null;
+  if (state.consumedMovementPickupIds.has(event.id)) return null;
   const pageIndex = activePageIndex(event, state.adventureState.state);
   if (pageIndex === null) return null;
   const page = event.pages[pageIndex];

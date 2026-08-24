@@ -685,8 +685,9 @@ export function placeStaticContent(
             placement.anchorZ + wind.z,
           );
         } else if (placement.floating) {
-          const phase = ((now + placement.phaseMs) / 1_800) * Math.PI * 2;
-          placement.sprite.mesh.position.y = placement.anchorY + Math.sin(phase) * 0.14;
+          const phase = ((now + placement.phaseMs) / 1_600) * Math.PI * 2;
+          placement.sprite.mesh.position.y = placement.anchorY + Math.sin(phase) * 0.22;
+          placement.sprite.mesh.rotation.z = Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(2.5);
         }
         if ("update" in placement.sprite) placement.sprite.update(now);
       }
