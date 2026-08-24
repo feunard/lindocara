@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { t, useLocale } from "../../i18n.js";
 import { type EventDialogue, useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { MenuNav, useMenuItem } from "../tiny-swords/menu-nav.js";
 import { TinyButton } from "../tiny-swords/TinyButton.js";
 import { TinyKbd } from "../tiny-swords/TinyKbd.js";
@@ -25,10 +26,12 @@ function EventDialogueSay({
   dialogue,
   game,
   order,
+  confirmBinding,
 }: {
   dialogue: Extract<EventDialogue, { kind: "say" }>;
   game: ReturnType<typeof useUiStore.getState>["game"];
   order: number;
+  confirmBinding: string;
 }) {
   const continueItem = useMenuItem({
     order,
@@ -41,7 +44,7 @@ function EventDialogueSay({
       <div className="event-dialogue__actions">
         <span ref={continueItem.ref} {...continueItem.itemProps}>
           <TinyButton size="sm" type="button" data-dialogue-advance>
-            {t("dialogue.continue")} <TinyKbd>{t("dialogue.space")}</TinyKbd>
+            {t("dialogue.continue")} <TinyKbd>{confirmBinding}</TinyKbd>
           </TinyButton>
         </span>
       </div>
@@ -53,16 +56,21 @@ function EventDialogueChoices({
   dialogue,
   game,
   order,
+  confirmBinding,
 }: {
   dialogue: Extract<EventDialogue, { kind: "choices" }>;
   game: ReturnType<typeof useUiStore.getState>["game"];
   order: number;
+  confirmBinding: string;
 }) {
   return (
     <>
       <p className="event-dialogue__text">{dialogue.prompt}</p>
       <fieldset className="event-dialogue__choices">
         <legend className="event-dialogue__legend">{t("dialogue.choose")}</legend>
+        <p className="event-dialogue__confirm-hint">
+          <TinyKbd>{confirmBinding}</TinyKbd> {t("dialogue.confirm")}
+        </p>
         {dialogue.options.map((label, index) => (
           <EventDialogueChoice
             key={`${dialogue.runId}-${label}`}
@@ -114,25 +122,17 @@ export function EventDialoguePanel() {
   useLocale();
   const dialogue = useUiStore((s) => s.eventDialogue);
   const game = useUiStore((s) => s.game);
+  const { mode, settings } = useInputModeSettings();
+  const confirmBinding = controlBindingLabel("interact", mode, settings);
 
   useEffect(() => {
     if (!dialogue) return;
-    const advance = () => {
-      if (dialogue.kind === "say") game?.eventAdvance?.(dialogue.runId);
-    };
     const chooseOption = (index: number) => {
       if (dialogue.kind !== "choices" || index < 0 || index >= dialogue.options.length) return;
       game?.eventChoose?.(dialogue.runId, index);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isTextEntry(event.target)) return;
-      if (event.code === "Space" || event.code === "Enter") {
-        if (dialogue.kind === "say") {
-          event.preventDefault();
-          advance();
-        }
-        return;
-      }
       const index = digitIndex(event.code);
       if (index === null) return;
       if (dialogue.kind === "choices") {
@@ -156,9 +156,19 @@ export function EventDialoguePanel() {
     >
       <MenuNav orientation="vertical" confirmControl="interact">
         {dialogue.kind === "say" ? (
-          <EventDialogueSay dialogue={dialogue} game={game} order={0} />
+          <EventDialogueSay
+            dialogue={dialogue}
+            game={game}
+            order={0}
+            confirmBinding={confirmBinding}
+          />
         ) : (
-          <EventDialogueChoices dialogue={dialogue} game={game} order={0} />
+          <EventDialogueChoices
+            dialogue={dialogue}
+            game={game}
+            order={0}
+            confirmBinding={confirmBinding}
+          />
         )}
       </MenuNav>
     </TinyPanel>

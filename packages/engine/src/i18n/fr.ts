@@ -22,6 +22,7 @@ export const fr: Record<keyof typeof en, string> = {
   "quest.dialogue.failed": "Action impossible",
   "quest.dialogue.failed.hint": "L’état de la quête a changé. Parlez de nouveau à cette cible.",
   "dialogue.choose": "Choisissez une réponse",
+  "dialogue.confirm": "Valider",
   "dialogue.space": "Espace",
   "inventory.eyebrow": "Sac de voyage",
   "inventory.title": "Inventaire",

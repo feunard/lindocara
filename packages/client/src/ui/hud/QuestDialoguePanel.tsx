@@ -2,8 +2,10 @@ import { type ReactNode, useState } from "react";
 
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { MenuNav, useMenuItem } from "../tiny-swords/menu-nav.js";
 import { TinyButton } from "../tiny-swords/TinyButton.js";
+import { TinyKbd } from "../tiny-swords/TinyKbd.js";
 import { TinyPanel } from "../tiny-swords/TinyPanel.js";
 
 function QuestDialogueItem({
@@ -30,9 +32,11 @@ export function QuestDialoguePanel() {
   const dialogue = useUiStore((state) => state.questDialogue);
   const game = useUiStore((state) => state.game);
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const { mode, settings } = useInputModeSettings();
   if (!dialogue) return null;
 
   const close = () => game?.questAction?.(dialogue.conversationId, "close");
+  const confirmBinding = controlBindingLabel("interact", mode, settings);
   return (
     <MenuNav orientation="vertical" confirmControl="interact" onBack={close}>
       <TinyPanel
@@ -41,6 +45,9 @@ export function QuestDialoguePanel() {
         aria-label={t("quest.dialogue.title")}
         data-text-surface="dialogue"
       >
+        <p className="event-dialogue__confirm-hint">
+          <TinyKbd>{confirmBinding}</TinyKbd> {t("dialogue.confirm")}
+        </p>
         {dialogue.kind === "result" ? (
           <>
             <div className="quest-dialogue__heading">

@@ -14,6 +14,7 @@ import {
   type ControlId,
   firstConnectedGamepad,
   gamepadControlPressed,
+  keyboardControlForCode,
   setInputMode,
 } from "@lindocara/renderer/input-settings.js";
 import {
@@ -145,7 +146,11 @@ export function MenuNav({
         setInputMode("keyboard");
         event.preventDefault();
         move(1);
-      } else if (event.key === "Enter" || event.key === " ") {
+      } else if (
+        event.key === "Enter" ||
+        event.key === " " ||
+        (confirmControl !== undefined && keyboardControlForCode(event.code) === confirmControl)
+      ) {
         if (focusedRef.current) {
           setInputMode("keyboard");
           event.preventDefault();
@@ -161,7 +166,7 @@ export function MenuNav({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [orientation, move, activate, onBack, triggerBack]);
+  }, [orientation, move, activate, onBack, triggerBack, confirmControl]);
 
   // Gamepad. One press = one step; holding repeats after a delay. B triggers onBack.
   useEffect(() => {

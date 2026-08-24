@@ -2100,6 +2100,15 @@ kbd {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+.event-dialogue__confirm-hint {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin: 0;
+  color: #d6cdb9;
+  font-size: 0.72rem;
+}
 .event-dialogue__choice {
   justify-content: flex-start;
   gap: 0.5rem;

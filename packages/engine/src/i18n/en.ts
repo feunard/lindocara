@@ -27,6 +27,7 @@ export const en = {
   "quest.dialogue.failed": "Action unavailable",
   "quest.dialogue.failed.hint": "The quest state changed. Talk to this target again.",
   "dialogue.choose": "Choose an answer",
+  "dialogue.confirm": "Confirm",
   "dialogue.space": "Space",
   "inventory.eyebrow": "Travelling pack",
   "inventory.title": "Inventory",

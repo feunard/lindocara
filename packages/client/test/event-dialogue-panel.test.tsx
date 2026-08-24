@@ -9,6 +9,11 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { EventDialoguePanel } from "@lindocara/client/ui/hud/EventDialoguePanel.js";
+import {
+  resetInputBindings,
+  setGamepadBinding,
+  setInputMode,
+} from "@lindocara/renderer/input-settings.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +31,8 @@ function stubGame() {
 
 beforeEach(() => {
   setLocale("en");
+  resetInputBindings();
+  setInputMode("keyboard");
   eventAdvance.mockClear();
   eventChoose.mockClear();
   stubGame();
@@ -33,6 +40,8 @@ beforeEach(() => {
 
 afterEach(() => {
   useUiStore.setState({ eventDialogue: null });
+  resetInputBindings();
+  setInputMode("keyboard");
 });
 
 describe("EventDialoguePanel", () => {
@@ -54,7 +63,7 @@ describe("EventDialoguePanel", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(eventAdvance).toHaveBeenCalledWith("run-1");
 
-    fireEvent.keyDown(window, { code: "Space" });
+    fireEvent.keyDown(window, { key: " ", code: "Space" });
     expect(eventAdvance).toHaveBeenCalledTimes(2);
   });
 
@@ -97,6 +106,91 @@ describe("EventDialoguePanel", () => {
     fireEvent.keyDown(window, { key: "Enter", code: "Enter" });
 
     expect(eventChoose).toHaveBeenCalledWith("run-arrows", 1);
+  });
+
+  it("uses the D-pad or left stick and the remapped gamepad confirm button", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const axes = [0, 0];
+    const gamepad = {
+      axes,
+      buttons,
+      connected: true,
+      id: "Test Xbox controller",
+    } as unknown as Gamepad;
+    const originalGetGamepads = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    setGamepadBinding("interact", { kind: "button", index: 2 });
+    useUiStore.setState({
+      eventDialogue: {
+        kind: "choices",
+        runId: "run-gamepad",
+        prompt: "Choose a path.",
+        options: ["Forest", "Cave"],
+      },
+    });
+    const { unmount } = render(<EventDialoguePanel />);
+    const poll = () => {
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      act(() => callback(0));
+    };
+    const setButton = (index: number, pressed: boolean) => {
+      const button = buttons[index];
+      if (!button) throw new Error(`Missing test gamepad button ${index}`);
+      button.pressed = pressed;
+      button.touched = pressed;
+      button.value = Number(pressed);
+    };
+
+    try {
+      expect(screen.getByRole("button", { name: /1 Forest/ }).parentElement).toHaveFocus();
+
+      axes[1] = 1;
+      poll();
+      expect(screen.getByRole("button", { name: /2 Cave/ }).parentElement).toHaveFocus();
+      expect(screen.getByText("X", { selector: "kbd" })).toBeInTheDocument();
+
+      axes[1] = 0;
+      poll();
+      setButton(12, true);
+      poll();
+      expect(screen.getByRole("button", { name: /1 Forest/ }).parentElement).toHaveFocus();
+
+      setButton(12, false);
+      poll();
+      setButton(13, true);
+      poll();
+      expect(screen.getByRole("button", { name: /2 Cave/ }).parentElement).toHaveFocus();
+
+      setButton(13, false);
+      poll();
+      setButton(2, true);
+      poll();
+      expect(eventChoose).toHaveBeenCalledWith("run-gamepad", 1);
+    } finally {
+      unmount();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: originalGetGamepads,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
   });
 
   // MUTATION PROOF (c): the panel must never emit a choose with no pending choices offer. On a SAY
