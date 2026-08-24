@@ -255,6 +255,11 @@ describe("procedural map authoring", () => {
     expect(barricades.every((element) => element.rotation === 0 || element.rotation === 90)).toBe(
       true,
     );
+    expect(
+      barricades.every(
+        (element) => element.dimensions?.width === 2.75 && element.dimensions.depth === 1.125,
+      ),
+    ).toBe(true);
     expect(first.events.some((event) => event.monsterPursuitMode === "relentless")).toBe(true);
     const runnerHeroSpeeds = Object.values(first.heroSettings?.classes ?? {}).map(
       (settings) => settings.stats.movementSpeed,
@@ -273,6 +278,11 @@ describe("procedural map authoring", () => {
       event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
     );
     expect(trapElements.length).toBeGreaterThan(0);
+    expect(
+      trapElements.every(
+        (element) => element.dimensions?.width === 1.5 && element.dimensions.depth === 1.5,
+      ),
+    ).toBe(true);
     expect(trapEvents).toHaveLength(trapElements.length);
     expect(
       trapEvents.every(

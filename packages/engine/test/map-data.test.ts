@@ -210,6 +210,8 @@ describe("parsing a map off the wire", () => {
       dimensions: { width: 4, depth: 1.5 },
     } as const;
     expect(elementWorldCollider(barricade)).toMatchObject({ width: 96, height: 256 });
+    const { dimensions: _dimensions, rotation: _rotation, ...legacyBarricade } = barricade;
+    expect(elementWorldCollider(legacyBarricade)).toMatchObject({ width: 116, height: 48 });
     expect(elementFitsMap(barricade, 10, 10)).toBe(true);
     const parsed = parseMapData(
       wire({

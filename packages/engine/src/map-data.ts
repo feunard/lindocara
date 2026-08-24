@@ -440,10 +440,14 @@ export function elementWorldColliderGeometry(
       rotation: (rotation * Math.PI) / 180,
     };
   }
-  const dimensions = nativeSceneryDimensionsOrDefault(
-    element.assetId,
-    element.building?.dimensions ?? element.dimensions,
-  );
+  // Documents authored before resizable native geometry have no explicit dimensions. Keep their
+  // catalogue collider byte-for-byte compatible: switching those rows to the larger render volume
+  // can close an authored passage. Fresh placements and generated Runner props persist dimensions,
+  // so only those opt into the new resize-aware collider.
+  const authoredDimensions = element.building?.dimensions ?? element.dimensions;
+  const dimensions = authoredDimensions
+    ? nativeSceneryDimensionsOrDefault(element.assetId, authoredDimensions)
+    : null;
   const collider = dimensions
     ? {
         x: (-dimensions.width * TILE_SIZE) / 2,
@@ -574,7 +578,7 @@ export function elementFitsMap(element: MapElement, cols: number, rows: number):
       bridge.startRow + bridge.rows <= rows
     );
   }
-  if (element.building?.dimensions || element.dimensions || isNativeSceneryAsset(element.assetId)) {
+  if (element.building?.dimensions || element.dimensions || element.rotation !== undefined) {
     const collider = elementWorldCollider(element);
     return Boolean(
       collider &&

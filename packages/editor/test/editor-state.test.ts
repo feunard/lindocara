@@ -1814,7 +1814,7 @@ describe("native 3D prop settings", () => {
       rotation: 45,
       dimensions: { width: 3, depth: 3 },
     });
-    expect(placed.elements[0]?.dimensions).toBeUndefined();
+    expect(placed.elements[0]?.dimensions).toEqual({ width: 1.5, depth: 1.5 });
   });
 });
 

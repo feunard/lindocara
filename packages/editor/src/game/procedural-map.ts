@@ -39,6 +39,10 @@ import {
 } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import {
+  isNativeSceneryAsset,
+  nativeSceneryDimensionsOrDefault,
+} from "@lindocara/engine/native-scenery.js";
+import {
   paintOneCellRamp,
   type RampDirection,
   resolveWholeLayer,
@@ -1610,12 +1614,16 @@ function tryPlaceElement(
   if (elements.length >= MAX_MAP_ELEMENTS) return false;
   const asset = editorAsset(assetId);
   if (!asset || !allowedGeneratedAsset(asset)) return false;
+  const nativeDimensions = isNativeSceneryAsset(asset.id)
+    ? nativeSceneryDimensionsOrDefault(asset.id)
+    : null;
   const element: MapElement = {
     col: point.col,
     row: point.row,
     offsetX: 0,
     offsetY: 0,
     assetId: asset.id as EditorAssetId,
+    ...(nativeDimensions ? { dimensions: nativeDimensions } : {}),
     ...transform,
   };
   const footprint = authoredElementCells(element);

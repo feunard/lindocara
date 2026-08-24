@@ -84,7 +84,10 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import type { MapWeather } from "@lindocara/engine/map-weather.js";
-import { isNativeSceneryAsset } from "@lindocara/engine/native-scenery.js";
+import {
+  isNativeSceneryAsset,
+  nativeSceneryDimensionsOrDefault,
+} from "@lindocara/engine/native-scenery.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -1985,6 +1988,9 @@ export function applyTool(
       };
       const replaced = map.elements.find((element) => sameElementSlot(element, slot));
       const building = defaultBuildingSettings(assetId);
+      const nativeDimensions = isNativeSceneryAsset(assetId)
+        ? nativeSceneryDimensionsOrDefault(assetId)
+        : null;
       const placed: MapElement = {
         ...(replaced?.id ? { id: replaced.id } : {}),
         ...slot,
@@ -2000,6 +2006,14 @@ export function applyTool(
           ? {
               building:
                 replaced?.assetId === assetId && replaced.building ? replaced.building : building,
+            }
+          : {}),
+        ...(nativeDimensions
+          ? {
+              dimensions:
+                replaced?.assetId === assetId && replaced.dimensions
+                  ? replaced.dimensions
+                  : nativeDimensions,
             }
           : {}),
       };
