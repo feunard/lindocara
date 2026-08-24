@@ -166,20 +166,26 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
   return unitSheet(player.class, player.appearance, motion);
 }
 
-/** The SPECIES, never `graphicAssetId`: an authored catalogue appearance is one more sheet per
- *  authored monster, and preloading a set that only the running adventure knows is a later piece.
- *  The species is the authoritative combat model, so it is never a wrong answer, only a plainer
- *  one — the deleted PixiJS path drew the authored art on top of the same species model. */
+/** The species remains the authoritative combat model; `graphicAssetId` changes presentation only.
+ *  Actor-capable catalogue appearances are finite and preloaded below, so the editor preview and
+ *  runtime draw the exact same authored monster without teaching combat a fake species. */
 export interface BillboardActorSheet {
   source: string;
   frames: number;
   frameWidth?: number;
   frameHeight?: number;
   footOffset?: number;
+  renderHeight?: number;
   axis?: "x" | "y";
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
+const MONSTER_APPEARANCE_ASSETS = EDITOR_ASSETS.filter(
+  (asset) => asset.role === "monster-appearance",
+);
+const MONSTER_APPEARANCE_ASSET_IDS: ReadonlySet<string> = new Set(
+  MONSTER_APPEARANCE_ASSETS.map((asset) => asset.id),
+);
 
 const SHEEP_ACTOR_SHEETS: Readonly<
   Record<(typeof SHEEP_ASSET_IDS)[number], Readonly<Record<"idle" | "run", BillboardActorSheet>>>
@@ -237,7 +243,12 @@ export function authoredActorSheet(
   if (isSheepAssetId(graphicAssetId)) {
     return SHEEP_ACTOR_SHEETS[graphicAssetId][motion === "run" ? "run" : "idle"];
   }
-  if (!graphicAssetId || !NPC_MODEL_ASSET_IDS.has(graphicAssetId)) return null;
+  if (
+    !graphicAssetId ||
+    (!NPC_MODEL_ASSET_IDS.has(graphicAssetId) &&
+      !MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId))
+  )
+    return null;
   const asset = editorAsset(graphicAssetId);
   if (!asset) return null;
   const selected =
@@ -246,14 +257,17 @@ export function authoredActorSheet(
       : motion === "attack" && asset.motions?.attack
         ? asset.motions.attack
         : asset;
-  if (!selected.frame) return null;
+  const frame = selected.frame;
   return {
     source: tinySwordsSourceUrl(selected.sourcePath),
-    frames: selected.frame.count,
-    frameWidth: selected.frame.width,
-    frameHeight: selected.frame.height,
+    frames: frame?.count ?? 1,
+    frameWidth: frame?.width ?? asset.width,
+    frameHeight: frame?.height ?? asset.height,
     footOffset: selected.footOffset,
-    axis: selected.frame.axis,
+    axis: frame?.axis ?? "x",
+    ...(MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId) && !frame
+      ? { renderHeight: asset.height / TILE_SIZE }
+      : {}),
   };
 }
 
@@ -272,6 +286,7 @@ function actorSheetView(sheet: BillboardActorSheet) {
     ...(sheet.frameWidth === undefined ? {} : { frameWidth: sheet.frameWidth }),
     ...(sheet.frameHeight === undefined ? {} : { frameHeight: sheet.frameHeight }),
     frameAxis: sheet.axis ?? ("x" as const),
+    ...(sheet.renderHeight === undefined ? {} : { renderHeight: sheet.renderHeight }),
     ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
       ? {}
       : { foot: sheet.footOffset / sheet.frameHeight }),
@@ -490,6 +505,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
       ...(asset.motions?.attack ? [tinySwordsSourceUrl(asset.motions.attack.sourcePath)] : []),
     ]),
+    ...MONSTER_APPEARANCE_ASSETS.map((asset) => tinySwordsSourceUrl(asset.sourcePath)),
     ...Object.values(SHEEP_ACTOR_SHEETS).flatMap((sheets) => [
       sheets.idle.source,
       sheets.run.source,
