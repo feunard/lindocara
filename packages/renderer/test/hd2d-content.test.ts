@@ -134,7 +134,9 @@ describe("world-event texture loading", () => {
     const grounded = worldEventContentVisualKey([pickup], []);
 
     expect(worldEventContentVisualKey([{ ...pickup, floating: true }], [])).not.toBe(grounded);
-    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.55 }], [])).not.toBe(grounded);
+    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.55 }], [])).not.toBe(
+      grounded,
+    );
   });
 });
 

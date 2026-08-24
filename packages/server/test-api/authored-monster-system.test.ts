@@ -1,6 +1,6 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
-import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { RUNNER_PURSUER_TUNING } from "@lindocara/engine/game.js";
+import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";

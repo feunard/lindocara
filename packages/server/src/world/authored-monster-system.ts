@@ -79,10 +79,7 @@ export function authoredMonsterDefinition(
       ? Math.max(event.monsterAcceleration ?? 0, RUNNER_PURSUER_TUNING.acceleration)
       : (event.monsterAcceleration ?? 0),
     maxSpeed: runnerPursuer
-      ? Math.max(
-          event.monsterMaxSpeed ?? event.monsterSpeed ?? 0,
-          RUNNER_PURSUER_TUNING.maxSpeed,
-        )
+      ? Math.max(event.monsterMaxSpeed ?? event.monsterSpeed ?? 0, RUNNER_PURSUER_TUNING.maxSpeed)
       : (event.monsterMaxSpeed ?? event.monsterSpeed ?? undefined),
     oneHitKill: event.monsterOneHitKill ?? false,
   };

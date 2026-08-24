@@ -704,8 +704,7 @@ export function placeStaticContent(
             placement.anchorY + Math.sin(phase) * 0.3,
             placement.anchorZ,
           );
-          placement.sprite.mesh.rotation.z =
-            Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(4);
+          placement.sprite.mesh.rotation.z = Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(4);
         }
         if (placement.twinkleDurationMs > 0) {
           const phase = ((now + placement.phaseMs) / placement.twinkleDurationMs) * Math.PI * 2;

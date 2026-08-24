@@ -36,13 +36,13 @@ import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js"
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
 import type { WorldEventCollider } from "@lindocara/engine/protocol.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   BODY_RADIUS,
   canStand,
   groundUnder,
   worldEventColliderRect,
 } from "@lindocara/engine/terrain-access.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type CollisionElevation,
   editorAsset,
@@ -330,11 +330,7 @@ function syncEventColliders(state: WorldRoomState): void {
       : [];
     const authored = eventById.get(event.id);
     const profile = authored?.kind === "harvestable" ? authored.harvestProfile : undefined;
-    if (
-      profile &&
-      harvestActorBehavior(profile) !== "wander" &&
-      event.harvest?.collider
-    ) {
+    if (profile && harvestActorBehavior(profile) !== "wander" && event.harvest?.collider) {
       colliders.push(worldEventColliderRect(definition.terrain, event.harvest.collider));
     }
     return colliders;

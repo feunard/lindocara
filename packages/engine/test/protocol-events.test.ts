@@ -158,9 +158,7 @@ describe("events on the wire", () => {
     expect(
       parseServerMessage(JSON.stringify(welcome([event({ collider: [68, 26, 56, 38, 4] })]))),
     ).toBeNull();
-    expect(
-      parseServerMessage(JSON.stringify(welcome([event({ collider: null })]))),
-    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ collider: null })])))).toBeNull();
   });
 
   it("accepts building durability in a welcome and rejects incoherent ruins", () => {
