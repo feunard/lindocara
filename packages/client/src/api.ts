@@ -7,7 +7,11 @@ import type {
   AdventureInput,
   CreateAdventureInput,
 } from "@lindocara/engine/adventure.js";
-import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
+import type {
+  AdventureAudioConfig,
+  MapAudioConfig,
+  UploadedMusicTrack,
+} from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
@@ -64,7 +68,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   // indices. Building a real `Headers` accepts all three, and keeps the caller's
   // own Content-Type when it set one.
   const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const multipart = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!headers.has("Content-Type") && !multipart) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { ...init, headers });
   if (response.status === 204) return undefined as T;
   const body: unknown = await response.json().catch(() => null);
@@ -232,6 +237,14 @@ export const updateMapApi = (
   });
 export const deleteMapApi = (id: string, force = false) =>
   api<void>(`/api/maps/${id}${force ? "?force=true" : ""}`, { method: "DELETE" });
+
+export const fetchMapSoundsApi = () => api<UploadedMusicTrack[]>("/api/map-sounds");
+
+export function uploadMapSoundApi(file: File): Promise<UploadedMusicTrack> {
+  const body = new FormData();
+  body.append("file", file);
+  return api<UploadedMusicTrack>("/api/map-sounds", { method: "POST", body });
+}
 
 export interface AdventureSummary {
   id: string;

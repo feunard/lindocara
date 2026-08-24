@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_ADVENTURE_AUDIO,
+  isMusicTrackId,
+  musicTrack,
   parseAdventureAudioConfig,
   parseMapAudioConfig,
   resolveMapAudio,
   selectMusicSituation,
+  uploadedMusicTrack,
 } from "../src/audio-catalog.js";
+
+const UPLOADED_FILE_ID =
+  "0198d55c-5b67-7000-8000-000000000001~0198d55c-5b67-7000-8000-000000000002~Q291cnNlIGR1IHRvaXQ.ogg";
+const UPLOADED_TRACK_ID = `uploaded:${UPLOADED_FILE_ID}` as const;
 
 describe("authored audio catalogue", () => {
   it("accepts catalogue ids and rejects arbitrary asset URLs", () => {
@@ -31,6 +38,24 @@ describe("authored audio catalogue", () => {
         combatMusic: null,
       }),
     ).toBeNull();
+  });
+
+  it("accepts a bounded uploaded map sound id and resolves its authenticated stream", () => {
+    expect(isMusicTrackId(UPLOADED_TRACK_ID)).toBe(true);
+    expect(parseMapAudioConfig({ music: UPLOADED_TRACK_ID })).toEqual({
+      music: UPLOADED_TRACK_ID,
+    });
+    expect(musicTrack(UPLOADED_TRACK_ID)).toMatchObject({
+      id: UPLOADED_TRACK_ID,
+      src: `/api/map-sounds/${encodeURIComponent(UPLOADED_FILE_ID)}/content`,
+      loopable: true,
+    });
+    expect(uploadedMusicTrack(UPLOADED_FILE_ID, "Course du toit", "Mira")).toMatchObject({
+      title: "Course du toit",
+      author: "Mira",
+    });
+    expect(isMusicTrackId("uploaded:../../secret.ogg")).toBe(false);
+    expect(parseMapAudioConfig({ music: "uploaded:not-a-file.mp3" })).toBeNull();
   });
 
   it("distinguishes map inheritance from an explicit silent override", () => {

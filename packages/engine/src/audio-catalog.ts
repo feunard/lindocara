@@ -61,6 +61,21 @@ const LEGACY_MUSIC_TRACKS = [
 
 export const MUSIC_TRACKS = [...LEGACY_MUSIC_TRACKS, ...GENERATED_MUSIC_TRACKS] as const;
 
+export const UPLOADED_MUSIC_TRACK_PREFIX = "uploaded:";
+
+const MAP_SOUND_FILE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}~[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}~[A-Za-z0-9_-]{1,96}\.(?:mp3|ogg|wav|webm|m4a|aac|flac)$/i;
+
+export type UploadedMusicTrackId = `${typeof UPLOADED_MUSIC_TRACK_PREFIX}${string}`;
+
+export interface UploadedMusicTrack {
+  id: UploadedMusicTrackId;
+  title: string;
+  author: string;
+  src: string;
+  loopable: true;
+}
+
 export const AMBIENCE_TRACKS = [
   {
     id: "forest-ambience",
@@ -76,7 +91,7 @@ export const AMBIENCE_TRACKS = [
   },
 ] as const;
 
-export type MusicTrackId = (typeof MUSIC_TRACKS)[number]["id"];
+export type MusicTrackId = (typeof MUSIC_TRACKS)[number]["id"] | UploadedMusicTrackId;
 export type AmbienceTrackId = (typeof AMBIENCE_TRACKS)[number]["id"];
 export type MusicProfileId = (typeof MUSIC_PROFILES)[number]["id"];
 
@@ -159,7 +174,33 @@ const AMBIENCE_IDS = new Set<string>(AMBIENCE_TRACKS.map((track) => track.id));
 const MUSIC_PROFILE_IDS = new Set<string>(MUSIC_PROFILES.map((item) => item.id));
 
 export function isMusicTrackId(value: unknown): value is MusicTrackId {
-  return typeof value === "string" && MUSIC_IDS.has(value);
+  return typeof value === "string" && (MUSIC_IDS.has(value) || isUploadedMusicTrackId(value));
+}
+
+export function uploadedMusicFileId(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith(UPLOADED_MUSIC_TRACK_PREFIX)) return null;
+  const fileId = value.slice(UPLOADED_MUSIC_TRACK_PREFIX.length);
+  return MAP_SOUND_FILE_ID_PATTERN.test(fileId) ? fileId : null;
+}
+
+export function isUploadedMusicTrackId(value: unknown): value is UploadedMusicTrackId {
+  return uploadedMusicFileId(value) !== null;
+}
+
+export function uploadedMusicTrack(
+  fileId: string,
+  title = "Uploaded map sound",
+  author = "lindocara",
+): UploadedMusicTrack | null {
+  const id = `${UPLOADED_MUSIC_TRACK_PREFIX}${fileId}`;
+  if (!isUploadedMusicTrackId(id)) return null;
+  return {
+    id,
+    title,
+    author,
+    src: `/api/map-sounds/${encodeURIComponent(fileId)}/content`,
+    loopable: true,
+  };
 }
 
 export function isAmbienceTrackId(value: unknown): value is AmbienceTrackId {
@@ -171,7 +212,10 @@ export function isMusicProfileId(value: unknown): value is MusicProfileId {
 }
 
 export function musicTrack(id: MusicTrackId | null) {
-  return id === null ? null : (MUSIC_TRACKS.find((track) => track.id === id) ?? null);
+  if (id === null) return null;
+  const fileId = uploadedMusicFileId(id);
+  if (fileId) return uploadedMusicTrack(fileId);
+  return MUSIC_TRACKS.find((track) => track.id === id) ?? null;
 }
 
 export function ambienceTrack(id: AmbienceTrackId | null) {

@@ -1448,6 +1448,14 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.audio.preview": "Écouter",
   "editor.audio.pause": "Pause",
   "editor.audio.previewUnavailable": "Aucun son à écouter",
+  "editor.audio.uploadTitle": "Sons de carte téléchargés",
+  "editor.audio.uploadHint":
+    "Téléchargez un fichier MP3, OGG, WAV, WebM, M4A, AAC ou FLAC de 20 Mo maximum. Il restera disponible pour vos cartes anciennes et futures.",
+  "editor.audio.uploadButton": "Télécharger un son",
+  "editor.audio.uploading": "Téléchargement…",
+  "editor.audio.uploadLoading": "Chargement de vos sons téléchargés…",
+  "editor.audio.uploadError":
+    "Impossible de charger ou télécharger ce son. Vérifiez son format et sa taille.",
   "editor.audio.mapButton": "Sons de la carte",
   "editor.dayNightCycle.enable": "Activer le cycle jour/nuit",
   "editor.dayNightCycle.disable": "Désactiver le cycle jour/nuit",

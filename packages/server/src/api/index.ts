@@ -1,4 +1,5 @@
 import { $module } from "alepha";
+import { AlephaBucket } from "alepha/bucket";
 import { CacheProvider } from "alepha/cache";
 import { AlephaCacheDatabase, DatabaseCacheProvider } from "alepha/cache/database";
 import { AlephaWebSocket } from "alepha/websocket";
@@ -8,6 +9,7 @@ import { HealthController } from "./controllers/HealthController.js";
 import { HeroController } from "./controllers/HeroController.js";
 import { JoinController } from "./controllers/JoinController.js";
 import { MapController } from "./controllers/MapController.js";
+import { MapSoundController } from "./controllers/MapSoundController.js";
 import { MeController } from "./controllers/MeController.js";
 import { PartyController } from "./controllers/PartyController.js";
 import { TestSessionController } from "./controllers/TestSessionController.js";
@@ -54,7 +56,7 @@ import { WebSocketTransportCapProvider } from "./websocketTransportCap.js";
 // any auth request can use it.
 export const LindocaraApi = $module({
   name: "lindocara.api",
-  imports: [AlephaWebSocket, AlephaCacheDatabase],
+  imports: [AlephaWebSocket, AlephaCacheDatabase, AlephaBucket],
   register: (alepha) => {
     alepha.with({
       provide: CacheProvider,
@@ -68,6 +70,7 @@ export const LindocaraApi = $module({
     HeightfieldBackfillProvider,
     MeController,
     MapController,
+    MapSoundController,
     AdventureController,
     PartyController,
     HeroController,

@@ -1432,6 +1432,14 @@ export const en = {
   "editor.audio.preview": "Listen",
   "editor.audio.pause": "Pause",
   "editor.audio.previewUnavailable": "No selectable audio",
+  "editor.audio.uploadTitle": "Uploaded map sounds",
+  "editor.audio.uploadHint":
+    "Upload MP3, OGG, WAV, WebM, M4A, AAC or FLAC up to 20 MB. The sound stays available for your existing and future maps.",
+  "editor.audio.uploadButton": "Upload a sound",
+  "editor.audio.uploading": "Uploading…",
+  "editor.audio.uploadLoading": "Loading your uploaded sounds…",
+  "editor.audio.uploadError":
+    "The sound could not be loaded or uploaded. Check its format and size.",
   "editor.audio.mapButton": "Map audio",
   "editor.dayNightCycle.enable": "Enable day/night cycle",
   "editor.dayNightCycle.disable": "Disable day/night cycle",

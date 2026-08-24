@@ -1,6 +1,10 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { AudioConfigFields } from "@lindocara/editor/ui/editor/AudioConfigFields.js";
-import { DEFAULT_ADVENTURE_AUDIO, musicTracksForProfile } from "@lindocara/engine/audio-catalog.js";
+import {
+  DEFAULT_ADVENTURE_AUDIO,
+  musicTracksForProfile,
+  uploadedMusicTrack,
+} from "@lindocara/engine/audio-catalog.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -77,5 +81,27 @@ describe("AudioConfigFields", () => {
     await user.click(screen.getByRole("button", { name: /Listen Main Exploration/i }));
     expect(FakeAudio.created).toHaveLength(1);
     expect(FakeAudio.created[0]?.src).toBe(expected.src);
+  });
+
+  it("offers and previews an uploaded sound on old and new map configurations", async () => {
+    const uploaded = uploadedMusicTrack(
+      "0198d55c-5b67-7000-8000-000000000001~0198d55c-5b67-7000-8000-000000000002~Q291cnNlIGR1IHRvaXQ.ogg",
+      "Course du toit",
+      "Mira",
+    );
+    if (!uploaded) throw new Error("invalid uploaded sound fixture");
+
+    const user = userEvent.setup();
+    render(
+      <AudioConfigFields
+        variant="map"
+        value={{ music: uploaded.id }}
+        uploadedTracks={[uploaded]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Listen Course du toit/i }));
+    expect(FakeAudio.created[0]?.src).toBe(uploaded.src);
   });
 });

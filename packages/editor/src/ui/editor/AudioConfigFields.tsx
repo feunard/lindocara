@@ -21,6 +21,7 @@ import {
   type MusicProfileId,
   type MusicTrackId,
   musicTracksForProfile,
+  type UploadedMusicTrack,
 } from "@lindocara/engine/audio-catalog.js";
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -49,11 +50,13 @@ type AudioConfigFieldsProps =
   | {
       variant: "adventure";
       value: AdventureAudioConfig;
+      uploadedTracks?: undefined;
       onChange(value: AdventureAudioConfig): void;
     }
   | {
       variant: "map";
       value: MapAudioConfig;
+      uploadedTracks?: readonly UploadedMusicTrack[];
       onChange(value: MapAudioConfig): void;
     };
 
@@ -127,6 +130,11 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
     });
   }
 
+  function tracksForField(field: AudioField) {
+    if (field === "ambience") return AMBIENCE_TRACKS;
+    return [...MUSIC_TRACKS, ...(props.uploadedTracks ?? [])];
+  }
+
   function previewSource(field: AudioField): string | null {
     const value = props.value[field];
     if (value === undefined || value === null) return null;
@@ -136,7 +144,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
     if (field === "ambience") {
       return AMBIENCE_TRACKS.find((track) => track.id === value)?.src ?? null;
     }
-    return MUSIC_TRACKS.find((track) => track.id === value)?.src ?? null;
+    return tracksForField(field).find((track) => track.id === value)?.src ?? null;
   }
 
   function previewTarget(field: AudioField): AudioPreviewTarget | null {
@@ -195,7 +203,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
       const item = MUSIC_PROFILES.find((candidate) => candidate.id === value);
       return item ? profileLabel(item) : t("editor.audio.none");
     }
-    const tracks = field === "ambience" ? AMBIENCE_TRACKS : MUSIC_TRACKS;
+    const tracks = tracksForField(field);
     const track = tracks.find((candidate) => candidate.id === value);
     return track ? optionLabel(track) : t("editor.audio.none");
   }
@@ -205,12 +213,12 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
     if (!preview) return;
     const current = previewTarget(preview.field);
     if (!current || current.src !== preview.src) stopPreview();
-  }, [props.value, preview?.field, preview?.src]);
+  }, [props.value, props.uploadedTracks, preview?.field, preview?.src]);
 
   return (
     <div className="grid gap-3">
       {AUDIO_FIELDS.map((field) => {
-        const tracks = field === "ambience" ? AMBIENCE_TRACKS : MUSIC_TRACKS;
+        const tracks = tracksForField(field);
         const id = `audio-${props.variant}-${field}`;
         const target = previewTarget(field);
         const playing = target ? samePreview(preview, target) && preview.playing : false;
