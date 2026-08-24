@@ -695,9 +695,17 @@ export function placeStaticContent(
             placement.anchorZ + wind.z,
           );
         } else if (placement.floating) {
-          const phase = ((now + placement.phaseMs) / 1_600) * Math.PI * 2;
-          placement.sprite.mesh.position.y = placement.anchorY + Math.sin(phase) * 0.22;
-          placement.sprite.mesh.rotation.z = Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(2.5);
+          const phase = ((now + placement.phaseMs) / 1_500) * Math.PI * 2;
+          // Write the whole authored anchor every frame so an incremental event refresh cannot
+          // leave the collectible frozen on an old transform. The amplitude stays modest but is
+          // intentionally larger than a few antialiased pixels at gameplay zoom.
+          placement.sprite.mesh.position.set(
+            placement.anchorX,
+            placement.anchorY + Math.sin(phase) * 0.3,
+            placement.anchorZ,
+          );
+          placement.sprite.mesh.rotation.z =
+            Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(4);
         }
         if (placement.twinkleDurationMs > 0) {
           const phase = ((now + placement.phaseMs) / placement.twinkleDurationMs) * Math.PI * 2;

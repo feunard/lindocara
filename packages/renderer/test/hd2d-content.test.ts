@@ -13,7 +13,11 @@ import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BillboardScene } from "../src/hd2d/billboards.js";
-import { shouldStartWorldEventTextureLoad, staticAssetSpec } from "../src/hd2d/game-renderer.js";
+import {
+  shouldStartWorldEventTextureLoad,
+  staticAssetSpec,
+  worldEventContentVisualKey,
+} from "../src/hd2d/game-renderer.js";
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
 import { placeStaticContent } from "../src/hd2d/static-content.js";
@@ -113,6 +117,24 @@ describe("world-event texture loading", () => {
     expect(shouldStartWorldEventTextureLoad("tree|rock", "tree|rock", false)).toBe(false);
     expect(shouldStartWorldEventTextureLoad("tree|rock", "", true)).toBe(false);
     expect(shouldStartWorldEventTextureLoad("tree|gold", "tree|rock", false)).toBe(true);
+  });
+
+  it("refreshes an unchanged pickup asset when levitation or elevation changes", () => {
+    const pickup = {
+      id: "pickup",
+      col: 2,
+      row: 3,
+      graphicAssetId: "resource.lindocara-pickup.speed-boost",
+      onTop: false,
+      moveSpeed: 3,
+      moveFrequency: 2,
+      moveAnimation: false,
+      directionFixed: false,
+    };
+    const grounded = worldEventContentVisualKey([pickup], []);
+
+    expect(worldEventContentVisualKey([{ ...pickup, floating: true }], [])).not.toBe(grounded);
+    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.55 }], [])).not.toBe(grounded);
   });
 });
 
@@ -267,7 +289,7 @@ describe("static map content", () => {
       return mesh.position.y;
     });
     expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(0.3);
-    expect(heights.every((height) => Math.abs(height - authoredVisualY) <= 0.221)).toBe(true);
+    expect(heights.every((height) => Math.abs(height - authoredVisualY) <= 0.301)).toBe(true);
     content.dispose();
   });
 

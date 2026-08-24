@@ -913,6 +913,25 @@ export function shouldStartWorldEventTextureLoad(
   return !hasDesiredTextures && assetKey !== loadingAssetKey;
 }
 
+/** Every presentation field that can change a live static-event placement without changing art. */
+export function worldEventContentVisualKey(
+  events: readonly WorldEventSnapshot[],
+  buildings: readonly WorldBuildingSnapshot[],
+): string {
+  return [
+    ...events.map((event) => {
+      const assetId = worldEventAsset(event);
+      return authoredActorSheet(assetId, "idle")
+        ? `event:${event.id}:actor:${assetId ?? ""}`
+        : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}:${event.presentation ?? "marker"}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
+    }),
+    ...buildings.map(
+      (building) =>
+        `building:${building.id}:${building.x}:${building.z}:${building.orientation ?? 0}:${building.rotation ?? ""}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
+    ),
+  ].join("|");
+}
+
 interface ActorPosition {
   x: number;
   z: number;
@@ -1318,18 +1337,7 @@ export class Hd2dRenderer implements RendererLike {
   ): void {
     this.#worldEvents = events;
     this.#worldBuildings = buildings;
-    const visualKey = [
-      ...events.map((event) => {
-        const assetId = worldEventAsset(event);
-        return authoredActorSheet(assetId, "idle")
-          ? `event:${event.id}:actor:${assetId ?? ""}`
-          : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}`;
-      }),
-      ...buildings.map(
-        (building) =>
-          `building:${building.id}:${building.x}:${building.z}:${building.orientation ?? 0}:${building.rotation ?? ""}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
-      ),
-    ].join("|");
+    const visualKey = worldEventContentVisualKey(events, buildings);
     const assetIds = [
       ...new Set(
         [
