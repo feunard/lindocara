@@ -470,13 +470,53 @@ describe("staticAssetSpec", () => {
     });
   });
 
-  it("lays the runner spike trap flat on the terrain", () => {
+  it("resolves both runner obstacles as native 3D props", () => {
     expect(staticAssetSpec("decoration.lindocara-runner.spike-trap")).toMatchObject({
       url: "/assets/lindocara/hd2d/runner/spike-trap.png",
-      renderMode: "flat",
-      flatSize: 1.45,
+      runnerProp: "spike-trap",
       foot: 0,
     });
+    expect(staticAssetSpec("decoration.lindocara-runner.barricade")).toMatchObject({
+      url: "/assets/lindocara/hd2d/runner/barricade.png",
+      runnerProp: "barricade",
+      foot: 0,
+    });
+  });
+
+  it("grounds native runner props and keeps them independent from camera-facing billboards", () => {
+    const map = flatMap(6, {
+      elements: [
+        { assetId: "trap", x: -1, z: 0 },
+        { assetId: "barricade", x: 1, z: 0, orientation: 1 },
+      ],
+    });
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    placeStaticContent(
+      ctx,
+      scene,
+      map,
+      resolverFor({
+        trap: art({ runnerProp: "spike-trap" }),
+        barricade: art({ runnerProp: "barricade" }),
+      }),
+    );
+
+    const trap = scene.root.getObjectByName("runner-prop-spike-trap");
+    const barricade = scene.root.getObjectByName("runner-prop-barricade");
+    if (!trap || !barricade) throw new Error("expected both native runner props");
+    const trapBounds = new THREE.Box3().setFromObject(trap);
+    const barricadeBounds = new THREE.Box3().setFromObject(barricade);
+
+    expect(trap.getObjectsByProperty("name", "trap-spike")).toHaveLength(9);
+    expect(trapBounds.min.y).toBeCloseTo(0);
+    expect(trapBounds.max.y).toBeGreaterThan(0.5);
+    expect(barricade.getObjectsByProperty("name", "ground-skid")).toHaveLength(2);
+    expect(barricade.getObjectsByProperty("name", "rear-brace")).toHaveLength(2);
+    expect(barricadeBounds.min.y).toBeGreaterThanOrEqual(-0.01);
+    expect(barricadeBounds.max.y).toBeGreaterThan(1.35);
+    expect(barricade.rotation.y).toBeCloseTo(-Math.PI / 2);
+    expect(ctx.billboards()).toHaveLength(0);
   });
 
   it("reads a catalogue sheet's grid, scale and ground line", () => {

@@ -1,6 +1,7 @@
 /**
  * The map's own scenery — `MapData.elements` and the active page of `MapData.events` — as static
- * HD-2D visuals. Most props are billboards; buildings and bridges are fixed native geometry.
+ * HD-2D visuals. Most props are billboards; buildings, bridges and runner obstacles are fixed
+ * native geometry.
  *
  * Its own file rather than a second export in `billboards.ts`, because the two answer different
  * questions. `billboards.ts` keeps a registry ALIVE across frames: it diffs the actor list every
@@ -52,6 +53,11 @@ import {
   makeBuildingVolume,
   type NativeStaticVisual,
 } from "./building-volumes.js";
+import {
+  makeRunnerPropVolume,
+  type RunnerPropKind,
+  runnerPropHeight,
+} from "./runner-prop-volumes.js";
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "./scene.js";
 
 /**
@@ -110,6 +116,8 @@ export interface StaticSpriteArt {
   buildingVolume?: Omit<BuildingVolumeArt, "front">;
   /** Native raised deck and rails, replacing the old flat bridge crop. */
   bridgeOrientation?: "horizontal" | "vertical";
+  /** Native grounded runner prop, replacing a camera-facing or horizontal sprite. */
+  runnerProp?: RunnerPropKind;
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -267,17 +275,19 @@ export function placeStaticContent(
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
-    const native = sprite.buildingVolume
-      ? makeBuildingVolume({
-          front: sprite.texture,
-          ...sprite.buildingVolume,
-          orientation,
-          ...(rotation === undefined ? {} : { rotation }),
-          ...(building ? { dimensions: building } : {}),
-        })
-      : sprite.bridgeOrientation
-        ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge, rotation)
-        : null;
+    const native = sprite.runnerProp
+      ? makeRunnerPropVolume(sprite.runnerProp, orientation, rotation)
+      : sprite.buildingVolume
+        ? makeBuildingVolume({
+            front: sprite.texture,
+            ...sprite.buildingVolume,
+            orientation,
+            ...(rotation === undefined ? {} : { rotation }),
+            ...(building ? { dimensions: building } : {}),
+          })
+        : sprite.bridgeOrientation
+          ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge, rotation)
+          : null;
     const volume =
       native === null &&
       (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")
@@ -499,10 +509,12 @@ export function placeStaticContent(
         contentKey,
         x,
         anchorY +
-          (sprite.buildingVolume
-            ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
-              0.4
-            : sprite.height + 0.4),
+          (sprite.runnerProp
+            ? runnerPropHeight(sprite.runnerProp) + 0.4
+            : sprite.buildingVolume
+              ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
+                0.4
+              : sprite.height + 0.4),
         z,
         health,
       );

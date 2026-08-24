@@ -732,8 +732,16 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       height: definition.height / TILE_SIZE,
       aspect: definition.width / definition.height,
       foot: 0,
-      renderMode: "flat",
-      flatSize: 1.45,
+      runnerProp: "spike-trap",
+    };
+  }
+  if (assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade) {
+    return {
+      url: definition.sourcePath,
+      height: definition.height / TILE_SIZE,
+      aspect: definition.width / definition.height,
+      foot: 0,
+      runnerProp: "barricade",
     };
   }
   if (UPDATE_TREE_ASSET_IDS.has(assetId)) {
