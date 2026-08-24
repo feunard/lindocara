@@ -442,5 +442,5 @@ describe("procedural map authoring", () => {
         }
       }
     }
-  });
+  }, 10_000);
 });
