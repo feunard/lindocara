@@ -51,6 +51,7 @@ function stateFor(events: readonly MapEvent[]): WorldRoomState {
     eventStateSync: null,
     eventTouchActorPositions: new Map(),
     eventTouchContacts: new Set(),
+    consumedMovementPickupIds: new Set(),
   } as unknown as WorldRoomState;
 }
 
