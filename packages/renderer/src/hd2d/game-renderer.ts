@@ -53,6 +53,7 @@ import {
   LINDOCARA_INTERIOR_ASSET_IDS,
   LINDOCARA_PICKUP_ASSET_IDS,
   LINDOCARA_PICKUP_FLOAT_HEIGHT,
+  LINDOCARA_RUNNER_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -723,6 +724,16 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       aspect: definition.width / definition.height,
       renderMode: "flat",
       flatSize: 1.55,
+    };
+  }
+  if (assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap) {
+    return {
+      url: definition.sourcePath,
+      height: definition.height / TILE_SIZE,
+      aspect: definition.width / definition.height,
+      foot: 0,
+      renderMode: "flat",
+      flatSize: 1.45,
     };
   }
   if (UPDATE_TREE_ASSET_IDS.has(assetId)) {

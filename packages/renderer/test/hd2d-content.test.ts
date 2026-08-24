@@ -470,6 +470,15 @@ describe("staticAssetSpec", () => {
     });
   });
 
+  it("lays the runner spike trap flat on the terrain", () => {
+    expect(staticAssetSpec("decoration.lindocara-runner.spike-trap")).toMatchObject({
+      url: "/assets/lindocara/hd2d/runner/spike-trap.png",
+      renderMode: "flat",
+      flatSize: 1.45,
+      foot: 0,
+    });
+  });
+
   it("reads a catalogue sheet's grid, scale and ground line", () => {
     // `tree3` is a 192x192 frame repeated 8 times along x, its measured ground line 22px up.
     const spec = staticAssetSpec("resource.terrain-resources-wood-trees.tree3");
