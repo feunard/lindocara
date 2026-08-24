@@ -48,7 +48,7 @@ import {
 } from "../src/api/realtime/world-move-life.ts";
 import { activeEventCentre, touchesEventCell } from "../src/api/realtime/worldEvents.ts";
 import { createWorldRoomState } from "../src/api/realtime/worldState.ts";
-import { newPlayer, type PlayerRuntime } from "../src/world/world-runtime.js";
+import { createMonsters, newPlayer, type PlayerRuntime } from "../src/world/world-runtime.js";
 
 const SIZE = 16;
 const HALF = SIZE / 2;
@@ -488,6 +488,52 @@ describe("releasing a spirit", () => {
     handleRelease(w, "connection", player);
 
     expect(player).toMatchObject({ life: "alive", corpse: null, x: spawn.x, z: spawn.z });
+  });
+
+  it("returns every monster to its authored spawn when a hardcore runner attempt restarts", () => {
+    const built = terrain();
+    const player = hero(2.5, -3.5);
+    const w = glue(built, player, { x: -1.5, z: -1.5 });
+    w.state.gameMode = "hardcore_runner";
+    const monsters = createMonsters([
+      {
+        id: "runner-pursuer",
+        kind: "boar",
+        species: "war_pig",
+        zone: "route",
+        x: -3.5,
+        y: 0,
+        z: -2.5,
+        patrolRadius: 4,
+        pursuitMode: "relentless",
+      },
+      {
+        id: "runner-ambush",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 1.5,
+        y: 0,
+        z: 2.5,
+        patrolRadius: 2,
+      },
+    ]);
+    for (const monster of monsters) {
+      w.state.monsters.push(monster);
+      w.state.monsterGrid.insert(monster);
+      const previous = { x: monster.x, z: monster.z };
+      monster.x += 3;
+      monster.z -= 2;
+      w.state.monsterGrid.update(monster, previous);
+    }
+
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(monsters.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
+      { id: "runner-pursuer", x: -3.5, z: -2.5 },
+      { id: "runner-ambush", x: 1.5, z: 2.5 },
+    ]);
   });
 
   it("ignores another release after the hero is already alive", () => {

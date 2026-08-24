@@ -313,9 +313,7 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
   w.state.playerGrid.update(player, previousPosition);
   if (w.state.gameMode === "hardcore_runner") {
     for (const monster of w.state.monsters) {
-      if (monster.pursuitMode === "relentless") {
-        resetMonsterAtSpawn(monster, terrain, w.state.monsterGrid, now);
-      }
+      resetMonsterAtSpawn(monster, terrain, w.state.monsterGrid, now);
     }
   }
   grantReviveGrace(w, player, now);
