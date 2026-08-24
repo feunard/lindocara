@@ -1117,7 +1117,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.generator.genre.archipelago": "Archipel",
   "editor.generator.genre.highlands": "Hautes terres",
   "editor.generator.genre.tundra": "Toundra gelée",
-  "editor.generator.genre.runner": "Runner cauchemardesque",
+  "editor.generator.genre.runner": "Endless runner",
   "editor.generator.genre.forest.hint":
     "Une province boisée avec rivière, routes de village, camps gobelins fortifiés et bosquets étagés.",
   "editor.generator.genre.archipelago.hint":
@@ -1127,7 +1127,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.generator.genre.tundra.hint":
     "Un territoire gelé habité, avec village pris dans les glaces, passages et zones ennemies fortifiées.",
   "editor.generator.genre.runner.hint":
-    "Un parcours de fuite à graine avec poursuivant implacable, pièges, barricades et arrivée.",
+    "Un long parcours à lacets avec poursuivant implacable, escaliers, sauts, fosses, embuscades et arrivée.",
   "editor.generator.size": "Taille",
   "editor.generator.size.compact": "Compacte",
   "editor.generator.size.standard": "Standard",
@@ -2094,7 +2094,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.preset.sign": "Panneau / Dialogue",
   "editor.event.preset.chest": "Coffre (or)",
   "editor.event.preset.trap": "Piège à pointes",
-  "editor.event.preset.pursuer": "Poursuivant cauchemardesque",
+  "editor.event.preset.pursuer": "Poursuivant implacable",
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
   "editor.event.preset.doorLink": "Liaison de portes",
   "editor.event.preset.doorLink.disabled":

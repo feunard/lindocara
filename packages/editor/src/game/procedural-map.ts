@@ -25,7 +25,12 @@ import {
   type NpcRoutineStep,
 } from "@lindocara/engine/map-events.js";
 import { MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
-import { resolveWholeLayer, syncElevationWalls } from "@lindocara/engine/tile-brush.js";
+import {
+  paintOneCellRamp,
+  type RampDirection,
+  resolveWholeLayer,
+  syncElevationWalls,
+} from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { autotileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import { TINY_SWORDS_TILESET, terrainSlot } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -596,22 +601,211 @@ function deterministicUuid(seed: string, label: string): string {
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
-function runnerCells(cols: number, rows: number): PlannedCell[] {
-  const centreRow = Math.floor(rows / 2);
-  return Array.from({ length: cols * rows }, (_, index) => {
-    const col = index % cols;
-    const row = Math.floor(index / cols);
-    const land = col >= 1 && col <= cols - 2 && Math.abs(row - centreRow) <= 3;
-    return {
-      land,
-      level: 0,
-      material: land ? "sable" : "herbe",
-      route: land,
-      river: false,
-      zone: land ? "danger" : "wild",
-    };
-  });
+interface RunnerRampPlan {
+  point: Point;
+  direction: RampDirection;
+  lowLevel: number;
 }
+
+interface RunnerCoursePlan {
+  cells: PlannedCell[];
+  path: readonly Point[];
+  ramps: readonly RunnerRampPlan[];
+}
+
+const RUNNER_HALF_WIDTH = 2;
+const RUNNER_LANE_SPACING = 8;
+
+function samePoint(left: Point | undefined, right: Point): boolean {
+  return left?.col === right.col && left.row === right.row;
+}
+
+/** A compact course stays readable; every larger preset spends its extra height on separated
+ * switchbacks. The epic map therefore has several times the route distance of the standard map,
+ * rather than one equally simple corridor surrounded by more empty canvas. */
+function runnerPath(cols: number, rows: number): Point[] {
+  const left = RUNNER_HALF_WIDTH + 1;
+  const right = cols - RUNNER_HALF_WIDTH - 2;
+  const laneRows: number[] = [];
+  for (
+    let row = RUNNER_HALF_WIDTH + 1;
+    row <= rows - RUNNER_HALF_WIDTH - 2;
+    row += RUNNER_LANE_SPACING
+  ) {
+    laneRows.push(row);
+  }
+  if (laneRows.length === 0) laneRows.push(Math.floor(rows / 2));
+
+  const path: Point[] = [];
+  const push = (point: Point): void => {
+    if (!samePoint(path[path.length - 1], point)) path.push(point);
+  };
+  for (const [laneIndex, row] of laneRows.entries()) {
+    const eastbound = laneIndex % 2 === 0;
+    const start = eastbound ? left : right;
+    const end = eastbound ? right : left;
+    const step = eastbound ? 1 : -1;
+    for (let col = start; eastbound ? col <= end : col >= end; col += step) push({ col, row });
+    const nextRow = laneRows[laneIndex + 1];
+    if (nextRow === undefined) continue;
+    for (let connectorRow = row + 1; connectorRow <= nextRow; connectorRow += 1) {
+      push({ col: end, row: connectorRow });
+    }
+  }
+  return path;
+}
+
+function pointDelta(from: Point, to: Point): Point {
+  return { col: to.col - from.col, row: to.row - from.row };
+}
+
+function directionFor(delta: Point): RampDirection | null {
+  if (delta.col === 1 && delta.row === 0) return "east";
+  if (delta.col === -1 && delta.row === 0) return "west";
+  if (delta.col === 0 && delta.row === 1) return "south";
+  if (delta.col === 0 && delta.row === -1) return "north";
+  return null;
+}
+
+function straightTransition(path: readonly Point[], index: number): boolean {
+  const before = path[index - 2];
+  const lowSide = path[index - 1];
+  const highSide = path[index];
+  const after = path[index + 1];
+  if (!before || !lowSide || !highSide || !after) return false;
+  const first = pointDelta(before, lowSide);
+  const transition = pointDelta(lowSide, highSide);
+  const last = pointDelta(highSide, after);
+  return (
+    first.col === transition.col &&
+    first.row === transition.row &&
+    last.col === transition.col &&
+    last.row === transition.row
+  );
+}
+
+function runnerElevations(
+  path: readonly Point[],
+  complexity: ProceduralMapComplexity,
+): { levels: Array<0 | 1 | 2>; ramps: RunnerRampPlan[]; transitionIndices: Set<number> } {
+  const interval = complexity === "light" ? 34 : complexity === "dense" ? 20 : 27;
+  const levels: Array<0 | 1 | 2> = [];
+  const ramps: RunnerRampPlan[] = [];
+  const transitionIndices = new Set<number>();
+  let level: 0 | 1 | 2 = 0;
+  let climb = 1;
+  let nextTransition = Math.min(path.length, Math.max(14, interval));
+
+  for (let index = 0; index < path.length; index += 1) {
+    if (index >= nextTransition && straightTransition(path, index)) {
+      const nextLevel = (level + climb) as 0 | 1 | 2;
+      const from = path[index - 1];
+      const to = path[index];
+      if (from && to) {
+        const ascending = nextLevel > level;
+        const low = ascending ? from : to;
+        const high = ascending ? to : from;
+        const direction = directionFor(pointDelta(low, high));
+        if (direction) {
+          ramps.push({ point: low, direction, lowLevel: Math.min(level, nextLevel) });
+          for (let reserved = index - 3; reserved <= index + 3; reserved += 1) {
+            transitionIndices.add(reserved);
+          }
+          level = nextLevel;
+          if (level === 2) climb = -1;
+          if (level === 0) climb = 1;
+          nextTransition = index + interval;
+        }
+      }
+    }
+    levels.push(level);
+  }
+  return { levels, ramps, transitionIndices };
+}
+
+function runnerCourse(
+  cols: number,
+  rows: number,
+  complexity: ProceduralMapComplexity,
+): RunnerCoursePlan {
+  const path = runnerPath(cols, rows);
+  const { levels, ramps, transitionIndices } = runnerElevations(path, complexity);
+  const cells: PlannedCell[] = Array.from({ length: cols * rows }, () => ({
+    land: false,
+    level: 0,
+    material: "herbe",
+    route: false,
+    river: false,
+    zone: "wild",
+  }));
+  const nearest = new Array<number>(cols * rows).fill(Number.POSITIVE_INFINITY);
+
+  for (const [pathIndex, centre] of path.entries()) {
+    for (let rowOffset = -RUNNER_HALF_WIDTH; rowOffset <= RUNNER_HALF_WIDTH; rowOffset += 1) {
+      for (let colOffset = -RUNNER_HALF_WIDTH; colOffset <= RUNNER_HALF_WIDTH; colOffset += 1) {
+        const point = { col: centre.col + colOffset, row: centre.row + rowOffset };
+        if (!inBounds(cols, rows, point)) continue;
+        const index = cellIndex(cols, point);
+        const squareDistance = colOffset * colOffset + rowOffset * rowOffset;
+        if (squareDistance >= (nearest[index] ?? Number.POSITIVE_INFINITY)) continue;
+        nearest[index] = squareDistance;
+        const cell = cells[index];
+        const level = levels[pathIndex] ?? 0;
+        if (!cell) continue;
+        cell.land = true;
+        cell.level = level;
+        cell.material = squareDistance <= 1 ? "sable" : "herbe";
+        cell.route = true;
+        cell.zone = "danger";
+      }
+    }
+  }
+
+  // High plateaus carry optional two-by-two void pits along one edge. Three cells of safe deck
+  // remain beside each one, so the course stays navigable while a mistimed dodge or jump can still
+  // send the hero down a visibly two-level drop.
+  const pitInterval = complexity === "light" ? 72 : complexity === "dense" ? 44 : 56;
+  for (let pathIndex = 30; pathIndex < path.length - 14; pathIndex += pitInterval) {
+    let candidate = pathIndex;
+    while (
+      candidate < Math.min(path.length - 14, pathIndex + 16) &&
+      (levels[candidate] !== 2 || transitionIndices.has(candidate))
+    ) {
+      candidate += 1;
+    }
+    const centre = path[candidate];
+    const next = path[candidate + 1];
+    if (!centre || !next || levels[candidate] !== 2 || transitionIndices.has(candidate)) continue;
+    const direction = pointDelta(centre, next);
+    const side = candidate % 2 === 0 ? 1 : -1;
+    const perpendicular = { col: -direction.row * side, row: direction.col * side };
+    for (let along = 0; along <= 1; along += 1) {
+      for (let inward = 1; inward <= 2; inward += 1) {
+        const pit = {
+          col: centre.col + direction.col * along + perpendicular.col * inward,
+          row: centre.row + direction.row * along + perpendicular.row * inward,
+        };
+        const cell = inBounds(cols, rows, pit) ? cells[cellIndex(cols, pit)] : undefined;
+        if (!cell || cell.level !== 2) continue;
+        cell.land = false;
+        cell.route = false;
+        cell.zone = "wild";
+      }
+    }
+  }
+
+  return { cells, path, ramps };
+}
+
+const RUNNER_AMBUSHES = [
+  { species: "hex_shaman", specialTechnique: "hex_burst" },
+  { species: "skull_warden", specialTechnique: "grave_siphon" },
+  { species: "minotaur_brute", specialTechnique: "horn_charge" },
+  { species: "pig_rider", specialTechnique: "mounted_trample" },
+] as const satisfies readonly {
+  species: MonsterSpecies;
+  specialTechnique: NonNullable<ReturnType<typeof functionalEvent>["monsterSpecialTechnique"]>;
+}[];
 
 function generateRunnerMap(
   base: EditorMap,
@@ -621,17 +815,65 @@ function generateRunnerMap(
   seed: string,
   random: () => number,
 ): EditorMap {
-  const centreRow = Math.floor(rows / 2);
-  const spawn = { col: 4, row: centreRow };
-  const cells = runnerCells(cols, rows);
+  const course = runnerCourse(cols, rows, complexity);
+  const { cells, path } = course;
+  const pursuerPoint = path[Math.min(1, path.length - 1)] ?? { col: 2, row: Math.floor(rows / 2) };
+  const spawn = path[Math.min(4, path.length - 1)] ?? pursuerPoint;
+  const finish = path[Math.max(0, path.length - 3)] ?? spawn;
   const elements: MapElement[] = [];
   const occupied = new Set<string>();
-  const obstacleInterval = complexity === "light" ? 12 : complexity === "dense" ? 7 : 9;
-  for (let col = 9; col < cols - 5; col += obstacleInterval) {
-    const row = centreRow + (random() < 0.5 ? -2 : 2);
-    tryPlaceElement(elements, occupied, cells, cols, rows, LINDOCARA_RUNNER_ASSET_IDS.barricade, {
-      col,
-      row,
+  occupied.add(pointKey(spawn));
+  const obstacleInterval = complexity === "light" ? 18 : complexity === "dense" ? 11 : 14;
+  for (let pathIndex = 7; pathIndex < path.length - 6; pathIndex += obstacleInterval) {
+    const point = path[pathIndex];
+    const next = path[pathIndex + 1];
+    if (!point || !next) continue;
+    const direction = pointDelta(point, next);
+    const side = random() < 0.5 ? -1 : 1;
+    const target = {
+      col: point.col - direction.row * side,
+      row: point.row + direction.col * side,
+    };
+    tryPlaceElement(
+      elements,
+      occupied,
+      cells,
+      cols,
+      rows,
+      LINDOCARA_RUNNER_ASSET_IDS.barricade,
+      target,
+    );
+  }
+  if (!elements.some((element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade)) {
+    const fallback = path[Math.floor(path.length / 2)];
+    if (fallback)
+      tryPlaceElement(
+        elements,
+        occupied,
+        cells,
+        cols,
+        rows,
+        LINDOCARA_RUNNER_ASSET_IDS.barricade,
+        fallback,
+      );
+  }
+
+  const decorAssets = PLACEABLE_EDITOR_ASSETS.filter(
+    (asset) =>
+      (asset.editor.category === "rocks" || asset.editor.category === "small-decor") &&
+      asset.editor.allowedTerrain.includes("grass") &&
+      allowedGeneratedAsset(asset),
+  );
+  for (let pathIndex = 12; pathIndex < path.length - 8; pathIndex += 21) {
+    const point = path[pathIndex];
+    const next = path[pathIndex + 1];
+    const asset = decorAssets[Math.floor(random() * decorAssets.length)];
+    if (!point || !next || !asset) continue;
+    const direction = pointDelta(point, next);
+    const side = random() < 0.5 ? -RUNNER_HALF_WIDTH : RUNNER_HALF_WIDTH;
+    tryPlaceElement(elements, occupied, cells, cols, rows, asset.id, {
+      col: point.col - direction.row * side,
+      row: point.row + direction.col * side,
     });
   }
 
@@ -645,8 +887,8 @@ function generateRunnerMap(
   addEvent(
     presetEvent({
       id: deterministicUuid(seed, "runner-pursuer"),
-      col: 2,
-      row: centreRow,
+      col: pursuerPoint.col,
+      row: pursuerPoint.row,
       ordinal: ordinal++,
       preset: "pursuer",
       selfMapId: "",
@@ -655,19 +897,16 @@ function generateRunnerMap(
     }),
   );
 
-  const trapInterval = complexity === "light" ? 7 : complexity === "dense" ? 4 : 5;
+  const trapInterval = complexity === "light" ? 13 : complexity === "dense" ? 8 : 10;
   let trapIndex = 0;
-  for (let col = 8; col < cols - 4; col += trapInterval) {
-    const openRows = [-2, -1, 0, 1, 2]
-      .map((offset) => centreRow + offset)
-      .filter((row) => !occupied.has(pointKey({ col, row })));
-    const row = openRows[Math.floor(random() * openRows.length)];
-    if (row === undefined) continue;
+  for (let pathIndex = 9; pathIndex < path.length - 5; pathIndex += trapInterval) {
+    const point = path[pathIndex];
+    if (!point || occupied.has(pointKey(point)) || !cells[cellIndex(cols, point)]?.land) continue;
     addEvent(
       presetEvent({
         id: deterministicUuid(seed, `runner-trap-${trapIndex}`),
-        col,
-        row,
+        col: point.col,
+        row: point.row,
         ordinal: ordinal++,
         preset: "trap",
         selfMapId: "",
@@ -677,12 +916,64 @@ function generateRunnerMap(
     );
     trapIndex += 1;
   }
+  if (trapIndex === 0) {
+    const fallback = path[Math.max(0, Math.min(path.length - 4, Math.floor(path.length * 0.68)))];
+    if (fallback && !occupied.has(pointKey(fallback))) {
+      addEvent(
+        presetEvent({
+          id: deterministicUuid(seed, "runner-trap-0"),
+          col: fallback.col,
+          row: fallback.row,
+          ordinal: ordinal++,
+          preset: "trap",
+          selfMapId: "",
+          selfSpawn: spawn,
+          name: "Spike trap 1",
+        }),
+      );
+    }
+  }
+
+  const ambushInterval = complexity === "light" ? 82 : complexity === "dense" ? 38 : 52;
+  let ambushIndex = 0;
+  for (let pathIndex = 24; pathIndex < path.length - 12; pathIndex += ambushInterval) {
+    const point = path[pathIndex];
+    const next = path[pathIndex + 1];
+    const ambush = RUNNER_AMBUSHES[ambushIndex % RUNNER_AMBUSHES.length];
+    if (!point || !next || !ambush) continue;
+    const direction = pointDelta(point, next);
+    const side = ambushIndex % 2 === 0 ? RUNNER_HALF_WIDTH : -RUNNER_HALF_WIDTH;
+    const hidingPlace = {
+      col: point.col - direction.row * side,
+      row: point.row + direction.col * side,
+    };
+    if (
+      !inBounds(cols, rows, hidingPlace) ||
+      !cells[cellIndex(cols, hidingPlace)]?.land ||
+      occupied.has(pointKey(hidingPlace))
+    )
+      continue;
+    const event = functionalEvent({
+      id: deterministicUuid(seed, `runner-ambush-${ambushIndex}`),
+      col: hidingPlace.col,
+      row: hidingPlace.row,
+      ordinal: ordinal++,
+      kind: "monster",
+      name: `Hidden ambush ${ambushIndex + 1}`,
+      species: ambush.species,
+      patrolRadius: 3,
+      monsterTuning: { rank: "elite", specialTechnique: ambush.specialTechnique },
+      monsterRespawnMode: "timed",
+    });
+    addEvent({ ...event, showMarker: false });
+    ambushIndex += 1;
+  }
 
   addEvent(
     presetEvent({
       id: deterministicUuid(seed, "runner-finish"),
-      col: cols - 3,
-      row: centreRow,
+      col: finish.col,
+      row: finish.row,
       ordinal: ordinal++,
       preset: "endgame",
       selfMapId: "",
@@ -702,7 +993,18 @@ function generateRunnerMap(
       combatProfile: "runner",
       bossProfile: "runner",
     },
-    layers: buildLayers(cells, cols, rows),
+    layers: course.ramps.reduce<TileLayer[]>(
+      (layers, ramp) =>
+        paintOneCellRamp(
+          layers,
+          TINY_SWORDS_TILESET,
+          ramp.point.col,
+          ramp.point.row,
+          ramp.direction,
+          ramp.lowLevel,
+        ),
+      buildLayers(cells, cols, rows),
+    ),
     elements,
     spawn,
     markers: EMPTY_MARKERS,

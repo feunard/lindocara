@@ -42,6 +42,40 @@ function isForbiddenGeneratedResource(assetId: string): boolean {
   );
 }
 
+function runnerGroundDistance(map: ReturnType<typeof croppedForSave>): number {
+  const layer = map.layers[0];
+  const finish = map.events.find((event) =>
+    event.pages.some((page) => page.commands.some((command) => command.t === "endAdventure")),
+  );
+  if (!layer || !finish) return -1;
+  const startIndex = map.spawn.row * layer.cols + map.spawn.col;
+  const finishIndex = finish.row * layer.cols + finish.col;
+  const distances = new Array<number>(layer.ids.length).fill(-1);
+  const queue = [startIndex];
+  distances[startIndex] = 0;
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const currentIndex: number | undefined = queue[cursor];
+    if (currentIndex === undefined || currentIndex === finishIndex) break;
+    const col: number = currentIndex % layer.cols;
+    const row: number = Math.floor(currentIndex / layer.cols);
+    for (const [colOffset, rowOffset] of [
+      [0, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+    ] as const) {
+      const nextCol: number = col + colOffset;
+      const nextRow: number = row + rowOffset;
+      if (nextCol < 0 || nextRow < 0 || nextCol >= layer.cols || nextRow >= layer.rows) continue;
+      const next = nextRow * layer.cols + nextCol;
+      if (distances[next] !== -1 || layer.ids[next] === EMPTY_TILE) continue;
+      distances[next] = (distances[currentIndex] ?? -1) + 1;
+      queue.push(next);
+    }
+  }
+  return distances[finishIndex] ?? -1;
+}
+
 describe("procedural map authoring", () => {
   it("is deterministic and preserves the open map's shell settings", () => {
     const base = {
@@ -215,7 +249,56 @@ describe("procedural map authoring", () => {
         event.pages.some((page) => page.commands.some((command) => command.t === "endAdventure")),
       ),
     ).toBe(true);
+    const saved = croppedForSave(first);
+    const compiled = compileAuthoredMap(toMapData(saved), saved.events);
+    expect(compiled.ramps?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(
+      first.events.filter(
+        (event) =>
+          event.kind === "monster" &&
+          event.monsterPursuitMode !== "relentless" &&
+          event.monsterRank === "elite" &&
+          event.monsterSpecialTechnique !== "none" &&
+          event.showMarker === false,
+      ).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      compiled.levels.some((level, index) => {
+        if (level !== null) return false;
+        const col = index % compiled.size;
+        const row = Math.floor(index / compiled.size);
+        if (col === 0 || row === 0 || col === compiled.size - 1 || row === compiled.size - 1)
+          return false;
+        const neighbours = [index - compiled.size, index + 1, index + compiled.size, index - 1];
+        return neighbours.filter((neighbour) => compiled.levels[neighbour] === 2).length >= 2;
+      }),
+    ).toBe(true);
     expect(parseMapData(toSaveInput(first))).not.toBeNull();
+  });
+
+  it("makes the epic runner several times longer than the standard course", () => {
+    const standard = croppedForSave(
+      generateProceduralMap(blankMap("Standard runner", 20, 15), {
+        ...BASE_OPTIONS,
+        genre: "runner",
+        complexity: "dense",
+        size: "standard",
+      }),
+    );
+    const epic = croppedForSave(
+      generateProceduralMap(blankMap("Epic runner", 20, 15), {
+        ...BASE_OPTIONS,
+        genre: "runner",
+        complexity: "dense",
+        size: "epic",
+      }),
+    );
+    const standardDistance = runnerGroundDistance(standard);
+    const epicDistance = runnerGroundDistance(epic);
+    expect(standardDistance).toBeGreaterThan(70);
+    expect(epicDistance).toBeGreaterThan(450);
+    expect(epicDistance).toBeGreaterThan(standardDistance * 4);
+    expect(epic.events.length).toBeGreaterThan(standard.events.length * 4);
   });
 
   it("serializes every genre, size and density through the shared map parsers", () => {
