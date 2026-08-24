@@ -457,7 +457,7 @@ export interface WorldRoomState {
   /** Immutable map/element index reused by provenance-aware line-of-sight checks. */
   staticColliderIndex: ColliderIndex;
   /** Current harvest-only collision projected from `activeEvents`. */
-  harvestColliders: readonly ColliderRect[];
+  eventColliders: readonly ColliderRect[];
   /** At most one server-timed harvest channel per hero. Movement/leave/transition removes it. */
   harvestJobs: Map<string, PeasantHarvestJob>;
   /** Autonomous NPC movement runtimes keyed by event id (Task 7 populates via reconcile). */
@@ -577,7 +577,7 @@ export function createWorldRoomState(
     consumedMovementPickupIds: new Set(),
     staticColliders,
     staticColliderIndex,
-    harvestColliders: [],
+    eventColliders: [],
     harvestJobs: new Map(),
     npcMovement: new Map(),
     occupiedExitByPlayerId: new Map(),

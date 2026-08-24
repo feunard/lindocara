@@ -30,11 +30,13 @@ import {
   isActiveWorldEventKind,
   isInteractiveWorldEventKind,
   type MapEvent,
+  type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
 import type { WorldEventCollider } from "@lindocara/engine/protocol.js";
 import { TICK_MS } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   BODY_RADIUS,
   canStand,
@@ -43,6 +45,7 @@ import {
 } from "@lindocara/engine/terrain-access.js";
 import {
   type CollisionElevation,
+  editorAsset,
   editorAssetCollisionElevation,
   LINDOCARA_PICKUP_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -78,6 +81,20 @@ function programGrantsMovementEffect(commands: readonly EventCommand[]): boolean
     if (command.t === "loop") return programGrantsMovementEffect(command.body);
     if (command.t === "choices") {
       return command.options.some((option) => programGrantsMovementEffect(option.body));
+    }
+    return false;
+  });
+}
+
+function programDealsDamage(commands: readonly EventCommand[]): boolean {
+  return commands.some((command) => {
+    if (command.t === "damage") return true;
+    if (command.t === "if") {
+      return programDealsDamage(command.then) || programDealsDamage(command.else);
+    }
+    if (command.t === "loop") return programDealsDamage(command.body);
+    if (command.t === "choices") {
+      return command.options.some((option) => programDealsDamage(option.body));
     }
     return false;
   });
@@ -120,6 +137,28 @@ function colliderTuple(
   elevation: CollisionElevation,
 ): WorldEventCollider | null {
   return rect ? [rect.x, rect.y, rect.width, rect.height, elevation] : null;
+}
+
+/** Project a visible player-touch hazard into the same explicit pixel tuple harvest nodes use. */
+function hazardColliderTuple(
+  page: MapEventPage,
+  col: number,
+  row: number,
+): WorldEventCollider | null {
+  if (page.trigger !== "player-touch" || !programDealsDamage(page.commands)) return null;
+  const asset = page.graphicAssetId ? editorAsset(page.graphicAssetId) : null;
+  const rect = asset?.editor.collider;
+  const elevation = asset ? editorAssetCollisionElevation(asset) : null;
+  if (!rect || elevation === null) return null;
+  return colliderTuple(
+    {
+      x: col * TILE_SIZE + TILE_SIZE / 2 + rect.x,
+      y: (row + 1) * TILE_SIZE + rect.y,
+      width: rect.width,
+      height: rect.height,
+    },
+    elevation,
+  );
 }
 
 function sameCollider(a: ColliderRect | undefined, b: ColliderRect | undefined): boolean {
@@ -239,7 +278,7 @@ function projectHarvestCollider(
  * Static map colliders stay separate for the wire; clients merge these explicit event tuples in
  * exactly the same way and never inspect asset ids.
  */
-function syncHarvestColliders(state: WorldRoomState): void {
+function syncEventColliders(state: WorldRoomState): void {
   const definition = state.location?.definition;
   if (!definition) return;
   const eventById = new Map(
@@ -248,20 +287,27 @@ function syncHarvestColliders(state: WorldRoomState): void {
   // The tuple remains in authored pixels on the wire; the shared crossing adds both its centred
   // tile footprint and its finite top to the room collision index.
   const next = state.activeEvents.flatMap((event): ColliderRect[] => {
+    const colliders = event.collider
+      ? [worldEventColliderRect(definition.terrain, event.collider)]
+      : [];
     const authored = eventById.get(event.id);
     const profile = authored?.kind === "harvestable" ? authored.harvestProfile : undefined;
-    if (!profile || harvestActorBehavior(profile) === "wander") return [];
-    // A null tuple means the footprint is deliberately absent (depleted, or collision pending).
-    if (!event.harvest || event.harvest.collider === null) return [];
-    return [worldEventColliderRect(definition.terrain, event.harvest.collider)];
+    if (
+      profile &&
+      harvestActorBehavior(profile) !== "wander" &&
+      event.harvest?.collider
+    ) {
+      colliders.push(worldEventColliderRect(definition.terrain, event.harvest.collider));
+    }
+    return colliders;
   });
   if (
-    next.length === state.harvestColliders.length &&
-    next.every((collider, index) => sameCollider(collider, state.harvestColliders[index]))
+    next.length === state.eventColliders.length &&
+    next.every((collider, index) => sameCollider(collider, state.eventColliders[index]))
   ) {
     return;
   }
-  state.harvestColliders = next;
+  state.eventColliders = next;
   const colliders = createColliderIndex();
   for (const rect of state.staticColliders) colliders.add(rect);
   for (const rect of next) colliders.add(rect);
@@ -345,6 +391,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
         : page.graphicAssetId;
     const eventCol = current?.col ?? event.col;
     const eventRow = current?.row ?? event.row;
+    const collider = hazardColliderTuple(page, eventCol, eventRow);
     const harvestState = depleted ? ("depleted" as const) : ("intact" as const);
     const projectedHits = depleted
       ? profile?.hitsRequired
@@ -366,6 +413,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       showMarker: event.showMarker !== false,
       ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),
       ...(page.optFloat === true ? { floating: true as const } : {}),
+      ...(collider ? { collider } : {}),
       ...(profile && harvestNode
         ? {
             harvest: {
@@ -489,7 +537,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
       harvest,
     };
   });
-  syncHarvestColliders(state);
+  syncEventColliders(state);
 }
 
 /** Port of `#abortRunsForStalePages` (`world.ts:1024`): kill any run whose event's active page no
@@ -724,10 +772,15 @@ export function detectPlayerTouch(
       const page = event.pages[runnable.pageIndex];
       if (!page) continue;
       const movementPickup = programGrantsMovementEffect(runnable.program);
+      const activeCollider = state.activeEvents.find((active) => active.id === event.id)?.collider;
       const verticalContact = (position: WorldPosition): boolean => {
-        if (!movementPickup) return true;
         const terrain = state.location?.definition.terrain;
         if (!terrain) return false;
+        if (activeCollider) {
+          const top = worldEventColliderRect(terrain, activeCollider).top;
+          if (top !== undefined) return position.y <= top + 1e-3;
+        }
+        if (!movementPickup) return true;
         const centre = activeEventCentre(state, event);
         const surface = terrain.query.heightAt(centre.x, centre.z) ?? terrain.waterLevel;
         const targetY = surface + (page.graphicElevation ?? 0);

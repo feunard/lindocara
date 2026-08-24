@@ -355,6 +355,8 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
       allowedTerrain: ["grass"],
       renderLayer: "ground",
       visualFootprint: [{ col: 0, row: 0 }],
+      collider: { x: -28, y: -38, width: 56, height: 38 },
+      collisionElevation: 1,
     },
   },
   {
@@ -380,7 +382,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
         { col: 1, row: 0 },
       ],
       collider: { x: -58, y: -48, width: 116, height: 48 },
-      collisionElevation: 1,
+      collisionElevation: 2,
     },
   },
   {

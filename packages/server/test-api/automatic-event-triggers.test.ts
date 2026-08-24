@@ -132,4 +132,51 @@ describe("authoritative automatic authored-event triggers", () => {
 
     expect(state.eventRuns.contexts.get(pickup.id)?.heroId).toBe("hero-a");
   });
+
+  it("does not fire a level-one trap when the hero clears its top", () => {
+    const trap: MapEvent = {
+      ...authoredEvent("jumpable-trap", "player-touch"),
+      col: 1,
+      pages: [
+        {
+          ...defaultEventPage(),
+          trigger: "player-touch",
+          commands: [{ t: "damage", amount: 25, lethal: false }],
+        },
+      ],
+    };
+    const state = stateFor([trap]);
+    const player = state.players.get("connection-a");
+    if (!player) throw new Error("hero fixture missing");
+    if (!state.location) throw new Error("location fixture missing");
+    state.location.definition.terrain = {
+      size: 4,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      query: { heightAt: () => 0, waterLevelAt: () => -0.05 },
+    } as unknown as typeof state.location.definition.terrain;
+    state.activeEvents = [
+      {
+        id: trap.id,
+        col: trap.col,
+        row: trap.row,
+        graphicAssetId: null,
+        onTop: false,
+        moveSpeed: 3,
+        moveFrequency: 3,
+        moveAnimation: true,
+        directionFixed: false,
+        collider: [68, 26, 56, 38, 1],
+      },
+    ];
+    const previous = { x: -1.5, y: 0, z: -1.5 };
+    Object.assign(player, { x: -0.5, y: 1.05, z: -1.5 });
+
+    detectPlayerTouch(state, player, previous);
+    expect(state.eventRuns.contexts.has(trap.id)).toBe(false);
+
+    player.y = 0;
+    detectPlayerTouch(state, player, previous);
+    expect(state.eventRuns.contexts.get(trap.id)?.heroId).toBe("hero-a");
+  });
 });

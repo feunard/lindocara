@@ -89,7 +89,8 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(2);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
-    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(1);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)).toBe(1);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(2);
   });
 
   it("offers the runner obstacle while keeping the trap in the event appearance catalogue", () => {
@@ -116,6 +117,7 @@ describe("catalogue colliders", () => {
       const stump = asset.tags.some((tag) => tag.includes("stump"));
       const tree = asset.editor.category === "trees" || asset.tags.includes("trees");
       if (tree && !stump) continue;
+      if (asset.id === LINDOCARA_RUNNER_ASSET_IDS.barricade) continue;
       expect(editorAssetCollisionElevation(asset), asset.id).toBe(1);
     }
   });

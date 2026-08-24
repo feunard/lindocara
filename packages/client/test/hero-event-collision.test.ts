@@ -70,6 +70,21 @@ describe("live authored-event collision", () => {
     expect(runAt(2).x).toBeLessThan(0);
   });
 
+  it("jumps over a level-one hazard projected directly by an active event", () => {
+    const terrain = withWorldEventColliders(flatTerrain(), [{ collider: [...obstacle, 1] }]);
+    const hero = createHeroController({
+      terrain,
+      spawn: { x: -2, y: 0, z: 0 },
+      speed: 4,
+    });
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      hero.step({ x: 1, z: 0, jump: frame < 30 }, FRAME);
+    }
+
+    expect(hero.state.x).toBeGreaterThan(0.75);
+  });
+
   it.each([
     ["west", { x: -2, z: 0 }, { x: 1, z: 0 }, (x: number, _z: number) => x < -0.2],
     ["east", { x: 3, z: 0 }, { x: -1, z: 0 }, (x: number, _z: number) => x > 1.2],

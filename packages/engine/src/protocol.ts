@@ -655,9 +655,9 @@ export interface PeasantBombImpactVisual {
 
 /**
  * The active page of an authored map event, projected onto the wire. Appearance fields remain
- * presentation-only. The sole gameplay projection is an authored harvest node's explicit
- * `harvest.collider`, which travels in deltas because it can disappear and respawn; a client
- * consumes that rectangle directly and must never derive one from an asset. `graphicAssetId` is
+ * presentation-only. Explicit `collider` and `harvest.collider` projections are gameplay data;
+ * they travel in deltas because a page or resource state can change, and a client consumes those
+ * rectangles directly rather than deriving them from an asset. `graphicAssetId` is
  * the active page's catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether
  * it draws above the actors (a treetop) or in the ground decor pass. `col`/`row` remain the
  * authoritative target cell; movement metadata only tells the renderer how to present the trip
@@ -692,6 +692,8 @@ export interface WorldEventSnapshot {
   elevationOffset?: number;
   /** Gentle renderer-owned levitation. Omitted for ordinary world events. */
   floating?: true;
+  /** Active-page obstacle/hazard footprint, in authored pixels with a finite climbable top. */
+  collider?: WorldEventCollider;
   /** Presentation state for an explicitly-authored harvest node. It never grants resources. */
   harvest?: {
     state: "intact" | "depleted";
@@ -2115,6 +2117,8 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
         value.elevationOffset >= 0 &&
         value.elevationOffset <= 16)) &&
     (value.floating === undefined || value.floating === true) &&
+    (value.collider === undefined ||
+      (value.collider !== null && isHarvestWorldCollider(value.collider))) &&
     (harvest === undefined ||
       (isRecord(harvest) &&
         (harvest.state === "intact" || harvest.state === "depleted") &&

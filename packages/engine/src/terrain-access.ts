@@ -117,6 +117,7 @@ export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
 }
 
 export interface WorldEventColliderView {
+  collider?: WorldEventCollider;
   harvest?: { collider: WorldEventCollider | null };
 }
 
@@ -215,9 +216,9 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
 }
 
 /**
- * Compose the static heightfield with the authoritative harvest footprints currently advertised
- * on the wire. The tuple remains in authored pixel coordinates for editor tooling; this is the one
- * crossing into the centred tile-unit ground plane used by both movement implementations.
+ * Compose the static heightfield with the authoritative event and harvest footprints currently
+ * advertised on the wire. Tuples remain in authored pixel coordinates for editor tooling; this is
+ * the one crossing into the centred tile-unit ground plane used by both movement implementations.
  */
 export function withWorldEventColliders(
   terrain: ZoneTerrain,
@@ -228,11 +229,12 @@ export function withWorldEventColliders(
   for (const collider of terrain.colliders.all) colliders.add(collider);
   const eventPlatforms: TerrainPlatform[] = [];
   for (const event of events) {
-    const tuple = event.harvest?.collider;
-    if (!tuple) continue;
-    const rect = worldEventColliderRect(terrain, tuple);
-    colliders.add(rect);
-    if (rect.top !== undefined) eventPlatforms.push({ ...rect, top: rect.top });
+    for (const tuple of [event.collider, event.harvest?.collider]) {
+      if (!tuple) continue;
+      const rect = worldEventColliderRect(terrain, tuple);
+      colliders.add(rect);
+      if (rect.top !== undefined) eventPlatforms.push({ ...rect, top: rect.top });
+    }
   }
   for (const camp of camps) {
     colliders.add({

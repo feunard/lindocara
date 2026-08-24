@@ -151,6 +151,18 @@ describe("events on the wire", () => {
     expect(parseServerMessage(JSON.stringify(resync([event()])))).not.toBeNull();
   });
 
+  it("validates an active-page obstacle collider", () => {
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ collider: [68, 26, 56, 38, 1] })]))),
+    ).not.toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ collider: [68, 26, 56, 38, 4] })]))),
+    ).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ collider: null })]))),
+    ).toBeNull();
+  });
+
   it("accepts building durability in a welcome and rejects incoherent ruins", () => {
     const building = {
       id: "building-1",
