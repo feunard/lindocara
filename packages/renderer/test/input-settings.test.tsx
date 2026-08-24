@@ -63,7 +63,80 @@ describe("input remapping", () => {
     expect(gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
     expect(gamepad.release).toEqual([{ kind: "button", index: 9 }]);
     expect(gamepad.chat).toEqual([{ kind: "button", index: 7 }]);
-    expect(gamepad.settings).toEqual([{ kind: "button", index: 10 }]);
+    expect(gamepad.settings).toEqual([{ kind: "button", index: 9 }]);
+  });
+
+  it("uses Start for settings while alive and for release only while dead", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const release = vi.fn();
+    const toggleSettings = vi.fn();
+    let dead = false;
+    const stop = trackActions(
+      {
+        attack: vi.fn(),
+        interact: vi.fn(),
+        usePotion: vi.fn(),
+        release,
+        castSkill: vi.fn(),
+        focusChat: vi.fn(),
+        toggleMap: vi.fn(),
+        toggleSettings,
+      },
+      () => true,
+      () => true,
+      () => dead,
+    );
+    const poll = (pressed: boolean) => {
+      buttons[9] = { pressed, touched: pressed, value: Number(pressed) };
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      callback(0);
+    };
+
+    try {
+      poll(true);
+      expect(toggleSettings).toHaveBeenCalledOnce();
+      expect(release).not.toHaveBeenCalled();
+      poll(false);
+      dead = true;
+      poll(true);
+      expect(release).toHaveBeenCalledOnce();
+      expect(toggleSettings).toHaveBeenCalledOnce();
+      dead = false;
+      poll(true);
+      expect(toggleSettings).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
   });
 
   it("uses remapped movement keys in the prediction input tracker", () => {

@@ -42,7 +42,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 6;
+const INPUT_BINDINGS_VERSION = 7;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const HERO_DIRECTION_CONTROLS = ["moveUp", "moveDown", "moveLeft", "moveRight"] as const;
 const listeners = new Set<() => void>();
@@ -98,14 +98,14 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     item1: [{ kind: "button", index: 14 }],
     item2: [{ kind: "button", index: 12 }],
     item3: [{ kind: "button", index: 15 }],
-    // Start/Menu/Options is the familiar retry button when a run ends.
+    // Start/Menu/Options is contextual: settings while alive, release while a body is down.
     release: [{ kind: "button", index: 9 }],
     map: [{ kind: "button", index: 8 }],
     talents: [{ kind: "button", index: 5 }],
     inventory: [{ kind: "button", index: 13 }],
     quests: [{ kind: "button", index: 18 }],
     chat: [{ kind: "button", index: 7 }],
-    settings: [{ kind: "button", index: 10 }],
+    settings: [{ kind: "button", index: 9 }],
   },
 };
 
@@ -333,12 +333,18 @@ function loadSettings(): InputSettings {
       }
       const storedRelease = validGamepadBindings(parsed.gamepad?.release);
       const storedSettings = validGamepadBindings(parsed.gamepad?.settings);
-      if (
+      const untouchedVersion5Defaults =
         storedRelease &&
         storedSettings &&
         sameGamepadBindings(storedRelease, [{ kind: "button", index: 10 }]) &&
-        sameGamepadBindings(storedSettings, [{ kind: "button", index: 9 }])
-      ) {
+        sameGamepadBindings(storedSettings, [{ kind: "button", index: 9 }]);
+      const untouchedVersion6Defaults =
+        parsed.version === 6 &&
+        storedRelease &&
+        storedSettings &&
+        sameGamepadBindings(storedRelease, [{ kind: "button", index: 9 }]) &&
+        sameGamepadBindings(storedSettings, [{ kind: "button", index: 10 }]);
+      if (untouchedVersion5Defaults || untouchedVersion6Defaults) {
         fallback.gamepad.release = DEFAULT_INPUT_SETTINGS.gamepad.release.map((binding) => ({
           ...binding,
         }));

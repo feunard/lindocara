@@ -1326,6 +1326,7 @@ async function startGameIdentity(
     },
     () => !isGameplayInputPaused(),
     () => interactionNearby,
+    () => useUiStore.getState().selfState?.life === "corpse",
   );
 
   useUiStore.getState().setGame({

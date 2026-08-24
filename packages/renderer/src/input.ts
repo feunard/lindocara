@@ -404,6 +404,7 @@ export function trackActions(
   handlers: ActionHandlers,
   actionsEnabled: () => boolean = () => true,
   interactionAvailable: () => boolean = () => true,
+  releaseAvailable: () => boolean = () => true,
 ): () => void {
   const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
@@ -418,7 +419,10 @@ export function trackActions(
     }
     const control = keyboardControlForCode(event.code);
     if (!control || !ACTION_CONTROLS.includes(control as (typeof ACTION_CONTROLS)[number])) return;
+    const contextualRelease = control === "release" && releaseAvailable();
+    if (control === "release" && !contextualRelease) return;
     if (
+      !contextualRelease &&
       control !== "settings" &&
       control !== "talents" &&
       control !== "inventory" &&
@@ -447,16 +451,22 @@ export function trackActions(
     const gamepad = firstConnectedGamepad();
     const pressed = new Set<ControlId>();
     if (gamepad) {
+      const contextualRelease = releaseAvailable() && gamepadControlPressed("release", gamepad);
       if (ACTION_CONTROLS.some((control) => gamepadControlPressed(control, gamepad))) {
         setInputMode("gamepad");
       }
       for (const control of ACTION_CONTROLS) {
         if (!gamepadControlPressed(control, gamepad)) continue;
         pressed.add(control);
+        if (control === "release" && !contextualRelease) continue;
+        // Start/Menu is shared by the two default bindings. Remember both as held, but let exactly
+        // one intent through so a retry never opens settings and a menu press never releases life.
+        if (control === "settings" && contextualRelease) continue;
         if (
           !previousGamepad.has(control) &&
           (control !== "interact" || interactionAvailable()) &&
-          (control === "settings" ||
+          (contextualRelease ||
+            control === "settings" ||
             control === "talents" ||
             control === "inventory" ||
             control === "quests" ||

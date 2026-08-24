@@ -121,7 +121,9 @@ describe("SettingsMenu", () => {
       "Options",
     );
     await userEvent.click(screen.getByText("Menus & shortcuts"));
-    expect(screen.getByRole("button", { name: "Remap Options / back" })).toHaveTextContent("L3");
+    expect(screen.getByRole("button", { name: "Remap Options / back" })).toHaveTextContent(
+      "Options",
+    );
   });
 
   it("owns the switch-character and back-to-title actions instead of the player frame", async () => {
