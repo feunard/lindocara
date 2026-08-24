@@ -52,6 +52,7 @@ import {
   LINDOCARA_CHEST_OPEN_ASSET_ID,
   LINDOCARA_INTERIOR_ASSET_IDS,
   LINDOCARA_PICKUP_ASSET_IDS,
+  LINDOCARA_PICKUP_FLOAT_HEIGHT,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -904,6 +905,18 @@ function worldEventAsset(event: WorldEventSnapshot): string | null {
   return null;
 }
 
+export function worldEventStaticPresentation(event: WorldEventSnapshot): {
+  elevationOffset: number | undefined;
+  floating: boolean;
+} {
+  const assetId = worldEventAsset(event);
+  const pickup = assetId !== null && LINDOCARA_PICKUP_ASSET_ID_SET.has(assetId);
+  return {
+    elevationOffset: event.elevationOffset ?? (pickup ? LINDOCARA_PICKUP_FLOAT_HEIGHT : undefined),
+    floating: event.floating === true || pickup,
+  };
+}
+
 /** Keep one texture request alive while repeated render frames ask for the same event assets. */
 export function shouldStartWorldEventTextureLoad(
   assetKey: string,
@@ -921,9 +934,10 @@ export function worldEventContentVisualKey(
   return [
     ...events.map((event) => {
       const assetId = worldEventAsset(event);
+      const presentation = worldEventStaticPresentation(event);
       return authoredActorSheet(assetId, "idle")
         ? `event:${event.id}:actor:${assetId ?? ""}`
-        : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}:${event.presentation ?? "marker"}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
+        : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}:${event.presentation ?? "marker"}:${presentation.elevationOffset ?? 0}:${presentation.floating ? 1 : 0}`;
     }),
     ...buildings.map(
       (building) =>
@@ -1423,6 +1437,7 @@ export class Hd2dRenderer implements RendererLike {
     if (!scene || !map || !textures) return;
     const events: StaticContentEvent[] = this.#worldEvents.flatMap((event) => {
       const assetId = worldEventAsset(event);
+      const presentation = worldEventStaticPresentation(event);
       return assetId === null || authoredActorSheet(assetId, "idle")
         ? []
         : [
@@ -1433,10 +1448,10 @@ export class Hd2dRenderer implements RendererLike {
               // map elements. Marker events stay centred in their logical cell.
               z: event.row + (event.presentation === "native" ? 1 : 0.5) - map.size / 2,
               graphicAssetId: assetId,
-              ...(event.elevationOffset === undefined
+              ...(presentation.elevationOffset === undefined
                 ? {}
-                : { elevationOffset: event.elevationOffset }),
-              ...(event.floating ? { floating: true } : {}),
+                : { elevationOffset: presentation.elevationOffset }),
+              ...(presentation.floating ? { floating: true } : {}),
             },
           ];
     });

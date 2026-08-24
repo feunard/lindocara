@@ -17,6 +17,7 @@ import {
   shouldStartWorldEventTextureLoad,
   staticAssetSpec,
   worldEventContentVisualKey,
+  worldEventStaticPresentation,
 } from "../src/hd2d/game-renderer.js";
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
@@ -119,7 +120,7 @@ describe("world-event texture loading", () => {
     expect(shouldStartWorldEventTextureLoad("tree|gold", "tree|rock", false)).toBe(true);
   });
 
-  it("refreshes an unchanged pickup asset when levitation or elevation changes", () => {
+  it("makes pickup levitation intrinsic while preserving explicit height overrides", () => {
     const pickup = {
       id: "pickup",
       col: 2,
@@ -131,11 +132,16 @@ describe("world-event texture loading", () => {
       moveAnimation: false,
       directionFixed: false,
     };
-    const grounded = worldEventContentVisualKey([pickup], []);
+    const defaultKey = worldEventContentVisualKey([pickup], []);
 
-    expect(worldEventContentVisualKey([{ ...pickup, floating: true }], [])).not.toBe(grounded);
-    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.55 }], [])).not.toBe(
-      grounded,
+    expect(worldEventStaticPresentation(pickup)).toEqual({
+      elevationOffset: 0.55,
+      floating: true,
+    });
+    expect(worldEventContentVisualKey([{ ...pickup, floating: true }], [])).toBe(defaultKey);
+    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.55 }], [])).toBe(defaultKey);
+    expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.9 }], [])).not.toBe(
+      defaultKey,
     );
   });
 });

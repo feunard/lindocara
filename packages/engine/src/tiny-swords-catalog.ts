@@ -227,6 +227,8 @@ export const LINDOCARA_PICKUP_ASSET_IDS = {
   heavy_gravity: "resource.lindocara-pickup.heavy-gravity",
   inverted_controls: "resource.lindocara-pickup.inverted-controls",
 } as const;
+/** Presentation fallback shared by authoring presets and the live renderer. */
+export const LINDOCARA_PICKUP_FLOAT_HEIGHT = 0.55;
 
 /**
  * Removed runner art, accepted only while old authored maps are migrated to their species model.

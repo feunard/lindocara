@@ -26,6 +26,7 @@ import { MOVEMENT_EFFECT_DEFAULTS, type MovementEffectKind } from "./movement-ef
 import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
+  LINDOCARA_PICKUP_FLOAT_HEIGHT,
   LINDOCARA_RUNNER_ASSET_IDS,
   LINDOCARA_PICKUP_ASSET_IDS,
 } from "./tiny-swords-catalog.js";
@@ -204,7 +205,7 @@ export function presetEvent(params: {
         : pickupEffect
           ? LINDOCARA_PICKUP_ASSET_IDS[pickupEffect]
           : null,
-    ...(pickup ? { graphicElevation: 0.55, optFloat: true } : {}),
+    ...(pickup ? { graphicElevation: LINDOCARA_PICKUP_FLOAT_HEIGHT, optFloat: true } : {}),
     commands: chest
       ? [...commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
       : commands,
