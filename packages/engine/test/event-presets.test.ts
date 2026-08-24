@@ -1,4 +1,5 @@
 import { EVENT_PRESETS, presetEvent, presetPageContent } from "@lindocara/engine/event-presets.js";
+import { RUNNER_PURSUER_TUNING } from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
@@ -144,8 +145,9 @@ describe("presetEvent", () => {
       showMarker: false,
       monsterAttackProfile: "melee",
       monsterPursuitMode: "relentless",
-      monsterAcceleration: 0.22,
-      monsterMaxSpeed: 7.8,
+      monsterSpeed: RUNNER_PURSUER_TUNING.speed,
+      monsterAcceleration: RUNNER_PURSUER_TUNING.acceleration,
+      monsterMaxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
       monsterOneHitKill: true,
       pages: [{ graphicAssetId: null }],
     });

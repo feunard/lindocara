@@ -7,7 +7,11 @@
  */
 import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
-import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "@lindocara/engine/game.js";
+import {
+  MONSTER_SPECIES_KIND,
+  RUNNER_PURSUER_TUNING,
+  type MonsterSpawn,
+} from "@lindocara/engine/game.js";
 import { animalCarcassHarvestProfile } from "@lindocara/engine/harvest.js";
 import {
   authoredCellCentreGround,
@@ -34,6 +38,14 @@ export function authoredMonsterDefinition(
   // reading it here keeps the stats a hostile NPC fights with identical to the ones the editor
   // showed its author. Its LOOK still comes from the page, below, never from the species.
   const species = event.species ?? "spear_goblin";
+  // Early runner maps stored some one-hit pigs with the ordinary pursuit defaults. Treat that
+  // unmistakable authored combination as a runner so old maps receive the same infinite chase and
+  // useful starting pace as newly generated ones.
+  const runnerPursuer = species === "war_pig" && event.monsterOneHitKill === true;
+  const authoredSpeed = event.monsterSpeed ?? undefined;
+  const speed = runnerPursuer
+    ? Math.max(authoredSpeed ?? 0, RUNNER_PURSUER_TUNING.speed)
+    : authoredSpeed;
   return {
     id: `${AUTHORED_MONSTER_PREFIX}${event.id}`,
     name: event.name,
@@ -51,9 +63,7 @@ export function authoredMonsterDefinition(
     ...(event.monsterDamage === null || event.monsterDamage === undefined
       ? {}
       : { damage: event.monsterDamage }),
-    ...(event.monsterSpeed === null || event.monsterSpeed === undefined
-      ? {}
-      : { speed: event.monsterSpeed }),
+    ...(speed === undefined ? {} : { speed }),
     ...(event.monsterXp === null || event.monsterXp === undefined ? {} : { xp: event.monsterXp }),
     ...(event.monsterWeakness ? { weakness: event.monsterWeakness } : {}),
     ...(event.monsterWeaknessPercent === null || event.monsterWeaknessPercent === undefined
@@ -64,9 +74,16 @@ export function authoredMonsterDefinition(
     ...(event.monsterRespawnDelayMs === null || event.monsterRespawnDelayMs === undefined
       ? {}
       : { respawnDelayMs: event.monsterRespawnDelayMs }),
-    pursuitMode: event.monsterPursuitMode ?? "standard",
-    acceleration: event.monsterAcceleration ?? 0,
-    maxSpeed: event.monsterMaxSpeed ?? event.monsterSpeed ?? undefined,
+    pursuitMode: runnerPursuer ? "relentless" : (event.monsterPursuitMode ?? "standard"),
+    acceleration: runnerPursuer
+      ? Math.max(event.monsterAcceleration ?? 0, RUNNER_PURSUER_TUNING.acceleration)
+      : (event.monsterAcceleration ?? 0),
+    maxSpeed: runnerPursuer
+      ? Math.max(
+          event.monsterMaxSpeed ?? event.monsterSpeed ?? 0,
+          RUNNER_PURSUER_TUNING.maxSpeed,
+        )
+      : (event.monsterMaxSpeed ?? event.monsterSpeed ?? undefined),
     oneHitKill: event.monsterOneHitKill ?? false,
   };
 }

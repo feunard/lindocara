@@ -1,5 +1,6 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { RUNNER_PURSUER_TUNING } from "@lindocara/engine/game.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
@@ -118,6 +119,32 @@ describe("authored monster projection", () => {
       pursuitMode: "relentless",
       acceleration: 0.8,
       maxSpeed: 5.5,
+      oneHitKill: true,
+    });
+  });
+
+  it("upgrades one-hit war pigs from older maps to current runner pursuit tuning", () => {
+    const legacyRunner = {
+      ...conditionalMonster(),
+      species: "war_pig" as const,
+      monsterSpeed: 2,
+      monsterPursuitMode: "standard" as const,
+      monsterAcceleration: 0,
+      monsterMaxSpeed: 2.5,
+      monsterOneHitKill: true,
+    };
+    const definition = activeAuthoredMonsterDefinitions(
+      [legacyRunner],
+      state({ "0075": true }),
+      GRID_SIZE,
+    )[0];
+
+    expect(definition).toMatchObject({
+      species: "war_pig",
+      speed: RUNNER_PURSUER_TUNING.speed,
+      pursuitMode: "relentless",
+      acceleration: RUNNER_PURSUER_TUNING.acceleration,
+      maxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
       oneHitKill: true,
     });
   });

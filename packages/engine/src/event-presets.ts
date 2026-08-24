@@ -14,6 +14,7 @@
  * honest placeholder rather than an invalid id the server would reject on save.
  */
 import type { EventCommand } from "./event-commands.js";
+import { RUNNER_PURSUER_TUNING } from "./game.js";
 import {
   defaultEventPage,
   type EventTrigger,
@@ -168,11 +169,11 @@ export function presetEvent(params: {
       name: params.name ?? "",
       species: "war_pig",
       patrolRadius: 256,
-      monsterTuning: { speed: 5.4, damage: 1, xp: 0 },
+      monsterTuning: { speed: RUNNER_PURSUER_TUNING.speed, damage: 1, xp: 0 },
       monsterRespawnMode: "timed",
       monsterPursuitMode: "relentless",
-      monsterAcceleration: 0.22,
-      monsterMaxSpeed: 7.8,
+      monsterAcceleration: RUNNER_PURSUER_TUNING.acceleration,
+      monsterMaxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
       monsterOneHitKill: true,
     });
     return {

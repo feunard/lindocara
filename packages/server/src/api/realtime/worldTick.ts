@@ -627,6 +627,18 @@ export function advanceWorldTick(w: WorldGlue): void {
     navigation: navigationRuntime(state),
     startAttack: (monster, target, attackedAt) =>
       startMonsterAttack(w, monster, target, attackedAt),
+    killPlayerOnContact: (monster, connectionId, player, contactedAt) =>
+      damagePlayer(
+        w,
+        connectionId,
+        player,
+        monster.damage,
+        monster.species,
+        monster.id,
+        contactedAt,
+        undefined,
+        true,
+      ),
     defeatMonster: (monster, defeatedAt) => markMonsterDead(w, monster, defeatedAt),
     onMonsterMoved: (monster, previous) => detectMonsterTouch(state, monster, previous),
   };

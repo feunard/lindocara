@@ -64,6 +64,9 @@ const RUNNER_LEAP_SEARCH_STEP = 0.25;
 const RUNNER_LEAP_MIN_DURATION_MS = 420;
 const RUNNER_LEAP_MAX_DURATION_MS = 760;
 const RUNNER_LEAP_APEX = 1.15;
+/** Two authoritative ground bodies touching; elevation keeps a clean jump over a runner viable. */
+const RUNNER_CONTACT_DISTANCE = BODY_RADIUS * 2;
+const RUNNER_CONTACT_HEIGHT = BODY_RADIUS * 2;
 /** The offset a safe-zone raider walks to. Tile units: the former (-40, +100) px. */
 const RAIDER_PATROL_OFFSET = { x: -40 / 64, z: 100 / 64 };
 
@@ -81,6 +84,13 @@ export interface MonsterSystemContext<TSocket = WebSocket> {
   tick: number;
   navigation: NavigationRuntime;
   startAttack(monster: MonsterRuntime, target: PlayerRuntime | GuardRuntime, now: number): void;
+  /** Runner contact is an immediate authoritative defeat, never an attack animation. */
+  killPlayerOnContact?(
+    monster: MonsterRuntime,
+    socket: TSocket,
+    player: PlayerRuntime,
+    now: number,
+  ): void;
   defeatMonster?(monster: MonsterRuntime, now: number): void;
   /** Fired after an authoritative monster movement edge. World uses it for contact teleporters. */
   onMonsterMoved?(monster: MonsterRuntime, previousPosition: GroundVector): void;
@@ -265,10 +275,12 @@ export function advanceMonsters<TSocket>(
     }
     if (monster.slowUntil <= now) monster.slowMultiplier = 1;
     const relentless = monster.pursuitMode === "relentless";
+    const runnerPursuer = relentless && monster.oneHitKill;
     const players = relentless ? allLivingPlayers : visiblePlayers;
 
     if (monster.runnerLeap) {
       advanceRunnerLeap(context, monster, now);
+      if (runnerPursuer) killPlayersOnRunnerContact(context, monster, allLivingPlayers, now);
       continue;
     }
 
@@ -356,6 +368,29 @@ export function advanceMonsters<TSocket>(
       const targetPosition = silhouette ?? afterimage ?? player;
       const targetDistance = groundDistance(monster, targetPosition);
       const targetChanged = monster.navigation.targetId !== player.id;
+      if (runnerPursuer) {
+        // A runner is a moving fail state: it never waits for, telegraphs or resolves a combat
+        // swing. The actual hero body (not a decoy) dies only when the two bodies touch.
+        monster.action = null;
+        if (killPlayersOnRunnerContact(context, monster, allLivingPlayers, now)) {
+          monster.vx = 0;
+          monster.vz = 0;
+          continue;
+        }
+        monster.navigation.state = "chase";
+        monster.navigation.targetId = player.id;
+        monster.navigation.destination = { x: targetPosition.x, z: targetPosition.z };
+        const leaping =
+          runnerPathBlocked(terrain, monster, targetPosition) &&
+          beginRunnerLeap(context, monster, targetPosition, now);
+        if (!leaping && !moveMonsterDirect(context, monster, targetPosition)) {
+          beginRunnerLeap(context, monster, targetPosition, now);
+        }
+        if (!monster.runnerLeap) {
+          killPlayersOnRunnerContact(context, monster, allLivingPlayers, now);
+        }
+        continue;
+      }
       if (monster.action && monster.action.recoveryEndsAt > now) {
         monster.vx = 0;
         monster.vz = 0;
@@ -452,6 +487,46 @@ export function advanceMonsters<TSocket>(
     }
   }
   processNavigationBudget(context.navigation, now);
+}
+
+function killPlayersOnRunnerContact<TSocket>(
+  context: MonsterSystemContext<TSocket>,
+  monster: MonsterRuntime,
+  players: readonly (readonly [TSocket, PlayerRuntime])[],
+  now: number,
+): boolean {
+  let touched = false;
+  for (const [socket, player] of players) {
+    if (player.life !== "alive") continue;
+    if (groundDistance(monster, player) > RUNNER_CONTACT_DISTANCE) continue;
+    if (Math.abs(monster.y - player.y) > RUNNER_CONTACT_HEIGHT) continue;
+    touched = true;
+    context.killPlayerOnContact?.(monster, socket, player, now);
+  }
+  return touched;
+}
+
+/** Look far enough ahead to jump before collider sliding turns an obstacle into a wall-follow. */
+function runnerPathBlocked(
+  terrain: ZoneTerrain,
+  monster: MonsterRuntime,
+  target: GroundVector,
+): boolean {
+  const dx = target.x - monster.x;
+  const dz = target.z - monster.z;
+  const length = Math.hypot(dx, dz);
+  if (length < RUNNER_LEAP_MIN_DISTANCE) return false;
+  const lookahead = Math.min(length, RUNNER_LEAP_MAX_DISTANCE);
+  return !groundPathClear(
+    terrain,
+    monster,
+    {
+      x: monster.x + (dx / length) * lookahead,
+      z: monster.z + (dz / length) * lookahead,
+    },
+    BODY_RADIUS,
+    groundUnderBody(terrain, monster.x, monster.z, monster.y),
+  );
 }
 
 /**

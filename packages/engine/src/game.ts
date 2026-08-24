@@ -1126,6 +1126,12 @@ export const MONSTER_AGGRO_RANGE = 210 / TILE_SIZE;
 export const MONSTER_ATTACK_RANGE = 42 / TILE_SIZE;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
+/** Shared authored/runtime tuning for the one-hit war pig used by runner adventures. */
+export const RUNNER_PURSUER_TUNING = {
+  speed: 6.4,
+  acceleration: 0.48,
+  maxSpeed: 8.6,
+} as const;
 /** Tile units: the exact quotient of the former 92 px. */
 export const INTERACTION_RANGE = 92 / TILE_SIZE;
 /** Tile units: the exact quotient of the former 46 px. */

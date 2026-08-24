@@ -10,7 +10,11 @@ import {
   type MovementPickupPreset,
   presetEvent,
 } from "@lindocara/engine/event-presets.js";
-import { PLAYER_CLASSES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  PLAYER_CLASSES,
+  RUNNER_PURSUER_TUNING,
+  type MonsterSpecies,
+} from "@lindocara/engine/game.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
@@ -1035,9 +1039,16 @@ function generateRunnerMap(
       name: `Runner pig ambush ${ambushIndex + 1}`,
       species: "war_pig",
       patrolRadius: 3,
-      monsterTuning: { rank: "elite", speed: 5.8, damage: 1, xp: 0 },
+      monsterTuning: {
+        rank: "elite",
+        speed: RUNNER_PURSUER_TUNING.speed,
+        damage: 1,
+        xp: 0,
+      },
       monsterRespawnMode: "timed",
       monsterPursuitMode: "relentless",
+      monsterAcceleration: RUNNER_PURSUER_TUNING.acceleration,
+      monsterMaxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
       monsterOneHitKill: true,
     });
     addEvent({ ...event, showMarker: false });

@@ -560,6 +560,35 @@ describe("monster navigation on the heightfield", () => {
     expect(monster.threat.has(player.id)).toBe(true);
   });
 
+  it("defeats the hero on runner contact without starting a monster attack", () => {
+    const monster = chasingMonster();
+    monster.pursuitMode = "relentless";
+    monster.oneHitKill = true;
+    monster.x = 0;
+    monster.z = 0;
+    monster.action = {
+      id: "obsolete-runner-swing",
+      kind: "monster_attack",
+      direction: { x: 1, z: 0 },
+      startedAt: 900,
+      impactAt: 1_100,
+      recoveryEndsAt: 1_500,
+      resolved: false,
+    };
+    const player = targetPlayer(0.45, 0);
+    const socket = { id: "runner-contact-socket" } as unknown as WebSocket;
+    const context = monsterContext([monster], new Map([[socket, player]]));
+    const killPlayerOnContact = vi.fn();
+    context.killPlayerOnContact = killPlayerOnContact;
+
+    advanceMonsters(context, 1_000);
+
+    expect(killPlayerOnContact).toHaveBeenCalledOnce();
+    expect(killPlayerOnContact).toHaveBeenCalledWith(monster, socket, player, 1_000);
+    expect(context.startAttack).not.toHaveBeenCalled();
+    expect(monster.action).toBeNull();
+  });
+
   it("restores a relentless pursuer to its authored start and base speed", () => {
     const monster = chasingMonster();
     const context = monsterContext([monster], new Map());
@@ -628,6 +657,42 @@ describe("monster navigation on the heightfield", () => {
     expect(monster.x).toBeGreaterThanOrEqual(1.9);
     expect(monster.y).toBe(1.5);
     expect(monster.threat.has(player.id)).toBe(true);
+  });
+
+  it("starts a runner leap before collider sliding can steer it around an obstacle", () => {
+    const obstacleMap: MapData = {
+      version: 1,
+      size: SIZE,
+      levelHeight: 0.5,
+      waterLevel: -0.25,
+      levels: new Array(SIZE * SIZE).fill(0),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [{ x: -0.3, z: -0.7, w: 0.6, h: 1.4, top: 1 }],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+    const obstacleZone = zoneWith(zoneTerrainFromHeightfield(obstacleMap));
+    const monster = chasingMonster();
+    monster.x = -2;
+    monster.y = 0;
+    monster.z = 0;
+    monster.spawnX = monster.x;
+    monster.spawnZ = monster.z;
+    monster.pursuitMode = "relentless";
+    monster.oneHitKill = true;
+    monster.baseSpeed = 6.4;
+    monster.speed = 6.4;
+    monster.maxSpeed = 8.6;
+    const player = targetPlayer(3, 0);
+    const socket = { id: "runner-obstacle-socket" } as unknown as WebSocket;
+    const context = monsterContext([monster], new Map([[socket, player]]), obstacleZone);
+
+    advanceMonsters(context, 1_000);
+
+    expect(monster.runnerLeap).not.toBeNull();
+    expect(monster.runnerLeap?.toX).toBeGreaterThan(0.3);
+    expect(context.startAttack).not.toHaveBeenCalled();
   });
 
   it("cannot acquire a stealthed Rogue but can target them after the window ends", () => {
