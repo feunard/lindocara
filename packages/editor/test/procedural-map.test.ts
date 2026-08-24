@@ -17,6 +17,11 @@ import { parseMapData, sameElementSlot } from "@lindocara/engine/map-data.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
+import {
+  BODY_RADIUS,
+  canStand,
+  zoneTerrainFromHeightfield,
+} from "@lindocara/engine/terrain-access.js";
 import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   type EditorAssetId,
@@ -252,6 +257,40 @@ describe("procedural map authoring", () => {
     const saved = croppedForSave(first);
     const compiled = compileAuthoredMap(toMapData(saved), saved.events);
     expect(compiled.ramps?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(compiled.ramps?.every((ramp) => ramp.lowLevel >= 0 && ramp.lowLevel < 5)).toBe(true);
+    const groundLevels = compiled.levels.filter((level): level is number => level !== null);
+    for (const level of [-2, 0, 1, 2, 5]) expect(groundLevels).toContain(level);
+    expect(Math.min(...groundLevels)).toBe(-2);
+    expect(Math.max(...groundLevels)).toBe(5);
+    const shoreIndices = compiled.levels.flatMap((level, index) => {
+      if (level === null) return [];
+      const col = index % compiled.size;
+      const row = Math.floor(index / compiled.size);
+      if (col === 0 || row === 0 || col === compiled.size - 1 || row === compiled.size - 1) {
+        return [];
+      }
+      const bordersSea = [index - compiled.size, index + 1, index + compiled.size, index - 1].some(
+        (neighbour) => compiled.levels[neighbour] === null,
+      );
+      return bordersSea ? [index] : [];
+    });
+    expect(shoreIndices.length).toBeGreaterThan(0);
+    expect(shoreIndices.every((index) => (compiled.levels[index] ?? -3) >= 2)).toBe(true);
+    const shoreIndex = shoreIndices[0];
+    expect(shoreIndex).toBeDefined();
+    if (shoreIndex === undefined) throw new Error("runner shore is missing");
+    const shoreTerrain = zoneTerrainFromHeightfield(compiled);
+    const shoreCol = shoreIndex % compiled.size;
+    const shoreRow = Math.floor(shoreIndex / compiled.size);
+    expect(
+      canStand(
+        shoreTerrain,
+        shoreCol + 0.5 - compiled.size / 2,
+        shoreRow + 0.5 - compiled.size / 2,
+        BODY_RADIUS,
+        compiled.waterLevel,
+      ),
+    ).toBe(false);
     expect(
       first.events.filter(
         (event) =>
@@ -264,13 +303,13 @@ describe("procedural map authoring", () => {
     ).toBeGreaterThanOrEqual(2);
     expect(
       compiled.levels.some((level, index) => {
-        if (level !== null) return false;
+        if (level !== -2) return false;
         const col = index % compiled.size;
         const row = Math.floor(index / compiled.size);
         if (col === 0 || row === 0 || col === compiled.size - 1 || row === compiled.size - 1)
           return false;
         const neighbours = [index - compiled.size, index + 1, index + compiled.size, index - 1];
-        return neighbours.filter((neighbour) => compiled.levels[neighbour] === 2).length >= 2;
+        return neighbours.some((neighbour) => (compiled.levels[neighbour] ?? -3) >= 3);
       }),
     ).toBe(true);
     expect(parseMapData(toSaveInput(first))).not.toBeNull();

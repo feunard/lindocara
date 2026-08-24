@@ -74,7 +74,7 @@ export interface ProceduralMapOptions {
 
 interface PlannedCell {
   land: boolean;
-  level: 0 | 1 | 2 | 3;
+  level: number;
   material: TerrainMaterial;
   route: boolean;
   river: boolean;
@@ -615,6 +615,9 @@ interface RunnerCoursePlan {
 
 const RUNNER_HALF_WIDTH = 2;
 const RUNNER_LANE_SPACING = 8;
+const RUNNER_SHORE_LEVEL = 2;
+const RUNNER_PEAK_LEVEL = 5;
+const RUNNER_PIT_LEVEL = -2;
 
 function samePoint(left: Point | undefined, right: Point): boolean {
   return left?.col === right.col && left.row === right.row;
@@ -687,18 +690,18 @@ function straightTransition(path: readonly Point[], index: number): boolean {
 function runnerElevations(
   path: readonly Point[],
   complexity: ProceduralMapComplexity,
-): { levels: Array<0 | 1 | 2>; ramps: RunnerRampPlan[]; transitionIndices: Set<number> } {
-  const interval = complexity === "light" ? 34 : complexity === "dense" ? 20 : 27;
-  const levels: Array<0 | 1 | 2> = [];
+): { levels: number[]; ramps: RunnerRampPlan[]; transitionIndices: Set<number> } {
+  const interval = complexity === "light" ? 20 : complexity === "dense" ? 10 : 14;
+  const levels: number[] = [];
   const ramps: RunnerRampPlan[] = [];
   const transitionIndices = new Set<number>();
-  let level: 0 | 1 | 2 = 0;
+  let level = RUNNER_SHORE_LEVEL;
   let climb = 1;
   let nextTransition = Math.min(path.length, Math.max(14, interval));
 
   for (let index = 0; index < path.length; index += 1) {
     if (index >= nextTransition && straightTransition(path, index)) {
-      const nextLevel = (level + climb) as 0 | 1 | 2;
+      const nextLevel = level + climb;
       const from = path[index - 1];
       const to = path[index];
       if (from && to) {
@@ -712,7 +715,7 @@ function runnerElevations(
             transitionIndices.add(reserved);
           }
           level = nextLevel;
-          if (level === 2) climb = -1;
+          if (level === RUNNER_PEAK_LEVEL) climb = -1;
           if (level === 0) climb = 1;
           nextTransition = index + interval;
         }
@@ -750,7 +753,7 @@ function runnerCourse(
         if (squareDistance >= (nearest[index] ?? Number.POSITIVE_INFINITY)) continue;
         nearest[index] = squareDistance;
         const cell = cells[index];
-        const level = levels[pathIndex] ?? 0;
+        const level = levels[pathIndex] ?? RUNNER_SHORE_LEVEL;
         if (!cell) continue;
         cell.land = true;
         cell.level = level;
@@ -761,21 +764,24 @@ function runnerCourse(
     }
   }
 
-  // High plateaus carry optional two-by-two void pits along one edge. Three cells of safe deck
-  // remain beside each one, so the course stays navigable while a mistimed dodge or jump can still
-  // send the hero down a visibly two-level drop.
+  // The inner lane ranges from level 0 to 5. High plateaus carry optional two-by-two dry pits at
+  // level -2 along one edge, so a mistimed dodge becomes a deep fall without turning the pit into
+  // sea. The outer rim is raised after the pits are cut: only the boundary must stay unreachable
+  // from water, while the playable interior remains free to create risky drops and long jumps.
   const pitInterval = complexity === "light" ? 72 : complexity === "dense" ? 44 : 56;
   for (let pathIndex = 30; pathIndex < path.length - 14; pathIndex += pitInterval) {
     let candidate = pathIndex;
     while (
       candidate < Math.min(path.length - 14, pathIndex + 16) &&
-      (levels[candidate] !== 2 || transitionIndices.has(candidate))
+      ((levels[candidate] ?? 0) < 3 || transitionIndices.has(candidate))
     ) {
       candidate += 1;
     }
     const centre = path[candidate];
     const next = path[candidate + 1];
-    if (!centre || !next || levels[candidate] !== 2 || transitionIndices.has(candidate)) continue;
+    if (!centre || !next || (levels[candidate] ?? 0) < 3 || transitionIndices.has(candidate)) {
+      continue;
+    }
     const direction = pointDelta(centre, next);
     const side = candidate % 2 === 0 ? 1 : -1;
     const perpendicular = { col: -direction.row * side, row: direction.col * side };
@@ -786,11 +792,28 @@ function runnerCourse(
           row: centre.row + direction.row * along + perpendicular.row * inward,
         };
         const cell = inBounds(cols, rows, pit) ? cells[cellIndex(cols, pit)] : undefined;
-        if (!cell || cell.level !== 2) continue;
-        cell.land = false;
+        if (!cell || cell.level < 3) continue;
+        cell.land = true;
+        cell.level = RUNNER_PIT_LEVEL;
+        cell.material = "sable";
         cell.route = false;
-        cell.zone = "wild";
+        cell.zone = "danger";
       }
+    }
+  }
+
+  // A swimmer only ever meets a level-2-or-higher shore. This ring follows the generated outline,
+  // including turns and pit cuts, instead of assuming a rectangular wall around the whole map.
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const point = { col, row };
+      const cell = cells[cellIndex(cols, point)];
+      if (!cell?.land) continue;
+      const bordersWater = ORTHOGONAL.some((offset) => {
+        const neighbour = { col: col + offset.col, row: row + offset.row };
+        return !inBounds(cols, rows, neighbour) || !cells[cellIndex(cols, neighbour)]?.land;
+      });
+      if (bordersWater) cell.level = Math.max(RUNNER_SHORE_LEVEL, cell.level);
     }
   }
 

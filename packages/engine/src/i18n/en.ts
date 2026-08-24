@@ -1113,7 +1113,7 @@ export const en = {
   "editor.generator.genre.tundra.hint":
     "A lived-in frozen territory with an icebound village, crossings and fortified enemy zones.",
   "editor.generator.genre.runner.hint":
-    "A long switchback course with a relentless pursuer, stairs, jumps, pits, ambushes and a finish line.",
+    "A long switchback course whose raised shores block the sea, with dramatic elevation changes, a relentless pursuer, pits and ambushes.",
   "editor.generator.size": "Size",
   "editor.generator.size.compact": "Compact",
   "editor.generator.size.standard": "Standard",

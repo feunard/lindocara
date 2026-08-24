@@ -1127,7 +1127,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.generator.genre.tundra.hint":
     "Un territoire gelé habité, avec village pris dans les glaces, passages et zones ennemies fortifiées.",
   "editor.generator.genre.runner.hint":
-    "Un long parcours à lacets avec poursuivant implacable, escaliers, sauts, fosses, embuscades et arrivée.",
+    "Un long parcours à lacets dont les rives surélevées bloquent la mer, avec grands dénivelés, poursuivant implacable, fosses et embuscades.",
   "editor.generator.size": "Taille",
   "editor.generator.size.compact": "Compacte",
   "editor.generator.size.standard": "Standard",
