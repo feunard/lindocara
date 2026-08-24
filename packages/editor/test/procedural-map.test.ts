@@ -244,6 +244,11 @@ describe("procedural map authoring", () => {
       first.elements.some((element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade),
     ).toBe(true);
     expect(first.events.some((event) => event.monsterPursuitMode === "relentless")).toBe(true);
+    const runnerHeroSpeeds = Object.values(first.heroSettings?.classes ?? {}).map(
+      (settings) => settings.stats.movementSpeed,
+    );
+    expect(runnerHeroSpeeds).toHaveLength(5);
+    expect(new Set(runnerHeroSpeeds)).toEqual(new Set([7.15]));
     expect(
       first.events.some((event) =>
         event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
@@ -291,16 +296,25 @@ describe("procedural map authoring", () => {
         compiled.waterLevel,
       ),
     ).toBe(false);
+    const runnerMonsters = first.events.filter((event) => event.kind === "monster");
+    expect(runnerMonsters.length).toBeGreaterThanOrEqual(3);
     expect(
-      first.events.filter(
+      runnerMonsters.every(
         (event) =>
-          event.kind === "monster" &&
-          event.monsterPursuitMode !== "relentless" &&
-          event.monsterRank === "elite" &&
-          event.monsterSpecialTechnique !== "none" &&
+          event.species === "war_pig" &&
+          event.monsterOneHitKill === true &&
           event.showMarker === false,
-      ).length,
-    ).toBeGreaterThanOrEqual(2);
+      ),
+    ).toBe(true);
+    expect(first.events.filter((event) => event.kind === "sea-guardian").length).toBeGreaterThan(0);
+    const pickups = saved.events.filter((event) =>
+      event.pages.some((page) => page.commands.some((command) => command.t === "movementEffect")),
+    );
+    expect(pickups.length).toBeGreaterThan(2);
+    expect(pickups.every((event) => event.pages[0]?.optFloat === true)).toBe(true);
+    expect(
+      pickups.some((event) => compiled.levels[event.row * compiled.size + event.col] === null),
+    ).toBe(true);
     expect(
       compiled.levels.some((level, index) => {
         if (level !== -2) return false;
@@ -364,6 +378,16 @@ describe("procedural map authoring", () => {
             if (genre === "runner") {
               expect(
                 generated.events.some((event) => event.monsterPursuitMode === "relentless"),
+                context,
+              ).toBe(true);
+              expect(
+                generated.events
+                  .filter((event) => event.kind === "monster")
+                  .every((event) => event.species === "war_pig"),
+                context,
+              ).toBe(true);
+              expect(
+                generated.events.some((event) => event.kind === "sea-guardian"),
                 context,
               ).toBe(true);
               expect(

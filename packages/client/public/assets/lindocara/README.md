@@ -37,10 +37,11 @@ for what the packs are, where they came from, and under what terms they are used
 Tiny Swords is the only third-party art pack this game draws from — there is no `assets/vendor/`
 any more, and nothing under `assets/` that is not one of the three packs.
 
-Original HD-2D sprites under `hd2d/runner/` were generated in-house with OpenAI image generation,
-then passed through the repository's `apps/lab/scripts/sprite.py` palette reduction and transparent
-pixel-art post-process. They depict the nightmare hound, spike trap and timber barricade used by
-the editable runner presets; no third-party source art is embedded in those files.
+Original HD-2D sprites under `hd2d/runner/` and `hd2d/pickups/` were generated in-house with OpenAI
+image generation, then normalized into transparent game-ready PNGs. They depict the runner
+obstacles and the six movement bonus/penalty pickups; no third-party source art is embedded in
+those files. The runner pursuer itself uses the Tiny Swords war pig catalogue art above, so its
+editor and gameplay appearance cannot drift.
 
 Ambient music lives under `audio/`:
 

@@ -109,7 +109,7 @@ describe("presetEvent", () => {
     expect(anonymous.name).toBe("");
   });
 
-  it("creates ready-to-edit nightmare trap and pursuer events", () => {
+  it("creates ready-to-edit runner trap and pursuer events", () => {
     const trap = presetEvent({
       id: crypto.randomUUID(),
       col: 2,
@@ -144,8 +144,8 @@ describe("presetEvent", () => {
       showMarker: false,
       monsterAttackProfile: "melee",
       monsterPursuitMode: "relentless",
-      monsterAcceleration: 0.08,
-      monsterMaxSpeed: 6,
+      monsterAcceleration: 0.22,
+      monsterMaxSpeed: 7.8,
       monsterOneHitKill: true,
       pages: [{ graphicAssetId: null }],
     });

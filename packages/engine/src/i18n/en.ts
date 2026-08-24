@@ -276,7 +276,7 @@ export const en = {
   "death.release": "Release spirit [R]",
   "hardcore.game_over.title": "Run over",
   "hardcore.game_over.copy":
-    "The nightmare caught you. Retry from the course entrance and leave nothing behind.",
+    "The pursuer caught you. Retry from the course entrance and leave nothing behind.",
   "hardcore.retry": "Retry from zero [R]",
   "death.ghost_title": "Your spirit walks",
   "death.ghost_copy": "Find your body and reclaim it.",

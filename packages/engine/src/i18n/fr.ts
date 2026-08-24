@@ -280,7 +280,7 @@ export const fr: Record<keyof typeof en, string> = {
   "death.release": "Libérer l'esprit [R]",
   "hardcore.game_over.title": "Course terminée",
   "hardcore.game_over.copy":
-    "Le cauchemar vous a rattrapé. Recommencez à l’entrée du parcours sans rien conserver de la tentative.",
+    "Le poursuivant vous a rattrapé. Recommencez à l’entrée du parcours sans rien conserver de la tentative.",
   "hardcore.retry": "Recommencer de zéro [R]",
   "death.ghost_title": "Votre esprit erre",
   "death.ghost_copy": "Retrouvez votre corps et reprenez-le.",

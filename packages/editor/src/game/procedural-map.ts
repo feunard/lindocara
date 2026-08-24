@@ -5,8 +5,12 @@
  * testing and undo predictable. The editor installs the returned document as one history entry.
  */
 
-import { presetEvent } from "@lindocara/engine/event-presets.js";
-import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  MOVEMENT_PICKUP_PRESETS,
+  type MovementPickupPreset,
+  presetEvent,
+} from "@lindocara/engine/event-presets.js";
+import { PLAYER_CLASSES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
 import type { HarvestResourceKind } from "@lindocara/engine/harvest.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
@@ -24,6 +28,10 @@ import {
   type MapEvent,
   type NpcRoutineStep,
 } from "@lindocara/engine/map-events.js";
+import {
+  defaultMapHeroSettings,
+  type MapHeroSettings,
+} from "@lindocara/engine/map-hero-settings.js";
 import { MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import {
   paintOneCellRamp,
@@ -618,6 +626,15 @@ const RUNNER_LANE_SPACING = 8;
 const RUNNER_SHORE_LEVEL = 2;
 const RUNNER_PEAK_LEVEL = 5;
 const RUNNER_PIT_LEVEL = -2;
+const RUNNER_HERO_SPEED = 7.15;
+const RUNNER_LEVEL_HEIGHT = 0.9;
+const RUNNER_WATER_LEVEL = -0.05;
+
+const RUNNER_REWARD_PICKUPS = [
+  "pickup-speed-boost",
+  "pickup-light-gravity",
+  "pickup-double-jump",
+] as const satisfies readonly MovementPickupPreset[];
 
 function samePoint(left: Point | undefined, right: Point): boolean {
   return left?.col === right.col && left.row === right.row;
@@ -820,15 +837,48 @@ function runnerCourse(
   return { cells, path, ramps };
 }
 
-const RUNNER_AMBUSHES = [
-  { species: "hex_shaman", specialTechnique: "hex_burst" },
-  { species: "skull_warden", specialTechnique: "grave_siphon" },
-  { species: "minotaur_brute", specialTechnique: "horn_charge" },
-  { species: "pig_rider", specialTechnique: "mounted_trample" },
-] as const satisfies readonly {
-  species: MonsterSpecies;
-  specialTechnique: NonNullable<ReturnType<typeof functionalEvent>["monsterSpecialTechnique"]>;
-}[];
+function runnerHeroSettings(current: MapHeroSettings | undefined): MapHeroSettings {
+  const source = current ?? defaultMapHeroSettings();
+  const classes = { ...source.classes };
+  for (const playerClass of PLAYER_CLASSES) {
+    classes[playerClass] = {
+      ...source.classes[playerClass],
+      stats: { ...source.classes[playerClass].stats, movementSpeed: RUNNER_HERO_SPEED },
+    };
+  }
+  return { classes };
+}
+
+function runnerOuterWaterPoint(
+  cells: readonly PlannedCell[],
+  cols: number,
+  rows: number,
+  point: Point,
+  direction: Point,
+): Point | null {
+  const horizontal = direction.col !== 0;
+  const step = horizontal
+    ? { col: 0, row: point.row < rows / 2 ? -1 : 1 }
+    : { col: point.col < cols / 2 ? -1 : 1, row: 0 };
+  for (let distance = RUNNER_HALF_WIDTH + 1; distance <= RUNNER_HALF_WIDTH + 7; distance += 1) {
+    const candidate = {
+      col: point.col + step.col * distance,
+      row: point.row + step.row * distance,
+    };
+    if (!inBounds(cols, rows, candidate)) return null;
+    if (!cells[cellIndex(cols, candidate)]?.land) return candidate;
+  }
+  return null;
+}
+
+function withRunnerPickupElevation(event: MapEvent, elevation: number): MapEvent {
+  return {
+    ...event,
+    pages: event.pages.map((page, index) =>
+      index === 0 ? { ...page, graphicElevation: elevation, optFloat: true } : page,
+    ),
+  };
+}
 
 function generateRunnerMap(
   base: EditorMap,
@@ -902,10 +952,11 @@ function generateRunnerMap(
 
   const events: MapEvent[] = [];
   let ordinal = 1;
-  const addEvent = (event: MapEvent): void => {
-    if (events.length >= MAX_EVENTS_PER_MAP || occupied.has(pointKey(event))) return;
+  const addEvent = (event: MapEvent): boolean => {
+    if (events.length >= MAX_EVENTS_PER_MAP || occupied.has(pointKey(event))) return false;
     events.push(event);
     occupied.add(pointKey(event));
+    return true;
   };
   addEvent(
     presetEvent({
@@ -920,7 +971,7 @@ function generateRunnerMap(
     }),
   );
 
-  const trapInterval = complexity === "light" ? 13 : complexity === "dense" ? 8 : 10;
+  const trapInterval = complexity === "light" ? 16 : complexity === "dense" ? 11 : 13;
   let trapIndex = 0;
   for (let pathIndex = 9; pathIndex < path.length - 5; pathIndex += trapInterval) {
     const point = path[pathIndex];
@@ -962,8 +1013,7 @@ function generateRunnerMap(
   for (let pathIndex = 24; pathIndex < path.length - 12; pathIndex += ambushInterval) {
     const point = path[pathIndex];
     const next = path[pathIndex + 1];
-    const ambush = RUNNER_AMBUSHES[ambushIndex % RUNNER_AMBUSHES.length];
-    if (!point || !next || !ambush) continue;
+    if (!point || !next) continue;
     const direction = pointDelta(point, next);
     const side = ambushIndex % 2 === 0 ? RUNNER_HALF_WIDTH : -RUNNER_HALF_WIDTH;
     const hidingPlace = {
@@ -982,14 +1032,139 @@ function generateRunnerMap(
       row: hidingPlace.row,
       ordinal: ordinal++,
       kind: "monster",
-      name: `Hidden ambush ${ambushIndex + 1}`,
-      species: ambush.species,
+      name: `Runner pig ambush ${ambushIndex + 1}`,
+      species: "war_pig",
       patrolRadius: 3,
-      monsterTuning: { rank: "elite", specialTechnique: ambush.specialTechnique },
+      monsterTuning: { rank: "elite", speed: 5.8, damage: 1, xp: 0 },
       monsterRespawnMode: "timed",
+      monsterPursuitMode: "standard",
+      monsterOneHitKill: true,
     });
     addEvent({ ...event, showMarker: false });
     ambushIndex += 1;
+  }
+
+  // Pickups are sparse enough to stay meaningful. Most sit on the racing line, some require a
+  // normal jump, and the rare high placement requires a previously-earned double jump.
+  const pickupInterval = complexity === "light" ? 48 : complexity === "dense" ? 28 : 36;
+  let pickupIndex = 0;
+  for (let pathIndex = 17; pathIndex < path.length - 18; pathIndex += pickupInterval) {
+    let candidateIndex = pathIndex;
+    while (
+      candidateIndex < Math.min(path.length - 18, pathIndex + 8) &&
+      occupied.has(pointKey(path[candidateIndex] ?? { col: -1, row: -1 }))
+    ) {
+      candidateIndex += 1;
+    }
+    const point = path[candidateIndex];
+    if (!point || occupied.has(pointKey(point))) continue;
+    const preset =
+      MOVEMENT_PICKUP_PRESETS[Math.floor(random() * MOVEMENT_PICKUP_PRESETS.length)] ??
+      "pickup-speed-boost";
+    const altitudeRoll = random();
+    const elevation = altitudeRoll < 0.58 ? 0.55 : altitudeRoll < 0.88 ? 1.75 : 3.1;
+    if (
+      addEvent(
+        withRunnerPickupElevation(
+          presetEvent({
+            id: deterministicUuid(seed, `runner-pickup-${pickupIndex}`),
+            col: point.col,
+            row: point.row,
+            ordinal: ordinal++,
+            preset,
+            selfMapId: "",
+            selfSpawn: spawn,
+            name: `Runner pickup ${pickupIndex + 1}`,
+          }),
+          elevation,
+        ),
+      )
+    ) {
+      pickupIndex += 1;
+    }
+  }
+
+  // The best rewards hover over the outside sea, level with the nearby ledge. They can be caught
+  // during a jump-and-glider arc, but they do not create a swimming shortcut back onto the course.
+  const rewardInterval = complexity === "light" ? 150 : complexity === "dense" ? 95 : 120;
+  let rewardIndex = 0;
+  for (let pathIndex = 45; pathIndex < path.length - 28; pathIndex += rewardInterval) {
+    const point = path[pathIndex];
+    const next = path[pathIndex + 1];
+    if (!point || !next) continue;
+    const water = runnerOuterWaterPoint(cells, cols, rows, point, pointDelta(point, next));
+    if (!water || occupied.has(pointKey(water))) continue;
+    const level = cells[cellIndex(cols, point)]?.level ?? RUNNER_SHORE_LEVEL;
+    const elevation = level * RUNNER_LEVEL_HEIGHT - RUNNER_WATER_LEVEL + 0.2;
+    const preset =
+      RUNNER_REWARD_PICKUPS[rewardIndex % RUNNER_REWARD_PICKUPS.length] ?? "pickup-speed-boost";
+    if (
+      addEvent(
+        withRunnerPickupElevation(
+          presetEvent({
+            id: deterministicUuid(seed, `runner-glider-reward-${rewardIndex}`),
+            col: water.col,
+            row: water.row,
+            ordinal: ordinal++,
+            preset,
+            selfMapId: "",
+            selfSpawn: spawn,
+            name: `Glider reward ${rewardIndex + 1}`,
+          }),
+          elevation,
+        ),
+      )
+    ) {
+      rewardIndex += 1;
+    }
+  }
+
+  // Water remains a dangerous failure space rather than a bypass. Several permanent sharks patrol
+  // the connected sea; they are dedicated sea guardians, never ordinary course monsters.
+  const sharkInterval = Math.max(58, Math.floor(path.length / 6));
+  let sharkIndex = 0;
+  for (let pathIndex = 20; pathIndex < path.length - 12; pathIndex += sharkInterval) {
+    const point = path[pathIndex];
+    const next = path[pathIndex + 1];
+    if (!point || !next) continue;
+    const water = runnerOuterWaterPoint(cells, cols, rows, point, pointDelta(point, next));
+    if (!water || occupied.has(pointKey(water))) continue;
+    if (
+      addEvent(
+        functionalEvent({
+          id: deterministicUuid(seed, `runner-shark-${sharkIndex}`),
+          col: water.col,
+          row: water.row,
+          ordinal: ordinal++,
+          kind: "sea-guardian",
+          name: `Runner shark ${sharkIndex + 1}`,
+          patrolRadius: 8,
+        }),
+      )
+    ) {
+      sharkIndex += 1;
+    }
+  }
+  if (sharkIndex === 0) {
+    const pathIndex = Math.max(0, Math.floor(path.length / 2));
+    const point = path[pathIndex];
+    const next = path[Math.min(path.length - 1, pathIndex + 1)];
+    if (point && next) {
+      const water = runnerOuterWaterPoint(cells, cols, rows, point, pointDelta(point, next));
+      if (water && !occupied.has(pointKey(water))) {
+        addEvent(
+          functionalEvent({
+            id: deterministicUuid(seed, "runner-shark-0"),
+            col: water.col,
+            row: water.row,
+            ordinal: ordinal++,
+            kind: "sea-guardian",
+            name: "Runner shark 1",
+            patrolRadius: 8,
+          }),
+        );
+      }
+    }
   }
 
   addEvent(
@@ -1016,6 +1191,7 @@ function generateRunnerMap(
       combatProfile: "runner",
       bossProfile: "runner",
     },
+    heroSettings: runnerHeroSettings(base.heroSettings),
     layers: course.ramps.reduce<TileLayer[]>(
       (layers, ramp) =>
         paintOneCellRamp(

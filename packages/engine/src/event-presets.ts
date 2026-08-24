@@ -168,11 +168,11 @@ export function presetEvent(params: {
       name: params.name ?? "",
       species: "war_pig",
       patrolRadius: 256,
-      monsterTuning: { speed: 2.2, damage: 1, xp: 0 },
+      monsterTuning: { speed: 5.4, damage: 1, xp: 0 },
       monsterRespawnMode: "timed",
       monsterPursuitMode: "relentless",
-      monsterAcceleration: 0.08,
-      monsterMaxSpeed: 6,
+      monsterAcceleration: 0.22,
+      monsterMaxSpeed: 7.8,
       monsterOneHitKill: true,
     });
     return {
