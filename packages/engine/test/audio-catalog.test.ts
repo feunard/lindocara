@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_ADVENTURE_AUDIO,
+  ambienceTrack,
   isMusicTrackId,
   musicTrack,
+  musicTracksForSituation,
+  musicTransitionMs,
   parseAdventureAudioConfig,
   parseMapAudioConfig,
   resolveMapAudio,
@@ -56,6 +59,35 @@ describe("authored audio catalogue", () => {
     });
     expect(isMusicTrackId("uploaded:../../secret.ogg")).toBe(false);
     expect(parseMapAudioConfig({ music: "uploaded:not-a-file.mp3" })).toBeNull();
+  });
+
+  it("accepts one uploaded sound in ambience and every dynamic music situation", () => {
+    const uploadedEverywhere = {
+      ambience: UPLOADED_TRACK_ID,
+      explorationProfile: UPLOADED_TRACK_ID,
+      nightProfile: UPLOADED_TRACK_ID,
+      discoveryProfile: UPLOADED_TRACK_ID,
+      dangerProfile: UPLOADED_TRACK_ID,
+      combatProfile: UPLOADED_TRACK_ID,
+      bossProfile: UPLOADED_TRACK_ID,
+    } as const;
+    expect(parseMapAudioConfig(uploadedEverywhere)).toEqual(uploadedEverywhere);
+    expect(ambienceTrack(UPLOADED_TRACK_ID)?.src).toBe(
+      `/api/map-sounds/${encodeURIComponent(UPLOADED_FILE_ID)}/content`,
+    );
+
+    const resolved = resolveMapAudio(DEFAULT_ADVENTURE_AUDIO, uploadedEverywhere);
+    for (const situation of [
+      "exploration",
+      "night",
+      "discovery",
+      "danger",
+      "combat",
+      "boss",
+    ] as const) {
+      expect(musicTracksForSituation(resolved, situation)[0]?.id).toBe(UPLOADED_TRACK_ID);
+      expect(musicTransitionMs(resolved, situation)).toBe(650);
+    }
   });
 
   it("distinguishes map inheritance from an explicit silent override", () => {

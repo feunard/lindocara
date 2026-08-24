@@ -83,7 +83,7 @@ describe("AudioConfigFields", () => {
     expect(FakeAudio.created[0]?.src).toBe(expected.src);
   });
 
-  it("offers and previews an uploaded sound on old and new map configurations", async () => {
+  it("offers and previews an uploaded sound in every map audio mode", async () => {
     const uploaded = uploadedMusicTrack(
       "0198d55c-5b67-7000-8000-000000000001~0198d55c-5b67-7000-8000-000000000002~Q291cnNlIGR1IHRvaXQ.ogg",
       "Course du toit",
@@ -95,13 +95,20 @@ describe("AudioConfigFields", () => {
     render(
       <AudioConfigFields
         variant="map"
-        value={{ music: uploaded.id }}
+        value={{ ambience: uploaded.id, bossProfile: uploaded.id }}
         uploadedTracks={[uploaded]}
         onChange={vi.fn()}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Listen Course du toit/i }));
+    const previews = screen.getAllByRole("button", { name: /Listen Course du toit/i });
+    expect(previews).toHaveLength(2);
+    const preview = previews[0];
+    if (!preview) throw new Error("missing uploaded sound preview");
+    await user.click(preview);
     expect(FakeAudio.created[0]?.src).toBe(uploaded.src);
+
+    await user.click(screen.getByRole("combobox", { name: /Exploration \/ biome/i }));
+    expect(screen.getByRole("option", { name: /Course du toit/i })).toBeVisible();
   });
 });

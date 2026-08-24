@@ -92,8 +92,10 @@ export const AMBIENCE_TRACKS = [
 ] as const;
 
 export type MusicTrackId = (typeof MUSIC_TRACKS)[number]["id"] | UploadedMusicTrackId;
-export type AmbienceTrackId = (typeof AMBIENCE_TRACKS)[number]["id"];
+export type AmbienceTrackId = (typeof AMBIENCE_TRACKS)[number]["id"] | UploadedMusicTrackId;
 export type MusicProfileId = (typeof MUSIC_PROFILES)[number]["id"];
+/** A dynamic catalogue profile or one imported track pinned to that situation. */
+export type MusicProfileSelectionId = MusicProfileId | UploadedMusicTrackId;
 
 export const MUSIC_SITUATIONS = [
   "exploration",
@@ -131,12 +133,12 @@ export interface AdventureAudioConfig {
   ambience: AmbienceTrackId | null;
   /** Legacy single-track danger/combat fallback. Profiles take precedence when configured. */
   combatMusic: MusicTrackId | null;
-  explorationProfile: MusicProfileId | null;
-  nightProfile: MusicProfileId | null;
-  discoveryProfile: MusicProfileId | null;
-  dangerProfile: MusicProfileId | null;
-  combatProfile: MusicProfileId | null;
-  bossProfile: MusicProfileId | null;
+  explorationProfile: MusicProfileSelectionId | null;
+  nightProfile: MusicProfileSelectionId | null;
+  discoveryProfile: MusicProfileSelectionId | null;
+  dangerProfile: MusicProfileSelectionId | null;
+  combatProfile: MusicProfileSelectionId | null;
+  bossProfile: MusicProfileSelectionId | null;
 }
 
 /**
@@ -147,12 +149,12 @@ export interface MapAudioConfig {
   music?: MusicTrackId | null;
   ambience?: AmbienceTrackId | null;
   combatMusic?: MusicTrackId | null;
-  explorationProfile?: MusicProfileId | null;
-  nightProfile?: MusicProfileId | null;
-  discoveryProfile?: MusicProfileId | null;
-  dangerProfile?: MusicProfileId | null;
-  combatProfile?: MusicProfileId | null;
-  bossProfile?: MusicProfileId | null;
+  explorationProfile?: MusicProfileSelectionId | null;
+  nightProfile?: MusicProfileSelectionId | null;
+  discoveryProfile?: MusicProfileSelectionId | null;
+  dangerProfile?: MusicProfileSelectionId | null;
+  combatProfile?: MusicProfileSelectionId | null;
+  bossProfile?: MusicProfileSelectionId | null;
 }
 
 export const DEFAULT_ADVENTURE_AUDIO: AdventureAudioConfig = {
@@ -204,11 +206,15 @@ export function uploadedMusicTrack(
 }
 
 export function isAmbienceTrackId(value: unknown): value is AmbienceTrackId {
-  return typeof value === "string" && AMBIENCE_IDS.has(value);
+  return typeof value === "string" && (AMBIENCE_IDS.has(value) || isUploadedMusicTrackId(value));
 }
 
 export function isMusicProfileId(value: unknown): value is MusicProfileId {
   return typeof value === "string" && MUSIC_PROFILE_IDS.has(value);
+}
+
+export function isMusicProfileSelectionId(value: unknown): value is MusicProfileSelectionId {
+  return isMusicProfileId(value) || isUploadedMusicTrackId(value);
 }
 
 export function musicTrack(id: MusicTrackId | null) {
@@ -219,7 +225,10 @@ export function musicTrack(id: MusicTrackId | null) {
 }
 
 export function ambienceTrack(id: AmbienceTrackId | null) {
-  return id === null ? null : (AMBIENCE_TRACKS.find((track) => track.id === id) ?? null);
+  if (id === null) return null;
+  const fileId = uploadedMusicFileId(id);
+  if (fileId) return uploadedMusicTrack(fileId);
+  return AMBIENCE_TRACKS.find((track) => track.id === id) ?? null;
 }
 
 export function musicProfile(id: MusicProfileId | null) {
@@ -229,10 +238,10 @@ export function musicProfile(id: MusicProfileId | null) {
 function parseAdventureProfile(
   record: Record<string, unknown>,
   field: MusicProfileField,
-): MusicProfileId | null | undefined {
+): MusicProfileSelectionId | null | undefined {
   if (!Object.hasOwn(record, field)) return undefined;
   const value = record[field];
-  if (value !== null && !isMusicProfileId(value)) return undefined;
+  if (value !== null && !isMusicProfileSelectionId(value)) return undefined;
   return value;
 }
 
@@ -247,11 +256,11 @@ export function parseAdventureAudioConfig(value: unknown): AdventureAudioConfig 
   if (combatMusic !== null && !isMusicTrackId(combatMusic)) return null;
   const parsedProfiles = Object.fromEntries(
     MUSIC_PROFILE_FIELDS.map((field) => [field, parseAdventureProfile(record, field)]),
-  ) as Record<MusicProfileField, MusicProfileId | null | undefined>;
+  ) as Record<MusicProfileField, MusicProfileSelectionId | null | undefined>;
   for (const field of MUSIC_PROFILE_FIELDS) {
     if (Object.hasOwn(record, field) && parsedProfiles[field] === undefined) return null;
   }
-  const profileOrDefault = (field: MusicProfileField): MusicProfileId | null =>
+  const profileOrDefault = (field: MusicProfileField): MusicProfileSelectionId | null =>
     parsedProfiles[field] === undefined ? DEFAULT_ADVENTURE_AUDIO[field] : parsedProfiles[field];
   // Old payloads used only direct tracks. Honour those explicit choices; otherwise introduce the
   // new defaults so every historical adventure gains a complete dynamic soundtrack automatically.
@@ -299,7 +308,7 @@ export function parseMapAudioConfig(value: unknown): MapAudioConfig | null {
   for (const field of MUSIC_PROFILE_FIELDS) {
     const value = record[field];
     if (value === undefined) continue;
-    if (value !== null && !isMusicProfileId(value)) return null;
+    if (value !== null && !isMusicProfileSelectionId(value)) return null;
     parsed[field] = value;
   }
   return parsed;
@@ -367,7 +376,11 @@ export function selectMusicSituation(state: DynamicMusicState): MusicSituation {
   return MUSIC_STATE_RULES.find((rule) => rule.active(state))?.situation ?? "exploration";
 }
 
-export function musicTracksForProfile(profileId: MusicProfileId | null) {
+export function musicTracksForProfile(profileId: MusicProfileSelectionId | null) {
+  if (isUploadedMusicTrackId(profileId)) {
+    const uploaded = musicTrack(profileId);
+    return uploaded ? [uploaded] : [];
+  }
   const selected = musicProfile(profileId);
   if (!selected) return [];
   const generated = MUSIC_TRACKS.filter(
@@ -395,5 +408,6 @@ export function musicTracksForSituation(audio: AdventureAudioConfig, situation: 
 }
 
 export function musicTransitionMs(audio: AdventureAudioConfig, situation: MusicSituation): number {
-  return musicProfile(audio[SITUATION_PROFILE_FIELDS[situation]])?.transitionMs ?? 650;
+  const selection = audio[SITUATION_PROFILE_FIELDS[situation]];
+  return isMusicProfileId(selection) ? (musicProfile(selection)?.transitionMs ?? 650) : 650;
 }

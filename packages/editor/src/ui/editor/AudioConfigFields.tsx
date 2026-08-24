@@ -18,7 +18,7 @@ import {
   MUSIC_PROFILES,
   MUSIC_TRACKS,
   type MusicProfileField,
-  type MusicProfileId,
+  type MusicProfileSelectionId,
   type MusicTrackId,
   musicTracksForProfile,
   type UploadedMusicTrack,
@@ -112,7 +112,7 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
       if (encoded === INHERIT) delete next[field];
       else if (encoded === SILENCE) next[field] = null;
       else if (field === "ambience") next[field] = encoded as AmbienceTrackId;
-      else if (isProfileField(field)) next[field] = encoded as MusicProfileId;
+      else if (isProfileField(field)) next[field] = encoded as MusicProfileSelectionId;
       else next[field] = encoded as MusicTrackId;
       props.onChange(next);
       return;
@@ -125,13 +125,13 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
           : field === "ambience"
             ? (encoded as AmbienceTrackId)
             : isProfileField(field)
-              ? (encoded as MusicProfileId)
+              ? (encoded as MusicProfileSelectionId)
               : (encoded as MusicTrackId),
     });
   }
 
   function tracksForField(field: AudioField) {
-    if (field === "ambience") return AMBIENCE_TRACKS;
+    if (field === "ambience") return [...AMBIENCE_TRACKS, ...(props.uploadedTracks ?? [])];
     return [...MUSIC_TRACKS, ...(props.uploadedTracks ?? [])];
   }
 
@@ -139,10 +139,10 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
     const value = props.value[field];
     if (value === undefined || value === null) return null;
     if (isProfileField(field)) {
-      return musicTracksForProfile(value as MusicProfileId)[0]?.src ?? null;
+      return musicTracksForProfile(value as MusicProfileSelectionId)[0]?.src ?? null;
     }
     if (field === "ambience") {
-      return AMBIENCE_TRACKS.find((track) => track.id === value)?.src ?? null;
+      return tracksForField(field).find((track) => track.id === value)?.src ?? null;
     }
     return tracksForField(field).find((track) => track.id === value)?.src ?? null;
   }
@@ -201,7 +201,9 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
       return t(isProfileField(field) ? "editor.audio.noProfile" : "editor.audio.none");
     if (isProfileField(field)) {
       const item = MUSIC_PROFILES.find((candidate) => candidate.id === value);
-      return item ? profileLabel(item) : t("editor.audio.none");
+      if (item) return profileLabel(item);
+      const uploaded = props.uploadedTracks?.find((track) => track.id === value);
+      return uploaded ? optionLabel(uploaded) : t("editor.audio.none");
     }
     const tracks = tracksForField(field);
     const track = tracks.find((candidate) => candidate.id === value);
@@ -241,11 +243,18 @@ export function AudioConfigFields(props: AudioConfigFieldsProps) {
                     {t(isProfileField(field) ? "editor.audio.noProfile" : "editor.audio.none")}
                   </SelectItem>
                   {isProfileField(field)
-                    ? MUSIC_PROFILES.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {profileLabel(item)}
-                        </SelectItem>
-                      ))
+                    ? [
+                        ...MUSIC_PROFILES.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {profileLabel(item)}
+                          </SelectItem>
+                        )),
+                        ...(props.uploadedTracks ?? []).map((track) => (
+                          <SelectItem key={track.id} value={track.id}>
+                            {optionLabel(track)}
+                          </SelectItem>
+                        )),
+                      ]
                     : tracks.map((track) => (
                         <SelectItem key={track.id} value={track.id}>
                           {optionLabel(track)}
