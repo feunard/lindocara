@@ -718,6 +718,7 @@ function runnerElevations(
   const transitionIndices = new Set<number>();
   let level = RUNNER_SHORE_LEVEL;
   let climb = 1;
+  let transitionCount = 0;
   let nextTransition = Math.min(path.length, Math.max(14, interval));
 
   for (let index = 0; index < path.length; index += 1) {
@@ -731,11 +732,16 @@ function runnerElevations(
         const high = ascending ? to : from;
         const direction = directionFor(pointDelta(low, high));
         if (direction) {
-          ramps.push({ point: low, direction, lowLevel: Math.min(level, nextLevel) });
+          // The first rise teaches the ramp shape, then only one transition in five gets stairs.
+          // The other ledges are deliberate parkour: jump, double-jump or accept the drop.
+          if (transitionCount === 0 || transitionCount % 5 === 0) {
+            ramps.push({ point: low, direction, lowLevel: Math.min(level, nextLevel) });
+          }
           for (let reserved = index - 3; reserved <= index + 3; reserved += 1) {
             transitionIndices.add(reserved);
           }
           level = nextLevel;
+          transitionCount += 1;
           if (level === RUNNER_PEAK_LEVEL) climb = -1;
           if (level === 0) climb = 1;
           nextTransition = index + interval;

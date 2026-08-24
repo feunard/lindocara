@@ -261,7 +261,8 @@ describe("procedural map authoring", () => {
     ).toBe(true);
     const saved = croppedForSave(first);
     const compiled = compileAuthoredMap(toMapData(saved), saved.events);
-    expect(compiled.ramps?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(compiled.ramps?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(compiled.ramps?.length ?? 0).toBeLessThanOrEqual(3);
     expect(compiled.ramps?.every((ramp) => ramp.lowLevel >= 0 && ramp.lowLevel < 5)).toBe(true);
     const groundLevels = compiled.levels.filter((level): level is number => level !== null);
     for (const level of [-2, 0, 1, 2, 5]) expect(groundLevels).toContain(level);
