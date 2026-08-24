@@ -47,6 +47,7 @@ import {
   GUARD_DAMAGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
+  RUNNER_PURSUER_TUNING,
 } from "@lindocara/engine/game.js";
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
@@ -564,25 +565,25 @@ describe("monster navigation on the heightfield", () => {
     const monster = chasingMonster();
     monster.pursuitMode = "relentless";
     monster.oneHitKill = true;
-    monster.baseSpeed = 6.4;
-    monster.speed = 6.4;
-    monster.maxSpeed = 8.6;
+    monster.baseSpeed = RUNNER_PURSUER_TUNING.speed;
+    monster.speed = RUNNER_PURSUER_TUNING.speed;
+    monster.maxSpeed = RUNNER_PURSUER_TUNING.maxSpeed;
     const player = targetPlayer(tile(600), tile(220));
     const socket = { id: "progressive-runner-socket" } as unknown as WebSocket;
     const context = monsterContext([monster], new Map([[socket, player]]));
 
     advanceMonsters(context, 1_000);
-    expect(monster.speed).toBeCloseTo(4.3);
+    expect(monster.speed).toBeCloseTo(3.655);
     expect(monster.pursuitStartedAt).toBe(1_000);
 
     advanceMonsters(context, 3_000);
-    expect(monster.speed).toBeCloseTo(4.3);
+    expect(monster.speed).toBeCloseTo(3.655);
 
     advanceMonsters(context, 3_500);
-    expect(monster.speed).toBeCloseTo(6.45);
+    expect(monster.speed).toBeCloseTo(5.4825);
 
     advanceMonsters(context, 4_000);
-    expect(monster.speed).toBeCloseTo(8.6);
+    expect(monster.speed).toBeCloseTo(7.31);
   });
 
   it("defeats the hero on runner contact without starting a monster attack", () => {

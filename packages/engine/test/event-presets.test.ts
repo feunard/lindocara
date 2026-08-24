@@ -53,6 +53,11 @@ describe("presetPageContent", () => {
 });
 
 describe("presetEvent", () => {
+  it("keeps the runner pursuer fifteen percent below its original movement tuning", () => {
+    expect(RUNNER_PURSUER_TUNING.speed).toBeCloseTo(6.4 * 0.85);
+    expect(RUNNER_PURSUER_TUNING.maxSpeed).toBeCloseTo(8.6 * 0.85);
+  });
+
   it("builds a normal, single-page, uuid-identified event out of the preset", () => {
     const event = presetEvent({
       id: crypto.randomUUID(),
