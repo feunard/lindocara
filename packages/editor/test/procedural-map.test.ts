@@ -254,6 +254,21 @@ describe("procedural map authoring", () => {
         event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
       ),
     ).toBe(true);
+    const trapElements = first.elements.filter(
+      (element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
+    );
+    const trapEvents = first.events.filter((event) =>
+      event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
+    );
+    expect(trapElements.length).toBeGreaterThan(0);
+    expect(trapEvents).toHaveLength(trapElements.length);
+    expect(
+      trapEvents.every(
+        (event) =>
+          event.pages[0]?.graphicAssetId === null &&
+          trapElements.some((element) => element.col === event.col && element.row === event.row),
+      ),
+    ).toBe(true);
     expect(
       first.events.some((event) =>
         event.pages.some((page) => page.commands.some((command) => command.t === "endAdventure")),

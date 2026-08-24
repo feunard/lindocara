@@ -21,6 +21,7 @@ import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   ELEMENT_OFFSET_STEPS,
   EMPTY_MARKERS,
+  elementCells as authoredElementCells,
   elementFitsMap,
   MAX_MAP_ELEMENTS,
   type MapElement,
@@ -962,8 +963,9 @@ function generateRunnerMap(
 
   const events: MapEvent[] = [];
   let ordinal = 1;
-  const addEvent = (event: MapEvent): boolean => {
-    if (events.length >= MAX_EVENTS_PER_MAP || occupied.has(pointKey(event))) return false;
+  const addEvent = (event: MapEvent, shareElementCell = false): boolean => {
+    if (events.length >= MAX_EVENTS_PER_MAP || (!shareElementCell && occupied.has(pointKey(event))))
+      return false;
     events.push(event);
     occupied.add(pointKey(event));
     return true;
@@ -983,28 +985,65 @@ function generateRunnerMap(
 
   const trapInterval = complexity === "light" ? 16 : complexity === "dense" ? 11 : 13;
   let trapIndex = 0;
-  for (let pathIndex = 9; pathIndex < path.length - 5; pathIndex += trapInterval) {
-    const point = path[pathIndex];
-    if (!point || occupied.has(pointKey(point)) || !cells[cellIndex(cols, point)]?.land) continue;
+  for (let pathIndex = 13; pathIndex < path.length - 5; pathIndex += trapInterval) {
+    let point: Point | null = null;
+    for (let offset = 0; offset < 7; offset += 1) {
+      const candidate = path[pathIndex + offset];
+      if (
+        !candidate ||
+        occupied.has(pointKey(candidate)) ||
+        !cells[cellIndex(cols, candidate)]?.land
+      )
+        continue;
+      if (
+        tryPlaceElement(
+          elements,
+          occupied,
+          cells,
+          cols,
+          rows,
+          LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
+          candidate,
+        )
+      ) {
+        point = candidate;
+        break;
+      }
+    }
+    if (!point) continue;
+    const trapEvent = presetEvent({
+      id: deterministicUuid(seed, `runner-trap-${trapIndex}`),
+      col: point.col,
+      row: point.row,
+      ordinal: ordinal++,
+      preset: "trap",
+      selfMapId: "",
+      selfSpawn: spawn,
+      name: `Spike trap ${trapIndex + 1}`,
+    });
     addEvent(
-      presetEvent({
-        id: deterministicUuid(seed, `runner-trap-${trapIndex}`),
-        col: point.col,
-        row: point.row,
-        ordinal: ordinal++,
-        preset: "trap",
-        selfMapId: "",
-        selfSpawn: spawn,
-        name: `Spike trap ${trapIndex + 1}`,
-      }),
+      {
+        ...trapEvent,
+        pages: trapEvent.pages.map((page) => ({ ...page, graphicAssetId: null })),
+      },
+      true,
     );
     trapIndex += 1;
   }
   if (trapIndex === 0) {
     const fallback = path[Math.max(0, Math.min(path.length - 4, Math.floor(path.length * 0.68)))];
     if (fallback && !occupied.has(pointKey(fallback))) {
-      addEvent(
-        presetEvent({
+      const trapPlaced = tryPlaceElement(
+        elements,
+        occupied,
+        cells,
+        cols,
+        rows,
+        LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
+        fallback,
+      );
+      if (trapPlaced) {
+        const trapEvent = presetEvent({
           id: deterministicUuid(seed, "runner-trap-0"),
           col: fallback.col,
           row: fallback.row,
@@ -1013,8 +1052,15 @@ function generateRunnerMap(
           selfMapId: "",
           selfSpawn: spawn,
           name: "Spike trap 1",
-        }),
-      );
+        });
+        addEvent(
+          {
+            ...trapEvent,
+            pages: trapEvent.pages.map((page) => ({ ...page, graphicAssetId: null })),
+          },
+          true,
+        );
+      }
     }
   }
 
@@ -1521,7 +1567,7 @@ function weightedAsset(
   return assets[assets.length - 1] ?? null;
 }
 
-function elementCells(asset: EditorAssetDefinition, point: Point): Point[] {
+function assetElementCells(asset: EditorAssetDefinition, point: Point): Point[] {
   const footprint = asset.editor.visualFootprint.length
     ? asset.editor.visualFootprint
     : [{ col: 0, row: 0 }];
@@ -1537,7 +1583,7 @@ function occupiedByElements(elements: readonly MapElement[]): Set<string> {
   for (const element of elements) {
     const asset = editorAsset(element.assetId);
     if (!asset) continue;
-    for (const point of elementCells(asset, element)) occupied.add(pointKey(point));
+    for (const point of authoredElementCells(element)) occupied.add(pointKey(point));
   }
   return occupied;
 }
@@ -1554,7 +1600,14 @@ function tryPlaceElement(
   if (elements.length >= MAX_MAP_ELEMENTS) return false;
   const asset = editorAsset(assetId);
   if (!asset || !allowedGeneratedAsset(asset)) return false;
-  const footprint = elementCells(asset, point);
+  const element: MapElement = {
+    col: point.col,
+    row: point.row,
+    offsetX: 0,
+    offsetY: 0,
+    assetId: asset.id as EditorAssetId,
+  };
+  const footprint = authoredElementCells(element);
   const base = cells[cellIndex(cols, point)];
   if (!base) return false;
   if (
@@ -1568,13 +1621,6 @@ function tryPlaceElement(
     })
   )
     return false;
-  const element: MapElement = {
-    col: point.col,
-    row: point.row,
-    offsetX: 0,
-    offsetY: 0,
-    assetId: asset.id as EditorAssetId,
-  };
   if (!elementFitsMap(element, cols, rows)) return false;
   elements.push(element);
   for (const target of footprint) occupied.add(pointKey(target));
@@ -1814,7 +1860,7 @@ function sceneryPlan(
     if (terrain === "grass" && !flatLand(cells, cols, rows, point)) continue;
     const asset = weightedAsset(terrain === "grass" ? landAssets : waterAssets, genre, random);
     if (!asset) continue;
-    const footprint = elementCells(asset, point);
+    const footprint = assetElementCells(asset, point);
     if (
       footprint.some((targetCell) => {
         if (!inBounds(cols, rows, targetCell)) return true;
@@ -1853,7 +1899,8 @@ function ensureResourceVariety(
   for (const element of elements) {
     const asset = editorAsset(element.assetId);
     if (!asset) continue;
-    for (const point of elementCells(asset, element)) occupied.add(`${point.col},${point.row}`);
+    for (const point of assetElementCells(asset, element))
+      occupied.add(`${point.col},${point.row}`);
   }
 
   for (const resource of RESOURCE_VARIETY) {
@@ -1874,7 +1921,7 @@ function ensureResourceVariety(
       const cell = cells[cellIndex(cols, point)];
       if (!cell?.land || cell.route || distance(point, spawn) < 5) continue;
       if (!flatLand(cells, cols, rows, point)) continue;
-      const footprint = elementCells(asset, point);
+      const footprint = assetElementCells(asset, point);
       if (
         footprint.some((target) => {
           const planned = inBounds(cols, rows, target) ? cells[cellIndex(cols, target)] : undefined;
