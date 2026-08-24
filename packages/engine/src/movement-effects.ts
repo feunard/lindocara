@@ -43,6 +43,45 @@ export interface ActiveMovementEffect {
   readonly until: number;
 }
 
+export interface MovementEffectModifiers {
+  readonly speedMultiplier: number;
+  readonly gravityMultiplier: number;
+  readonly extraAirJumps: number;
+  readonly controlMultiplier: number;
+}
+
+/**
+ * Combines every distinct active effect. Repeating the same kind refreshes/replaces it instead of
+ * multiplying it twice.
+ */
+export function combinedMovementEffectModifiers(
+  effects: Iterable<ActiveMovementEffect>,
+  now: number,
+): MovementEffectModifiers {
+  const activeByKind = new Map<MovementEffectKind, ActiveMovementEffect>();
+  for (const effect of effects) {
+    if (effect.until > now) activeByKind.set(effect.kind, effect);
+  }
+
+  let speedMultiplier = 1;
+  let gravityMultiplier = 1;
+  let extraAirJumps = 0;
+  let controlMultiplier = 1;
+  for (const effect of activeByKind.values()) {
+    if (effect.kind === "speed_boost" || effect.kind === "speed_slow") {
+      speedMultiplier *= effect.power;
+    } else if (effect.kind === "light_gravity" || effect.kind === "heavy_gravity") {
+      gravityMultiplier *= effect.power;
+    } else if (effect.kind === "double_jump") {
+      extraAirJumps = Math.max(extraAirJumps, Math.floor(effect.power));
+    } else if (effect.kind === "inverted_controls") {
+      controlMultiplier = -1;
+    }
+  }
+
+  return { speedMultiplier, gravityMultiplier, extraAirJumps, controlMultiplier };
+}
+
 export function isMovementEffectKind(value: unknown): value is MovementEffectKind {
   return typeof value === "string" && (MOVEMENT_EFFECT_KINDS as readonly string[]).includes(value);
 }

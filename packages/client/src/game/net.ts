@@ -9,9 +9,11 @@ import {
   type MapHeroSettings,
   mapHeroClassSettings,
 } from "@lindocara/engine/map-hero-settings.js";
-import type {
-  ActiveMovementEffect,
-  MovementEffectKind,
+import {
+  type ActiveMovementEffect,
+  combinedMovementEffectModifiers,
+  type MovementEffectKind,
+  type MovementEffectModifiers,
 } from "@lindocara/engine/movement-effects.js";
 import {
   type ClientMessage,
@@ -1026,29 +1028,13 @@ export class WorldClient {
     }
   }
 
-  #activeMovementModifiers(now: number): {
-    speedMultiplier: number;
-    gravityMultiplier: number;
-    extraAirJumps: number;
-    controlMultiplier: number;
-  } {
-    let speedMultiplier = 1;
-    let gravityMultiplier = 1;
-    let extraAirJumps = 0;
-    let controlMultiplier = 1;
+  #activeMovementModifiers(now: number): MovementEffectModifiers {
     for (const [kind, effect] of this.#movementEffects) {
       if (effect.until <= now) {
         this.#movementEffects.delete(kind);
-        continue;
       }
-      if (kind === "speed_boost" || kind === "speed_slow") speedMultiplier *= effect.power;
-      else if (kind === "light_gravity" || kind === "heavy_gravity") {
-        gravityMultiplier *= effect.power;
-      } else if (kind === "double_jump") {
-        extraAirJumps = Math.max(extraAirJumps, Math.floor(effect.power));
-      } else if (kind === "inverted_controls") controlMultiplier = -1;
     }
-    return { speedMultiplier, gravityMultiplier, extraAirJumps, controlMultiplier };
+    return combinedMovementEffectModifiers(this.#movementEffects.values(), now);
   }
 
   #rememberReportedFromHero(): void {
