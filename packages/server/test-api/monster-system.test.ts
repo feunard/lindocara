@@ -560,6 +560,31 @@ describe("monster navigation on the heightfield", () => {
     expect(monster.threat.has(player.id)).toBe(true);
   });
 
+  it("holds a runner at half speed for two seconds and reaches full speed at three", () => {
+    const monster = chasingMonster();
+    monster.pursuitMode = "relentless";
+    monster.oneHitKill = true;
+    monster.baseSpeed = 6.4;
+    monster.speed = 6.4;
+    monster.maxSpeed = 8.6;
+    const player = targetPlayer(tile(600), tile(220));
+    const socket = { id: "progressive-runner-socket" } as unknown as WebSocket;
+    const context = monsterContext([monster], new Map([[socket, player]]));
+
+    advanceMonsters(context, 1_000);
+    expect(monster.speed).toBeCloseTo(4.3);
+    expect(monster.pursuitStartedAt).toBe(1_000);
+
+    advanceMonsters(context, 3_000);
+    expect(monster.speed).toBeCloseTo(4.3);
+
+    advanceMonsters(context, 3_500);
+    expect(monster.speed).toBeCloseTo(6.45);
+
+    advanceMonsters(context, 4_000);
+    expect(monster.speed).toBeCloseTo(8.6);
+  });
+
   it("defeats the hero on runner contact without starting a monster attack", () => {
     const monster = chasingMonster();
     monster.pursuitMode = "relentless";
@@ -595,6 +620,7 @@ describe("monster navigation on the heightfield", () => {
     monster.pursuitMode = "relentless";
     monster.baseSpeed = 2;
     monster.speed = 7;
+    monster.pursuitStartedAt = 1_000;
     monster.x += 2;
     monster.hp = 1;
     monster.runnerLeap = {
@@ -616,6 +642,7 @@ describe("monster navigation on the heightfield", () => {
       z: monster.spawnZ,
       hp: monster.maxHp,
       speed: 2,
+      pursuitStartedAt: null,
       deadUntil: 0,
       runnerLeap: null,
     });

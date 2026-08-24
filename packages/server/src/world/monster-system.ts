@@ -64,6 +64,10 @@ const RUNNER_LEAP_SEARCH_STEP = 0.25;
 const RUNNER_LEAP_MIN_DURATION_MS = 420;
 const RUNNER_LEAP_MAX_DURATION_MS = 760;
 const RUNNER_LEAP_APEX = 1.15;
+/** Runner pursuit stays forgiving for two seconds, then reaches full speed one second later. */
+const RUNNER_HALF_SPEED_MS = 2_000;
+const RUNNER_FULL_SPEED_MS = 3_000;
+const RUNNER_INITIAL_SPEED_RATIO = 0.5;
 /** Two authoritative ground bodies touching; elevation keeps a clean jump over a runner viable. */
 const RUNNER_CONTACT_DISTANCE = BODY_RADIUS * 2;
 const RUNNER_CONTACT_HEIGHT = BODY_RADIUS * 2;
@@ -146,6 +150,22 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
     return MONSTER_SPECIAL_ACTIONS[monster.specialTechnique].range;
   }
   return monsterActionDefinition(monster.species, monster.attackProfile).range;
+}
+
+function runnerPursuitSpeed(monster: MonsterRuntime, now: number): number {
+  const startedAt = monster.pursuitStartedAt ?? now;
+  monster.pursuitStartedAt = startedAt;
+  const rampProgress = Math.max(
+    0,
+    Math.min(
+      1,
+      (now - startedAt - RUNNER_HALF_SPEED_MS) / (RUNNER_FULL_SPEED_MS - RUNNER_HALF_SPEED_MS),
+    ),
+  );
+  return (
+    monster.maxSpeed *
+    (RUNNER_INITIAL_SPEED_RATIO + (1 - RUNNER_INITIAL_SPEED_RATIO) * rampProgress)
+  );
 }
 
 export function abandonMonsterTarget(
@@ -238,6 +258,7 @@ export function resetMonsterAtSpawn(
   monster.vz = 0;
   monster.runnerLeap = null;
   monster.speed = monster.baseSpeed;
+  monster.pursuitStartedAt = null;
   monster.slowUntil = 0;
   monster.slowMultiplier = 1;
   monster.revealedUntil = 0;
@@ -351,7 +372,9 @@ export function advanceMonsters<TSocket>(
 
     if (target) {
       const [, player] = target;
-      if (relentless) {
+      if (runnerPursuer) {
+        monster.speed = runnerPursuitSpeed(monster, now);
+      } else if (relentless) {
         monster.speed = Math.min(monster.maxSpeed, monster.speed + monster.acceleration * TICK_DT);
       }
       refreshThreat(monster.threat, player.id, now);
@@ -446,6 +469,10 @@ export function advanceMonsters<TSocket>(
       }
       navigateMonster(context, monster, targetPosition, player.id, "chase", now, targetChanged);
     } else {
+      if (runnerPursuer) {
+        monster.pursuitStartedAt = null;
+        monster.speed = monster.baseSpeed;
+      }
       const returning =
         (monster.navigation.state === "chase" ||
           monster.navigation.state === "waiting_path" ||
