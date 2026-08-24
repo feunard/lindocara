@@ -9,6 +9,7 @@ import {
   PROCEDURAL_MAP_COMPLEXITIES,
   PROCEDURAL_MAP_GENRES,
   PROCEDURAL_MAP_SIZES,
+  runnerBarricadeRotation,
   type ProceduralMapOptions,
 } from "@lindocara/editor/game/procedural-map.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
@@ -82,6 +83,13 @@ function runnerGroundDistance(map: ReturnType<typeof croppedForSave>): number {
 }
 
 describe("procedural map authoring", () => {
+  it("turns runner barricades across horizontal and vertical course segments", () => {
+    expect(runnerBarricadeRotation({ col: 1, row: 0 })).toBe(90);
+    expect(runnerBarricadeRotation({ col: -1, row: 0 })).toBe(90);
+    expect(runnerBarricadeRotation({ col: 0, row: 1 })).toBe(0);
+    expect(runnerBarricadeRotation({ col: 0, row: -1 })).toBe(0);
+  });
+
   it("is deterministic and preserves the open map's shell settings", () => {
     const base = {
       ...blankMap("Moonwood", 20, 15),
@@ -240,9 +248,13 @@ describe("procedural map authoring", () => {
       combatProfile: "runner",
       bossProfile: "runner",
     });
-    expect(
-      first.elements.some((element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade),
-    ).toBe(true);
+    const barricades = first.elements.filter(
+      (element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade,
+    );
+    expect(barricades.length).toBeGreaterThan(0);
+    expect(barricades.every((element) => element.rotation === 0 || element.rotation === 90)).toBe(
+      true,
+    );
     expect(first.events.some((event) => event.monsterPursuitMode === "relentless")).toBe(true);
     const runnerHeroSpeeds = Object.values(first.heroSettings?.classes ?? {}).map(
       (settings) => settings.stats.movementSpeed,

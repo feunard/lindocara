@@ -882,6 +882,11 @@ function runnerOuterWaterPoint(
   return null;
 }
 
+/** A barricade's wide axis crosses the course instead of pointing along it. */
+export function runnerBarricadeRotation(direction: { col: number; row: number }): 0 | 90 {
+  return direction.col === 0 ? 0 : 90;
+}
+
 function withRunnerPickupElevation(event: MapEvent, elevation: number): MapEvent {
   return {
     ...event,
@@ -926,11 +931,14 @@ function generateRunnerMap(
       rows,
       LINDOCARA_RUNNER_ASSET_IDS.barricade,
       target,
+      { rotation: runnerBarricadeRotation(direction) },
     );
   }
   if (!elements.some((element) => element.assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade)) {
     const fallback = path[Math.floor(path.length / 2)];
-    if (fallback)
+    const fallbackIndex = Math.floor(path.length / 2);
+    const fallbackNext = path[fallbackIndex + 1] ?? path[fallbackIndex - 1];
+    if (fallback && fallbackNext)
       tryPlaceElement(
         elements,
         occupied,
@@ -939,6 +947,7 @@ function generateRunnerMap(
         rows,
         LINDOCARA_RUNNER_ASSET_IDS.barricade,
         fallback,
+        { rotation: runnerBarricadeRotation(pointDelta(fallback, fallbackNext)) },
       );
   }
 
@@ -1596,6 +1605,7 @@ function tryPlaceElement(
   rows: number,
   assetId: string,
   point: Point,
+  transform: Pick<MapElement, "rotation" | "dimensions"> = {},
 ): boolean {
   if (elements.length >= MAX_MAP_ELEMENTS) return false;
   const asset = editorAsset(assetId);
@@ -1606,6 +1616,7 @@ function tryPlaceElement(
     offsetX: 0,
     offsetY: 0,
     assetId: asset.id as EditorAssetId,
+    ...transform,
   };
   const footprint = authoredElementCells(element);
   const base = cells[cellIndex(cols, point)];
