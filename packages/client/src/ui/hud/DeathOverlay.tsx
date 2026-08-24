@@ -1,5 +1,6 @@
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { TinyButton } from "../tiny-swords/TinyButton.js";
 
 /**
@@ -8,6 +9,7 @@ import { TinyButton } from "../tiny-swords/TinyButton.js";
  */
 export function DeathOverlay() {
   useLocale();
+  const { mode, settings } = useInputModeSettings();
   const self = useUiStore((state) => state.self);
   const game = useUiStore((state) => state.game);
   const hardcore = useUiStore((state) => state.gameMode === "hardcore_runner");
@@ -24,7 +26,9 @@ export function DeathOverlay() {
           {t(hardcore ? "hardcore.game_over.copy" : "death.fallen_copy")}
         </p>
         <TinyButton type="button" className="death-release" onClick={() => game?.release()}>
-          {t(hardcore ? "hardcore.retry" : "death.release")}
+          {t(hardcore ? "hardcore.retry" : "death.release", {
+            binding: controlBindingLabel("release", mode, settings),
+          })}
         </TinyButton>
       </div>
     );

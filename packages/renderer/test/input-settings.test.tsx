@@ -61,8 +61,9 @@ describe("input remapping", () => {
     expect(gamepad.skill4).toEqual([{ kind: "button", index: 1 }]);
     expect(gamepad.skill5).toEqual([{ kind: "button", index: 11 }]);
     expect(gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
+    expect(gamepad.release).toEqual([{ kind: "button", index: 9 }]);
     expect(gamepad.chat).toEqual([{ kind: "button", index: 7 }]);
-    expect(gamepad.settings).toEqual([{ kind: "button", index: 9 }]);
+    expect(gamepad.settings).toEqual([{ kind: "button", index: 10 }]);
   });
 
   it("uses remapped movement keys in the prediction input tracker", () => {

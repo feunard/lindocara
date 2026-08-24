@@ -277,11 +277,11 @@ export const fr: Record<keyof typeof en, string> = {
   "death.fallen_title": "Vous êtes tombé",
   "death.fallen_copy":
     "Votre corps gît là où vous êtes tombé. Un prêtre peut encore vous rappeler — ou vous pouvez lâcher prise.",
-  "death.release": "Libérer l'esprit [R]",
+  "death.release": "Libérer l'esprit ({binding})",
   "hardcore.game_over.title": "Course terminée",
   "hardcore.game_over.copy":
     "Le poursuivant vous a rattrapé. Recommencez à l’entrée du parcours sans rien conserver de la tentative.",
-  "hardcore.retry": "Recommencer de zéro [R]",
+  "hardcore.retry": "Recommencer de zéro ({binding})",
   "death.ghost_title": "Votre esprit erre",
   "death.ghost_copy": "Retrouvez votre corps et reprenez-le.",
   "death.ghost_distance": "Votre corps gît à {distance} m. Retournez-y.",
@@ -1041,7 +1041,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.heal.cast": "Vous soignez {name} : +{amount} PV.",
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.death.fallen":
-    "Vous êtes tombé. Attendez un prêtre, ou pressez [R] pour libérer votre esprit.",
+    "Vous êtes tombé. Attendez un prêtre, ou libérez votre esprit depuis l'écran de mort.",
   "event.death.released": "Vous revenez à la vie au point d'entrée de la carte.",
   "event.death.reclaimed": "Vous reprenez votre corps et respirez à nouveau.",
   "event.death.resurrected": "{name} vous rappelle du seuil.",

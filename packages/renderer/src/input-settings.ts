@@ -42,7 +42,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 5;
+const INPUT_BINDINGS_VERSION = 6;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const HERO_DIRECTION_CONTROLS = ["moveUp", "moveDown", "moveLeft", "moveRight"] as const;
 const listeners = new Set<() => void>();
@@ -98,13 +98,14 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     item1: [{ kind: "button", index: 14 }],
     item2: [{ kind: "button", index: 12 }],
     item3: [{ kind: "button", index: 15 }],
-    release: [{ kind: "button", index: 10 }],
+    // Start/Menu/Options is the familiar retry button when a run ends.
+    release: [{ kind: "button", index: 9 }],
     map: [{ kind: "button", index: 8 }],
     talents: [{ kind: "button", index: 5 }],
     inventory: [{ kind: "button", index: 13 }],
     quests: [{ kind: "button", index: 18 }],
     chat: [{ kind: "button", index: 7 }],
-    settings: [{ kind: "button", index: 9 }],
+    settings: [{ kind: "button", index: 10 }],
   },
 };
 
@@ -327,6 +328,21 @@ function loadSettings(): InputSettings {
       const storedInteract = validGamepadBindings(parsed.gamepad?.interact);
       if (storedInteract && sameGamepadBindings(storedInteract, [{ kind: "button", index: 4 }])) {
         fallback.gamepad.interact = DEFAULT_INPUT_SETTINGS.gamepad.interact.map((binding) => ({
+          ...binding,
+        }));
+      }
+      const storedRelease = validGamepadBindings(parsed.gamepad?.release);
+      const storedSettings = validGamepadBindings(parsed.gamepad?.settings);
+      if (
+        storedRelease &&
+        storedSettings &&
+        sameGamepadBindings(storedRelease, [{ kind: "button", index: 10 }]) &&
+        sameGamepadBindings(storedSettings, [{ kind: "button", index: 9 }])
+      ) {
+        fallback.gamepad.release = DEFAULT_INPUT_SETTINGS.gamepad.release.map((binding) => ({
+          ...binding,
+        }));
+        fallback.gamepad.settings = DEFAULT_INPUT_SETTINGS.gamepad.settings.map((binding) => ({
           ...binding,
         }));
       }

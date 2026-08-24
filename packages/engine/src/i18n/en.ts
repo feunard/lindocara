@@ -273,11 +273,11 @@ export const en = {
   "death.fallen_title": "You have fallen",
   "death.fallen_copy":
     "Your body lies where you fell. A priest may still call you back — or you can let go.",
-  "death.release": "Release spirit [R]",
+  "death.release": "Release spirit ({binding})",
   "hardcore.game_over.title": "Run over",
   "hardcore.game_over.copy":
     "The pursuer caught you. Retry from the course entrance and leave nothing behind.",
-  "hardcore.retry": "Retry from zero [R]",
+  "hardcore.retry": "Retry from zero ({binding})",
   "death.ghost_title": "Your spirit walks",
   "death.ghost_copy": "Find your body and reclaim it.",
   "death.ghost_distance": "Your body lies {distance}m away. Walk back to it.",
@@ -1031,7 +1031,8 @@ export const en = {
   "event.item.full": "Your pack is full — cannot take any more {item}.",
   "event.heal.cast": "You mend {name} for {amount}.",
   "event.heal.received": "{name} mends you for {amount}.",
-  "event.death.fallen": "You have fallen. Wait for a priest, or press [R] to release your spirit.",
+  "event.death.fallen":
+    "You have fallen. Wait for a priest, or release your spirit from the death screen.",
   "event.death.released": "You return to life at the map entrance.",
   "event.death.reclaimed": "You reclaim your body and draw breath again.",
   "event.death.resurrected": "{name} calls you back from the edge.",
