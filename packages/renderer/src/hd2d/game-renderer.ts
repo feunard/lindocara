@@ -245,8 +245,7 @@ export function authoredActorSheet(
   }
   if (
     !graphicAssetId ||
-    (!NPC_MODEL_ASSET_IDS.has(graphicAssetId) &&
-      !MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId))
+    (!NPC_MODEL_ASSET_IDS.has(graphicAssetId) && !MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId))
   )
     return null;
   const asset = editorAsset(graphicAssetId);
