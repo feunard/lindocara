@@ -45,7 +45,11 @@ import {
   zone,
 } from "./world-glue.ts";
 import { sendSpatialEvent, sendStateTo } from "./world-send.ts";
-import { detectPlayerTouch, evaluateActiveEvents } from "./worldEvents.ts";
+import {
+  detectPlayerTouch,
+  evaluateActiveEvents,
+  randomizeMovementPickupPositions,
+} from "./worldEvents.ts";
 
 /**
  * Does this reported position describe a point on THIS map?
@@ -318,6 +322,7 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
       resetMonsterAtSpawn(monster, terrain, w.state.monsterGrid, now);
     }
     evaluateActiveEvents(w.state, now);
+    randomizeMovementPickupPositions(w.state);
   }
   grantReviveGrace(w, player, now);
   freeze(w, player);

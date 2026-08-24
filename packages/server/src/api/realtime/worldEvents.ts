@@ -132,6 +132,44 @@ export function consumeMovementPickup(state: WorldRoomState, eventId: string): b
   return true;
 }
 
+/**
+ * Reassign every active movement pickup to another authored pickup slot for a new runner attempt.
+ * The slots themselves stay author-vetted (including airborne placements), while the cyclic offset
+ * is random and never leaves a pickup in the same position when at least two exist.
+ */
+export function randomizeMovementPickupPositions(
+  state: WorldRoomState,
+  random: () => number = Math.random,
+): number {
+  const authoredPickups = (state.location?.definition.events ?? []).flatMap((event) => {
+    const pageIndex = activePageIndex(event, state.adventureState.state);
+    return pageIndex !== null && isMovementPickupPage(event, pageIndex) ? [event] : [];
+  });
+  if (authoredPickups.length < 2) return authoredPickups.length;
+  const activeIds = new Set(state.activeEvents.map((event) => event.id));
+  const pickups = authoredPickups.filter((event) => activeIds.has(event.id));
+  if (pickups.length < 2) return pickups.length;
+  const unit = Math.max(0, Math.min(0.999_999, random()));
+  const offset = 1 + Math.floor(unit * (pickups.length - 1));
+  const destinationById = new Map(
+    pickups.map((event, index) => {
+      const destination = pickups[(index + offset) % pickups.length];
+      return [event.id, { col: destination?.col ?? event.col, row: destination?.row ?? event.row }];
+    }),
+  );
+  state.activeEvents = state.activeEvents.map((event) => {
+    const destination = destinationById.get(event.id);
+    return destination ? { ...event, ...destination } : event;
+  });
+  for (const event of pickups) {
+    state.eventTouchActorPositions.delete(event.id);
+    for (const contact of state.eventTouchContacts) {
+      if (contact.startsWith(`${event.id}:`)) state.eventTouchContacts.delete(contact);
+    }
+  }
+  return pickups.length;
+}
+
 function colliderTuple(
   rect: Rect | null,
   elevation: CollisionElevation,

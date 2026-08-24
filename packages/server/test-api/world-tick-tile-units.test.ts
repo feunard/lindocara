@@ -545,7 +545,7 @@ describe("releasing a spirit", () => {
     ]);
   });
 
-  it("consumes a movement pickup and restores it only when a hardcore attempt restarts", () => {
+  it("restores consumed pickups in different authored slots for every hardcore retry", () => {
     const built = terrain();
     const player = hero(0.5, 0.5);
     const pickup = presetEvent({
@@ -556,7 +556,15 @@ describe("releasing a spirit", () => {
       preset: "pickup-speed-boost",
       selfMapId: MAP_ID,
     });
-    const w = glue(built, player, { x: -1.5, z: -1.5 }, [pickup]);
+    const secondPickup = presetEvent({
+      id: "pickup-double-jump",
+      col: 10,
+      row: 8,
+      ordinal: 2,
+      preset: "pickup-double-jump",
+      selfMapId: MAP_ID,
+    });
+    const w = glue(built, player, { x: -1.5, z: -1.5 }, [pickup, secondPickup]);
     w.state.gameMode = "hardcore_runner";
     evaluateActiveEvents(w.state, NOW);
     expect(w.state.activeEvents.some((event) => event.id === pickup.id)).toBe(true);
@@ -588,6 +596,14 @@ describe("releasing a spirit", () => {
 
     expect(w.state.consumedMovementPickupIds.size).toBe(0);
     expect(w.state.activeEvents.some((event) => event.id === pickup.id)).toBe(true);
+    expect(
+      w.state.activeEvents
+        .filter((event) => event.id === pickup.id || event.id === secondPickup.id)
+        .map(({ id, col, row }) => ({ id, col, row })),
+    ).toEqual([
+      { id: pickup.id, col: secondPickup.col, row: secondPickup.row },
+      { id: secondPickup.id, col: pickup.col, row: pickup.row },
+    ]);
   });
 
   it("ignores another release after the hero is already alive", () => {
