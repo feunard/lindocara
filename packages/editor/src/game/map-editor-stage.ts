@@ -110,6 +110,7 @@ import {
 } from "./editor-state.js";
 import {
   authoredEventPreviewSnapshots,
+  authoredMonsterPreviewSnapshots,
   authoredSeaGuardianPreviewSnapshots,
 } from "./event-preview.js";
 
@@ -715,6 +716,7 @@ export function openMapEditorStage(
       ...nativeHarvestEvents(map.elements, map.events.length + 1),
     ];
     let renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
+    let renderedMonsters: SceneSample["monsters"] = [];
     let renderedSeaGuardians: SceneSample["seaGuardians"] = [];
 
     const dimensions = () => editorMapSize(map);
@@ -994,6 +996,7 @@ export function openMapEditorStage(
     const redraw = (contentOnly = false): void => {
       const heightfield = compiled();
       renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
+      renderedMonsters = authoredMonsterPreviewSnapshots(map.events, heightfield);
       renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
         map.events,
         heightfield.size,
@@ -1657,7 +1660,12 @@ export function openMapEditorStage(
 
     renderer.onFrame((now) => {
       renderer.render(
-        { ...EMPTY_SAMPLE, seaGuardians: renderedSeaGuardians, events: renderedEvents },
+        {
+          ...EMPTY_SAMPLE,
+          seaGuardians: renderedSeaGuardians,
+          monsters: renderedMonsters,
+          events: renderedEvents,
+        },
         { now } as RenderContext,
       );
     });

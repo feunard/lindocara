@@ -1,8 +1,5 @@
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
-import {
-  LINDOCARA_RUNNER_ASSET_IDS,
-  NPC_MODEL_ASSETS,
-} from "@lindocara/engine/tiny-swords-catalog.js";
+import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
@@ -87,21 +84,10 @@ describe("authored HD-2D actor art", () => {
     );
   });
 
-  it("uses the runner pursuer's exact editor appearance in gameplay", () => {
-    const appearance = authoredActorSheet(LINDOCARA_RUNNER_ASSET_IDS.nightmareHound, "run");
-    expect(appearance).toEqual({
-      source: "/assets/lindocara/hd2d/runner/nightmare-hound.png",
-      frames: 1,
-      frameWidth: 304,
-      frameHeight: 178,
-      footOffset: 0,
-      renderHeight: 178 / 64,
-      axis: "x",
-    });
-    expect(monsterActorSheet("war_pig", "run", LINDOCARA_RUNNER_ASSET_IDS.nightmareHound)).toEqual(
-      appearance,
-    );
-    expect(HD2D_ACTOR_TEXTURE_URLS.map((texture) => texture.url)).toContain(appearance?.source);
+  it("uses the species-owned war pig art for the runner pursuer", () => {
+    expect(monsterActorSheet("war_pig", "idle", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.idle);
+    expect(monsterActorSheet("war_pig", "run", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.run);
+    expect(monsterActorSheet("war_pig", "attack", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.attack);
   });
 
   it("uses the guard model selected by the author", () => {

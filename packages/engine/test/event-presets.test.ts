@@ -5,6 +5,7 @@ import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
   LINDOCARA_RUNNER_ASSET_IDS,
+  RETIRED_RUNNER_HOUND_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
@@ -145,8 +146,31 @@ describe("presetEvent", () => {
       monsterAcceleration: 0.08,
       monsterMaxSpeed: 6,
       monsterOneHitKill: true,
-      pages: [{ graphicAssetId: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound }],
+      pages: [{ graphicAssetId: null }],
     });
+  });
+
+  it("migrates the retired runner hound appearance to the species-owned pig model", () => {
+    const pursuer = presetEvent({
+      id: crypto.randomUUID(),
+      col: 4,
+      row: 3,
+      ordinal: 2,
+      preset: "pursuer",
+      selfMapId: MAP_ID,
+    });
+    const parsed = parseMapEvents(
+      [
+        {
+          ...pursuer,
+          pages: [{ ...pursuer.pages[0], graphicAssetId: RETIRED_RUNNER_HOUND_ASSET_ID }],
+        },
+      ],
+      20,
+      15,
+    );
+
+    expect(parsed?.[0]?.pages[0]?.graphicAssetId).toBeNull();
   });
 
   it("every preset produces an event the wire parser accepts (a real scripted event)", () => {

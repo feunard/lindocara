@@ -1,7 +1,9 @@
 import {
   authoredEventPreviewSnapshots,
+  authoredMonsterPreviewSnapshots,
   authoredSeaGuardianPreviewSnapshots,
 } from "@lindocara/editor/game/event-preview.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { defaultEventPage, type EventKind, type MapEvent } from "@lindocara/engine/map-events.js";
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +18,21 @@ function event(kind: EventKind): MapEvent {
     species: kind === "monster" ? "spear_goblin" : null,
     patrolRadius: kind === "monster" || kind === "guard" || kind === "npc" ? 64 : null,
     pages: [defaultEventPage()],
+  };
+}
+
+function heightfield(): MapData {
+  return {
+    version: 1,
+    size: 16,
+    levelHeight: 0.45,
+    waterLevel: -0.05,
+    levels: Array<number>(16 * 16).fill(2),
+    materials: Array<"herbe">(16 * 16).fill("herbe"),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
   };
 }
 
@@ -34,8 +51,29 @@ describe("authored event preview projection", () => {
     const events = kinds.map(event);
 
     expect(authoredEventPreviewSnapshots(events, "map-editor").map((item) => item.id)).toEqual(
-      events.filter((item) => item.kind !== "sea-guardian").map((item) => item.id),
+      events
+        .filter((item) => item.kind !== "sea-guardian" && item.kind !== "monster")
+        .map((item) => item.id),
     );
+  });
+
+  it("uses the gameplay monster actor in the editor instead of a separate event sprite", () => {
+    const pursuer = {
+      ...event("monster"),
+      species: "war_pig" as const,
+      name: "Poursuivant",
+    };
+
+    expect(authoredMonsterPreviewSnapshots([pursuer], heightfield())).toEqual([
+      expect.objectContaining({
+        id: "preview-monster-monster-event",
+        species: "war_pig",
+        graphicAssetId: null,
+        x: -6.5,
+        y: 0.9,
+        z: -5.5,
+      }),
+    ]);
   });
 
   it("projects every special monster through the dedicated sea-guardian actor path", () => {

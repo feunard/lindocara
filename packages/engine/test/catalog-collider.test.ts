@@ -92,12 +92,10 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(1);
   });
 
-  it("offers the runner obstacle while keeping actor and trap in the event appearance catalogue", () => {
+  it("offers the runner obstacle while keeping the trap in the event appearance catalogue", () => {
     const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
     expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.barricade);
-    expect(placeableIds).not.toContain(LINDOCARA_RUNNER_ASSET_IDS.nightmareHound);
     expect(placeableIds).not.toContain(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
-    expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.nightmareHound)?.domain).toBe("enemy");
     expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.role).toBe("event-state");
   });
 

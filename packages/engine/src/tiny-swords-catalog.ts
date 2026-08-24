@@ -216,10 +216,14 @@ export const LINDOCARA_INTERIOR_ASSET_IDS = {
   rug: "decoration.lindocara-interior.rug",
 } as const;
 export const LINDOCARA_RUNNER_ASSET_IDS = {
-  nightmareHound: "enemy.lindocara-runner.nightmare-hound",
   spikeTrap: "decoration.lindocara-runner.spike-trap",
   barricade: "decoration.lindocara-runner.barricade",
 } as const;
+
+/**
+ * Removed runner art, accepted only while old authored maps are migrated to their species model.
+ */
+export const RETIRED_RUNNER_HOUND_ASSET_ID = "enemy.lindocara-runner.nightmare-hound" as const;
 
 function lindocaraBuilding<const Id extends string>(
   id: Id,
@@ -286,26 +290,6 @@ function lindocaraInteriorProp<const Id extends string>(
 }
 
 const LINDOCARA_LAB_EDITOR_ASSETS = [
-  {
-    id: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound,
-    sourcePath: "/assets/lindocara/hd2d/runner/nightmare-hound.png",
-    pack: "LindoCara Lab",
-    domain: "enemy",
-    category: "Lindocara/Runner",
-    role: "monster-appearance",
-    tags: ["runner", "nightmare", "hound", "pursuer", "generated", "hd2d"],
-    width: 304,
-    height: 178,
-    nature: "static",
-    anchor: { x: 0.5, y: 1 },
-    footOffset: 0,
-    editor: {
-      category: "runner",
-      allowedTerrain: ["grass"],
-      renderLayer: "object",
-      visualFootprint: [{ col: 0, row: 0 }],
-    },
-  },
   {
     id: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
     sourcePath: "/assets/lindocara/hd2d/runner/spike-trap.png",

@@ -128,12 +128,7 @@ export function presetEvent(params: {
       ...event,
       showMarker: false,
       monsterAttackProfile: "melee",
-      pages: [
-        {
-          ...(event.pages[0] ?? defaultEventPage()),
-          graphicAssetId: LINDOCARA_RUNNER_ASSET_IDS.nightmareHound,
-        },
-      ],
+      pages: [{ ...(event.pages[0] ?? defaultEventPage()), graphicAssetId: null }],
     };
   }
   const { trigger, commands } = presetPageContent(

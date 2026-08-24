@@ -9,17 +9,13 @@ import {
   PRIMARY_COLORS,
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
-import {
-  defaultMonsterTuning,
-  GUARD_MAX_HP,
-  MONSTER_SPECIES_KIND,
-} from "@lindocara/engine/game.js";
+import { GUARD_MAX_HP } from "@lindocara/engine/game.js";
 import { harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { type ColliderRect, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import type { HeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import type { MapData } from "@lindocara/engine/map-data.js";
-import { guardEvents, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
+import { guardEvents, type MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { mapHeroClassSettings } from "@lindocara/engine/map-hero-settings.js";
 import {
@@ -27,12 +23,7 @@ import {
   type MapFixedLighting,
 } from "@lindocara/engine/map-lighting.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
-import type {
-  GuardSnapshot,
-  MonsterSnapshot,
-  PlayerSnapshot,
-  QuestState,
-} from "@lindocara/engine/protocol.js";
+import type { GuardSnapshot, PlayerSnapshot, QuestState } from "@lindocara/engine/protocol.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import { BODY_RADIUS, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import type { AmbienceConfig } from "@lindocara/renderer/ambience.js";
@@ -43,6 +34,7 @@ import type { RenderContext } from "@lindocara/renderer/renderer-api.js";
 
 import {
   authoredEventPreviewSnapshots,
+  authoredMonsterPreviewSnapshots,
   authoredSeaGuardianPreviewSnapshots,
 } from "./event-preview.js";
 
@@ -187,39 +179,7 @@ export async function startMapPreview(
     action: null,
   };
 
-  const previewMonsters: MonsterSnapshot[] = monsterEvents(events).flatMap((event) => {
-    const species = event.species;
-    if (species === null) return [];
-    const tuning = {
-      ...defaultMonsterTuning(species),
-      ...(event.monsterRank ? { rank: event.monsterRank } : {}),
-      ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
-        ? {}
-        : { maxHp: event.monsterMaxHp }),
-      ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
-    };
-    const x = event.col + 0.5 - heightfield.size / 2;
-    const z = event.row + 0.5 - heightfield.size / 2;
-    return [
-      {
-        id: `preview-monster-${event.id}`,
-        name: event.name,
-        kind: MONSTER_SPECIES_KIND[species],
-        species,
-        rank: tuning.rank,
-        specialTechnique: tuning.specialTechnique,
-        x,
-        y: terrain.query.heightAt(x, z) ?? heightfield.waterLevel,
-        z,
-        hp: tuning.maxHp,
-        maxHp: tuning.maxHp,
-        dead: false,
-        graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
-        facing: { x: 0, z: 1 },
-        action: null,
-      },
-    ];
-  });
+  const previewMonsters = authoredMonsterPreviewSnapshots(events, heightfield);
   const previewGuards: GuardSnapshot[] = guardEvents(events).flatMap((event) => {
     const page = event.pages[0];
     if (!page) return [];

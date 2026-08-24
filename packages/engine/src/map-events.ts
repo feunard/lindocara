@@ -48,6 +48,7 @@ import {
   type EditorAssetId,
   isEditorAssetId,
   isGuardAppearanceAssetId,
+  RETIRED_RUNNER_HOUND_ASSET_ID,
 } from "./tiny-swords-catalog.js";
 
 /**
@@ -630,7 +631,10 @@ function parseEventPage(raw: unknown): MapEventPage | null {
   if (variableMin !== null && variableMin < 0) return null;
   if ((condVariableId === null) !== (variableMin === null)) return null;
   if (condSelfSwitch !== null && !isSelfSwitch(condSelfSwitch)) return null;
-  if (graphicAssetId !== null && !isEditorAssetId(graphicAssetId)) return null;
+  const retiredRunnerGraphic = graphicAssetId === RETIRED_RUNNER_HOUND_ASSET_ID;
+  if (graphicAssetId !== null && !retiredRunnerGraphic && !isEditorAssetId(graphicAssetId)) {
+    return null;
+  }
   const parsedTint = graphicTint ?? EVENT_GRAPHIC_TINT_DEFAULT;
   if (
     !Number.isSafeInteger(parsedTint) ||
@@ -670,7 +674,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     condVariableId: condVariableId as string | null,
     condVariableMin: variableMin,
     condSelfSwitch: condSelfSwitch as SelfSwitch | null,
-    graphicAssetId: graphicAssetId as EditorAssetId | null,
+    graphicAssetId: retiredRunnerGraphic ? null : (graphicAssetId as EditorAssetId | null),
     graphicTint: parsedTint as number,
     moveType,
     moveRoute: parsedRoute,

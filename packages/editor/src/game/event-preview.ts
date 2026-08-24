@@ -1,5 +1,12 @@
-import type { MapEvent } from "@lindocara/engine/map-events.js";
-import type { SeaGuardianSnapshot, WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import { defaultMonsterTuning, MONSTER_SPECIES_KIND } from "@lindocara/engine/game.js";
+import { type MapData, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
+import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
+import type {
+  MonsterSnapshot,
+  SeaGuardianSnapshot,
+  WorldEventSnapshot,
+} from "@lindocara/engine/protocol.js";
 import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 
 export type AuthoredEventPreviewScope = "map-editor" | "playable-preview";
@@ -7,17 +14,17 @@ export type AuthoredEventPreviewScope = "map-editor" | "playable-preview";
 /**
  * Projects authored page-one appearances into the renderer's visual-only event contract.
  *
- * The map editor includes every kind so anchors and combat actors remain visible while authoring.
- * The playable preview excludes monster/guard events because it already projects those two as real
- * actor snapshots; drawing their event graphic too would duplicate the sprite in depth.
+ * Monsters always use the dedicated actor projection below, so their editor and gameplay models
+ * cannot drift. The playable preview also excludes guards because it already projects them as real
+ * actor snapshots; drawing either event graphic too would duplicate the sprite in depth.
  */
 export function authoredEventPreviewSnapshots(
   events: readonly MapEvent[],
   scope: AuthoredEventPreviewScope,
 ): WorldEventSnapshot[] {
   return events.flatMap((event) => {
-    if (event.kind === "sea-guardian") return [];
-    if (scope === "playable-preview" && (event.kind === "monster" || event.kind === "guard")) {
+    if (event.kind === "sea-guardian" || event.kind === "monster") return [];
+    if (scope === "playable-preview" && event.kind === "guard") {
       return [];
     }
     const page = event.pages[0];
@@ -54,6 +61,49 @@ export function authoredEventPreviewSnapshots(
               },
             }
           : {}),
+      },
+    ];
+  });
+}
+
+/**
+ * Projects every authored monster through the gameplay actor contract, including species art.
+ */
+export function authoredMonsterPreviewSnapshots(
+  events: readonly MapEvent[],
+  heightfield: MapData,
+): MonsterSnapshot[] {
+  const query = createTerrainQuery(mapToQuerySource(heightfield));
+  return monsterEvents(events).flatMap((event) => {
+    const species = event.species;
+    if (species === null) return [];
+    const tuning = {
+      ...defaultMonsterTuning(species),
+      ...(event.monsterRank ? { rank: event.monsterRank } : {}),
+      ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
+        ? {}
+        : { maxHp: event.monsterMaxHp }),
+      ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
+    };
+    const x = event.col + 0.5 - heightfield.size / 2;
+    const z = event.row + 0.5 - heightfield.size / 2;
+    return [
+      {
+        id: `preview-monster-${event.id}`,
+        name: event.name,
+        kind: MONSTER_SPECIES_KIND[species],
+        species,
+        rank: tuning.rank,
+        specialTechnique: tuning.specialTechnique,
+        x,
+        y: query.heightAt(x, z) ?? heightfield.waterLevel,
+        z,
+        hp: tuning.maxHp,
+        maxHp: tuning.maxHp,
+        dead: false,
+        graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
+        facing: { x: 0, z: 1 },
+        action: null,
       },
     ];
   });

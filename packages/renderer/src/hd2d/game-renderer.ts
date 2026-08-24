@@ -180,12 +180,6 @@ export interface BillboardActorSheet {
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
-const MONSTER_APPEARANCE_ASSETS = EDITOR_ASSETS.filter(
-  (asset) => asset.role === "monster-appearance",
-);
-const MONSTER_APPEARANCE_ASSET_IDS: ReadonlySet<string> = new Set(
-  MONSTER_APPEARANCE_ASSETS.map((asset) => asset.id),
-);
 
 const SHEEP_ACTOR_SHEETS: Readonly<
   Record<(typeof SHEEP_ASSET_IDS)[number], Readonly<Record<"idle" | "run", BillboardActorSheet>>>
@@ -243,11 +237,7 @@ export function authoredActorSheet(
   if (isSheepAssetId(graphicAssetId)) {
     return SHEEP_ACTOR_SHEETS[graphicAssetId][motion === "run" ? "run" : "idle"];
   }
-  if (
-    !graphicAssetId ||
-    (!NPC_MODEL_ASSET_IDS.has(graphicAssetId) && !MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId))
-  )
-    return null;
+  if (!graphicAssetId || !NPC_MODEL_ASSET_IDS.has(graphicAssetId)) return null;
   const asset = editorAsset(graphicAssetId);
   if (!asset) return null;
   const selected =
@@ -264,9 +254,6 @@ export function authoredActorSheet(
     frameHeight: frame?.height ?? asset.height,
     footOffset: selected.footOffset,
     axis: frame?.axis ?? "x",
-    ...(MONSTER_APPEARANCE_ASSET_IDS.has(graphicAssetId) && !frame
-      ? { renderHeight: asset.height / TILE_SIZE }
-      : {}),
   };
 }
 
@@ -504,7 +491,6 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       ...(asset.motions?.run ? [tinySwordsSourceUrl(asset.motions.run.sourcePath)] : []),
       ...(asset.motions?.attack ? [tinySwordsSourceUrl(asset.motions.attack.sourcePath)] : []),
     ]),
-    ...MONSTER_APPEARANCE_ASSETS.map((asset) => tinySwordsSourceUrl(asset.sourcePath)),
     ...Object.values(SHEEP_ACTOR_SHEETS).flatMap((sheets) => [
       sheets.idle.source,
       sheets.run.source,

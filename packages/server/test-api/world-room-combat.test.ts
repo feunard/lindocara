@@ -1619,17 +1619,7 @@ describe("world room combat (FakeClock)", () => {
     const now = Date.now() + 1_000;
     const { w } = testGlue(state, () => now);
 
-    damagePlayer(
-      w,
-      `c-${heroId}`,
-      player,
-      1,
-      "torch_goblin",
-      "nightmare-hound",
-      now,
-      undefined,
-      true,
-    );
+    damagePlayer(w, `c-${heroId}`, player, 1, "torch_goblin", "runner-pig", now, undefined, true);
 
     expect(player.hp).toBe(0);
     expect(player.life).toBe("corpse");
