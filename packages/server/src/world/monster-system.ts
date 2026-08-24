@@ -259,6 +259,7 @@ export function resetMonsterAtSpawn(
   monster.runnerLeap = null;
   monster.speed = monster.baseSpeed;
   monster.pursuitStartedAt = null;
+  monster.positionRevision += 1;
   monster.slowUntil = 0;
   monster.slowMultiplier = 1;
   monster.revealedUntil = 0;

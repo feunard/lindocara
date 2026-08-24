@@ -643,6 +643,7 @@ describe("monster navigation on the heightfield", () => {
       hp: monster.maxHp,
       speed: 2,
       pursuitStartedAt: null,
+      positionRevision: 1,
       deadUntil: 0,
       runnerLeap: null,
     });

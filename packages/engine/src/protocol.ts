@@ -269,6 +269,9 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  /** Changes whenever the server teleports this monster, so clients snap instead of interpolating
+   * through the old chase position. Missing legacy frames read as revision zero. */
+  positionRevision?: number;
   /** True while the authoritative runner pursuer is crossing a cliff or gap. */
   airborne?: boolean;
   /** Optional authored catalogue appearance. The species remains the authoritative combat model. */
@@ -1517,6 +1520,8 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.maxHp > 0 &&
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
+    (value.positionRevision === undefined ||
+      (Number.isSafeInteger(value.positionRevision) && (value.positionRevision as number) >= 0)) &&
     (value.airborne === undefined || typeof value.airborne === "boolean") &&
     (value.graphicAssetId === undefined ||
       value.graphicAssetId === null ||

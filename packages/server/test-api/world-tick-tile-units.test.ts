@@ -539,9 +539,11 @@ describe("releasing a spirit", () => {
     killPlayer(w, "connection", player);
     handleRelease(w, "connection", player);
 
-    expect(monsters.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
-      { id: "runner-pursuer", x: -3.5, z: -2.5 },
-      { id: "runner-ambush", x: 1.5, z: 2.5 },
+    expect(
+      monsters.map(({ id, x, z, positionRevision }) => ({ id, x, z, positionRevision })),
+    ).toEqual([
+      { id: "runner-pursuer", x: -3.5, z: -2.5, positionRevision: 1 },
+      { id: "runner-ambush", x: 1.5, z: 2.5, positionRevision: 1 },
     ]);
   });
 

@@ -173,6 +173,15 @@ describe("differential world state", () => {
     );
   });
 
+  it("snaps a monster immediately when the server resets its position", () => {
+    const result = interpolateSnapshots(
+      [monster({ x: 8, positionRevision: 0 })],
+      [monster({ x: 1, positionRevision: 1 })],
+      0.1,
+    );
+    expect(result[0]?.x).toBe(1);
+  });
+
   it("measures a substantially smaller steady-state JSON payload", () => {
     const initial = view();
     const cache = createWorldCache(initial);

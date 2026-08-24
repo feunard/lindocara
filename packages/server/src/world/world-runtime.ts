@@ -473,6 +473,8 @@ export interface MonsterRuntime extends WorldPosition {
   oneHitKill: boolean;
   /** First beat of the current runner chase; null while no living hero is being pursued. */
   pursuitStartedAt: number | null;
+  /** Incremented on authoritative teleports so remote clients do not interpolate through them. */
+  positionRevision: number;
   /** Temporary movement penalty; reset on respawn and never serialized. */
   slowUntil: number;
   slowMultiplier: number;
@@ -984,6 +986,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       maxSpeed: Math.max(tuning.speed, spawn.maxSpeed ?? tuning.speed),
       oneHitKill: spawn.oneHitKill ?? false,
       pursuitStartedAt: null,
+      positionRevision: 0,
       slowUntil: 0,
       slowMultiplier: 1,
       revealedUntil: 0,

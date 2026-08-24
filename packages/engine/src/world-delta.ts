@@ -140,6 +140,9 @@ export function interpolateSnapshots<T extends { id: string; x: number; y: numbe
   return newer.map((entity) => {
     const before = previous.get(entity.id);
     if (!before) return entity;
+    const beforeRevision = (before as { positionRevision?: number }).positionRevision ?? 0;
+    const currentRevision = (entity as { positionRevision?: number }).positionRevision ?? 0;
+    if (beforeRevision !== currentRevision) return entity;
     return {
       ...entity,
       x: before.x + (entity.x - before.x) * alpha,
