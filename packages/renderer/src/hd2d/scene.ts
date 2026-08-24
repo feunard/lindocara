@@ -239,7 +239,8 @@ const CAMERA_SURFACE_CEILING_EPSILON = 0.02;
  * The standable surface the camera should follow. `heightAt` intentionally excludes collider tops,
  * so using it alone makes the camera sink to the low terrain beneath bridges and roofs. A tracked
  * body supplies the ceiling that selects the platform it is actually on while rejecting overhead
- * platforms; editor/manual focus has no body elevation and deliberately retains terrain-only focus.
+ * platforms. While airborne, its reported elevation is the reference so terrain far below cannot
+ * pull the camera down; editor/manual focus retains terrain-only focus.
  */
 export function cameraFocusSurface(
   query: TerrainQuery,
@@ -247,8 +248,12 @@ export function cameraFocusSurface(
   x: number,
   z: number,
   elevation?: number,
+  airborne = false,
 ): number {
   if (elevation !== undefined && Number.isFinite(elevation)) {
+    // While jumping, the body is its own camera reference. Looking up the surface below here made
+    // the camera plunge into every crevasse even though the hero remained high above it.
+    if (airborne) return elevation;
     return (
       query.surfaceAt?.(x, z, elevation + CAMERA_SURFACE_CEILING_EPSILON) ??
       query.heightAt(x, z) ??
@@ -394,10 +399,11 @@ export interface Hd2dScene {
    * Ask the camera to follow a point — the local player, in practice. `x`/`z` are the two GROUND
    * axes in tile units. The optional third argument is the followed body's ELEVATION; it bounds the
    * collision-surface lookup so a bridge or roof under that body drives camera height without a
-   * higher platform above it stealing focus. Recorded here and consumed by the next `render`, which
-   * is the only place that knows the frame's `dt` and can therefore damp towards it.
+   * higher platform above it stealing focus. The fourth argument makes an airborne body's own
+   * elevation the reference. Recorded here and consumed by the next `render`, which is the only
+   * place that knows the frame's `dt` and can therefore damp towards it.
    */
-  focusOn(x: number, z: number, elevation?: number): void;
+  focusOn(x: number, z: number, elevation?: number, airborne?: boolean): void;
   /** Sets the diorama zoom as a percentage. 100 is the gameplay camera. */
   setZoom(percent: number): void;
   /** Sets the horizontal orbit while keeping the same target, pitch and distance. */
@@ -639,7 +645,7 @@ export function createHd2dScene(
 
   /** The point `focusOn` last named, and whether the camera has already been placed over it once.
    *  Reused every frame rather than reallocated: `render` runs 60 times a second. */
-  let focus: { x: number; z: number; elevation?: number } | null = null;
+  let focus: { x: number; z: number; elevation?: number; airborne?: boolean } | null = null;
   let focusReached = false;
   let cameraDistance = CAMERA.distance;
   let cameraYaw = 0;
@@ -822,11 +828,12 @@ export function createHd2dScene(
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
-    focusOn(x: number, z: number, elevation?: number): void {
+    focusOn(x: number, z: number, elevation?: number, airborne = false): void {
       focus = {
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
         z: THREE.MathUtils.clamp(z, cameraMin, cameraMax),
         ...(elevation === undefined ? {} : { elevation }),
+        ...(airborne ? { airborne: true } : {}),
       };
       // The FIRST focus places the camera at call time, not at the next rendered frame. The
       // editor rebuilds this whole scene mid-stroke (`configureMapTerrain`), and until a frame
@@ -836,8 +843,14 @@ export function createHd2dScene(
       if (!focusReached) {
         target.set(
           focus.x,
-          cameraFocusSurface(query, currentMap.waterLevel, focus.x, focus.z, focus.elevation) +
-            CAMERA.height,
+          cameraFocusSurface(
+            query,
+            currentMap.waterLevel,
+            focus.x,
+            focus.z,
+            focus.elevation,
+            focus.airborne,
+          ) + CAMERA.height,
           focus.z,
         );
         focusReached = true;
@@ -907,8 +920,14 @@ export function createHd2dScene(
       if (focus) {
         wantedTarget.set(
           focus.x,
-          cameraFocusSurface(query, currentMap.waterLevel, focus.x, focus.z, focus.elevation) +
-            CAMERA.height,
+          cameraFocusSurface(
+            query,
+            currentMap.waterLevel,
+            focus.x,
+            focus.z,
+            focus.elevation,
+            focus.airborne,
+          ) + CAMERA.height,
           focus.z,
         );
         // Exponential damping, transcribed from `apps/lab/src/main.ts`'s `updateCamera`: it is

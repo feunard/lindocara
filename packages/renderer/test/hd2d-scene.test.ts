@@ -322,6 +322,19 @@ describe("the HD-2D scene's terrain", () => {
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 0)).toBe(0);
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0)).toBe(0);
   });
+
+  it("follows the hero's real elevation while airborne over a crevasse", () => {
+    const map = {
+      ...ground(3),
+      levels: [2, 2, 2, 2, -2, 2, 2, 2, 2],
+    };
+    const query = createTerrainQuery(mapToQuerySource(map));
+
+    const lowerTerrain = query.heightAt(0, 0);
+    expect(lowerTerrain).not.toBeNull();
+    expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, true)).toBe(1.35);
+    expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, false)).toBe(lowerTerrain);
+  });
 });
 
 describe("waterPlaneKey", () => {
