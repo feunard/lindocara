@@ -26,6 +26,7 @@ import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,
+  canStand,
   groundLineOfSight,
   groundPathClear,
   groundUnder,
@@ -56,6 +57,13 @@ const RETURN_TOLERANCE = 8 / 64;
 const NEGLIGIBLE_MOVE = 0.05 / 64;
 /** Under this, a destination is already reached and the monster stops rather than jitters. */
 const ARRIVAL_TOLERANCE = 1 / 64;
+/** Runner-only leap envelope, in tile units. It clears the generator's widest ordinary cut. */
+const RUNNER_LEAP_MAX_DISTANCE = 5;
+const RUNNER_LEAP_MIN_DISTANCE = 0.5;
+const RUNNER_LEAP_SEARCH_STEP = 0.25;
+const RUNNER_LEAP_MIN_DURATION_MS = 420;
+const RUNNER_LEAP_MAX_DURATION_MS = 760;
+const RUNNER_LEAP_APEX = 1.15;
 /** The offset a safe-zone raider walks to. Tile units: the former (-40, +100) px. */
 const RAIDER_PATROL_OFFSET = { x: -40 / 64, z: 100 / 64 };
 
@@ -218,6 +226,7 @@ export function resetMonsterAtSpawn(
   monster.y = groundUnder(terrain, monster.spawnX, monster.spawnZ, 0);
   monster.vx = 0;
   monster.vz = 0;
+  monster.runnerLeap = null;
   monster.speed = monster.baseSpeed;
   monster.slowUntil = 0;
   monster.slowMultiplier = 1;
@@ -257,6 +266,11 @@ export function advanceMonsters<TSocket>(
     if (monster.slowUntil <= now) monster.slowMultiplier = 1;
     const relentless = monster.pursuitMode === "relentless";
     const players = relentless ? allLivingPlayers : visiblePlayers;
+
+    if (monster.runnerLeap) {
+      advanceRunnerLeap(context, monster, now);
+      continue;
+    }
 
     for (const [playerId, entry] of relentless ? [] : monster.threat) {
       const socket = [...context.players.entries()].find(([, player]) => player.id === playerId);
@@ -365,8 +379,17 @@ export function advanceMonsters<TSocket>(
         }
         continue;
       }
-      // Elevation, and the one place it meets a target that can jump. A hero on a plateau is
-      // visible and in range and unreachable: `MAX_STEP` is 0 and monsters do not jump. The
+      if (relentless) {
+        monster.navigation.state = "chase";
+        monster.navigation.targetId = player.id;
+        monster.navigation.destination = { x: targetPosition.x, z: targetPosition.z };
+        if (!moveMonsterDirect(context, monster, targetPosition)) {
+          beginRunnerLeap(context, monster, targetPosition, now);
+        }
+        continue;
+      }
+      // Elevation, and the one place it meets a target that can jump. For an ordinary monster a
+      // hero on a plateau is visible and in range but unreachable: `MAX_STEP` is 0. The
       // monster walks as close as the terrain lets it — that is what `moveMonsterDirect` does
       // when it is refused a step — and abandons the moment it cannot get closer, instead of
       // pressing into the cliff face forever. Deliberately AFTER the attack branch above, so a
@@ -429,6 +452,92 @@ export function advanceMonsters<TSocket>(
     }
   }
   processNavigationBudget(context.navigation, now);
+}
+
+/**
+ * Finds a standable landing beyond the obstacle that just refused a direct runner step. The
+ * destination's own surface is supplied to `canStand`: a leap is allowed to gain or lose several
+ * terrain levels, while the landing disc must still be completely supported and collider-free.
+ */
+function beginRunnerLeap<TSocket>(
+  context: MonsterSystemContext<TSocket>,
+  monster: MonsterRuntime,
+  target: GroundVector,
+  now: number,
+): boolean {
+  const dx = target.x - monster.x;
+  const dz = target.z - monster.z;
+  const length = Math.hypot(dx, dz);
+  if (length < RUNNER_LEAP_MIN_DISTANCE) return false;
+  const direction = { x: dx / length, z: dz / length };
+  const maximum = Math.min(RUNNER_LEAP_MAX_DISTANCE, length);
+  let landing: { x: number; y: number; z: number } | null = null;
+  for (
+    let distance = maximum;
+    distance >= RUNNER_LEAP_MIN_DISTANCE;
+    distance -= RUNNER_LEAP_SEARCH_STEP
+  ) {
+    const x = monster.x + direction.x * distance;
+    const z = monster.z + direction.z * distance;
+    const surface = context.zone.terrain.query.heightAt(x, z);
+    if (surface === null || !canStand(context.zone.terrain, x, z, BODY_RADIUS, surface)) continue;
+    landing = { x, y: surface, z };
+    break;
+  }
+  if (!landing) {
+    monster.vx = 0;
+    monster.vz = 0;
+    return false;
+  }
+
+  invalidateMonsterPath(monster, "runner_leap");
+  monster.navigation.state = "chase";
+  const duration = Math.max(
+    RUNNER_LEAP_MIN_DURATION_MS,
+    Math.min(RUNNER_LEAP_MAX_DURATION_MS, (maximum / Math.max(monster.speed, 0.1)) * 1_000),
+  );
+  monster.runnerLeap = {
+    fromX: monster.x,
+    fromY: monster.y,
+    fromZ: monster.z,
+    toX: landing.x,
+    toY: landing.y,
+    toZ: landing.z,
+    startedAt: now,
+    endsAt: now + duration,
+  };
+  monster.vx = direction.x * monster.speed;
+  monster.vz = direction.z * monster.speed;
+  monster.facing = direction;
+  return true;
+}
+
+/** Advances the room-owned leap. Airborne runners neither attack nor abandon their quarry. */
+function advanceRunnerLeap<TSocket>(
+  context: MonsterSystemContext<TSocket>,
+  monster: MonsterRuntime,
+  now: number,
+): void {
+  const leap = monster.runnerLeap;
+  if (!leap) return;
+  const previousPosition = { x: monster.x, z: monster.z };
+  const progress = Math.max(
+    0,
+    Math.min(1, (now - leap.startedAt) / Math.max(1, leap.endsAt - leap.startedAt)),
+  );
+  monster.x = leap.fromX + (leap.toX - leap.fromX) * progress;
+  monster.z = leap.fromZ + (leap.toZ - leap.fromZ) * progress;
+  const baseline = leap.fromY + (leap.toY - leap.fromY) * progress;
+  const heightGain = Math.abs(leap.toY - leap.fromY);
+  monster.y = baseline + Math.sin(Math.PI * progress) * (RUNNER_LEAP_APEX + heightGain * 0.2);
+  context.monsterGrid.update(monster, previousPosition);
+  if (progress < 1) return;
+
+  monster.x = leap.toX;
+  monster.y = leap.toY;
+  monster.z = leap.toZ;
+  monster.runnerLeap = null;
+  context.onMonsterMoved?.(monster, previousPosition);
 }
 
 function navigateMonster<TSocket>(
@@ -544,8 +653,7 @@ function moveMonsterDirect<TSocket>(
   if (moved.z === monster.z) monster.vz = 0;
   monster.x = moved.x;
   monster.z = moved.z;
-  // Monsters walk on terrain height and never leave it: the ground under the body IS its
-  // elevation, re-read after every authoritative step.
+  // Ordinary movement follows terrain height. A runner leap bypasses this function until landing.
   monster.y = groundUnderBody(terrain, moved.x, moved.z, monster.y);
   context.monsterGrid.update(monster, previousPosition);
   const movedDistance = groundDistance(previousPosition, monster);

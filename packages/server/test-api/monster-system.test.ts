@@ -301,7 +301,7 @@ describe("enemy ranged attack acceptance", () => {
 });
 
 /** The same block shape as `terrainOf`, raised one level instead of flooded. Relief blocks sight. */
-function plateauTerrain(blocks: readonly CellRect[]): ZoneTerrain {
+function plateauTerrain(blocks: readonly CellRect[], level = 1): ZoneTerrain {
   const raised = (col: number, row: number) =>
     blocks.some(
       (rect) =>
@@ -312,7 +312,7 @@ function plateauTerrain(blocks: readonly CellRect[]): ZoneTerrain {
     );
   const levels: (number | null)[] = [];
   for (let row = 0; row < SIZE; row++) {
-    for (let col = 0; col < SIZE; col++) levels.push(raised(col, row) ? 1 : 0);
+    for (let col = 0; col < SIZE; col++) levels.push(raised(col, row) ? level : 0);
   }
   const map: MapData = {
     version: 1,
@@ -568,6 +568,16 @@ describe("monster navigation on the heightfield", () => {
     monster.speed = 7;
     monster.x += 2;
     monster.hp = 1;
+    monster.runnerLeap = {
+      fromX: monster.x,
+      fromY: monster.y,
+      fromZ: monster.z,
+      toX: monster.x + 2,
+      toY: monster.y + 1.5,
+      toZ: monster.z,
+      startedAt: 1_000,
+      endsAt: 1_700,
+    };
     monster.threat.set("runner", { playerId: "runner", amount: 1, updatedAt: 0 });
 
     resetMonsterAtSpawn(monster, terrain, context.monsterGrid, 5_000);
@@ -578,8 +588,46 @@ describe("monster navigation on the heightfield", () => {
       hp: monster.maxHp,
       speed: 2,
       deadUntil: 0,
+      runnerLeap: null,
     });
     expect(monster.threat.size).toBe(0);
+  });
+
+  it("leaps a relentless pursuer from level 0 onto a level 3 plateau", () => {
+    const cliffTerrain = plateauTerrain([{ col: 8, row: 6, cols: 4, rows: 5 }], 3);
+    const cliffZone = zoneWith(cliffTerrain);
+    const monster = chasingMonster();
+    monster.x = -0.251;
+    monster.y = 0;
+    monster.z = 0.5;
+    monster.spawnX = monster.x;
+    monster.spawnZ = monster.z;
+    monster.pursuitMode = "relentless";
+    monster.oneHitKill = true;
+    monster.baseSpeed = 5.4;
+    monster.speed = 5.4;
+    monster.maxSpeed = 7.8;
+    const player = targetPlayer(2, 0.5);
+    player.y = 1.5;
+    const socket = { id: "runner-cliff-socket" } as unknown as WebSocket;
+    const context = monsterContext([monster], new Map([[socket, player]]), cliffZone);
+
+    for (let tick = 0; tick < 4 && monster.runnerLeap === null; tick += 1) {
+      advanceMonsters(context, 1_000 + tick * 50);
+    }
+    const leap = monster.runnerLeap;
+    expect(leap).not.toBeNull();
+    if (!leap) throw new Error("runner leap did not start");
+
+    advanceMonsters(context, (leap.startedAt + leap.endsAt) / 2);
+    expect(monster.runnerLeap).not.toBeNull();
+    expect(monster.y).toBeGreaterThan(1.5);
+
+    advanceMonsters(context, leap.endsAt);
+    expect(monster.runnerLeap).toBeNull();
+    expect(monster.x).toBeGreaterThanOrEqual(1.9);
+    expect(monster.y).toBe(1.5);
+    expect(monster.threat.has(player.id)).toBe(true);
   });
 
   it("cannot acquire a stealthed Rogue but can target them after the window ends", () => {

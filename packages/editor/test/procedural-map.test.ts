@@ -303,6 +303,7 @@ describe("procedural map authoring", () => {
         (event) =>
           event.species === "war_pig" &&
           event.monsterOneHitKill === true &&
+          event.monsterPursuitMode === "relentless" &&
           event.showMarker === false,
       ),
     ).toBe(true);

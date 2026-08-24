@@ -50,8 +50,8 @@ export interface ActorView {
    * ground-snapping every actor would make every OTHER player's jump invisible, and would draw a
    * swimmer standing on the bed beneath them. Nothing about that fails; it just looks wrong forever.
    *
-   * Only a player ever sets one. Monsters and guards are stepped by the room, which walks them on
-   * the ground and nowhere else, so they cross with all three false.
+   * Players set all three. The room may also mark a relentless runner airborne during its
+   * authoritative leap; guards and ordinary monsters cross with all three false.
    */
   airborne: boolean;
   swimming: boolean;

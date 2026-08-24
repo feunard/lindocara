@@ -269,6 +269,8 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  /** True while the authoritative runner pursuer is crossing a cliff or gap. */
+  airborne?: boolean;
   /** Optional authored catalogue appearance. The species remains the authoritative combat model. */
   graphicAssetId?: string | null;
   /**
@@ -1513,6 +1515,7 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
     value.maxHp > 0 &&
     value.hp <= value.maxHp &&
     typeof value.dead === "boolean" &&
+    (value.airborne === undefined || typeof value.airborne === "boolean") &&
     (value.graphicAssetId === undefined ||
       value.graphicAssetId === null ||
       isEditorAssetId(value.graphicAssetId)) &&

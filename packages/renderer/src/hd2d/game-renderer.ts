@@ -315,10 +315,7 @@ function facingOf(vector: GroundVector): Facing {
  * All three flags and the elevation ride across untouched. `billboards.ts` decides what to do with
  * them; this only refuses to lose them.
  */
-/** The locomotion flags of anything the ROOM steps. A monster and a guard walk on the ground and
- *  nowhere else — they never jump, swim or glide — so they are grounded by construction rather than
- *  by a flag nobody sets. Spelled once so the day a flying monster exists, there is one place that
- *  has to stop being a constant. */
+/** Locomotion flags for room-stepped actors which are always grounded (guards and corpses). */
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
@@ -1539,8 +1536,8 @@ export class Hd2dRenderer implements RendererLike {
    *
    * A PLAYER also carries its three locomotion flags (`playerActorView`), because since S3 moved
    * movement to the client a hero's elevation is a fact its own client computed and the room
-   * relayed. A monster or a guard is stepped by the room, on the ground and nowhere else, so all
-   * three are false for them and the registry stands them on the terrain as it always did.
+   * relayed. A relentless runner can also carry a room-authored airborne flag while crossing
+   * relief. Guards and ordinary monsters remain grounded from the heightfield.
    *
    * Dead monsters and corpse snapshots become flattened billboards; ghosts keep their walking pose
    * with reduced opacity. A player whose life is `corpse` is omitted only because the dedicated
@@ -1690,7 +1687,9 @@ export class Hd2dRenderer implements RendererLike {
         x: monster.x,
         y: monster.y,
         z: monster.z,
-        ...GROUNDED,
+        airborne: monster.airborne === true,
+        swimming: false,
+        gliding: false,
         vy: 0,
         facing: facingOf(monster.facing),
         ...actorSheetView(sheet),

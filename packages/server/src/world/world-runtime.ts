@@ -484,15 +484,28 @@ export interface MonsterRuntime extends WorldPosition {
   nextSpecialAt: number;
   lastAttackAt: number;
   deadUntil: number;
-  /** Ground velocity. Monsters do not leave the ground, so there is no vertical component. */
+  /** Horizontal velocity. Relentless runner pursuers may temporarily leave the ground. */
   vx: number;
   vz: number;
+  /** Server-authored ballistic crossing used only by relentless pursuers. */
+  runnerLeap: MonsterRunnerLeapRuntime | null;
   threat: Map<string, ThreatEntry>;
   contributions: Map<string, CombatContribution>;
   rewardsGranted: boolean;
   navigation: MonsterNavigationRuntime;
   facing: GroundVector;
   action: CombatActionRuntime | null;
+}
+
+export interface MonsterRunnerLeapRuntime {
+  fromX: number;
+  fromY: number;
+  fromZ: number;
+  toX: number;
+  toY: number;
+  toZ: number;
+  startedAt: number;
+  endsAt: number;
 }
 
 /**
@@ -982,6 +995,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       deadUntil: 0,
       vx: 0,
       vz: 0,
+      runnerLeap: null,
       threat: new Map(),
       contributions: new Map(),
       rewardsGranted: false,

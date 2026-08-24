@@ -245,6 +245,7 @@ function visibleMonsterSnapshots<TSocket>(
     hp: monster.hp,
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
+    ...(monster.runnerLeap ? { airborne: true as const } : {}),
     graphicAssetId: monster.graphicAssetId,
     threatening: monsterThreatensViewer(monster, viewer.id, now),
     ...(monster.revealedUntil > now ? { revealed: true as const } : {}),

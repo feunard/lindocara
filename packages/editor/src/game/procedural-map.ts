@@ -1037,7 +1037,7 @@ function generateRunnerMap(
       patrolRadius: 3,
       monsterTuning: { rank: "elite", speed: 5.8, damage: 1, xp: 0 },
       monsterRespawnMode: "timed",
-      monsterPursuitMode: "standard",
+      monsterPursuitMode: "relentless",
       monsterOneHitKill: true,
     });
     addEvent({ ...event, showMarker: false });

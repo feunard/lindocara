@@ -481,6 +481,7 @@ describe("server protocol", () => {
       hp: 2_000,
       maxHp: 2_000,
       dead: false,
+      airborne: true,
       graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
       threatening: true,
       facing: { x: 1, z: 0 },
@@ -539,6 +540,7 @@ describe("server protocol", () => {
         {
           rank: "boss",
           threatening: true,
+          airborne: true,
           action: { kind: "monster_attack", skillId: "troll_quake" },
         },
       ],
