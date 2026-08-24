@@ -92,6 +92,8 @@ export interface StaticSpriteArt {
   /** Gentle procedural movement for a single-frame canopy. Kept deliberately tiny: it is wind,
    * not a substitute for swapping unrelated tree silhouettes. */
   sway?: { amplitudeRadians: number; durationMs: number };
+  /** Presentation-only pulse for collectible sparkle companions. */
+  twinkle?: { durationMs: number; minOpacity: number; scaleAmplitude: number };
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
   renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume";
@@ -215,6 +217,10 @@ export function placeStaticContent(
     depthKey: string;
     wind: boolean;
     floating: boolean;
+    twinkleDurationMs: number;
+    twinkleMinOpacity: number;
+    twinkleScaleAmplitude: number;
+    anchorScale: THREE.Vector3;
   }[] = [];
   /** Unresolved ids, counted rather than reported one by one. A map dressed entirely out of assets
    *  this build cannot draw — the sub-rect crops are a real such family — would otherwise emit one
@@ -371,6 +377,10 @@ export function placeStaticContent(
       depthKey,
       wind: sky,
       floating,
+      twinkleDurationMs: Math.max(0, sprite.twinkle?.durationMs ?? 0),
+      twinkleMinOpacity: THREE.MathUtils.clamp(sprite.twinkle?.minOpacity ?? 1, 0, 1),
+      twinkleScaleAmplitude: Math.max(0, sprite.twinkle?.scaleAmplitude ?? 0),
+      anchorScale: billboard.mesh.scale.clone(),
     });
     if (sprite.fireLight) {
       const source = sprite.fireLight;
@@ -688,6 +698,23 @@ export function placeStaticContent(
           const phase = ((now + placement.phaseMs) / 1_600) * Math.PI * 2;
           placement.sprite.mesh.position.y = placement.anchorY + Math.sin(phase) * 0.22;
           placement.sprite.mesh.rotation.z = Math.sin(phase * 0.5) * THREE.MathUtils.degToRad(2.5);
+        }
+        if (placement.twinkleDurationMs > 0) {
+          const phase = ((now + placement.phaseMs) / placement.twinkleDurationMs) * Math.PI * 2;
+          const intensity = 0.5 + Math.sin(phase) * 0.5;
+          const scale = 1 + intensity * placement.twinkleScaleAmplitude;
+          placement.sprite.mesh.scale.copy(placement.anchorScale).multiplyScalar(scale);
+          placement.sprite.mesh.traverse((object) => {
+            if (!(object instanceof THREE.Mesh)) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            for (const material of materials) {
+              if (!("opacity" in material)) continue;
+              const faded = material as THREE.Material & { opacity: number };
+              faded.transparent = true;
+              faded.opacity =
+                placement.twinkleMinOpacity + (1 - placement.twinkleMinOpacity) * intensity;
+            }
+          });
         }
         if ("update" in placement.sprite) placement.sprite.update(now);
       }

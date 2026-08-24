@@ -119,6 +119,11 @@ const EDITOR_SPAWN_KNIGHT_ASSET_ID = "character.units-blue-units-warrior.warrior
 const LINDOCARA_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set(
   Object.values(LINDOCARA_PICKUP_ASSET_IDS),
 );
+const LINDOCARA_BENEFICIAL_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set([
+  LINDOCARA_PICKUP_ASSET_IDS.speed_boost,
+  LINDOCARA_PICKUP_ASSET_IDS.light_gravity,
+  LINDOCARA_PICKUP_ASSET_IDS.double_jump,
+]);
 
 // --- actor art direction --------------------------------------------------------------------------
 
@@ -546,6 +551,8 @@ const LAB_CAMPFIRE_FLAME_URL = "/assets/lindocara/hd2d/campfire-flame.png";
 const LAB_CHEST_CLOSED_URL = "/assets/lindocara/hd2d/chest-closed.png";
 const LAB_CHEST_OPEN_URL = "/assets/lindocara/hd2d/chest-open.png";
 const LAB_SNOW_TREE_URL = "/assets/lindocara/hd2d/snow-tree.png";
+const PICKUP_BUFF_SPARKLES_URL = "/assets/lindocara/hd2d/pickups/buff-sparkles.png";
+const PICKUP_DEBUFF_SPARKLES_URL = "/assets/lindocara/hd2d/pickups/debuff-sparkles.png";
 const GENERATED_BUILDING_ROOT = "/assets/lindocara/hd2d/buildings";
 const GENERATED_BRIDGE_DECK_URL = "/assets/lindocara/hd2d/interiors/floor.png";
 const GENERATED_BUILDING_WALL_URL = `${GENERATED_BUILDING_ROOT}/wall-timber.png`;
@@ -822,7 +829,25 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
         fireLight: { color: 0xff9a45, lift: 0.55, distance: 18, decay: 2, glow: false },
       }
     : spec;
-  return NATIVE_TREE_ASSET_IDS.has(assetId) ? { ...litSpec, coldVariant: snowTreeSpec() } : litSpec;
+  const beneficialPickup = LINDOCARA_BENEFICIAL_PICKUP_ASSET_ID_SET.has(assetId);
+  const pickupSpec = LINDOCARA_PICKUP_ASSET_ID_SET.has(assetId)
+    ? {
+        ...litSpec,
+        companions: [
+          {
+            url: beneficialPickup ? PICKUP_BUFF_SPARKLES_URL : PICKUP_DEBUFF_SPARKLES_URL,
+            height: 1.45,
+            aspect: 1,
+            foot: 0.14,
+            lit: false,
+            twinkle: { durationMs: 1_250, minOpacity: 0.42, scaleAmplitude: 0.1 },
+          },
+        ],
+      }
+    : litSpec;
+  return NATIVE_TREE_ASSET_IDS.has(assetId)
+    ? { ...pickupSpec, coldVariant: snowTreeSpec() }
+    : pickupSpec;
 }
 
 function staticSpecUrls(spec: StaticAssetSpec): string[] {

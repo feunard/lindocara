@@ -1630,6 +1630,49 @@ kbd {
   color: #ffc2bc;
 }
 
+.movement-effect-notice {
+  border-width: 2px;
+  background: linear-gradient(135deg, rgb(50 38 12 / 96%), rgb(17 24 16 / 98%));
+  color: #fff0a8;
+  animation:
+    event-in 200ms ease-out,
+    movement-effect-glow 900ms ease-in-out infinite alternate;
+}
+
+.movement-effect-notice.bad {
+  border-color: rgb(207 92 255 / 68%);
+  background: linear-gradient(135deg, rgb(52 18 66 / 96%), rgb(22 12 34 / 98%));
+  color: #f2c5ff;
+}
+
+@keyframes movement-effect-glow {
+  from {
+    box-shadow: 0 0.4rem 1rem rgb(0 0 0 / 34%);
+  }
+
+  to {
+    box-shadow:
+      0 0.4rem 1rem rgb(0 0 0 / 34%),
+      0 0 0.7rem rgb(244 200 75 / 40%);
+  }
+}
+
+.movement-effect-notice.bad {
+  animation-name: event-in, movement-effect-malus-glow;
+}
+
+@keyframes movement-effect-malus-glow {
+  from {
+    box-shadow: 0 0.4rem 1rem rgb(0 0 0 / 34%);
+  }
+
+  to {
+    box-shadow:
+      0 0.4rem 1rem rgb(0 0 0 / 34%),
+      0 0 0.7rem rgb(190 82 241 / 42%);
+  }
+}
+
 #status {
   position: fixed;
   z-index: 3;

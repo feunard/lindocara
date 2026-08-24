@@ -423,9 +423,20 @@ describe("static map content", () => {
  */
 describe("staticAssetSpec", () => {
   it("renders high-resolution movement pickups at collectible scale", () => {
-    expect(staticAssetSpec("resource.lindocara-pickup.speed-boost")).toMatchObject({
+    const bonus = staticAssetSpec("resource.lindocara-pickup.speed-boost");
+    const malus = staticAssetSpec("resource.lindocara-pickup.speed-slow");
+    expect(bonus).toMatchObject({
       height: 1.05,
       aspect: 1,
+      companions: [
+        {
+          url: "/assets/lindocara/hd2d/pickups/buff-sparkles.png",
+          twinkle: { durationMs: 1_250 },
+        },
+      ],
+    });
+    expect(malus).toMatchObject({
+      companions: [{ url: "/assets/lindocara/hd2d/pickups/debuff-sparkles.png" }],
     });
   });
 
