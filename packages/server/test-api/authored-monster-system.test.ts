@@ -149,6 +149,54 @@ describe("authored monster projection", () => {
     });
   });
 
+  it("migrates the former generated runner ceiling even when pursuit was already relentless", () => {
+    const legacyRunner = {
+      ...conditionalMonster(),
+      species: "war_pig" as const,
+      monsterSpeed: 5.44,
+      monsterPursuitMode: "relentless" as const,
+      monsterAcceleration: 0.48,
+      monsterMaxSpeed: 7.31,
+      monsterOneHitKill: true,
+    };
+    const definition = activeAuthoredMonsterDefinitions(
+      [legacyRunner],
+      state({ "0075": true }),
+      GRID_SIZE,
+    )[0];
+
+    expect(definition).toMatchObject({
+      speed: RUNNER_PURSUER_TUNING.speed,
+      acceleration: RUNNER_PURSUER_TUNING.acceleration,
+      maxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
+    });
+  });
+
+  it("preserves an explicitly authored relentless runner profile", () => {
+    const customRunner = {
+      ...conditionalMonster(),
+      species: "war_pig" as const,
+      monsterSpeed: 4.2,
+      monsterPursuitMode: "relentless" as const,
+      monsterAcceleration: 1.1,
+      monsterMaxSpeed: 6.8,
+      monsterOneHitKill: true,
+    };
+    const definition = activeAuthoredMonsterDefinitions(
+      [customRunner],
+      state({ "0075": true }),
+      GRID_SIZE,
+    )[0];
+
+    expect(definition).toMatchObject({
+      speed: 4.2,
+      pursuitMode: "relentless",
+      acceleration: 1.1,
+      maxSpeed: 6.8,
+      oneHitKill: true,
+    });
+  });
+
   it("preserves live combat state and removes encounters whose condition is withdrawn", () => {
     const retainedDefinition = activeAuthoredMonsterDefinitions(
       [conditionalMonster()],

@@ -1126,12 +1126,36 @@ export const MONSTER_AGGRO_RANGE = 210 / TILE_SIZE;
 export const MONSTER_ATTACK_RANGE = 42 / TILE_SIZE;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
-/** Shared authored/runtime tuning for the one-hit war pig used by runner adventures. */
-export const RUNNER_PURSUER_TUNING = {
-  speed: 5.44,
-  acceleration: 0.48,
-  maxSpeed: 7.31,
+/** Every runner class receives this authored speed so the course has one predictable baseline. */
+export const RUNNER_HERO_SPEED = 7.15;
+/**
+ * Distinct one-hit war pigs used by runner adventures. Their ceilings deliberately stay below the
+ * hero's baseline: clean parkour opens a gap, while a mistake still lets the pigs close it.
+ */
+export const RUNNER_PURSUER_PROFILES = {
+  pursuer: {
+    speed: 5.1,
+    acceleration: 0.32,
+    maxSpeed: 6.65,
+  },
+  stalker: {
+    speed: 5.65,
+    acceleration: 0.14,
+    maxSpeed: 6.5,
+  },
+  sprinter: {
+    speed: 4.55,
+    acceleration: 0.8,
+    maxSpeed: 6.9,
+  },
 } as const;
+/** Default editor preset and starting pursuer profile. */
+export const RUNNER_PURSUER_TUNING = RUNNER_PURSUER_PROFILES.pursuer;
+/** Exact generated defaults shipped before profiles existed, used to migrate stored runner maps. */
+export const LEGACY_RUNNER_PURSUER_TUNINGS = [
+  { speed: 6.4, acceleration: 0.48, maxSpeed: 8.6 },
+  { speed: 5.44, acceleration: 0.48, maxSpeed: 7.31 },
+] as const;
 /** Tile units: the exact quotient of the former 92 px. */
 export const INTERACTION_RANGE = 92 / TILE_SIZE;
 /** Tile units: the exact quotient of the former 46 px. */

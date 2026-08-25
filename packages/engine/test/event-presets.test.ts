@@ -1,5 +1,9 @@
 import { EVENT_PRESETS, presetEvent, presetPageContent } from "@lindocara/engine/event-presets.js";
-import { RUNNER_PURSUER_TUNING } from "@lindocara/engine/game.js";
+import {
+  RUNNER_HERO_SPEED,
+  RUNNER_PURSUER_PROFILES,
+  RUNNER_PURSUER_TUNING,
+} from "@lindocara/engine/game.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
@@ -69,9 +73,11 @@ describe("presetPageContent", () => {
 });
 
 describe("presetEvent", () => {
-  it("keeps the runner pursuer fifteen percent below its original movement tuning", () => {
-    expect(RUNNER_PURSUER_TUNING.speed).toBeCloseTo(6.4 * 0.85);
-    expect(RUNNER_PURSUER_TUNING.maxSpeed).toBeCloseTo(8.6 * 0.85);
+  it("gives runner pigs distinct profiles whose ceilings remain below the hero", () => {
+    const profiles = Object.values(RUNNER_PURSUER_PROFILES);
+    expect(new Set(profiles.map((profile) => JSON.stringify(profile))).size).toBe(3);
+    expect(profiles.every((profile) => profile.maxSpeed < RUNNER_HERO_SPEED)).toBe(true);
+    expect(RUNNER_PURSUER_TUNING).toBe(RUNNER_PURSUER_PROFILES.pursuer);
   });
 
   it("builds a normal, single-page, uuid-identified event out of the preset", () => {

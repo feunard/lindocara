@@ -64,10 +64,8 @@ const RUNNER_LEAP_SEARCH_STEP = 0.25;
 const RUNNER_LEAP_MIN_DURATION_MS = 420;
 const RUNNER_LEAP_MAX_DURATION_MS = 760;
 const RUNNER_LEAP_APEX = 1.15;
-/** Runner pursuit stays forgiving for two seconds, then reaches full speed one second later. */
-const RUNNER_HALF_SPEED_MS = 2_000;
-const RUNNER_FULL_SPEED_MS = 3_000;
-const RUNNER_INITIAL_SPEED_RATIO = 0.5;
+/** Runner pursuit holds its authored pace briefly before its profile-specific acceleration begins. */
+const RUNNER_ACCELERATION_DELAY_MS = 2_000;
 /** Two authoritative ground bodies touching; elevation keeps a clean jump over a runner viable. */
 const RUNNER_CONTACT_DISTANCE = BODY_RADIUS * 2;
 const RUNNER_CONTACT_HEIGHT = BODY_RADIUS * 2;
@@ -155,17 +153,8 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
 function runnerPursuitSpeed(monster: MonsterRuntime, now: number): number {
   const startedAt = monster.pursuitStartedAt ?? now;
   monster.pursuitStartedAt = startedAt;
-  const rampProgress = Math.max(
-    0,
-    Math.min(
-      1,
-      (now - startedAt - RUNNER_HALF_SPEED_MS) / (RUNNER_FULL_SPEED_MS - RUNNER_HALF_SPEED_MS),
-    ),
-  );
-  return (
-    monster.maxSpeed *
-    (RUNNER_INITIAL_SPEED_RATIO + (1 - RUNNER_INITIAL_SPEED_RATIO) * rampProgress)
-  );
+  const accelerationSeconds = Math.max(0, (now - startedAt - RUNNER_ACCELERATION_DELAY_MS) / 1_000);
+  return Math.min(monster.maxSpeed, monster.baseSpeed + monster.acceleration * accelerationSeconds);
 }
 
 export function abandonMonsterTarget(

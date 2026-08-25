@@ -12,7 +12,8 @@ import {
 } from "@lindocara/engine/event-presets.js";
 import {
   PLAYER_CLASSES,
-  RUNNER_PURSUER_TUNING,
+  RUNNER_HERO_SPEED,
+  RUNNER_PURSUER_PROFILES,
   type MonsterSpecies,
 } from "@lindocara/engine/game.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
@@ -635,7 +636,6 @@ const RUNNER_LANE_SPACING = 8;
 const RUNNER_SHORE_LEVEL = 2;
 const RUNNER_PEAK_LEVEL = 5;
 const RUNNER_PIT_LEVEL = -2;
-const RUNNER_HERO_SPEED = 7.15;
 const RUNNER_LEVEL_HEIGHT = 0.9;
 const RUNNER_WATER_LEVEL = -0.05;
 
@@ -1095,25 +1095,27 @@ function generateRunnerMap(
       occupied.has(pointKey(hidingPlace))
     )
       continue;
+    const profileName = ambushIndex % 2 === 0 ? "stalker" : "sprinter";
+    const profile = RUNNER_PURSUER_PROFILES[profileName];
     const event = functionalEvent({
       id: deterministicUuid(seed, `runner-ambush-${ambushIndex}`),
       col: hidingPlace.col,
       row: hidingPlace.row,
       ordinal: ordinal++,
       kind: "monster",
-      name: `Runner pig ambush ${ambushIndex + 1}`,
+      name: `Runner pig ${profileName} ${ambushIndex + 1}`,
       species: "war_pig",
       patrolRadius: 3,
       monsterTuning: {
         rank: "elite",
-        speed: RUNNER_PURSUER_TUNING.speed,
+        speed: profile.speed,
         damage: 1,
         xp: 0,
       },
       monsterRespawnMode: "timed",
       monsterPursuitMode: "relentless",
-      monsterAcceleration: RUNNER_PURSUER_TUNING.acceleration,
-      monsterMaxSpeed: RUNNER_PURSUER_TUNING.maxSpeed,
+      monsterAcceleration: profile.acceleration,
+      monsterMaxSpeed: profile.maxSpeed,
       monsterOneHitKill: true,
     });
     addEvent({ ...event, showMarker: false });

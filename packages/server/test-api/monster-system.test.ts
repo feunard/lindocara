@@ -47,6 +47,7 @@ import {
   GUARD_DAMAGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
+  RUNNER_HERO_SPEED,
   RUNNER_PURSUER_TUNING,
 } from "@lindocara/engine/game.js";
 import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
@@ -561,29 +562,35 @@ describe("monster navigation on the heightfield", () => {
     expect(monster.threat.has(player.id)).toBe(true);
   });
 
-  it("holds a runner at half speed for two seconds and reaches full speed at three", () => {
+  it("holds a runner at base speed for two seconds before accelerating to a fair ceiling", () => {
     const monster = chasingMonster();
     monster.pursuitMode = "relentless";
     monster.oneHitKill = true;
     monster.baseSpeed = RUNNER_PURSUER_TUNING.speed;
     monster.speed = RUNNER_PURSUER_TUNING.speed;
+    monster.acceleration = RUNNER_PURSUER_TUNING.acceleration;
     monster.maxSpeed = RUNNER_PURSUER_TUNING.maxSpeed;
     const player = targetPlayer(tile(600), tile(220));
     const socket = { id: "progressive-runner-socket" } as unknown as WebSocket;
     const context = monsterContext([monster], new Map([[socket, player]]));
 
     advanceMonsters(context, 1_000);
-    expect(monster.speed).toBeCloseTo(3.655);
+    expect(monster.speed).toBeCloseTo(RUNNER_PURSUER_TUNING.speed);
     expect(monster.pursuitStartedAt).toBe(1_000);
 
     advanceMonsters(context, 3_000);
-    expect(monster.speed).toBeCloseTo(3.655);
-
-    advanceMonsters(context, 3_500);
-    expect(monster.speed).toBeCloseTo(5.4825);
+    expect(monster.speed).toBeCloseTo(RUNNER_PURSUER_TUNING.speed);
+    expect(monster.pursuitStartedAt).toBe(1_000);
+    expect(monster.runnerLeap).toBeNull();
 
     advanceMonsters(context, 4_000);
-    expect(monster.speed).toBeCloseTo(7.31);
+    expect(monster.speed).toBeCloseTo(
+      RUNNER_PURSUER_TUNING.speed + RUNNER_PURSUER_TUNING.acceleration,
+    );
+
+    advanceMonsters(context, 10_000);
+    expect(monster.speed).toBeCloseTo(RUNNER_PURSUER_TUNING.maxSpeed);
+    expect(monster.speed).toBeLessThan(RUNNER_HERO_SPEED);
   });
 
   it("defeats the hero on runner contact without starting a monster attack", () => {

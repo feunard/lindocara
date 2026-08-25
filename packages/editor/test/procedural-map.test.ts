@@ -12,6 +12,7 @@ import {
   runnerBarricadeRotation,
   type ProceduralMapOptions,
 } from "@lindocara/editor/game/procedural-map.js";
+import { RUNNER_HERO_SPEED, RUNNER_PURSUER_PROFILES } from "@lindocara/engine/game.js";
 import { nativeHarvestProfileForAsset } from "@lindocara/engine/harvest-presets.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { parseMapData, sameElementSlot } from "@lindocara/engine/map-data.js";
@@ -265,7 +266,7 @@ describe("procedural map authoring", () => {
       (settings) => settings.stats.movementSpeed,
     );
     expect(runnerHeroSpeeds).toHaveLength(5);
-    expect(new Set(runnerHeroSpeeds)).toEqual(new Set([7.15]));
+    expect(new Set(runnerHeroSpeeds)).toEqual(new Set([RUNNER_HERO_SPEED]));
     expect(
       first.events.some((event) =>
         event.pages.some((page) => page.commands.some((command) => command.t === "damage")),
@@ -345,6 +346,27 @@ describe("procedural map authoring", () => {
           event.showMarker === false,
       ),
     ).toBe(true);
+    expect(
+      runnerMonsters.every(
+        (event) =>
+          event.monsterMaxSpeed !== null &&
+          event.monsterMaxSpeed !== undefined &&
+          event.monsterMaxSpeed < RUNNER_HERO_SPEED,
+      ),
+    ).toBe(true);
+    expect(
+      new Set(
+        runnerMonsters.map((event) =>
+          JSON.stringify([event.monsterSpeed, event.monsterAcceleration, event.monsterMaxSpeed]),
+        ),
+      ),
+    ).toEqual(
+      new Set(
+        Object.values(RUNNER_PURSUER_PROFILES).map((profile) =>
+          JSON.stringify([profile.speed, profile.acceleration, profile.maxSpeed]),
+        ),
+      ),
+    );
     expect(first.events.filter((event) => event.kind === "sea-guardian").length).toBeGreaterThan(0);
     const pickups = saved.events.filter((event) =>
       event.pages.some((page) => page.commands.some((command) => command.t === "movementEffect")),

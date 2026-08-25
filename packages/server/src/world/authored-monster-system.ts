@@ -8,6 +8,7 @@
 import { activePageIndex, type PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { resolveMonsterAttackProfile } from "@lindocara/engine/combat-actions.js";
 import {
+  LEGACY_RUNNER_PURSUER_TUNINGS,
   MONSTER_SPECIES_KIND,
   RUNNER_PURSUER_TUNING,
   type MonsterSpawn,
@@ -24,6 +25,15 @@ import {
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
 const AUTHORED_MONSTER_PREFIX = "mon-";
+
+function usesLegacyGeneratedRunnerTuning(event: MapEvent): boolean {
+  return LEGACY_RUNNER_PURSUER_TUNINGS.some(
+    (tuning) =>
+      event.monsterSpeed === tuning.speed &&
+      event.monsterAcceleration === tuning.acceleration &&
+      event.monsterMaxSpeed === tuning.maxSpeed,
+  );
+}
 
 export function authoredMonsterDefinition(
   event: MapEvent,
@@ -43,8 +53,13 @@ export function authoredMonsterDefinition(
   // useful starting pace as newly generated ones.
   const runnerPursuer = species === "war_pig" && event.monsterOneHitKill === true;
   const authoredSpeed = event.monsterSpeed ?? undefined;
+  const useDefaultRunnerTuning =
+    runnerPursuer &&
+    (event.monsterPursuitMode !== "relentless" || usesLegacyGeneratedRunnerTuning(event));
   const speed = runnerPursuer
-    ? Math.max(authoredSpeed ?? 0, RUNNER_PURSUER_TUNING.speed)
+    ? useDefaultRunnerTuning
+      ? RUNNER_PURSUER_TUNING.speed
+      : (authoredSpeed ?? RUNNER_PURSUER_TUNING.speed)
     : authoredSpeed;
   return {
     id: `${AUTHORED_MONSTER_PREFIX}${event.id}`,
@@ -76,10 +91,14 @@ export function authoredMonsterDefinition(
       : { respawnDelayMs: event.monsterRespawnDelayMs }),
     pursuitMode: runnerPursuer ? "relentless" : (event.monsterPursuitMode ?? "standard"),
     acceleration: runnerPursuer
-      ? Math.max(event.monsterAcceleration ?? 0, RUNNER_PURSUER_TUNING.acceleration)
+      ? useDefaultRunnerTuning
+        ? RUNNER_PURSUER_TUNING.acceleration
+        : (event.monsterAcceleration ?? RUNNER_PURSUER_TUNING.acceleration)
       : (event.monsterAcceleration ?? 0),
     maxSpeed: runnerPursuer
-      ? Math.max(event.monsterMaxSpeed ?? event.monsterSpeed ?? 0, RUNNER_PURSUER_TUNING.maxSpeed)
+      ? useDefaultRunnerTuning
+        ? RUNNER_PURSUER_TUNING.maxSpeed
+        : (event.monsterMaxSpeed ?? event.monsterSpeed ?? RUNNER_PURSUER_TUNING.maxSpeed)
       : (event.monsterMaxSpeed ?? event.monsterSpeed ?? undefined),
     oneHitKill: event.monsterOneHitKill ?? false,
   };
