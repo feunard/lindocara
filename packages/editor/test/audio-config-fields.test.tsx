@@ -109,6 +109,6 @@ describe("AudioConfigFields", () => {
     expect(FakeAudio.created[0]?.src).toBe(uploaded.src);
 
     await user.click(screen.getByRole("combobox", { name: /Exploration \/ biome/i }));
-    expect(screen.getByRole("option", { name: /Course du toit/i })).toBeVisible();
+    expect(await screen.findByRole("option", { name: /Course du toit/i })).toBeVisible();
   });
 });
