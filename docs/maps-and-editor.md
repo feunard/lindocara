@@ -144,7 +144,11 @@ their old direction. Free angles are version-packed into the existing transform 
 building or bridge dimensions, requiring neither a database migration nor a new dependency.
 The Buildings palette exposes the seven human archetypes plus four complete faction packs:
 goblins, orcs/trolls, beastfolk and wild tribes. Each non-human pack contains two distinct native
-models for housing, command, training, community life and daily life (40 models total). Cards are
+models for housing, command, training, community life and daily life (40 models total). These are
+forty dedicated compositions rather than variants of a shared hall: each has a unique normalized
+silhouette and a functional landmark matching its role (forge, granary, training pit, healer's herb
+racks and so on). They reuse the renderer's shipped stone, timber, roof, canvas and metal materials,
+with faction-specific construction languages and detailing. Cards are
 grouped by faction, ordered by purpose and badged with their purpose and A/B variant. Selecting the
 Buildings category reveals the whole organized set instead of paginating through unrelated
 factions. Human families retain their five shipped roof recolours; faction buildings own their

@@ -619,13 +619,13 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
   const lower = assetId.toLowerCase();
   const roofColor =
     faction === "goblin"
-      ? 0x765335
+      ? 0x986b42
       : faction === "orc-troll"
-        ? 0x6e3129
+        ? 0x91463b
         : faction === "beastfolk"
-          ? 0x397d76
+          ? 0x4ca093
           : faction === "wild-tribe"
-            ? 0x8a5b3a
+            ? 0xb07845
             : lower.includes("red")
               ? 0xc85e54
               : lower.includes("purple")

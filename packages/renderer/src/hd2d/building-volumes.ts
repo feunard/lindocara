@@ -16,7 +16,10 @@ import {
   type ElementRotation,
   elementRotationDegrees,
 } from "@lindocara/engine/element-orientation.js";
+import type { FactionBuildingArchetype } from "@lindocara/engine/faction-buildings.js";
 import * as THREE from "three";
+
+import { buildFactionBuildingVolume } from "./faction-building-volumes.js";
 
 export type BuildingVolumeState = "standing" | "construction" | "destroyed";
 
@@ -609,11 +612,41 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
   const destroyed = art.state === "destroyed";
   const faction = art.faction ?? "human";
   const palette = {
-    human: { accent: 0x326f80, bone: 0xd7c9a7, cloth: art.roofColor, foliage: 0x647a3c },
-    goblin: { accent: 0x7d9b45, bone: 0xc9b98f, cloth: 0x9a5639, foliage: 0x516d32 },
-    "orc-troll": { accent: 0xa64c36, bone: 0xd6c49d, cloth: 0x712f29, foliage: 0x3f5a32 },
-    beastfolk: { accent: 0xc28a46, bone: 0xe0cda2, cloth: 0x327c78, foliage: 0x627b45 },
-    "wild-tribe": { accent: 0x795591, bone: 0xd8c396, cloth: 0x9b6840, foliage: 0x58713a },
+    human: {
+      accent: 0x326f80,
+      bone: 0xd7c9a7,
+      cloth: art.roofColor,
+      foliage: 0x647a3c,
+      metal: 0xd2ae59,
+    },
+    goblin: {
+      accent: 0x8eae4f,
+      bone: 0xd6c79b,
+      cloth: 0xb76742,
+      foliage: 0x5f7e38,
+      metal: 0x9b7354,
+    },
+    "orc-troll": {
+      accent: 0xbc543c,
+      bone: 0xe3d0a6,
+      cloth: 0x8f3830,
+      foliage: 0x4a6839,
+      metal: 0x777f82,
+    },
+    beastfolk: {
+      accent: 0xd99a4b,
+      bone: 0xead8ae,
+      cloth: 0x3f988e,
+      foliage: 0x719252,
+      metal: 0xb58a54,
+    },
+    "wild-tribe": {
+      accent: 0x9168aa,
+      bone: 0xe5d0a0,
+      cloth: 0xb67b4c,
+      foliage: 0x688748,
+      metal: 0xa0784f,
+    },
   }[faction];
   for (const texture of [art.wall, art.roof, art.stone, art.blueStone, art.wood]) {
     texture.wrapS = THREE.RepeatWrapping;
@@ -694,7 +727,7 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
       flatShading: true,
     }),
     metal: new THREE.MeshLambertMaterial({
-      color: destroyed ? 0x6b665e : 0xd2ae59,
+      color: destroyed ? 0x6b665e : palette.metal,
       flatShading: true,
     }),
     accent: new THREE.MeshLambertMaterial({
@@ -1033,351 +1066,6 @@ function buildFortress(
   );
 }
 
-function cone(
-  root: THREE.Object3D,
-  name: string,
-  radius: number,
-  height: number,
-  at: Point3,
-  material: THREE.Material,
-  rotation: Point3 = [0, 0, 0],
-  segments = 8,
-): THREE.Mesh {
-  const mesh = shadow(new THREE.Mesh(new THREE.ConeGeometry(radius, height, segments), material));
-  mesh.name = name;
-  mesh.position.set(...at);
-  mesh.rotation.set(...rotation);
-  root.add(mesh);
-  return mesh;
-}
-
-function addFactionTotem(
-  root: THREE.Object3D,
-  x: number,
-  z: number,
-  height: number,
-  m: Materials,
-): void {
-  cylinder(root, "ritual-totem", [0.1, 0.14], height, [x, height / 2, z], m.wood, 8);
-  box(root, "totem-mask", [0.38, 0.42, 0.16], [x, height * 0.68, z + 0.08], m.accent);
-  for (const side of [-1, 1]) {
-    cone(
-      root,
-      "totem-horn",
-      0.075,
-      0.42,
-      [x + side * 0.28, height * 0.78, z + 0.05],
-      m.bone,
-      [0, 0, side * -1.05],
-      7,
-    );
-  }
-}
-
-function addWeaponDisplay(
-  root: THREE.Object3D,
-  x: number,
-  z: number,
-  height: number,
-  m: Materials,
-): void {
-  for (const side of [-1, 1]) {
-    const weapon = new THREE.Group();
-    weapon.position.set(x, height * 0.52, z);
-    weapon.rotation.z = side * 0.62;
-    box(weapon, "weapon-shaft", [0.07, height, 0.07], [0, 0, 0], m.wood);
-    cone(weapon, "weapon-head", 0.13, 0.34, [0, height * 0.62, 0], m.metal, [0, 0, 0], 6);
-    root.add(weapon);
-  }
-}
-
-function addDailyLifeProps(
-  root: THREE.Object3D,
-  size: BuildingVolumeDimensions,
-  variant: "a" | "b",
-  m: Materials,
-): void {
-  const front = size.depth / 2 + 0.1;
-  if (variant === "a") {
-    box(
-      root,
-      "work-awning",
-      [size.width * 0.58, 0.1, 0.72],
-      [-size.width * 0.12, size.wallHeight * 0.62, front + 0.27],
-      m.cloth,
-      [0.13, 0, 0],
-    );
-    for (const x of [-size.width * 0.36, size.width * 0.12]) {
-      box(
-        root,
-        "awning-post",
-        [0.08, size.wallHeight * 0.66, 0.08],
-        [x, size.wallHeight * 0.33, front + 0.54],
-        m.wood,
-      );
-    }
-    box(
-      root,
-      "work-bench",
-      [size.width * 0.46, 0.16, 0.32],
-      [-size.width * 0.12, 0.42, front + 0.42],
-      m.deck,
-    );
-  } else {
-    for (const x of [-size.width * 0.27, size.width * 0.27]) {
-      cylinder(root, "storage-barrel", [0.2, 0.23], 0.48, [x, 0.24, front], m.wood, 10);
-      cylinder(root, "barrel-band", [0.235, 0.235], 0.055, [x, 0.16, front], m.metal, 10);
-      cylinder(root, "barrel-band", [0.235, 0.235], 0.055, [x, 0.34, front], m.metal, 10);
-    }
-  }
-}
-
-function addFactionSignature(
-  root: THREE.Object3D,
-  size: BuildingVolumeDimensions,
-  faction: Exclude<BuildingFaction, "human">,
-  variant: "a" | "b",
-  m: Materials,
-): void {
-  const front = size.depth / 2 + 0.075;
-  switch (faction) {
-    case "goblin":
-      for (const side of [-1, 1]) {
-        box(
-          root,
-          "scrap-patch",
-          [size.width * 0.22, 0.34, 0.055],
-          [side * size.width * 0.28, size.wallHeight * (side > 0 ? 0.72 : 0.42), front],
-          side > 0 ? m.accent : m.metal,
-          [0, 0, side * 0.11],
-        );
-      }
-      for (const x of [-size.width * 0.38, size.width * 0.38]) {
-        cone(
-          root,
-          "crooked-stake",
-          0.09,
-          0.58,
-          [x, size.wallHeight + 0.22, 0],
-          m.wood,
-          [0, 0, x > 0 ? -0.18 : 0.18],
-          6,
-        );
-      }
-      break;
-    case "orc-troll":
-      box(
-        root,
-        "iron-reinforcement",
-        [size.width * 0.86, 0.16, 0.1],
-        [0, size.wallHeight * 0.74, front],
-        m.metal,
-      );
-      for (const x of [-size.width * 0.42, size.width * 0.42]) {
-        cone(
-          root,
-          "war-spike",
-          0.12,
-          0.7,
-          [x, size.wallHeight + 0.28, front - 0.03],
-          m.bone,
-          [0, 0, x > 0 ? -0.2 : 0.2],
-          7,
-        );
-      }
-      break;
-    case "beastfolk":
-      box(
-        root,
-        "hide-panel",
-        [size.width * 0.48, size.wallHeight * 0.38, 0.06],
-        [0, size.wallHeight * 0.65, front],
-        m.cloth,
-      );
-      for (const side of [-1, 1]) {
-        cone(
-          root,
-          "great-antler",
-          0.08,
-          0.72,
-          [side * size.width * 0.3, size.wallHeight + 0.22, front],
-          m.bone,
-          [0, 0, side * -0.72],
-          7,
-        );
-      }
-      break;
-    case "wild-tribe":
-      for (const x of [-size.width * 0.34, 0, size.width * 0.34]) {
-        cylinder(
-          root,
-          "reed-bundle",
-          [0.07, 0.1],
-          size.wallHeight * 0.82,
-          [x, size.wallHeight * 0.41, front],
-          m.foliage,
-          7,
-        );
-      }
-      addFactionTotem(
-        root,
-        variant === "a" ? -size.width * 0.38 : size.width * 0.38,
-        front,
-        Math.min(1.45, size.wallHeight + 0.18),
-        m,
-      );
-      break;
-  }
-}
-
-function addPurposeDetails(
-  root: THREE.Object3D,
-  size: BuildingVolumeDimensions,
-  purpose: "housing" | "command" | "training" | "community" | "daily-life",
-  variant: "a" | "b",
-  m: Materials,
-): void {
-  const front = size.depth / 2 + 0.075;
-  switch (purpose) {
-    case "housing":
-      addWindow(root, "back", 0, size.wallHeight * 0.58, size, m.window, m.wood, 0.65);
-      box(
-        root,
-        "smoke-vent",
-        [0.26, 0.72, 0.29],
-        [-size.width * 0.27, size.wallHeight + size.roofHeight * 0.55, -size.depth * 0.12],
-        m.stoneShade,
-      );
-      break;
-    case "command":
-      for (const x of [-size.width * 0.34, size.width * 0.34]) {
-        box(
-          root,
-          "banner-pole",
-          [0.08, size.wallHeight * 0.95, 0.08],
-          [x, size.wallHeight * 0.7, front],
-          m.wood,
-        );
-        box(
-          root,
-          "war-banner",
-          [0.42, 0.62, 0.045],
-          [x + (x < 0 ? 0.18 : -0.18), size.wallHeight * 0.82, front + 0.05],
-          m.cloth,
-        );
-      }
-      break;
-    case "training":
-      addWeaponDisplay(
-        root,
-        -size.width * 0.27,
-        front + 0.04,
-        Math.min(1.05, size.wallHeight * 0.72),
-        m,
-      );
-      addTarget(root, size.width * 0.25, Math.min(0.78, size.wallHeight * 0.55), front, m);
-      break;
-    case "community":
-      addFactionTotem(root, 0, front + 0.03, Math.min(1.55, size.wallHeight + 0.2), m);
-      if (variant === "a") {
-        box(
-          root,
-          "communal-bench",
-          [size.width * 0.55, 0.16, 0.25],
-          [0, 0.28, front + 0.24],
-          m.deck,
-        );
-      }
-      break;
-    case "daily-life":
-      addDailyLifeProps(root, size, variant, m);
-      break;
-  }
-}
-
-function buildFactionBuilding(
-  root: THREE.Group,
-  size: BuildingVolumeDimensions,
-  m: Materials,
-  faction: Exclude<BuildingFaction, "human">,
-  archetype: Exclude<
-    BuildingArchetype,
-    "house" | "tower" | "windmill" | "archery" | "barracks" | "monastery" | "castle"
-  >,
-): void {
-  const separator = archetype.lastIndexOf("-");
-  const purpose = archetype.slice(0, separator) as
-    | "housing"
-    | "command"
-    | "training"
-    | "community"
-    | "daily-life";
-  const variant = archetype.slice(separator + 1) as "a" | "b";
-
-  if (size.roofShape === "cone") {
-    const radius = Math.min(size.width, size.depth) * 0.46;
-    cylinder(
-      root,
-      "round-lodge",
-      [radius * 0.92, radius],
-      size.wallHeight,
-      [0, size.wallHeight / 2, 0],
-      m.wall,
-      12,
-    );
-    addRoundStoneCourses(root, radius * 0.94, size.wallHeight, m.wood);
-    const roof = cone(
-      root,
-      "thatched-cone",
-      radius * 1.17,
-      size.roofHeight,
-      [0, size.wallHeight + size.roofHeight / 2, 0],
-      m.roof,
-      [0, 0, 0],
-      12,
-    );
-    roof.receiveShadow = true;
-    addDoor(root, 0, radius + 0.045, m.blue, m.outline, m.wood, m.wood, m.metal, 0.82);
-  } else {
-    box(
-      root,
-      "faction-hall",
-      [size.width, size.wallHeight, size.depth],
-      [0, size.wallHeight / 2, 0],
-      size.roofShape === "crenellated" ? m.stone : m.wall,
-    );
-    addFourSideTimber(root, size, m.wood);
-    if (size.roofShape === "gable") {
-      addGableEnds(root, size, m.wall);
-      const roof = addPitchedRoof(root, size, m.roof, m.outline);
-      if (faction === "goblin") roof.rotation.z = variant === "a" ? -0.035 : 0.025;
-    } else {
-      box(
-        root,
-        "faction-roof-deck",
-        [size.width, 0.14, size.depth],
-        [0, size.wallHeight + 0.04, 0],
-        m.deck,
-      );
-      addRectangularBattlements(root, size.width, size.depth, size.wallHeight + 0.2, m.stoneShade);
-    }
-    addDoor(
-      root,
-      0,
-      size.depth / 2 + 0.045,
-      m.blue,
-      m.outline,
-      m.wood,
-      m.wood,
-      m.metal,
-      purpose === "command" ? 1.16 : 0.86,
-    );
-  }
-
-  addPurposeDetails(root, size, purpose, variant, m);
-  addFactionSignature(root, size, faction, variant, m);
-}
-
 function addCircularCrenellationsAt(
   root: THREE.Group,
   radius: number,
@@ -1471,15 +1159,12 @@ export function makeBuildingVolume(art: BuildingVolumeArt): NativeStaticVisual {
         break;
       default:
         if (faction !== "human") {
-          buildFactionBuilding(
+          buildFactionBuildingVolume(
             structure,
             size,
             materials,
             faction,
-            art.archetype as Exclude<
-              BuildingArchetype,
-              "house" | "tower" | "windmill" | "archery" | "barracks" | "monastery" | "castle"
-            >,
+            art.archetype as FactionBuildingArchetype,
           );
         }
         break;

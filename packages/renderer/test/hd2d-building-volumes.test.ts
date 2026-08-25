@@ -2,6 +2,10 @@ import {
   FACTION_BUILDING_FACTIONS,
   factionBuildingModelForArchetype,
 } from "@lindocara/engine/faction-buildings.js";
+import type {
+  FactionBuildingArchetype,
+  FactionBuildingFaction,
+} from "@lindocara/engine/faction-buildings.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +17,58 @@ import {
   makeBridgeVolume,
   makeBuildingVolume,
 } from "../src/hd2d/building-volumes.js";
+import { FACTION_BUILDING_DESIGN_NAMES } from "../src/hd2d/faction-building-volumes.js";
+
+const FACTION_BUILDING_FUNCTIONAL_LANDMARKS = {
+  goblin: {
+    "housing-a": "crooked-hut-body",
+    "housing-b": "giant-mushroom-cap",
+    "command-a": "boss-den-platform",
+    "command-b": "scrap-watch-cylinder",
+    "training-a": "knife-palisade",
+    "training-b": "sling-loop",
+    "community-a": "feast-table",
+    "community-b": "shaman-idol",
+    "daily-life-a": "tinker-flywheel",
+    "daily-life-b": "warehouse-storage-shelf",
+  },
+  "orc-troll": {
+    "housing-a": "orc-longhouse-shell",
+    "housing-b": "troll-masonry-boulder",
+    "command-a": "warchief-horn-crown",
+    "command-b": "gate-skull",
+    "training-a": "war-pit-stone-ring",
+    "training-b": "boulder-hoist-wheel",
+    "community-a": "clan-roundhouse",
+    "community-b": "smoke-chimney",
+    "daily-life-a": "forge-furnace-mouth",
+    "daily-life-b": "beast-pen-log",
+  },
+  beastfolk: {
+    "housing-a": "stretched-hide-roof",
+    "housing-b": "woven-nest-rim",
+    "command-a": "council-totem",
+    "command-b": "moon-crescent-outer",
+    "training-a": "hunter-trophy",
+    "training-b": "triangular-yard-post",
+    "community-a": "communal-sunken-floor",
+    "community-b": "hanging-herbs",
+    "daily-life-a": "stretched-hide",
+    "daily-life-b": "woven-granary-pod",
+  },
+  "wild-tribe": {
+    "housing-a": "reed-stalk-wall",
+    "housing-b": "painted-hide-tent",
+    "command-a": "ancestor-mask",
+    "command-b": "raised-bone-parapet",
+    "training-a": "spear-circle-spear-shaft",
+    "training-b": "trial-pit-obelisk",
+    "community-a": "smoke-hole-canopy",
+    "community-b": "spirit-hut-cabin",
+    "daily-life-a": "drying-bundle",
+    "daily-life-b": "craft-patchwork-canopy",
+  },
+} satisfies Record<FactionBuildingFaction, Record<FactionBuildingArchetype, string>>;
 
 function texture(): THREE.Texture {
   return new THREE.Texture();
@@ -54,13 +110,70 @@ function uvSpan(mesh: THREE.Mesh, groupIndex: number): { u: number; v: number } 
   return { u: Math.max(...us) - Math.min(...us), v: Math.max(...vs) - Math.min(...vs) };
 }
 
+function volumeFingerprint(root: THREE.Object3D): string {
+  root.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(root);
+  const extent = bounds.getSize(new THREE.Vector3());
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((object) => {
+    if (object instanceof THREE.Mesh) meshes.push(object);
+  });
+
+  const geometryCounts = new Map<string, number>();
+  for (const mesh of meshes) {
+    const kind = mesh.geometry.type;
+    geometryCounts.set(kind, (geometryCounts.get(kind) ?? 0) + 1);
+  }
+
+  const resolution = 18;
+  const projection = (horizontal: "x" | "z", vertical: "y" | "z"): string => {
+    const occupied = Array.from({ length: resolution * resolution }, () => false);
+    const axisMin = (axis: "x" | "y" | "z"): number => bounds.min[axis];
+    const axisExtent = (axis: "x" | "y" | "z"): number => Math.max(extent[axis], 0.001);
+    for (const mesh of meshes) {
+      const box = new THREE.Box3().setFromObject(mesh);
+      const minX = Math.max(
+        0,
+        Math.floor(
+          ((box.min[horizontal] - axisMin(horizontal)) / axisExtent(horizontal)) * resolution,
+        ),
+      );
+      const maxX = Math.min(
+        resolution - 1,
+        Math.ceil(
+          ((box.max[horizontal] - axisMin(horizontal)) / axisExtent(horizontal)) * resolution,
+        ),
+      );
+      const minY = Math.max(
+        0,
+        Math.floor(((box.min[vertical] - axisMin(vertical)) / axisExtent(vertical)) * resolution),
+      );
+      const maxY = Math.min(
+        resolution - 1,
+        Math.ceil(((box.max[vertical] - axisMin(vertical)) / axisExtent(vertical)) * resolution),
+      );
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) occupied[y * resolution + x] = true;
+      }
+    }
+    return occupied.map((value) => (value ? "1" : "0")).join("");
+  };
+
+  return [
+    projection("x", "y"),
+    projection("z", "y"),
+    projection("x", "z"),
+    [...geometryCounts.entries()].sort(([left], [right]) => left.localeCompare(right)).join(","),
+  ].join(":");
+}
+
 describe("native HD-2D building volumes", () => {
   it.each([
-    ["goblin", "scrap-patch"],
-    ["orc-troll", "iron-reinforcement"],
-    ["beastfolk", "hide-panel"],
-    ["wild-tribe", "reed-bundle"],
-  ] as const)("builds a distinct %s housing pack signature", (faction, signature) => {
+    ["goblin", "crooked-hut-body"],
+    ["orc-troll", "orc-longhouse-shell"],
+    ["beastfolk", "stretched-hide-roof"],
+    ["wild-tribe", "reed-stalk-wall"],
+  ] as const)("builds an architectural language unique to the %s pack", (faction, signature) => {
     const model = factionBuildingModelForArchetype(faction, "housing-a");
     const visual = building(model.archetype, undefined, faction);
     expect(visual.mesh.getObjectByName(signature)).toBeDefined();
@@ -68,7 +181,10 @@ describe("native HD-2D building volumes", () => {
     visual.dispose();
   });
 
-  it("builds two models for all five purposes in every faction pack", () => {
+  it("builds forty structurally unique faction models instead of recolouring shared halls", () => {
+    const designNames = new Set<string>();
+    const volumeFingerprints = new Map<string, string>();
+    const underDetailed: string[] = [];
     for (const faction of FACTION_BUILDING_FACTIONS) {
       for (const purpose of [
         "housing",
@@ -80,11 +196,33 @@ describe("native HD-2D building volumes", () => {
         for (const variant of ["a", "b"] as const) {
           const model = factionBuildingModelForArchetype(faction, `${purpose}-${variant}`);
           const visual = building(model.archetype, undefined, faction);
-          expect(visual.mesh.getObjectsByProperty("type", "Mesh").length).toBeGreaterThan(8);
+          const identity = `${faction}/${model.archetype}`;
+          const designName = `design-${faction}-${FACTION_BUILDING_DESIGN_NAMES[faction][model.archetype]}`;
+          expect(visual.mesh.getObjectByName(designName), identity).toBeDefined();
+          expect(
+            visual.mesh.getObjectByName(
+              FACTION_BUILDING_FUNCTIONAL_LANDMARKS[faction][model.archetype],
+            ),
+            `${identity} has lost its defining functional landmark`,
+          ).toBeDefined();
+          expect(visual.mesh.getObjectByName("faction-hall"), identity).toBeUndefined();
+          const meshCount = visual.mesh.getObjectsByProperty("type", "Mesh").length;
+          if (meshCount < 19) underDetailed.push(`${identity}:${meshCount}`);
+          const fingerprint = volumeFingerprint(visual.mesh);
+          const previous = volumeFingerprints.get(fingerprint);
+          expect(
+            previous,
+            `${identity} duplicates the structure of ${previous ?? "nothing"}`,
+          ).toBeUndefined();
+          volumeFingerprints.set(fingerprint, identity);
+          designNames.add(designName);
           visual.dispose();
         }
       }
     }
+    expect(designNames.size).toBe(40);
+    expect(volumeFingerprints.size).toBe(40);
+    expect(underDetailed).toEqual([]);
   });
 
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
