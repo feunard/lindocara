@@ -91,6 +91,14 @@ yarn workspace @lindocara/renderer run test   # or: yarn test:renderer â€” 
   geometry or add a renderer-only option that the editor, map compiler and runtime collision cannot
   reproduce. The model is incomplete until enlarge, shrink, move, rotate and destruction-state
   round trips are covered at their owning boundaries.
+- **Build and approve visual packs sequentially.** Complete one faction language before starting
+  the next. Sample the faction's shipped 2D art with nearest filtering, then construct real
+  volumetric architecture around a unique silhouette and a functional landmark; a recoloured hall,
+  flat facade, smooth clay surface or decorative panel standing in for structure is unfinished.
+  Render the whole pack side by side in the editor at the gameplay camera and revise any repeated
+  roof, massing or dominant motif before reusing the workflow. The building-volume suite's current
+  minimums (55 meshes, 45 volumetric parts, 7 materials and 4 geometry families) are a floor, not a
+  substitute for visual review. Keep a screenshot path in the final handoff.
 - **Catalogue sheets outlive the scene.** `Hd2dRenderer.#assetTextures` is a `createTextureCache`
   holding every scenery, world-event, editor-preview and spawn-knight texture the instance has
   decoded; `#disposeScene` must never dispose it, and only `destroy()` frees it. It exists because

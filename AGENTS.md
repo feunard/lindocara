@@ -214,6 +214,16 @@ is precisely why they are written down.
     runtime collision; a visual-only transform is a bug. This applies to buildings, bridges, traps,
     barricades and every future placeable 3D family. → [maps-and-editor.md](./docs/maps-and-editor.md)
 
+14. **Author 3D packs one validated visual language at a time.** Do not mass-produce a set from a
+    human or generic base. Start with one faction, derive nearest-filtered surfaces from its shipped
+    2D source art, and give every model its own silhouette, coherent load-bearing structure, real
+    depth and role-specific landmark. Place the complete pack side by side in the editor at the
+    gameplay camera, inspect it visually and revise repeated roofs, outlines, proportions or empty
+    surfaces before applying the method to the next faction. Keep the renderer quality guard at or
+    above the current baseline (55 meshes, 45 volumetric parts, 7 materials and 4 geometry families
+    per finished faction building), record the comparison screenshot in the handoff, and never call
+    a pack complete from unit tests alone. → [maps-and-editor.md](./docs/maps-and-editor.md)
+
 ## Where the rest lives
 
 Read one when the task is in its subject — not before, and not all of them.

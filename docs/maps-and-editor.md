@@ -154,12 +154,24 @@ goblins, orcs/trolls, beastfolk and wild tribes. Each non-human pack contains tw
 models for housing, command, training, community life and daily life (40 models total). These are
 forty dedicated compositions rather than variants of a shared hall: each has a unique normalized
 silhouette and a functional landmark matching its role (forge, granary, training pit, healer's herb
-racks and so on). They reuse the renderer's shipped stone, timber, roof, canvas and metal materials,
-with faction-specific construction languages and detailing. Cards are
+racks and so on). Their nearest-filtered materials are sampled from faction-appropriate 2D art
+already shipped in the Tiny Swords catalogue, preserving the pixel texture language on lit,
+volumetric geometry instead of producing smooth clay surfaces. Cards are
 grouped by faction, ordered by purpose and badged with their purpose and A/B variant. Selecting the
 Buildings category reveals the whole organized set instead of paginating through unrelated
 factions. Human families retain their five shipped roof recolours; faction buildings own their
 materials and silhouettes and therefore have no synthetic recolour.
+
+Future 3D packs follow the same acceptance loop. Finish one faction before propagating the method:
+define a construction language from its source art, give every building a structurally plausible
+and role-specific composition, and place the entire pack side by side in the editor at the gameplay
+camera. Repeated dominant roofs, interchangeable massing, flat decoration and unfinished surfaces
+are revised at that stage. Only a visually accepted faction becomes the reference for the next one;
+the human buildings and a generic shared hall are not starting meshes. Automated renderer tests
+keep each finished faction building above the current detail floor of 55 meshes, 45 genuinely
+volumetric parts, 7 materials and 4 geometry families, while the browser comparison remains a
+required complementary check. The handoff records the screenshot used for that comparison.
+
 Traps and defenses have their own palette category, split into General, Goblin and Orc/Troll
 groups. Alongside the spike trap and human barricade it contains a damage-free backward repulsor, a
 damage-free vertical launcher, a low goblin scrap barricade at collision elevation 1 and a massive
