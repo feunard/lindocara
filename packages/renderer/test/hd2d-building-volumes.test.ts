@@ -33,16 +33,16 @@ const FACTION_BUILDING_FUNCTIONAL_LANDMARKS = {
     "daily-life-b": "scavenger-loading-ramp",
   },
   "orc-troll": {
-    "housing-a": "orc-longhouse-shell",
-    "housing-b": "troll-masonry-boulder",
-    "command-a": "warchief-horn-crown",
-    "command-b": "gate-skull",
-    "training-a": "war-pit-stone-ring",
-    "training-b": "boulder-hoist-wheel",
-    "community-a": "clan-roundhouse",
-    "community-b": "smoke-chimney",
-    "daily-life-a": "forge-furnace-mouth",
-    "daily-life-b": "beast-pen-log",
+    "housing-a": "orc-longhouse-keel",
+    "housing-b": "troll-hut-root-crown",
+    "command-a": "warchief-horn-throne",
+    "command-b": "skull-fort-jaw-gate",
+    "training-a": "war-pit-sunken-ring",
+    "training-b": "boulder-range-throwing-deck",
+    "community-a": "clan-hearth-great-fire",
+    "community-b": "smoke-lodge-drying-rack",
+    "daily-life-a": "war-forge-furnace",
+    "daily-life-b": "beast-pen-gatehouse",
   },
   beastfolk: {
     "housing-a": "stretched-hide-roof",
@@ -170,7 +170,7 @@ function volumeFingerprint(root: THREE.Object3D): string {
 describe("native HD-2D building volumes", () => {
   it.each([
     ["goblin", "goblin-roundhouse-heart"],
-    ["orc-troll", "orc-longhouse-shell"],
+    ["orc-troll", "orc-longhouse-keel"],
     ["beastfolk", "stretched-hide-roof"],
     ["wild-tribe", "reed-stalk-wall"],
   ] as const)("builds an architectural language unique to the %s pack", (faction, signature) => {
@@ -225,44 +225,47 @@ describe("native HD-2D building volumes", () => {
     expect(underDetailed).toEqual([]);
   });
 
-  it("builds every goblin role as finished layered architecture instead of flat decoration", () => {
-    for (const archetype of [
-      "housing-a",
-      "housing-b",
-      "command-a",
-      "command-b",
-      "training-a",
-      "training-b",
-      "community-a",
-      "community-b",
-      "daily-life-a",
-      "daily-life-b",
-    ] as const) {
-      const model = factionBuildingModelForArchetype("goblin", archetype);
-      const visual = building(model.archetype, undefined, "goblin");
-      const meshes = visual.mesh.getObjectsByProperty("type", "Mesh") as THREE.Mesh[];
-      const materials = new Set(meshes.flatMap((mesh) => mesh.material).map((item) => item.uuid));
-      const geometryKinds = new Set(meshes.map((mesh) => mesh.geometry.type));
-      const outlines = visual.mesh.getObjectsByProperty("name", "goblin-silhouette-line");
-      visual.mesh.updateMatrixWorld(true);
-      const volumetricParts = meshes.filter((mesh) => {
-        const extent = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
-        return extent.x > 0.015 && extent.y > 0.015 && extent.z > 0.015;
-      });
+  it.each(["goblin", "orc-troll"] as const)(
+    "builds every %s role as finished layered architecture instead of flat decoration",
+    (faction) => {
+      for (const archetype of [
+        "housing-a",
+        "housing-b",
+        "command-a",
+        "command-b",
+        "training-a",
+        "training-b",
+        "community-a",
+        "community-b",
+        "daily-life-a",
+        "daily-life-b",
+      ] as const) {
+        const model = factionBuildingModelForArchetype(faction, archetype);
+        const visual = building(model.archetype, undefined, faction);
+        const meshes = visual.mesh.getObjectsByProperty("type", "Mesh") as THREE.Mesh[];
+        const materials = new Set(meshes.flatMap((mesh) => mesh.material).map((item) => item.uuid));
+        const geometryKinds = new Set(meshes.map((mesh) => mesh.geometry.type));
+        const outlines = visual.mesh.getObjectsByProperty("name", `${faction}-silhouette-line`);
+        visual.mesh.updateMatrixWorld(true);
+        const volumetricParts = meshes.filter((mesh) => {
+          const extent = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+          return extent.x > 0.015 && extent.y > 0.015 && extent.z > 0.015;
+        });
 
-      expect(meshes.length, `${archetype} is under-detailed`).toBeGreaterThanOrEqual(55);
-      expect(
-        volumetricParts.length,
-        `${archetype} relies on flat decoration`,
-      ).toBeGreaterThanOrEqual(45);
-      expect(materials.size, `${archetype} lacks surface variation`).toBeGreaterThanOrEqual(7);
-      expect(geometryKinds.size, `${archetype} lacks shape variation`).toBeGreaterThanOrEqual(4);
-      expect(outlines.length, `${archetype} outlines too many small parts`).toBeLessThan(
-        meshes.length / 4,
-      );
-      visual.dispose();
-    }
-  });
+        expect(meshes.length, `${archetype} is under-detailed`).toBeGreaterThanOrEqual(55);
+        expect(
+          volumetricParts.length,
+          `${archetype} relies on flat decoration`,
+        ).toBeGreaterThanOrEqual(45);
+        expect(materials.size, `${archetype} lacks surface variation`).toBeGreaterThanOrEqual(7);
+        expect(geometryKinds.size, `${archetype} lacks shape variation`).toBeGreaterThanOrEqual(4);
+        expect(outlines.length, `${archetype} outlines too many small parts`).toBeLessThan(
+          meshes.length / 4,
+        );
+        visual.dispose();
+      }
+    },
+  );
 
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
     "builds %s as complete native architecture behind its authored front threshold",

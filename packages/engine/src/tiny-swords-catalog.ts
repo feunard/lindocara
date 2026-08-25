@@ -305,20 +305,24 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
     "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_House/Goblin_House.png";
   const goblinTower =
     "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png";
+  const orcRootHall = "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Dead Tree.png";
   const usesGoblinSprite = model.faction === "goblin";
   const usesGoblinTower = usesGoblinSprite && model.variant === "b";
+  const usesOrcSprite = model.faction === "orc-troll";
   return {
     id: model.id,
-    // Goblin entries use their own shipped Tiny Swords art for both palette previews and the
-    // material source sampled by the native volume. Other factions keep their temporary preview
-    // until their packs receive the same from-scratch treatment.
-    sourcePath: usesGoblinSprite
-      ? usesGoblinTower
-        ? goblinTower
-        : goblinHouse
-      : model.variant === "b"
-        ? "/assets/lindocara/hd2d/buildings/tower-front.png"
-        : "/assets/lindocara/hd2d/buildings/house-front.png",
+    // Finished faction packs use their own shipped Tiny Swords art for palette previews and for
+    // the material source sampled by their native volumes. Packs not rebuilt yet keep a temporary
+    // preview until they receive the same from-scratch treatment.
+    sourcePath: usesOrcSprite
+      ? orcRootHall
+      : usesGoblinSprite
+        ? usesGoblinTower
+          ? goblinTower
+          : goblinHouse
+        : model.variant === "b"
+          ? "/assets/lindocara/hd2d/buildings/tower-front.png"
+          : "/assets/lindocara/hd2d/buildings/house-front.png",
     pack: "LindoCara Lab",
     domain: "building",
     category: `Lindocara/Buildings/${model.faction}`,
@@ -332,8 +336,16 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
       model.purpose,
       `variant-${model.variant}`,
     ],
-    width: usesGoblinSprite ? (usesGoblinTower ? 1024 : 128) : model.variant === "b" ? 159 : 199,
-    height: usesGoblinSprite ? 192 : model.variant === "b" ? 220 : 198,
+    width: usesOrcSprite
+      ? 384
+      : usesGoblinSprite
+        ? usesGoblinTower
+          ? 1024
+          : 128
+        : model.variant === "b"
+          ? 159
+          : 199,
+    height: usesOrcSprite ? 320 : usesGoblinSprite ? 192 : model.variant === "b" ? 220 : 198,
     nature: "static",
     anchor: { x: 0.5, y: 1 },
     footOffset: 0,

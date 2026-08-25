@@ -164,6 +164,13 @@ describe("catalogue colliders", () => {
         .filter((asset) => asset.editor.buildingVariant === "b")
         .every((asset) => asset.editor.sourceRect?.width === 256),
     ).toBe(true);
+    const orcAssets = placeableBuildings.filter(
+      (asset) => asset.editor.buildingFaction === "orc-troll",
+    );
+    expect(orcAssets).toHaveLength(10);
+    expect(orcAssets.every((asset) => asset.sourcePath.includes("Root Troll/Dead Tree.png"))).toBe(
+      true,
+    );
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {
