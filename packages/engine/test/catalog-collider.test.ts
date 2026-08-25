@@ -179,6 +179,14 @@ describe("catalogue colliders", () => {
       beastfolkAssets.every((asset) => asset.sourcePath.includes("Gnoll/Gnoll_Idle.png")),
     ).toBe(true);
     expect(beastfolkAssets.every((asset) => asset.editor.sourceRect?.width === 192)).toBe(true);
+    const wildAssets = placeableBuildings.filter(
+      (asset) => asset.editor.buildingFaction === "wild-tribe",
+    );
+    expect(wildAssets).toHaveLength(10);
+    expect(
+      wildAssets.every((asset) => asset.sourcePath.includes("Caveborn/Cave/Cave_Idle.png")),
+    ).toBe(true);
+    expect(wildAssets.every((asset) => asset.editor.sourceRect?.height === 192)).toBe(true);
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {

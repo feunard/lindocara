@@ -57,16 +57,16 @@ const FACTION_BUILDING_FUNCTIONAL_LANDMARKS = {
     "daily-life-b": "bone-granary-woven-pod",
   },
   "wild-tribe": {
-    "housing-a": "reed-stalk-wall",
-    "housing-b": "painted-hide-tent",
-    "command-a": "ancestor-mask",
-    "command-b": "raised-bone-parapet",
-    "training-a": "spear-circle-spear-shaft",
-    "training-b": "trial-pit-obelisk",
-    "community-a": "smoke-hole-canopy",
-    "community-b": "spirit-hut-cabin",
-    "daily-life-a": "drying-bundle",
-    "daily-life-b": "craft-patchwork-canopy",
+    "housing-a": "reed-house-curved-dock",
+    "housing-b": "turtle-shell-hut-dome",
+    "command-a": "ancestor-ziggurat-stepped-temple",
+    "command-b": "sunwatch-spire-great-sun-disc",
+    "training-a": "spear-dance-court-dance-ring",
+    "training-b": "trial-cenote-sunken-rim",
+    "community-a": "rain-lodge-umbrella-roof",
+    "community-b": "spirit-cave-living-rock-shell",
+    "daily-life-a": "drying-wharf-deck-slat",
+    "daily-life-b": "weavers-workshop-round-floor",
   },
 } satisfies Record<FactionBuildingFaction, Record<FactionBuildingArchetype, string>>;
 
@@ -172,7 +172,7 @@ describe("native HD-2D building volumes", () => {
     ["goblin", "goblin-roundhouse-heart"],
     ["orc-troll", "orc-longhouse-keel"],
     ["beastfolk", "hide-lodge-raised-floor"],
-    ["wild-tribe", "reed-stalk-wall"],
+    ["wild-tribe", "reed-house-curved-dock"],
   ] as const)("builds an architectural language unique to the %s pack", (faction, signature) => {
     const model = factionBuildingModelForArchetype(faction, "housing-a");
     const visual = building(model.archetype, undefined, faction);
@@ -225,7 +225,7 @@ describe("native HD-2D building volumes", () => {
     expect(underDetailed).toEqual([]);
   });
 
-  it.each(["goblin", "orc-troll", "beastfolk"] as const)(
+  it.each(["goblin", "orc-troll", "beastfolk", "wild-tribe"] as const)(
     "builds every %s role as finished layered architecture instead of flat decoration",
     (faction) => {
       for (const archetype of [

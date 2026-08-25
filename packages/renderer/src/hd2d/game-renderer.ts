@@ -583,6 +583,12 @@ const BEASTFOLK_GNOLL_URL = tinySwordsSourceUrl(
 const BEASTFOLK_BONE_URL = tinySwordsSourceUrl(
   "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Bone.png",
 );
+const WILD_CAVE_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Cave/Cave_Idle.png",
+);
+const WILD_LIZARD_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Idle.png",
+);
 const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
@@ -662,7 +668,9 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
           ? ORC_ROOT_HALL_URL
           : faction === "beastfolk"
             ? BEASTFOLK_GNOLL_URL
-            : `${GENERATED_BUILDING_ROOT}/${front}`,
+            : faction === "wild-tribe"
+              ? WILD_CAVE_URL
+              : `${GENERATED_BUILDING_ROOT}/${front}`,
     height: frame.height / TILE_SIZE,
     aspect: frame.width / frame.height,
     foot: 0,
@@ -678,6 +686,7 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
       ...(faction === "goblin" ? { factionDetailUrl: GOBLIN_TOWER_RED_URL } : {}),
       ...(faction === "orc-troll" ? { factionDetailUrl: ORC_TROLL_URL } : {}),
       ...(faction === "beastfolk" ? { factionDetailUrl: BEASTFOLK_BONE_URL } : {}),
+      ...(faction === "wild-tribe" ? { factionDetailUrl: WILD_LIZARD_URL } : {}),
       roofColor,
     },
   };

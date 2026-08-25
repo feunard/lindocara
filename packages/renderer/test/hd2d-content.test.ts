@@ -638,6 +638,9 @@ describe("staticAssetSpec", () => {
     const beastfolk = staticAssetSpec("building.lindocara.beastfolk.hide-lodge");
     expect(beastfolk?.url).toContain("Gnoll/Gnoll_Idle.png");
     expect(beastfolk?.buildingVolume?.factionDetailUrl).toContain("Gnoll/Gnoll_Bone.png");
+    const wild = staticAssetSpec("building.lindocara.wild-tribe.reed-hut");
+    expect(wild?.url).toContain("Caveborn/Cave/Cave_Idle.png");
+    expect(wild?.buildingVolume?.factionDetailUrl).toContain("Caveborn/Lizard/Lizard_Idle.png");
   });
 
   it("rotates the complete world volume from authored orientation", () => {
