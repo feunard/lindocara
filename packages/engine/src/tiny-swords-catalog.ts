@@ -301,13 +301,22 @@ function centredFootprint(width: number, depth: number): CellOffset[] {
 }
 
 function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number]) {
+  const goblinHouse =
+    "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_House/Goblin_House.png";
+  const goblinTower =
+    "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png";
+  const usesGoblinSprite = model.faction === "goblin";
+  const usesGoblinTower = usesGoblinSprite && model.variant === "b";
   return {
     id: model.id,
-    // Native buildings still preload one orthographic palette texture even though no facade is
-    // projected in the world. Reusing the closest human silhouette keeps the asset budget flat;
-    // the 3D preview and placed scene show the real faction model.
-    sourcePath:
-      model.variant === "b"
+    // Goblin entries use their own shipped Tiny Swords art for both palette previews and the
+    // material source sampled by the native volume. Other factions keep their temporary preview
+    // until their packs receive the same from-scratch treatment.
+    sourcePath: usesGoblinSprite
+      ? usesGoblinTower
+        ? goblinTower
+        : goblinHouse
+      : model.variant === "b"
         ? "/assets/lindocara/hd2d/buildings/tower-front.png"
         : "/assets/lindocara/hd2d/buildings/house-front.png",
     pack: "LindoCara Lab",
@@ -323,8 +332,8 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
       model.purpose,
       `variant-${model.variant}`,
     ],
-    width: model.variant === "b" ? 159 : 199,
-    height: model.variant === "b" ? 220 : 198,
+    width: usesGoblinSprite ? (usesGoblinTower ? 1024 : 128) : model.variant === "b" ? 159 : 199,
+    height: usesGoblinSprite ? 192 : model.variant === "b" ? 220 : 198,
     nature: "static",
     anchor: { x: 0.5, y: 1 },
     footOffset: 0,
@@ -332,6 +341,7 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
       category: "buildings",
       allowedTerrain: ["grass", "water"],
       renderLayer: "object",
+      ...(usesGoblinTower ? { sourceRect: { x: 0, y: 0, width: 256, height: 192 } } : {}),
       visualFootprint: centredFootprint(model.width, model.depth),
       collider: {
         x: (-model.width * 64) / 2,

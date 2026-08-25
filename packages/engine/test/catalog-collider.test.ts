@@ -152,6 +152,18 @@ describe("catalogue colliders", () => {
         expect(models.every((asset) => buildingArchetype(asset.id) !== null)).toBe(true);
       }
     }
+    const goblinAssets = placeableBuildings.filter(
+      (asset) => asset.editor.buildingFaction === "goblin",
+    );
+    expect(goblinAssets).toHaveLength(10);
+    expect(
+      goblinAssets.every((asset) => asset.sourcePath.includes("Factions/Goblins/Buildings")),
+    ).toBe(true);
+    expect(
+      goblinAssets
+        .filter((asset) => asset.editor.buildingVariant === "b")
+        .every((asset) => asset.editor.sourceRect?.width === 256),
+    ).toBe(true);
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {

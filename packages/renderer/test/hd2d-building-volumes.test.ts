@@ -21,16 +21,16 @@ import { FACTION_BUILDING_DESIGN_NAMES } from "../src/hd2d/faction-building-volu
 
 const FACTION_BUILDING_FUNCTIONAL_LANDMARKS = {
   goblin: {
-    "housing-a": "crooked-hut-body",
-    "housing-b": "giant-mushroom-cap",
-    "command-a": "boss-den-platform",
-    "command-b": "scrap-watch-cylinder",
-    "training-a": "knife-palisade",
-    "training-b": "sling-loop",
-    "community-a": "feast-table",
-    "community-b": "shaman-idol",
-    "daily-life-a": "tinker-flywheel",
-    "daily-life-b": "warehouse-storage-shelf",
+    "housing-a": "goblin-roundhouse-heart",
+    "housing-b": "fungus-stump-core",
+    "command-a": "boss-tusk-gate",
+    "command-b": "scrap-keep-hoist",
+    "training-a": "stab-yard-armoury",
+    "training-b": "sling-firing-gallery",
+    "community-a": "feast-great-chimney",
+    "community-b": "shaman-twisted-tree",
+    "daily-life-a": "tinker-workshop-bay",
+    "daily-life-b": "scavenger-loading-ramp",
   },
   "orc-troll": {
     "housing-a": "orc-longhouse-shell",
@@ -169,7 +169,7 @@ function volumeFingerprint(root: THREE.Object3D): string {
 
 describe("native HD-2D building volumes", () => {
   it.each([
-    ["goblin", "crooked-hut-body"],
+    ["goblin", "goblin-roundhouse-heart"],
     ["orc-troll", "orc-longhouse-shell"],
     ["beastfolk", "stretched-hide-roof"],
     ["wild-tribe", "reed-stalk-wall"],
@@ -223,6 +223,45 @@ describe("native HD-2D building volumes", () => {
     expect(designNames.size).toBe(40);
     expect(volumeFingerprints.size).toBe(40);
     expect(underDetailed).toEqual([]);
+  });
+
+  it("builds every goblin role as finished layered architecture instead of flat decoration", () => {
+    for (const archetype of [
+      "housing-a",
+      "housing-b",
+      "command-a",
+      "command-b",
+      "training-a",
+      "training-b",
+      "community-a",
+      "community-b",
+      "daily-life-a",
+      "daily-life-b",
+    ] as const) {
+      const model = factionBuildingModelForArchetype("goblin", archetype);
+      const visual = building(model.archetype, undefined, "goblin");
+      const meshes = visual.mesh.getObjectsByProperty("type", "Mesh") as THREE.Mesh[];
+      const materials = new Set(meshes.flatMap((mesh) => mesh.material).map((item) => item.uuid));
+      const geometryKinds = new Set(meshes.map((mesh) => mesh.geometry.type));
+      const outlines = visual.mesh.getObjectsByProperty("name", "goblin-silhouette-line");
+      visual.mesh.updateMatrixWorld(true);
+      const volumetricParts = meshes.filter((mesh) => {
+        const extent = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+        return extent.x > 0.015 && extent.y > 0.015 && extent.z > 0.015;
+      });
+
+      expect(meshes.length, `${archetype} is under-detailed`).toBeGreaterThanOrEqual(55);
+      expect(
+        volumetricParts.length,
+        `${archetype} relies on flat decoration`,
+      ).toBeGreaterThanOrEqual(45);
+      expect(materials.size, `${archetype} lacks surface variation`).toBeGreaterThanOrEqual(7);
+      expect(geometryKinds.size, `${archetype} lacks shape variation`).toBeGreaterThanOrEqual(4);
+      expect(outlines.length, `${archetype} outlines too many small parts`).toBeLessThan(
+        meshes.length / 4,
+      );
+      visual.dispose();
+    }
   });
 
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(

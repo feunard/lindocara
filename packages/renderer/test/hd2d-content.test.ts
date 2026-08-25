@@ -629,6 +629,9 @@ describe("staticAssetSpec", () => {
     });
     const destroyed = staticAssetSpec("building.factions-knights-buildings-house.house-destroyed");
     expect(destroyed?.buildingVolume).toMatchObject({ archetype: "house", state: "destroyed" });
+    const goblin = staticAssetSpec("building.lindocara.goblin.crooked-hut");
+    expect(goblin?.url).toContain("Goblin_House");
+    expect(goblin?.buildingVolume?.factionDetailUrl).toContain("Wood_Tower_Red");
   });
 
   it("rotates the complete world volume from authored orientation", () => {

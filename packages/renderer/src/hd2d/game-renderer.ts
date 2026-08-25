@@ -547,6 +547,7 @@ export interface StaticAssetSpec extends Omit<
     stoneUrl: string;
     blueStoneUrl: string;
     woodUrl: string;
+    factionDetailUrl?: string;
     roofColor: number;
   };
 }
@@ -564,6 +565,12 @@ const GENERATED_BUILDING_WALL_URL = `${GENERATED_BUILDING_ROOT}/wall-timber.png`
 const GENERATED_BUILDING_ROOF_URL = `${GENERATED_BUILDING_ROOT}/roof-shingles.png`;
 const GENERATED_BUILDING_STONE_URL = `${GENERATED_BUILDING_ROOT}/cream-stone.png`;
 const GENERATED_BUILDING_BLUE_STONE_URL = `${GENERATED_BUILDING_ROOT}/blue-stone.png`;
+const GOBLIN_HOUSE_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_House/Goblin_House.png",
+);
+const GOBLIN_TOWER_RED_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png",
+);
 const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
@@ -636,7 +643,7 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
                     ? 0x48515b
                     : 0x4da9c7;
   return {
-    url: `${GENERATED_BUILDING_ROOT}/${front}`,
+    url: faction === "goblin" ? GOBLIN_HOUSE_URL : `${GENERATED_BUILDING_ROOT}/${front}`,
     height: frame.height / TILE_SIZE,
     aspect: frame.width / frame.height,
     foot: 0,
@@ -649,6 +656,7 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
       stoneUrl: GENERATED_BUILDING_STONE_URL,
       blueStoneUrl: GENERATED_BUILDING_BLUE_STONE_URL,
       woodUrl: GENERATED_BRIDGE_DECK_URL,
+      ...(faction === "goblin" ? { factionDetailUrl: GOBLIN_TOWER_RED_URL } : {}),
       roofColor,
     },
   };
@@ -887,6 +895,7 @@ function staticSpecUrls(spec: StaticAssetSpec): string[] {
           spec.buildingVolume.stoneUrl,
           spec.buildingVolume.blueStoneUrl,
           spec.buildingVolume.woodUrl,
+          ...(spec.buildingVolume.factionDetailUrl ? [spec.buildingVolume.factionDetailUrl] : []),
         ]
       : []),
     ...(spec.companions ?? []).flatMap(staticSpecUrls),
@@ -910,6 +919,9 @@ function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): 
             stone: textures.get(buildingVolume.stoneUrl),
             blueStone: textures.get(buildingVolume.blueStoneUrl),
             wood: textures.get(buildingVolume.woodUrl),
+            ...(buildingVolume.factionDetailUrl
+              ? { factionDetail: textures.get(buildingVolume.factionDetailUrl) }
+              : {}),
             roofColor: buildingVolume.roofColor,
           },
         }

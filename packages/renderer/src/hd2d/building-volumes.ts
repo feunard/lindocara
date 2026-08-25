@@ -34,6 +34,8 @@ export interface BuildingVolumeArt {
   stone: THREE.Texture;
   blueStone: THREE.Texture;
   wood: THREE.Texture;
+  /** Optional faction-authentic source art sampled onto native geometry. */
+  factionDetail?: THREE.Texture;
   roofColor: number;
   /** Fixed authored quarter-turn. The model never follows the camera. */
   orientation?: ElementOrientation;
@@ -74,7 +76,17 @@ function disposeObject(root: THREE.Object3D): void {
     for (const material of meshMaterials) materials.add(material);
   });
   for (const geometry of geometries) geometry.dispose();
-  for (const material of materials) material.dispose();
+  for (const material of materials) {
+    if (
+      material.userData.lindocaraOwnedMap === true &&
+      (material instanceof THREE.MeshLambertMaterial ||
+        material instanceof THREE.MeshStandardMaterial) &&
+      material.map
+    ) {
+      material.map.dispose();
+    }
+    material.dispose();
+  }
 }
 
 function shadow<T extends THREE.Mesh>(mesh: T): T {
@@ -515,6 +527,8 @@ interface Materials {
   bone: THREE.MeshLambertMaterial;
   cloth: THREE.MeshLambertMaterial;
   foliage: THREE.MeshLambertMaterial;
+  factionPrimary?: THREE.Texture | undefined;
+  factionDetail?: THREE.Texture | undefined;
 }
 
 interface TextureWorldSize {
@@ -747,6 +761,8 @@ function makeMaterials(art: BuildingVolumeArt): Materials {
       color: destroyed ? 0x4f5149 : palette.foliage,
       flatShading: true,
     }),
+    factionPrimary: faction === "human" ? undefined : art.front,
+    factionDetail: art.factionDetail,
   };
 }
 
