@@ -306,23 +306,27 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
   const goblinTower =
     "Tiny Swords (Update 010)/Factions/Goblins/Buildings/Wood_Tower/Wood_Tower_Red.png";
   const orcRootHall = "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Root Troll/Dead Tree.png";
+  const beastfolkGnoll = "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Idle.png";
   const usesGoblinSprite = model.faction === "goblin";
   const usesGoblinTower = usesGoblinSprite && model.variant === "b";
   const usesOrcSprite = model.faction === "orc-troll";
+  const usesBeastfolkSprite = model.faction === "beastfolk";
   return {
     id: model.id,
     // Finished faction packs use their own shipped Tiny Swords art for palette previews and for
     // the material source sampled by their native volumes. Packs not rebuilt yet keep a temporary
     // preview until they receive the same from-scratch treatment.
-    sourcePath: usesOrcSprite
-      ? orcRootHall
-      : usesGoblinSprite
-        ? usesGoblinTower
-          ? goblinTower
-          : goblinHouse
-        : model.variant === "b"
-          ? "/assets/lindocara/hd2d/buildings/tower-front.png"
-          : "/assets/lindocara/hd2d/buildings/house-front.png",
+    sourcePath: usesBeastfolkSprite
+      ? beastfolkGnoll
+      : usesOrcSprite
+        ? orcRootHall
+        : usesGoblinSprite
+          ? usesGoblinTower
+            ? goblinTower
+            : goblinHouse
+          : model.variant === "b"
+            ? "/assets/lindocara/hd2d/buildings/tower-front.png"
+            : "/assets/lindocara/hd2d/buildings/house-front.png",
     pack: "LindoCara Lab",
     domain: "building",
     category: `Lindocara/Buildings/${model.faction}`,
@@ -336,16 +340,26 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
       model.purpose,
       `variant-${model.variant}`,
     ],
-    width: usesOrcSprite
-      ? 384
-      : usesGoblinSprite
-        ? usesGoblinTower
-          ? 1024
-          : 128
-        : model.variant === "b"
-          ? 159
-          : 199,
-    height: usesOrcSprite ? 320 : usesGoblinSprite ? 192 : model.variant === "b" ? 220 : 198,
+    width: usesBeastfolkSprite
+      ? 1152
+      : usesOrcSprite
+        ? 384
+        : usesGoblinSprite
+          ? usesGoblinTower
+            ? 1024
+            : 128
+          : model.variant === "b"
+            ? 159
+            : 199,
+    height: usesBeastfolkSprite
+      ? 128
+      : usesOrcSprite
+        ? 320
+        : usesGoblinSprite
+          ? 192
+          : model.variant === "b"
+            ? 220
+            : 198,
     nature: "static",
     anchor: { x: 0.5, y: 1 },
     footOffset: 0,
@@ -353,6 +367,7 @@ function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number
       category: "buildings",
       allowedTerrain: ["grass", "water"],
       renderLayer: "object",
+      ...(usesBeastfolkSprite ? { sourceRect: { x: 0, y: 0, width: 192, height: 128 } } : {}),
       ...(usesGoblinTower ? { sourceRect: { x: 0, y: 0, width: 256, height: 192 } } : {}),
       visualFootprint: centredFootprint(model.width, model.depth),
       collider: {

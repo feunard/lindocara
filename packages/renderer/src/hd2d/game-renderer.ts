@@ -577,6 +577,12 @@ const ORC_ROOT_HALL_URL = tinySwordsSourceUrl(
 const ORC_TROLL_URL = tinySwordsSourceUrl(
   "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Idle.png",
 );
+const BEASTFOLK_GNOLL_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Idle.png",
+);
+const BEASTFOLK_BONE_URL = tinySwordsSourceUrl(
+  "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Bone.png",
+);
 const NATIVE_TREE_ASSET_IDS = new Set([
   "resource.terrain-resources-wood-trees.tree1",
   "resource.terrain-resources-wood-trees.tree2",
@@ -654,7 +660,9 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
         ? GOBLIN_HOUSE_URL
         : faction === "orc-troll"
           ? ORC_ROOT_HALL_URL
-          : `${GENERATED_BUILDING_ROOT}/${front}`,
+          : faction === "beastfolk"
+            ? BEASTFOLK_GNOLL_URL
+            : `${GENERATED_BUILDING_ROOT}/${front}`,
     height: frame.height / TILE_SIZE,
     aspect: frame.width / frame.height,
     foot: 0,
@@ -669,6 +677,7 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
       woodUrl: GENERATED_BRIDGE_DECK_URL,
       ...(faction === "goblin" ? { factionDetailUrl: GOBLIN_TOWER_RED_URL } : {}),
       ...(faction === "orc-troll" ? { factionDetailUrl: ORC_TROLL_URL } : {}),
+      ...(faction === "beastfolk" ? { factionDetailUrl: BEASTFOLK_BONE_URL } : {}),
       roofColor,
     },
   };

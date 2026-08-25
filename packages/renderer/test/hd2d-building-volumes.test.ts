@@ -45,16 +45,16 @@ const FACTION_BUILDING_FUNCTIONAL_LANDMARKS = {
     "daily-life-b": "beast-pen-gatehouse",
   },
   beastfolk: {
-    "housing-a": "stretched-hide-roof",
-    "housing-b": "woven-nest-rim",
-    "command-a": "council-totem",
-    "command-b": "moon-crescent-outer",
-    "training-a": "hunter-trophy",
-    "training-b": "triangular-yard-post",
-    "community-a": "communal-sunken-floor",
-    "community-b": "hanging-herbs",
-    "daily-life-a": "stretched-hide",
-    "daily-life-b": "woven-granary-pod",
+    "housing-a": "hide-lodge-raised-floor",
+    "housing-b": "elevated-nest-basket-floor",
+    "command-a": "council-totems-alpha",
+    "command-b": "moonfang-den-crescent-foundation",
+    "training-a": "hunters-run-lookout-blind",
+    "training-b": "claw-arena-sparring-beast",
+    "community-a": "pack-commons-pack-fire",
+    "community-b": "healers-canopy-living-trunk",
+    "daily-life-a": "tanners-walk-drainage-floor",
+    "daily-life-b": "bone-granary-woven-pod",
   },
   "wild-tribe": {
     "housing-a": "reed-stalk-wall",
@@ -171,7 +171,7 @@ describe("native HD-2D building volumes", () => {
   it.each([
     ["goblin", "goblin-roundhouse-heart"],
     ["orc-troll", "orc-longhouse-keel"],
-    ["beastfolk", "stretched-hide-roof"],
+    ["beastfolk", "hide-lodge-raised-floor"],
     ["wild-tribe", "reed-stalk-wall"],
   ] as const)("builds an architectural language unique to the %s pack", (faction, signature) => {
     const model = factionBuildingModelForArchetype(faction, "housing-a");
@@ -225,7 +225,7 @@ describe("native HD-2D building volumes", () => {
     expect(underDetailed).toEqual([]);
   });
 
-  it.each(["goblin", "orc-troll"] as const)(
+  it.each(["goblin", "orc-troll", "beastfolk"] as const)(
     "builds every %s role as finished layered architecture instead of flat decoration",
     (faction) => {
       for (const archetype of [

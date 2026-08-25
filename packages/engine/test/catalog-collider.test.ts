@@ -171,6 +171,14 @@ describe("catalogue colliders", () => {
     expect(orcAssets.every((asset) => asset.sourcePath.includes("Root Troll/Dead Tree.png"))).toBe(
       true,
     );
+    const beastfolkAssets = placeableBuildings.filter(
+      (asset) => asset.editor.buildingFaction === "beastfolk",
+    );
+    expect(beastfolkAssets).toHaveLength(10);
+    expect(
+      beastfolkAssets.every((asset) => asset.sourcePath.includes("Gnoll/Gnoll_Idle.png")),
+    ).toBe(true);
+    expect(beastfolkAssets.every((asset) => asset.editor.sourceRect?.width === 192)).toBe(true);
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {

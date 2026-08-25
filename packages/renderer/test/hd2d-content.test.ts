@@ -635,6 +635,9 @@ describe("staticAssetSpec", () => {
     const orc = staticAssetSpec("building.lindocara.orc-troll.orc-longhouse");
     expect(orc?.url).toContain("Root%20Troll/Dead%20Tree.png");
     expect(orc?.buildingVolume?.factionDetailUrl).toContain("Troll/Troll_Idle.png");
+    const beastfolk = staticAssetSpec("building.lindocara.beastfolk.hide-lodge");
+    expect(beastfolk?.url).toContain("Gnoll/Gnoll_Idle.png");
+    expect(beastfolk?.buildingVolume?.factionDetailUrl).toContain("Gnoll/Gnoll_Bone.png");
   });
 
   it("rotates the complete world volume from authored orientation", () => {
