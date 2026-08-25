@@ -40,6 +40,40 @@ describe("editor asset catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
+  it("groups the complete building palette by faction and exposes its five purposes", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "All categories" }), {
+      target: { value: "buildings" },
+    });
+
+    for (const heading of [
+      "Buildings · Humans (7)",
+      "Buildings · Goblins (10)",
+      "Buildings · Orcs and trolls (10)",
+      "Buildings · Beastfolk (10)",
+      "Buildings · Wild tribes (10)",
+    ]) {
+      expect(screen.getByText(heading)).toBeVisible();
+    }
+    expect(screen.getAllByRole("button").filter((button) => button.dataset.assetId)).toHaveLength(
+      47,
+    );
+    for (const purpose of ["Housing", "Main building", "Training", "Community life", "Daily life"])
+      expect(screen.getAllByText(new RegExp(`^${purpose} · [AB]$`))).toHaveLength(8);
+  });
+
+  it("groups traps and defenses into general, goblin and orc factions", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "All categories" }), {
+      target: { value: "traps-and-defenses" },
+    });
+    expect(screen.getByText("Traps and defenses · General (4)")).toBeVisible();
+    expect(screen.getByText("Traps and defenses · Goblins (1)")).toBeVisible();
+    expect(screen.getByText("Traps and defenses · Orcs and trolls (1)")).toBeVisible();
+  });
+
   it("labels native harvest scenery with its exact resource and reward", () => {
     setLocale("en");
     render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);

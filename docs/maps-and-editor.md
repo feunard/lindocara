@@ -133,7 +133,7 @@ plus two side handles and one rear handle; dragging any of them previews the lin
 and commits the whole gesture as one undoable edit. Newly registered native building archetypes
 inherit the controls automatically. Legacy buildings retain their stored footprint, and explicit
 dimensions share the existing transform integer, so no schema migration is required.
-Native 3D scenery (all current and future native buildings plus both bridges) also supports an
+Native 3D scenery (all current and future native buildings, bridges, traps and barricades) also supports an
 absolute 0..359-degree rotation. The inspector exposes the exact degree value, while selection on
 the map draws a purple rotation arm that can be dragged continuously; either interaction commits as
 one undoable edit. Rendering, doors, resize handles, bridge decks/rails and the authoritative
@@ -142,12 +142,19 @@ axis-aligned bounds used only for editor coverage checks, so diagonal structures
 invisible blocked corners. Existing quarter-turn buildings and vertical/horizontal bridges retain
 their old direction. Free angles are version-packed into the existing transform integer alongside
 building or bridge dimensions, requiring neither a database migration nor a new dependency.
-The Buildings palette exposes one card for each native 3D archetype (house, tower, archery guild,
-barracks, monastery, castle and windmill), rather than hiding supported models or repeating dozens
-of recoloured cards. After placement, the inspector offers the five shipped roof colours for each
-family that owns them; changing colour preserves the element identity, footprint, rotation,
-durability and interior. The windmill has no synthetic colour choice because the source catalogue
-does not ship one.
+The Buildings palette exposes the seven human archetypes plus four complete faction packs:
+goblins, orcs/trolls, beastfolk and wild tribes. Each non-human pack contains two distinct native
+models for housing, command, training, community life and daily life (40 models total). Cards are
+grouped by faction, ordered by purpose and badged with their purpose and A/B variant. Selecting the
+Buildings category reveals the whole organized set instead of paginating through unrelated
+factions. Human families retain their five shipped roof recolours; faction buildings own their
+materials and silhouettes and therefore have no synthetic recolour.
+Traps and defenses have their own palette category, split into General, Goblin and Orc/Troll
+groups. Alongside the spike trap and human barricade it contains a damage-free backward repulsor, a
+damage-free vertical launcher, a low goblin scrap barricade at collision elevation 1 and a massive
+orc barricade at elevation 3. The two movement traps are ordinary authored event presets: the room
+resolves the push against the shared heightfield, while a stamped server grant arms the client's
+vertical physics without granting the client any outcome authority.
 Flat crenellated roofs compile their visible edges as separate finite collision volumes. Barracks
 receive four perimeter parapets; castles combine those central parapets with the same twelve
 battlement positions around each of their four corner towers as the rendered model. Standalone

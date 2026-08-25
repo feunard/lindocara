@@ -13,6 +13,7 @@ import {
   GUARD_APPEARANCE_ASSETS,
   LINDOCARA_BUILDING_ASSET_IDS,
   LINDOCARA_INTERIOR_ASSET_IDS,
+  LINDOCARA_RUNNER_ASSET_IDS,
   NPC_MODEL_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -54,8 +55,12 @@ const CATEGORY_ORDER = [
   "bridges",
   "signs",
   "interior-furniture",
+  "traps-and-defenses",
   "buildings",
 ] as const;
+
+const FACTION_ORDER = ["general", "human", "goblin", "orc-troll", "beastfolk", "wild-tribe"];
+const PURPOSE_ORDER = ["housing", "command", "training", "community", "daily-life"];
 
 const INTERIOR_SCENERY_CATEGORIES: ReadonlySet<string> = new Set([
   "interior-furniture",
@@ -152,12 +157,56 @@ const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
   [LINDOCARA_INTERIOR_ASSET_IDS.table]: "editor.asset.lindocara.table",
   [LINDOCARA_INTERIOR_ASSET_IDS.cupboard]: "editor.asset.lindocara.cupboard",
   [LINDOCARA_INTERIOR_ASSET_IDS.rug]: "editor.asset.lindocara.rug",
+  [LINDOCARA_RUNNER_ASSET_IDS.spikeTrap]: "editor.asset.lindocara.spikeTrap",
+  [LINDOCARA_RUNNER_ASSET_IDS.pushTrap]: "editor.asset.lindocara.pushTrap",
+  [LINDOCARA_RUNNER_ASSET_IDS.launchTrap]: "editor.asset.lindocara.launchTrap",
+  [LINDOCARA_RUNNER_ASSET_IDS.barricade]: "editor.asset.lindocara.barricade",
+  [LINDOCARA_RUNNER_ASSET_IDS.goblinBarricade]: "editor.asset.lindocara.goblinBarricade",
+  [LINDOCARA_RUNNER_ASSET_IDS.orcBarricade]: "editor.asset.lindocara.orcBarricade",
 };
 
 export function assetDisplayName(asset: EditorAssetDefinition): string {
   const lindocaraLabel = LINDOCARA_ASSET_LABELS[asset.id];
   if (lindocaraLabel) return t(lindocaraLabel);
+  if (asset.editor.buildingFaction) {
+    const slug = asset.id.split(".").at(-1);
+    if (slug) return t(`editor.asset.factionBuilding.${slug}` as MessageKey);
+  }
   return ASSET_DISPLAY_NAMES.get(asset.id as EditorAssetId) ?? asset.id;
+}
+
+function factionRank(faction: string): number {
+  const index = FACTION_ORDER.indexOf(faction);
+  return index === -1 ? FACTION_ORDER.length : index;
+}
+
+function purposeRank(purpose: string | undefined): number {
+  if (!purpose) return -1;
+  const index = PURPOSE_ORDER.indexOf(purpose);
+  return index === -1 ? PURPOSE_ORDER.length : index;
+}
+
+function assetFaction(asset: EditorAssetDefinition): string | null {
+  if (asset.editor.category === "buildings") return asset.editor.buildingFaction ?? "human";
+  if (asset.editor.category === "traps-and-defenses")
+    return asset.editor.editorFaction ?? "general";
+  return null;
+}
+
+function assetGroupKey(asset: EditorAssetDefinition): string {
+  const faction = assetFaction(asset);
+  return faction ? `${asset.editor.category}::${faction}` : asset.editor.category;
+}
+
+function groupRank(group: string): number {
+  const [category, faction] = group.split("::");
+  return categoryRank(category ?? group) * 10 + factionRank(faction ?? "general");
+}
+
+function groupLabel(group: string): string {
+  const [category, faction] = group.split("::");
+  if (!faction) return categoryLabel(category ?? group);
+  return `${categoryLabel(category ?? group)} · ${t(`editor.palette.faction.${faction}` as MessageKey)}`;
 }
 
 /** Searchable access to every asset carrying editor placement metadata. The catalogue is the
@@ -207,24 +256,33 @@ export function CatalogueAssetPicker({
       .filter((asset) => {
         if (category !== "all" && asset.editor.category !== category) return false;
         const haystack =
-          `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
+          `${assetDisplayName(asset)} ${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")} ${asset.editor.buildingFaction ?? ""} ${asset.editor.buildingPurpose ?? ""} ${asset.editor.editorFaction ?? ""}`.toLowerCase();
         return terms.every((term) => haystack.includes(term));
       })
-      .sort(
-        (left, right) => categoryRank(left.editor.category) - categoryRank(right.editor.category),
-      );
+      .sort((left, right) => {
+        const categoryDifference =
+          categoryRank(left.editor.category) - categoryRank(right.editor.category);
+        if (categoryDifference !== 0) return categoryDifference;
+        const factionDifference =
+          factionRank(assetFaction(left) ?? "general") -
+          factionRank(assetFaction(right) ?? "general");
+        if (factionDifference !== 0) return factionDifference;
+        const purposeDifference =
+          purposeRank(left.editor.buildingPurpose) - purposeRank(right.editor.buildingPurpose);
+        if (purposeDifference !== 0) return purposeDifference;
+        return left.id.localeCompare(right.id);
+      });
   }, [category, query, source]);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, EditorAssetDefinition[]>();
     for (const asset of filteredAssets.slice(0, visibleCount)) {
-      const list = grouped.get(asset.editor.category) ?? [];
+      const key = assetGroupKey(asset);
+      const list = grouped.get(key) ?? [];
       list.push(asset);
-      grouped.set(asset.editor.category, list);
+      grouped.set(key, list);
     }
-    return [...grouped.entries()].sort(
-      ([left], [right]) => categoryRank(left) - categoryRank(right),
-    );
+    return [...grouped.entries()].sort(([left], [right]) => groupRank(left) - groupRank(right));
   }, [filteredAssets, visibleCount]);
 
   return (
@@ -260,8 +318,13 @@ export function CatalogueAssetPicker({
         value={category}
         aria-label={t("editor.palette.category.all")}
         onChange={(event) => {
-          setCategory(event.currentTarget.value);
-          setVisibleCount(actorPageSize);
+          const nextCategory = event.currentTarget.value;
+          setCategory(nextCategory);
+          setVisibleCount(
+            nextCategory === "buildings" || nextCategory === "traps-and-defenses"
+              ? source.filter((asset) => asset.editor.category === nextCategory).length
+              : actorPageSize,
+          );
         }}
       >
         <option value="all">{t("editor.palette.category.all")}</option>
@@ -276,10 +339,10 @@ export function CatalogueAssetPicker({
         <p className="px-1 py-2 text-xs text-zinc-400">{t("editor.palette.noResults")}</p>
       )}
       <div className="flex flex-col gap-2">
-        {groups.map(([groupCategory, assets]) => (
-          <div key={groupCategory} className="flex flex-col gap-1">
+        {groups.map(([group, assets]) => (
+          <div key={group} className="flex flex-col gap-1">
             <span className="px-0.5 text-[10.5px] font-medium text-zinc-400">
-              {categoryLabel(groupCategory)} ({assets.length})
+              {groupLabel(group)} ({assets.length})
             </span>
             <div className="grid grid-cols-3 gap-1">
               {assets.map((asset) => (
@@ -367,6 +430,12 @@ function AssetChoice({
       <small className="w-full truncate text-[9.5px] text-zinc-400">
         {terrainNames.join(" · ")}
       </small>
+      {asset.editor.buildingPurpose && (
+        <span className="text-[9px] font-medium text-sky-700">
+          {t(`editor.palette.purpose.${asset.editor.buildingPurpose}` as MessageKey)} ·{" "}
+          {asset.editor.buildingVariant?.toUpperCase()}
+        </span>
+      )}
       {harvestPreset && harvestAmount !== null && (
         <span
           data-harvest-resource={harvestPreset.profile.resource}
