@@ -516,8 +516,11 @@ export function placeStaticContent(
           (sprite.runnerProp
             ? runnerPropHeight(sprite.runnerProp, dimensions) + 0.4
             : sprite.buildingVolume
-              ? buildingVolumeHeight(sprite.buildingVolume.archetype, sprite.buildingVolume.state) +
-                0.4
+              ? buildingVolumeHeight(
+                  sprite.buildingVolume.archetype,
+                  sprite.buildingVolume.state,
+                  sprite.buildingVolume.faction,
+                ) + 0.4
               : sprite.height + 0.4),
         z,
         health,

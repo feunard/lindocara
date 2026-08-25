@@ -470,7 +470,7 @@ describe("staticAssetSpec", () => {
     });
   });
 
-  it("resolves both runner obstacles as native 3D props", () => {
+  it("resolves every runner obstacle as a native 3D prop", () => {
     expect(staticAssetSpec("decoration.lindocara-runner.spike-trap")).toMatchObject({
       url: "/assets/lindocara/hd2d/runner/spike-trap.png",
       runnerProp: "spike-trap",
@@ -480,6 +480,18 @@ describe("staticAssetSpec", () => {
       url: "/assets/lindocara/hd2d/runner/barricade.png",
       runnerProp: "barricade",
       foot: 0,
+    });
+    expect(staticAssetSpec("decoration.lindocara-runner.push-trap")).toMatchObject({
+      runnerProp: "push-trap",
+    });
+    expect(staticAssetSpec("decoration.lindocara-runner.launch-trap")).toMatchObject({
+      runnerProp: "launch-trap",
+    });
+    expect(staticAssetSpec("decoration.lindocara-runner.goblin-barricade")).toMatchObject({
+      runnerProp: "goblin-barricade",
+    });
+    expect(staticAssetSpec("decoration.lindocara-runner.orc-barricade")).toMatchObject({
+      runnerProp: "orc-barricade",
     });
   });
 

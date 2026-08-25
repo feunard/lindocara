@@ -11,7 +11,12 @@
  */
 
 import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
-import type { BuildingArchetype } from "@lindocara/engine/buildings.js";
+import {
+  buildingFaction,
+  type BuildingArchetype,
+  type BuildingFaction,
+  visualBuildingArchetype,
+} from "@lindocara/engine/buildings.js";
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
@@ -535,6 +540,7 @@ export interface StaticAssetSpec extends Omit<
   coldVariant?: StaticAssetSpec;
   buildingVolume?: {
     archetype: BuildingArchetype;
+    faction: BuildingFaction;
     state: "standing" | "construction" | "destroyed";
     wallUrl: string;
     roofUrl: string;
@@ -579,23 +585,12 @@ function snowTreeSpec(): StaticAssetSpec {
   };
 }
 
-function visualBuildingArchetype(assetId: string): BuildingArchetype | null {
-  const name = assetId.toLowerCase();
-  if (name.includes("windmill")) return "windmill";
-  if (name.includes("monastery")) return "monastery";
-  if (name.includes("barracks")) return "barracks";
-  if (name.includes("archery")) return "archery";
-  if (name.includes("castle")) return "castle";
-  if (name.includes("tower")) return "tower";
-  if (name.includes("house")) return "house";
-  return null;
-}
-
 function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
   const definition = editorAsset(assetId);
   if (definition?.editor.category !== "buildings") return null;
   const archetype = visualBuildingArchetype(assetId);
   if (!archetype) return null;
+  const faction = buildingFaction(assetId);
   const state = definition.tags.includes("destroyed")
     ? "destroyed"
     : definition.tags.some((tag) => tag.includes("construction"))
@@ -622,15 +617,24 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
             ? { width: 267, height: 206 }
             : { width: 199, height: 198 };
   const lower = assetId.toLowerCase();
-  const roofColor = lower.includes("red")
-    ? 0xc85e54
-    : lower.includes("purple")
-      ? 0x8e65aa
-      : lower.includes("yellow")
-        ? 0xd3a843
-        : lower.includes("black")
-          ? 0x48515b
-          : 0x4da9c7;
+  const roofColor =
+    faction === "goblin"
+      ? 0x765335
+      : faction === "orc-troll"
+        ? 0x6e3129
+        : faction === "beastfolk"
+          ? 0x397d76
+          : faction === "wild-tribe"
+            ? 0x8a5b3a
+            : lower.includes("red")
+              ? 0xc85e54
+              : lower.includes("purple")
+                ? 0x8e65aa
+                : lower.includes("yellow")
+                  ? 0xd3a843
+                  : lower.includes("black")
+                    ? 0x48515b
+                    : 0x4da9c7;
   return {
     url: `${GENERATED_BUILDING_ROOT}/${front}`,
     height: frame.height / TILE_SIZE,
@@ -638,6 +642,7 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
     foot: 0,
     buildingVolume: {
       archetype,
+      faction,
       state,
       wallUrl: GENERATED_BUILDING_WALL_URL,
       roofUrl: GENERATED_BUILDING_ROOF_URL,
@@ -726,22 +731,27 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       flatSize: 1.55,
     };
   }
-  if (assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap) {
+  const runnerProp =
+    assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
+      ? "spike-trap"
+      : assetId === LINDOCARA_RUNNER_ASSET_IDS.pushTrap
+        ? "push-trap"
+        : assetId === LINDOCARA_RUNNER_ASSET_IDS.launchTrap
+          ? "launch-trap"
+          : assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade
+            ? "barricade"
+            : assetId === LINDOCARA_RUNNER_ASSET_IDS.goblinBarricade
+              ? "goblin-barricade"
+              : assetId === LINDOCARA_RUNNER_ASSET_IDS.orcBarricade
+                ? "orc-barricade"
+                : null;
+  if (runnerProp) {
     return {
       url: definition.sourcePath,
       height: definition.height / TILE_SIZE,
       aspect: definition.width / definition.height,
       foot: 0,
-      runnerProp: "spike-trap",
-    };
-  }
-  if (assetId === LINDOCARA_RUNNER_ASSET_IDS.barricade) {
-    return {
-      url: definition.sourcePath,
-      height: definition.height / TILE_SIZE,
-      aspect: definition.width / definition.height,
-      foot: 0,
-      runnerProp: "barricade",
+      runnerProp,
     };
   }
   if (UPDATE_TREE_ASSET_IDS.has(assetId)) {
@@ -893,6 +903,7 @@ function materializeStaticSpec(spec: StaticAssetSpec, textures: TextureSource): 
       ? {
           buildingVolume: {
             archetype: buildingVolume.archetype,
+            faction: buildingVolume.faction,
             state: buildingVolume.state,
             wall: textures.get(buildingVolume.wallUrl),
             roof: textures.get(buildingVolume.roofUrl),

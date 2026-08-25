@@ -1,5 +1,6 @@
 import { BRIDGE_ASSET_IDS } from "./bridges.js";
 import type { PrimaryColor } from "./character.js";
+import { FACTION_BUILDING_MODELS } from "./faction-buildings.js";
 import type { Rect } from "./game.js";
 import {
   GENERATED_EDITOR_ASSETS,
@@ -93,6 +94,14 @@ export interface EditorPlacementMetadata {
    * front edge, matching buildings, so every future native prop inherits the same rotation and
    * proportional-resize tools without an asset-specific editor branch. */
   native3d?: { readonly width: number; readonly depth: number };
+  /** Optional creator-facing grouping for authored architecture. Legacy assets omit it. */
+  buildingFaction?: "human" | "goblin" | "orc-troll" | "beastfolk" | "wild-tribe";
+  /** Function inside a faction pack; used only to organize authoring, never as a gameplay rule. */
+  buildingPurpose?: "housing" | "command" | "training" | "community" | "daily-life";
+  /** Two visibly different models are shipped for every faction/purpose pair. */
+  buildingVariant?: "a" | "b";
+  /** Creator-facing faction bucket for props that are not buildings. */
+  editorFaction?: "general" | "goblin" | "orc-troll" | "beastfolk" | "wild-tribe";
 }
 
 /**
@@ -209,9 +218,10 @@ export const LINDOCARA_BUILDING_ASSET_IDS = {
   castle: "building.lindocara.castle",
   windmill: "building.lindocara.windmill",
 } as const;
-const LINDOCARA_BUILDING_ASSET_ID_SET: ReadonlySet<string> = new Set(
-  Object.values(LINDOCARA_BUILDING_ASSET_IDS),
-);
+const LINDOCARA_BUILDING_ASSET_ID_SET: ReadonlySet<string> = new Set([
+  ...Object.values(LINDOCARA_BUILDING_ASSET_IDS),
+  ...FACTION_BUILDING_MODELS.map(({ id }) => id),
+]);
 export const LINDOCARA_INTERIOR_ASSET_IDS = {
   hearth: "decoration.lindocara-interior.hearth",
   bed: "decoration.lindocara-interior.bed",
@@ -221,7 +231,11 @@ export const LINDOCARA_INTERIOR_ASSET_IDS = {
 } as const;
 export const LINDOCARA_RUNNER_ASSET_IDS = {
   spikeTrap: "decoration.lindocara-runner.spike-trap",
+  pushTrap: "decoration.lindocara-runner.push-trap",
+  launchTrap: "decoration.lindocara-runner.launch-trap",
   barricade: "decoration.lindocara-runner.barricade",
+  goblinBarricade: "decoration.lindocara-runner.goblin-barricade",
+  orcBarricade: "decoration.lindocara-runner.orc-barricade",
 } as const;
 export const LINDOCARA_PICKUP_ASSET_IDS = {
   speed_boost: "resource.lindocara-pickup.speed-boost",
@@ -269,6 +283,66 @@ function lindocaraBuilding<const Id extends string>(
       visualFootprint,
       collider,
       collisionElevation,
+    },
+  } as const satisfies EditorAssetDefinition;
+}
+
+function centredFootprint(width: number, depth: number): CellOffset[] {
+  const columns = Math.ceil(width);
+  const rows = Math.ceil(depth);
+  const firstColumn = -Math.floor(columns / 2);
+  const firstRow = -Math.floor(rows / 2);
+  return Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: columns }, (_, col) => ({
+      col: firstColumn + col,
+      row: firstRow + row,
+    })),
+  ).flat();
+}
+
+function lindocaraFactionBuilding(model: (typeof FACTION_BUILDING_MODELS)[number]) {
+  return {
+    id: model.id,
+    // Native buildings still preload one orthographic palette texture even though no facade is
+    // projected in the world. Reusing the closest human silhouette keeps the asset budget flat;
+    // the 3D preview and placed scene show the real faction model.
+    sourcePath:
+      model.variant === "b"
+        ? "/assets/lindocara/hd2d/buildings/tower-front.png"
+        : "/assets/lindocara/hd2d/buildings/house-front.png",
+    pack: "LindoCara Lab",
+    domain: "building",
+    category: `Lindocara/Buildings/${model.faction}`,
+    role: "world-building",
+    tags: [
+      "building",
+      "generated",
+      "hd2d",
+      "habitable",
+      model.faction,
+      model.purpose,
+      `variant-${model.variant}`,
+    ],
+    width: model.variant === "b" ? 159 : 199,
+    height: model.variant === "b" ? 220 : 198,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "buildings",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      visualFootprint: centredFootprint(model.width, model.depth),
+      collider: {
+        x: (-model.width * 64) / 2,
+        y: -model.depth * 64,
+        width: model.width * 64,
+        height: model.depth * 64,
+      },
+      collisionElevation: model.collisionElevation,
+      buildingFaction: model.faction,
+      buildingPurpose: model.purpose,
+      buildingVariant: model.variant,
     },
   } as const satisfies EditorAssetDefinition;
 }
@@ -326,6 +400,45 @@ function lindocaraPickup<const Id extends string>(id: Id, file: string, tags: re
   } as const satisfies EditorAssetDefinition;
 }
 
+function lindocaraRunnerProp<const Id extends string>(options: {
+  id: Id;
+  file: "spike-trap.png" | "barricade.png";
+  tags: readonly string[];
+  width: number;
+  height: number;
+  renderLayer: EditorRenderLayer;
+  visualFootprint: readonly CellOffset[];
+  collider: Rect;
+  collisionElevation: CollisionElevation;
+  native3d: { readonly width: number; readonly depth: number };
+  editorFaction: NonNullable<EditorPlacementMetadata["editorFaction"]>;
+}) {
+  return {
+    id: options.id,
+    sourcePath: `/assets/lindocara/hd2d/runner/${options.file}`,
+    pack: "LindoCara Lab",
+    domain: "decoration",
+    category: "Lindocara/Runner",
+    role: "world-obstacle",
+    tags: ["runner", "generated", "hd2d", ...options.tags],
+    width: options.width,
+    height: options.height,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "traps-and-defenses",
+      allowedTerrain: ["grass"],
+      renderLayer: options.renderLayer,
+      visualFootprint: options.visualFootprint,
+      collider: options.collider,
+      collisionElevation: options.collisionElevation,
+      native3d: options.native3d,
+      editorFaction: options.editorFaction,
+    },
+  } as const satisfies EditorAssetDefinition;
+}
+
 const LINDOCARA_LAB_EDITOR_ASSETS = [
   lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.speed_boost, "speed-boost.png", ["buff", "speed"]),
   lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.light_gravity, "light-gravity.png", [
@@ -343,56 +456,96 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     "debuff",
     "controls",
   ]),
-  {
+  lindocaraRunnerProp({
     id: LINDOCARA_RUNNER_ASSET_IDS.spikeTrap,
-    sourcePath: "/assets/lindocara/hd2d/runner/spike-trap.png",
-    pack: "LindoCara Lab",
-    domain: "decoration",
-    category: "Lindocara/Runner",
-    role: "world-obstacle",
-    tags: ["runner", "trap", "spikes", "generated", "hd2d"],
+    file: "spike-trap.png",
+    tags: ["trap", "spikes"],
     width: 107,
     height: 94,
-    nature: "static",
-    anchor: { x: 0.5, y: 1 },
-    footOffset: 0,
-    editor: {
-      category: "runner",
-      allowedTerrain: ["grass"],
-      renderLayer: "ground",
-      visualFootprint: [{ col: 0, row: 0 }],
-      collider: { x: -28, y: -38, width: 56, height: 38 },
-      collisionElevation: 1,
-      native3d: { width: 1.5, depth: 1.5 },
-    },
-  },
-  {
+    renderLayer: "ground",
+    visualFootprint: [{ col: 0, row: 0 }],
+    collider: { x: -28, y: -38, width: 56, height: 38 },
+    collisionElevation: 1,
+    native3d: { width: 1.5, depth: 1.5 },
+    editorFaction: "general",
+  }),
+  lindocaraRunnerProp({
+    id: LINDOCARA_RUNNER_ASSET_IDS.pushTrap,
+    file: "spike-trap.png",
+    tags: ["trap", "push", "spring"],
+    width: 112,
+    height: 96,
+    renderLayer: "ground",
+    visualFootprint: [{ col: 0, row: 0 }],
+    collider: { x: -34, y: -48, width: 68, height: 48 },
+    collisionElevation: 1,
+    native3d: { width: 1.75, depth: 1.5 },
+    editorFaction: "general",
+  }),
+  lindocaraRunnerProp({
+    id: LINDOCARA_RUNNER_ASSET_IDS.launchTrap,
+    file: "spike-trap.png",
+    tags: ["trap", "launch", "spring", "air"],
+    width: 108,
+    height: 96,
+    renderLayer: "ground",
+    visualFootprint: [{ col: 0, row: 0 }],
+    collider: { x: -34, y: -48, width: 68, height: 48 },
+    collisionElevation: 1,
+    native3d: { width: 1.6, depth: 1.6 },
+    editorFaction: "general",
+  }),
+  lindocaraRunnerProp({
     id: LINDOCARA_RUNNER_ASSET_IDS.barricade,
-    sourcePath: "/assets/lindocara/hd2d/runner/barricade.png",
-    pack: "LindoCara Lab",
-    domain: "decoration",
-    category: "Lindocara/Runner",
-    role: "world-obstacle",
-    tags: ["runner", "obstacle", "barricade", "wood", "generated", "hd2d"],
+    file: "barricade.png",
+    tags: ["obstacle", "barricade", "wood"],
     width: 136,
     height: 122,
-    nature: "static",
-    anchor: { x: 0.5, y: 1 },
-    footOffset: 0,
-    editor: {
-      category: "runner",
-      allowedTerrain: ["grass"],
-      renderLayer: "object",
-      visualFootprint: [
-        { col: -1, row: 0 },
-        { col: 0, row: 0 },
-        { col: 1, row: 0 },
-      ],
-      collider: { x: -58, y: -48, width: 116, height: 48 },
-      collisionElevation: 2,
-      native3d: { width: 2.75, depth: 1.125 },
-    },
-  },
+    renderLayer: "object",
+    visualFootprint: [
+      { col: -1, row: 0 },
+      { col: 0, row: 0 },
+      { col: 1, row: 0 },
+    ],
+    collider: { x: -58, y: -48, width: 116, height: 48 },
+    collisionElevation: 2,
+    native3d: { width: 2.75, depth: 1.125 },
+    editorFaction: "general",
+  }),
+  lindocaraRunnerProp({
+    id: LINDOCARA_RUNNER_ASSET_IDS.goblinBarricade,
+    file: "barricade.png",
+    tags: ["obstacle", "barricade", "goblin", "scrap"],
+    width: 136,
+    height: 92,
+    renderLayer: "object",
+    visualFootprint: [
+      { col: -1, row: 0 },
+      { col: 0, row: 0 },
+      { col: 1, row: 0 },
+    ],
+    collider: { x: -67, y: -45, width: 134, height: 45 },
+    collisionElevation: 1,
+    native3d: { width: 2.5, depth: 1.05 },
+    editorFaction: "goblin",
+  }),
+  lindocaraRunnerProp({
+    id: LINDOCARA_RUNNER_ASSET_IDS.orcBarricade,
+    file: "barricade.png",
+    tags: ["obstacle", "barricade", "orc", "troll", "fortified"],
+    width: 166,
+    height: 174,
+    renderLayer: "object",
+    visualFootprint: [
+      { col: -1, row: 0 },
+      { col: 0, row: 0 },
+      { col: 1, row: 0 },
+    ],
+    collider: { x: -88, y: -62, width: 176, height: 62 },
+    collisionElevation: 3,
+    native3d: { width: 3.25, depth: 1.45 },
+    editorFaction: "orc-troll",
+  }),
   {
     id: LINDOCARA_CAMPFIRE_ASSET_ID,
     sourcePath: "/assets/lindocara/hd2d/campfire-base.png",
@@ -526,6 +679,7 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     { x: -88, y: -128, width: 176, height: 128 },
     3,
   ),
+  ...FACTION_BUILDING_MODELS.map(lindocaraFactionBuilding),
   lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.hearth, "hearth.png", 80, 94, {
     x: -34,
     y: -46,

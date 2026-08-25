@@ -4,6 +4,12 @@ import {
   elementRotationDegrees,
   isElementOrientation,
 } from "./element-orientation.js";
+import {
+  type FactionBuildingArchetype,
+  type FactionBuildingFaction,
+  factionBuildingModel,
+  factionBuildingModelForArchetype,
+} from "./faction-buildings.js";
 import type { GroundVector } from "./ground.js";
 import { isUuid } from "./identifiers.js";
 import {
@@ -81,7 +87,9 @@ export function distanceToBuildingCollider(
  */
 export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): GroundVector {
   const archetype = buildingArchetype(placement.assetId);
-  const size = archetype ? buildingVolumeDimensions(archetype, placement.dimensions) : null;
+  const size = archetype
+    ? buildingVolumeDimensions(archetype, placement.dimensions, buildingFaction(placement.assetId))
+    : null;
   const localX =
     archetype === "house"
       ? (size?.width ?? 0) * 0.2
@@ -120,7 +128,10 @@ export type BuildingArchetype =
   | "archery"
   | "barracks"
   | "monastery"
-  | "castle";
+  | "castle"
+  | FactionBuildingArchetype;
+
+export type BuildingFaction = "human" | FactionBuildingFaction;
 
 /**
  * Native building measurements in world tiles. Rendering and collision deliberately consume this
@@ -150,8 +161,22 @@ export const CASTLE_TOWER_POSITIONS = [
 export function buildingVolumeDimensions(
   archetype: BuildingArchetype,
   dimensions?: BuildingDimensions,
+  faction: BuildingFaction = "human",
 ): BuildingVolumeDimensions {
   const native: BuildingVolumeDimensions = (() => {
+    if (faction !== "human" && archetype.includes("-")) {
+      const model = factionBuildingModelForArchetype(
+        faction,
+        archetype as FactionBuildingArchetype,
+      );
+      return {
+        width: model.width,
+        depth: model.depth,
+        wallHeight: model.wallHeight,
+        roofHeight: model.roofHeight,
+        roofShape: model.roofShape,
+      };
+    }
     switch (archetype) {
       case "tower":
         return { width: 2, depth: 2, wallHeight: 3.1, roofHeight: 0.5, roofShape: "crenellated" };
@@ -179,6 +204,22 @@ export function buildingVolumeDimensions(
         };
       case "house":
         return { width: 2.75, depth: 2.125, wallHeight: 1.3, roofHeight: 1.38, roofShape: "gable" };
+      default: {
+        // A faction archetype without its faction is reachable only through a direct low-level
+        // call. Use the goblin pack as a deterministic baseline; asset-aware paths always pass the
+        // exact faction and therefore never take this compatibility fallback.
+        const model = factionBuildingModelForArchetype(
+          "goblin",
+          archetype as FactionBuildingArchetype,
+        );
+        return {
+          width: model.width,
+          depth: model.depth,
+          wallHeight: model.wallHeight,
+          roofHeight: model.roofHeight,
+          roofShape: model.roofShape,
+        };
+      }
     }
   })();
   if (!dimensions) return native;
@@ -206,7 +247,7 @@ export function proportionalBuildingDimensions(
 ): BuildingDimensions | null {
   const archetype = buildingArchetype(assetId);
   if (!archetype || !Number.isFinite(value)) return null;
-  const native = buildingVolumeDimensions(archetype);
+  const native = buildingVolumeDimensions(archetype, undefined, buildingFaction(assetId));
   const minimumScale = Math.max(
     MIN_BUILDING_DIMENSION / native.width,
     MIN_BUILDING_DIMENSION / native.depth,
@@ -251,7 +292,7 @@ export function buildingDimensionsOrDefault(
 ): BuildingDimensions | null {
   const archetype = buildingArchetype(assetId);
   if (!archetype) return null;
-  const size = buildingVolumeDimensions(archetype, dimensions);
+  const size = buildingVolumeDimensions(archetype, dimensions, buildingFaction(assetId));
   return { width: size.width, depth: size.depth };
 }
 
@@ -309,8 +350,11 @@ export function isStandingBuildingAsset(assetId: string): assetId is EditorAsset
   return asset?.editor.category === "buildings" && !asset.tags.includes("destroyed");
 }
 
-export function buildingArchetype(assetId: string): BuildingArchetype | null {
-  if (!isStandingBuildingAsset(assetId)) return null;
+/** Visual family for any catalogued building appearance, including terminal ruins. */
+export function visualBuildingArchetype(assetId: string): BuildingArchetype | null {
+  if (editorAsset(assetId)?.editor.category !== "buildings") return null;
+  const factionModel = factionBuildingModel(assetId);
+  if (factionModel) return factionModel.archetype;
   const name = assetId.toLowerCase();
   if (name.includes("windmill")) return "windmill";
   if (name.includes("monastery")) return "monastery";
@@ -322,6 +366,14 @@ export function buildingArchetype(assetId: string): BuildingArchetype | null {
   return null;
 }
 
+export function buildingArchetype(assetId: string): BuildingArchetype | null {
+  return isStandingBuildingAsset(assetId) ? visualBuildingArchetype(assetId) : null;
+}
+
+export function buildingFaction(assetId: string): BuildingFaction {
+  return factionBuildingModel(assetId)?.faction ?? "human";
+}
+
 export const BUILDING_COLORS = ["blue", "red", "yellow", "purple", "black"] as const;
 export type BuildingColor = (typeof BUILDING_COLORS)[number];
 
@@ -330,7 +382,8 @@ export interface BuildingColorVariant {
   assetId: EditorAssetId;
 }
 
-type RecolorableBuildingArchetype = Exclude<BuildingArchetype, "windmill">;
+type HumanBuildingArchetype = Exclude<BuildingArchetype, FactionBuildingArchetype>;
+type RecolorableBuildingArchetype = Exclude<HumanBuildingArchetype, "windmill">;
 
 /** One stable saved-map identity per native 3D colour. The blue choice keeps the concise Lindocara
  * identity used by new maps; the other choices reuse catalogue ids which remain fully supported. */
@@ -385,6 +438,7 @@ const BUILDING_COLOR_ASSET_IDS: Readonly<
 export function buildingColor(assetId: string): BuildingColor | null {
   const asset = editorAsset(assetId);
   if (!asset || !buildingArchetype(assetId)) return null;
+  if (factionBuildingModel(assetId)) return null;
   const tagged = BUILDING_COLORS.find((color) => asset.tags.includes(color));
   if (tagged) return tagged;
   return asset.id.startsWith("building.lindocara.") ? "blue" : null;
@@ -395,11 +449,12 @@ export function buildingColor(assetId: string): BuildingColor | null {
 export function buildingColorVariants(assetId: string): readonly BuildingColorVariant[] {
   const asset = editorAsset(assetId);
   const archetype = buildingArchetype(assetId);
+  if (factionBuildingModel(assetId)) return [];
   if (!asset || !archetype || archetype === "windmill" || buildingColor(assetId) === null)
     return [];
   if (asset.tags.some((tag) => tag === "construction" || tag.includes("inconstruction"))) return [];
   if (asset.tags.includes("goblins")) return [];
-  const byColor = BUILDING_COLOR_ASSET_IDS[archetype];
+  const byColor = BUILDING_COLOR_ASSET_IDS[archetype as RecolorableBuildingArchetype];
   return BUILDING_COLORS.flatMap((color) => {
     const variantAssetId = byColor[color];
     return editorAsset(variantAssetId) ? [{ color, assetId: variantAssetId }] : [];
@@ -414,6 +469,13 @@ export function buildingColorVariants(assetId: string): readonly BuildingColorVa
 export function destroyedBuildingAssetId(assetId: string): EditorAssetId | null {
   const archetype = buildingArchetype(assetId);
   if (!archetype) return null;
+  const factionModel = factionBuildingModel(assetId);
+  if (factionModel?.faction === "goblin") {
+    return factionModel.purpose === "housing" ? DESTROYED_GOBLIN_HOUSE : DESTROYED_GOBLIN_TOWER;
+  }
+  if (factionModel) {
+    return factionModel.purpose === "housing" ? DESTROYED_HOUSE : DESTROYED_CASTLE;
+  }
   if (assetId.includes("factions-goblins")) {
     return archetype === "house" ? DESTROYED_GOBLIN_HOUSE : DESTROYED_GOBLIN_TOWER;
   }
@@ -423,6 +485,10 @@ export function destroyedBuildingAssetId(assetId: string): EditorAssetId | null 
 }
 
 function typeMultiplier(archetype: BuildingArchetype): number {
+  if (archetype.startsWith("housing-")) return 1;
+  if (archetype.startsWith("training-") || archetype.startsWith("daily-life-")) return 1.25;
+  if (archetype.startsWith("community-")) return 1.5;
+  if (archetype.startsWith("command-")) return 2;
   switch (archetype) {
     case "house":
       return 1;
@@ -435,6 +501,8 @@ function typeMultiplier(archetype: BuildingArchetype): number {
       return 1.5;
     case "castle":
       return 2;
+    default:
+      return 1;
   }
 }
 

@@ -1,4 +1,9 @@
 import { buildingArchetype } from "@lindocara/engine/buildings.js";
+import {
+  FACTION_BUILDING_FACTIONS,
+  FACTION_BUILDING_MODELS,
+  FACTION_BUILDING_PURPOSES,
+} from "@lindocara/engine/faction-buildings.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   CURATED_EDITOR_ASSET_IDS,
@@ -90,13 +95,19 @@ describe("catalogue colliders", () => {
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.stoneTower)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_BUILDING_ASSET_IDS.windmill)).toBe(3);
     expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)).toBe(1);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.pushTrap)).toBe(1);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.launchTrap)).toBe(1);
     expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.barricade)).toBe(2);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.goblinBarricade)).toBe(1);
+    expect(editorAssetCollisionElevation(LINDOCARA_RUNNER_ASSET_IDS.orcBarricade)).toBe(3);
   });
 
-  it("offers both native runner props as placeable world obstacles", () => {
+  it("offers all six native runner props as placeable world obstacles", () => {
     const placeableIds = PLACEABLE_EDITOR_ASSETS.map((asset) => asset.id);
-    expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.barricade);
-    expect(placeableIds).toContain(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
+    for (const assetId of Object.values(LINDOCARA_RUNNER_ASSET_IDS)) {
+      expect(placeableIds).toContain(assetId);
+      expect(editorAsset(assetId)?.role).toBe("world-obstacle");
+    }
     expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.role).toBe("world-obstacle");
     expect(editorAsset(LINDOCARA_RUNNER_ASSET_IDS.spikeTrap)?.editor.native3d).toEqual({
       width: 1.5,
@@ -108,15 +119,39 @@ describe("catalogue colliders", () => {
     });
   });
 
-  it("offers one palette card for every native 3D building archetype", () => {
+  it("offers the seven human buildings and forty faction buildings", () => {
     const placeableBuildings = PLACEABLE_EDITOR_ASSETS.filter(
       (asset) => asset.editor.category === "buildings",
     );
-    expect(
-      placeableBuildings
-        .map((asset) => buildingArchetype(asset.id))
-        .sort((a, b) => String(a).localeCompare(String(b))),
-    ).toEqual(["archery", "barracks", "castle", "house", "monastery", "tower", "windmill"]);
+    expect(placeableBuildings).toHaveLength(47);
+    expect(FACTION_BUILDING_MODELS).toHaveLength(40);
+    const humanArchetypes = placeableBuildings
+      .filter((asset) => asset.editor.buildingFaction === undefined)
+      .map((asset) => buildingArchetype(asset.id))
+      .sort((a, b) => String(a).localeCompare(String(b)));
+    expect(humanArchetypes).toEqual([
+      "archery",
+      "barracks",
+      "castle",
+      "house",
+      "monastery",
+      "tower",
+      "windmill",
+    ]);
+    for (const faction of FACTION_BUILDING_FACTIONS) {
+      for (const purpose of FACTION_BUILDING_PURPOSES) {
+        const models = placeableBuildings.filter(
+          (asset) =>
+            asset.editor.buildingFaction === faction && asset.editor.buildingPurpose === purpose,
+        );
+        expect(
+          models
+            .map((asset) => asset.editor.buildingVariant)
+            .sort((left, right) => String(left).localeCompare(String(right))),
+        ).toEqual(["a", "b"]);
+        expect(models.every((asset) => buildingArchetype(asset.id) !== null)).toBe(true);
+      }
+    }
   });
 
   it("keeps every bounded small prop at the stump's one-level collision", () => {
@@ -125,7 +160,11 @@ describe("catalogue colliders", () => {
       const stump = asset.tags.some((tag) => tag.includes("stump"));
       const tree = asset.editor.category === "trees" || asset.tags.includes("trees");
       if (tree && !stump) continue;
-      if (asset.id === LINDOCARA_RUNNER_ASSET_IDS.barricade) continue;
+      if (
+        asset.id === LINDOCARA_RUNNER_ASSET_IDS.barricade ||
+        asset.id === LINDOCARA_RUNNER_ASSET_IDS.orcBarricade
+      )
+        continue;
       expect(editorAssetCollisionElevation(asset), asset.id).toBe(1);
     }
   });

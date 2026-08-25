@@ -8,16 +8,30 @@ import * as THREE from "three";
 
 import type { NativeStaticVisual } from "./building-volumes.js";
 
-export type RunnerPropKind = "spike-trap" | "barricade";
+export type RunnerPropKind =
+  | "spike-trap"
+  | "push-trap"
+  | "launch-trap"
+  | "barricade"
+  | "goblin-barricade"
+  | "orc-barricade";
 
 const PROP_HEIGHTS: Record<RunnerPropKind, number> = {
   "spike-trap": 0.56,
+  "push-trap": 1.12,
+  "launch-trap": 0.78,
   barricade: 1.48,
+  "goblin-barricade": 0.94,
+  "orc-barricade": 2.62,
 };
 
 const PROP_DIMENSIONS: Record<RunnerPropKind, BuildingDimensions> = {
   "spike-trap": { width: 1.5, depth: 1.5 },
+  "push-trap": { width: 1.75, depth: 1.5 },
+  "launch-trap": { width: 1.6, depth: 1.6 },
   barricade: { width: 2.75, depth: 1.125 },
+  "goblin-barricade": { width: 2.5, depth: 1.05 },
+  "orc-barricade": { width: 3.25, depth: 1.45 },
 };
 
 export function runnerPropHeight(kind: RunnerPropKind, dimensions?: BuildingDimensions): number {
@@ -128,6 +142,66 @@ function buildSpikeTrap(root: THREE.Group): void {
   }
 }
 
+function buildPushTrap(root: THREE.Group): void {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x7e4d2c, flatShading: true });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x66737d, flatShading: true });
+  const accent = new THREE.MeshLambertMaterial({ color: 0xd35c35, flatShading: true });
+  box(root, "push-bed", [1.62, 0.12, 1.32], [0, 0.06, 0], wood);
+  box(root, "push-rail", [0.15, 0.18, 1.18], [-0.68, 0.2, 0], iron);
+  box(root, "push-rail", [0.15, 0.18, 1.18], [0.68, 0.2, 0], iron);
+  for (const x of [-0.48, 0, 0.48]) {
+    const spring = outlined(new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.045, 5, 8), iron));
+    spring.name = "push-spring";
+    spring.position.set(x, 0.34, -0.25);
+    spring.rotation.x = Math.PI / 2;
+    root.add(spring);
+  }
+  const plate = box(root, "push-plate", [1.35, 0.72, 0.16], [0, 0.62, 0.28], accent);
+  plate.rotation.x = -0.16;
+  for (const x of [-0.5, 0, 0.5]) fastener(root, x, 0.62, 0.375, iron);
+  beamBetween(
+    root,
+    "push-trigger",
+    new THREE.Vector3(-0.5, 0.17, -0.54),
+    new THREE.Vector3(0.5, 0.17, -0.54),
+    0.1,
+    0.1,
+    accent,
+  );
+}
+
+function buildLaunchTrap(root: THREE.Group): void {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x80502d, flatShading: true });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x697681, flatShading: true });
+  const accent = new THREE.MeshLambertMaterial({ color: 0xd9a83e, flatShading: true });
+  box(root, "launch-bed", [1.48, 0.12, 1.48], [0, 0.06, 0], wood);
+  const platform = outlined(
+    new THREE.Mesh(new THREE.CylinderGeometry(0.59, 0.68, 0.12, 10), accent),
+  );
+  platform.name = "launch-platform";
+  platform.position.y = 0.52;
+  root.add(platform);
+  for (const [x, z] of [
+    [-0.45, -0.45],
+    [0.45, -0.45],
+    [-0.45, 0.45],
+    [0.45, 0.45],
+  ] as const) {
+    const spring = outlined(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.42, 7), iron));
+    spring.name = "launch-spring";
+    spring.position.set(x, 0.29, z);
+    root.add(spring);
+  }
+  for (const rotation of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    const arrow = outlined(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.32, 6), accent));
+    arrow.name = "launch-arrow";
+    arrow.rotation.z = Math.PI;
+    arrow.rotation.y = rotation;
+    arrow.position.set(Math.sin(rotation) * 0.78, 0.26, Math.cos(rotation) * 0.78);
+    root.add(arrow);
+  }
+}
+
 function buildBarricade(root: THREE.Group): void {
   const wood = new THREE.MeshLambertMaterial({ color: 0x91572f, flatShading: true });
   const woodLight = new THREE.MeshLambertMaterial({ color: 0xb47743, flatShading: true });
@@ -179,6 +253,70 @@ function buildBarricade(root: THREE.Group): void {
   }
 }
 
+function buildGoblinBarricade(root: THREE.Group): void {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x655034, flatShading: true });
+  const scrap = new THREE.MeshLambertMaterial({ color: 0x677066, flatShading: true });
+  const rust = new THREE.MeshLambertMaterial({ color: 0xa94f2d, flatShading: true });
+  box(root, "goblin-skid", [2.35, 0.12, 0.9], [0, 0.06, 0], wood);
+  for (const [index, x] of [-1, -0.52, -0.05, 0.45, 0.95].entries()) {
+    const height = index % 2 === 0 ? 0.82 : 0.64;
+    const stake = box(
+      root,
+      "goblin-scrap-stake",
+      [0.28, height, 0.18],
+      [x, height / 2, 0],
+      index % 3 === 0 ? rust : scrap,
+    );
+    stake.rotation.z = (index - 2) * 0.055;
+  }
+  beamBetween(
+    root,
+    "goblin-lashed-plank",
+    new THREE.Vector3(-1.18, 0.26, 0.13),
+    new THREE.Vector3(1.18, 0.72, 0.13),
+    0.18,
+    0.16,
+    wood,
+  );
+}
+
+function buildOrcBarricade(root: THREE.Group): void {
+  const wood = new THREE.MeshLambertMaterial({ color: 0x4f3324, flatShading: true });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x4e565c, flatShading: true });
+  const red = new THREE.MeshLambertMaterial({ color: 0x812e26, flatShading: true });
+  for (const x of [-1.34, -0.67, 0, 0.67, 1.34]) {
+    const post = outlined(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.27, 2.2, 7), wood));
+    post.name = "orc-log-post";
+    post.position.set(x, 1.1, 0);
+    root.add(post);
+    const spike = outlined(new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.58, 7), iron));
+    spike.name = "orc-iron-spike";
+    spike.position.set(x, 2.48, 0);
+    root.add(spike);
+  }
+  box(root, "orc-crossbeam", [3.18, 0.34, 0.34], [0, 0.72, 0.04], iron);
+  box(root, "orc-crossbeam", [3.18, 0.3, 0.32], [0, 1.54, 0.04], red);
+  for (const x of [-1.34, -0.67, 0, 0.67, 1.34]) fastener(root, x, 1.54, 0.23, iron);
+  beamBetween(
+    root,
+    "orc-ground-brace",
+    new THREE.Vector3(-1.5, 0.12, -0.58),
+    new THREE.Vector3(-0.95, 1.35, 0),
+    0.22,
+    0.24,
+    wood,
+  );
+  beamBetween(
+    root,
+    "orc-ground-brace",
+    new THREE.Vector3(1.5, 0.12, -0.58),
+    new THREE.Vector3(0.95, 1.35, 0),
+    0.22,
+    0.24,
+    wood,
+  );
+}
+
 /** A native low-poly prop: every face occupies world space, receives the scene light and remains
  * stable while the HD-2D camera orbits. The authored point is the centre of its ground contact. */
 export function makeRunnerPropVolume(
@@ -200,8 +338,26 @@ export function makeRunnerPropVolume(
   model.position.z = -size.depth / 2;
   model.scale.set(size.width / native.width, verticalScale, size.depth / native.depth);
   group.add(model);
-  if (kind === "spike-trap") buildSpikeTrap(model);
-  else buildBarricade(model);
+  switch (kind) {
+    case "spike-trap":
+      buildSpikeTrap(model);
+      break;
+    case "push-trap":
+      buildPushTrap(model);
+      break;
+    case "launch-trap":
+      buildLaunchTrap(model);
+      break;
+    case "barricade":
+      buildBarricade(model);
+      break;
+    case "goblin-barricade":
+      buildGoblinBarricade(model);
+      break;
+    case "orc-barricade":
+      buildOrcBarricade(model);
+      break;
+  }
 
   return {
     mesh: group,

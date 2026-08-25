@@ -11,6 +11,7 @@
 import { bridgeDimensionsOrDefault, bridgeOrientation, bridgePlacementLayout } from "../bridges.js";
 import {
   buildingArchetype,
+  buildingFaction,
   buildingVolumeDimensions,
   CASTLE_TOWER_POSITIONS,
   CASTLE_TOWER_RADIUS,
@@ -360,7 +361,11 @@ function buildingRoofCollider(
 ): ColliderRect | null {
   const archetype = buildingArchetype(element.assetId);
   if (!archetype) return null;
-  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
+  const volume = buildingVolumeDimensions(
+    archetype,
+    element.building?.dimensions,
+    buildingFaction(element.assetId),
+  );
   const eave = base + volume.wallHeight;
   const peak = eave + volume.roofHeight;
   if (volume.roofShape === "gable") {
@@ -422,16 +427,20 @@ function buildingRoofParts(
 ): BuildingRoofPart[] {
   const archetype = buildingArchetype(element.assetId);
   if (!archetype) return [];
-  const volume = buildingVolumeDimensions(archetype, element.building?.dimensions);
+  const volume = buildingVolumeDimensions(
+    archetype,
+    element.building?.dimensions,
+    buildingFaction(element.assetId),
+  );
   const legacyQuarterTurn = element.rotation === undefined && (element.orientation ?? 0) % 2 === 1;
-  const nativeWidth = legacyQuarterTurn ? 2.375 : 3;
-  const nativeDepth = legacyQuarterTurn ? 3 : 2.375;
+  const nativeWidth = legacyQuarterTurn ? volume.depth : volume.width;
+  const nativeDepth = legacyQuarterTurn ? volume.width : volume.depth;
   const scaleX = collider.w / nativeWidth;
   const scaleZ = collider.h / nativeDepth;
   let main = collider;
 
   if (archetype === "windmill") {
-    const native = buildingVolumeDimensions(archetype);
+    const native = buildingVolumeDimensions(archetype, undefined, buildingFaction(element.assetId));
     const widthRatio = (WINDMILL_ROOF_RADIUS * 2) / native.width;
     const depthRatio = (WINDMILL_ROOF_RADIUS * 2) / native.depth;
     main = centredBuildingSubCollider(

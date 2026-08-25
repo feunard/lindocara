@@ -1,3 +1,7 @@
+import {
+  FACTION_BUILDING_FACTIONS,
+  factionBuildingModelForArchetype,
+} from "@lindocara/engine/faction-buildings.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
@@ -17,10 +21,12 @@ function texture(): THREE.Texture {
 function building(
   archetype: Parameters<typeof makeBuildingVolume>[0]["archetype"],
   dimensions?: Parameters<typeof makeBuildingVolume>[0]["dimensions"],
+  faction?: Parameters<typeof makeBuildingVolume>[0]["faction"],
 ) {
   return makeBuildingVolume({
     archetype,
     ...(dimensions ? { dimensions } : {}),
+    ...(faction ? { faction } : {}),
     state: "standing",
     front: texture(),
     wall: texture(),
@@ -49,6 +55,38 @@ function uvSpan(mesh: THREE.Mesh, groupIndex: number): { u: number; v: number } 
 }
 
 describe("native HD-2D building volumes", () => {
+  it.each([
+    ["goblin", "scrap-patch"],
+    ["orc-troll", "iron-reinforcement"],
+    ["beastfolk", "hide-panel"],
+    ["wild-tribe", "reed-bundle"],
+  ] as const)("builds a distinct %s housing pack signature", (faction, signature) => {
+    const model = factionBuildingModelForArchetype(faction, "housing-a");
+    const visual = building(model.archetype, undefined, faction);
+    expect(visual.mesh.getObjectByName(signature)).toBeDefined();
+    expect(visual.mesh.getObjectByName("native-architecture")).toBeDefined();
+    visual.dispose();
+  });
+
+  it("builds two models for all five purposes in every faction pack", () => {
+    for (const faction of FACTION_BUILDING_FACTIONS) {
+      for (const purpose of [
+        "housing",
+        "command",
+        "training",
+        "community",
+        "daily-life",
+      ] as const) {
+        for (const variant of ["a", "b"] as const) {
+          const model = factionBuildingModelForArchetype(faction, `${purpose}-${variant}`);
+          const visual = building(model.archetype, undefined, faction);
+          expect(visual.mesh.getObjectsByProperty("type", "Mesh").length).toBeGreaterThan(8);
+          visual.dispose();
+        }
+      }
+    }
+  });
+
   it.each(["house", "tower", "windmill", "archery", "barracks", "monastery", "castle"] as const)(
     "builds %s as complete native architecture behind its authored front threshold",
     (archetype) => {

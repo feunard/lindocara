@@ -38,6 +38,8 @@ function themedInteriorElements(buildingAssetId: string): MapElement[] {
   const common = [prop(rug, 10, 7), prop(table, 11, 7, 1), prop(cupboard, 16, 3)];
   switch (kind) {
     case "barracks":
+    case "training-a":
+    case "training-b":
       return [...common, prop(bed, 4, 4), prop(bed, 4, 9), prop(bed, 7, 4), prop(bed, 7, 9)];
     case "archery":
       return [...common, prop(cupboard, 3, 3), prop(table, 5, 7)];
@@ -45,10 +47,18 @@ function themedInteriorElements(buildingAssetId: string): MapElement[] {
     case "windmill":
       return [...common, prop(hearth, 3, 4), prop(bed, 4, 9)];
     case "monastery":
+    case "community-a":
+    case "community-b":
       return [...common, prop(hearth, 3, 4), prop(rug, 10, 4), prop(rug, 10, 10)];
     case "castle":
+    case "command-a":
+    case "command-b":
       return [...common, prop(hearth, 3, 4), prop(cupboard, 3, 9), prop(rug, 10, 4)];
     case "house":
+    case "housing-a":
+    case "housing-b":
+    case "daily-life-a":
+    case "daily-life-b":
       return [...common, prop(hearth, 3, 4), prop(bed, 4, 9)];
   }
 }
