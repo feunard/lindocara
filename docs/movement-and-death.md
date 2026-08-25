@@ -102,6 +102,13 @@ The current release policy bypasses the ghost branch: pressing R resurrects imme
 current map's authored entry (or its nearest standable fallback). The ghost route shown above is
 retained only for historical persisted-state compatibility.
 
+Hardcore runner release is deliberately heavier. It resets the party-owned attempt and performs an
+epoch-fenced map handoff even when the adventure start is the map already on screen. The controlled
+disconnect drains and destroys the old world room; reconnecting recreates monsters, loot,
+projectiles, event runs, pickups and every other map-local runtime from authored data. Never replace
+this with a same-map resurrection or a list of fields to clear: both preserve stale state and make
+respawns depend on remembering every future runtime collection.
+
 There is no timer in it and no auto-release. A corpse waits indefinitely, which is the only
 reason a priest's grace period means anything. Priest revival and direct release both return at
 `RESURRECT_HP_RATIO` of max HP.

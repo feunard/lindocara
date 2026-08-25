@@ -22,7 +22,9 @@
  * 4. an authored cross-map `teleport` command (the Task-7 refusal stub) now rides the identical
  *    choreography as an exit;
  * 5. the source room's state drops the player immediately (no ghost entry), and the empty room
- *    reports `roomEmptied` to `PartyRoom` once its last socket actually disconnects.
+ *    reports `roomEmptied` to `PartyRoom` once its last socket actually disconnects;
+ * 6. releasing on a hardcore runner's start map still closes 4008, tears that room down and
+ *    recreates monsters plus every transient collection from a fresh state on reconnect.
  *
  * Every room loads its authored exits, teleporters and harvest nodes from the map row through the
  * same `zoneFromMapPayload` path used in production.
@@ -37,6 +39,7 @@
 
 import { buildingDoorGroundPoint } from "@lindocara/engine/buildings.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { presetEvent } from "@lindocara/engine/event-presets.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
 import { harvestColliderAt } from "@lindocara/engine/harvest.js";
 import { functionalEvent, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
@@ -324,9 +327,10 @@ async function twoMapAdventure(
   heroSettings: {
     mapA?: MapHeroSettings;
     mapB?: MapHeroSettings;
-    mapAEvents?: readonly MapEvent[];
+    mapAEvents?: readonly MapEvent[] | ((mapId: string) => readonly MapEvent[]);
     mapBEvents?: readonly MapEvent[];
     heroClass?: "warrior" | "peasant";
+    gameMode?: "standard" | "hardcore_runner";
   } = {},
 ): Promise<TwoMapFixture> {
   const { token, userId } = await registerAndLogin(prefix);
@@ -338,6 +342,10 @@ async function twoMapAdventure(
   expect(adventureResponse.status).toBe(201);
   const adventure = (await adventureResponse.json()) as { id: string; defaultMap: { id: string } };
   const mapAId = adventure.defaultMap.id;
+  const mapAEvents =
+    typeof heroSettings.mapAEvents === "function"
+      ? heroSettings.mapAEvents(mapAId)
+      : (heroSettings.mapAEvents ?? []);
 
   const entryA = ev(crypto.randomUUID(), "entry", 5, 5);
   const exitA = ev(crypto.randomUUID(), "exit", 7, 7);
@@ -347,7 +355,7 @@ async function twoMapAdventure(
       name: "A",
       ...grassTerrain(),
       elements: [],
-      events: [entryA, exitA, ...(heroSettings.mapAEvents ?? [])],
+      events: [entryA, exitA, ...mapAEvents],
       spawn: { col: 0, row: 0 },
       ...(heroSettings.mapA === undefined ? {} : { heroSettings: heroSettings.mapA }),
     }),
@@ -379,6 +387,7 @@ async function twoMapAdventure(
     body: JSON.stringify({
       title: "Donjon",
       maxPlayers: 4,
+      ...(heroSettings.gameMode ? { gameMode: heroSettings.gameMode } : {}),
       graph: {
         start: { mapId: mapAId, entryId: entryA.id },
         links: [{ mapId: mapAId, exitId: exitA.id, dest: { mapId: mapBId, entryId: entryB.id } }],
@@ -417,7 +426,7 @@ async function twoMapAdventure(
     entryA,
     exitA,
     entryB,
-    eventsA: [entryA, exitA, ...(heroSettings.mapAEvents ?? [])],
+    eventsA: [entryA, exitA, ...mapAEvents],
     eventsB: [entryB, ...(heroSettings.mapBEvents ?? [])],
   };
 }
@@ -1306,6 +1315,65 @@ describe("world room transitions (FakeClock)", () => {
     const roomEmptiedCall = vi.spyOn(partyRoom.room, "call");
     await engine.leave(socket.id);
     expect(roomEmptiedCall).toHaveBeenCalledWith(fixture.partyId, "roomEmptied", fixture.roomAId);
+    engine.dispose();
+  });
+
+  test("a hardcore release on the start map tears down and recreates the complete map runtime", async () => {
+    const pursuerId = crypto.randomUUID();
+    const fixture = await twoMapAdventure("hardcorereset", {
+      gameMode: "hardcore_runner",
+      mapAEvents: (mapId) => [
+        presetEvent({
+          id: pursuerId,
+          col: 3,
+          row: 3,
+          ordinal: 3,
+          preset: "pursuer",
+          selfMapId: mapId,
+        }),
+      ],
+    });
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomAId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "runner-c-1");
+    await engine.join(socket);
+    const failedAttempt = roomState(engine);
+    const player = playerOf(failedAttempt, fixture.heroId);
+    const monster = failedAttempt.monsters.find((candidate) => candidate.id === `mon-${pursuerId}`);
+    if (!monster) throw new Error("authored runner pursuer missing");
+    const spawn = { x: monster.spawnX, z: monster.spawnZ, hp: monster.maxHp };
+
+    const previousMonsterPosition = { x: monster.x, z: monster.z };
+    monster.x += 4;
+    monster.z -= 2;
+    monster.hp = 1;
+    failedAttempt.monsterGrid.update(monster, previousMonsterPosition);
+    failedAttempt.consumedMovementPickupIds.add("spent-pickup");
+    failedAttempt.siteRespawnAt.set("spent-resource", 60_000);
+    failedAttempt.teleportRefusalsLogged.add("stale-teleport");
+    failedAttempt.tick = 777;
+    player.life = "corpse";
+    player.corpse = { x: player.x, y: player.y, z: player.z };
+
+    await engine.message(socket.id, { t: "release" });
+    await vi.waitFor(() => expect(socket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));
+    expect(failedAttempt.players.size).toBe(0);
+
+    // The transport reports the closed socket after the handoff. As the last socket leaves, the
+    // engine must discard the entire old object instead of keeping a manually cleaned subset.
+    await engine.leave(socket.id);
+    const retrySocket = fakeSocket(fixture.userId, fixture.heroId, "runner-c-2");
+    await engine.join(retrySocket);
+    const retry = roomState(engine);
+    const respawned = retry.monsters.find((candidate) => candidate.id === `mon-${pursuerId}`);
+
+    expect(retry).not.toBe(failedAttempt);
+    expect(retrySocket.closed).toBeUndefined();
+    expect(respawned).toMatchObject(spawn);
+    expect(retry.consumedMovementPickupIds.size).toBe(0);
+    expect(retry.siteRespawnAt.size).toBe(0);
+    expect(retry.teleportRefusalsLogged.size).toBe(0);
+    expect(retry.tick).toBe(0);
     engine.dispose();
   });
 });

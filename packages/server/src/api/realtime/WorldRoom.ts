@@ -1492,10 +1492,11 @@ export class WorldRoom {
   // -----------------------------------------------------------------------------------------------
 
   /**
-   * A hardcore release resets the party-owned run, revives the hero, then returns that hero to the
-   * adventure's authoritative first map. The ordinary release path remains the single owner of
-   * resurrection health, grace and local monster resets; this method only adds the cross-map handoff
-   * and run-state reset that "retry from zero" requires.
+   * A hardcore release resets the party-owned run, revives the hero, then always performs a real
+   * handoff to the adventure's authoritative first map â€” including when it is already this map.
+   * Closing the last socket tears the room down, so the reconnect rebuilds every map-local runtime
+   * from authored data instead of preserving projectiles, loot, event runs or stale respawn state
+   * behind a same-map shortcut. The ordinary release path remains the owner of resurrection health.
    */
   protected async retryHardcoreRun(
     room: WorldRoomHandle,
@@ -1513,7 +1514,6 @@ export class WorldRoom {
 
       await this.partyRoom.room.call(player.partyId, "restartAdventure");
       handleRelease(this.glue(room), connectionId, player);
-      if (start.mapId === state.mapId) return;
 
       player.lastTransitionAt = Date.now();
       claimedAuthorization = true;
