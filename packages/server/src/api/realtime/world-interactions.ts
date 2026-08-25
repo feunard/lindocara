@@ -75,7 +75,13 @@ import {
   removePolarityOrbsByOwner,
 } from "../../world/priest-variant-system.js";
 import { nextQuestChapter, questDefinition } from "../../world/quest-system.js";
-import { CHAT_MAX_LENGTH, displacePlayer, type PlayerRuntime } from "../../world/world-runtime.js";
+import { movePlayerInDirection } from "../../world/skill-system.js";
+import {
+  CHAT_MAX_LENGTH,
+  displacePlayer,
+  impulsePlayer,
+  type PlayerRuntime,
+} from "../../world/world-runtime.js";
 import type { QuestTurnInResult } from "./PartyRoom.ts";
 import { resurrectNearbyCorpse } from "./world-actions.ts";
 import { damagePlayerFromEvent } from "./world-combat.ts";
@@ -1174,6 +1180,37 @@ export function dispatchMovementEffect(
   sendStateTo(w, connectionId, player);
 }
 
+/** Apply a trap's server-authored displacement to its triggerer, never a client-selected target. */
+export function dispatchTrapImpulse(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "trapImpulse" }>,
+): void {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (
+    connectionId === undefined ||
+    !player?.authorized ||
+    player.transitioning ||
+    player.life !== "alive"
+  )
+    return;
+  if (effect.impulse === "push") {
+    movePlayerInDirection(
+      player,
+      { x: -player.facing.x, z: -player.facing.z },
+      effect.power,
+      zone(w.state).terrain,
+      w.state.playerGrid,
+    );
+  } else {
+    impulsePlayer(player, { x: 0, y: effect.power, z: 0 });
+    player.airborne = true;
+    player.vy = effect.power;
+  }
+  sendStateTo(w, connectionId, player);
+}
+
 /**
  * Port of `#drainEventRuns` (`world.ts:4455`): step every live run its budgeted slice, then
  * dispatch the effects that need this room's authority. State mutations are batched into ONE
@@ -1215,6 +1252,8 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         dispatchDamage(w, dispatch, effect, now);
       } else if (effect.kind === "movementEffect") {
         dispatchMovementEffect(w, dispatch, effect, now);
+      } else if (effect.kind === "trapImpulse") {
+        dispatchTrapImpulse(w, dispatch, effect);
       } else if (effect.kind === "ambience") {
         dispatchAmbience(w, effect);
       } else {

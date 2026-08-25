@@ -68,7 +68,13 @@ function mobilityGrant(player: PlayerRuntime): MobilityGrant | undefined {
  */
 function displacementStamp(player: PlayerRuntime): DisplacementStamp {
   player.displacementAnnounced = player.displacement;
-  return { seq: player.displacement, x: player.x, y: player.y, z: player.z };
+  return {
+    seq: player.displacement,
+    x: player.x,
+    y: player.y,
+    z: player.z,
+    ...(player.displacementImpulse ? { impulse: { ...player.displacementImpulse } } : {}),
+  };
 }
 
 export function selfState(

@@ -426,9 +426,9 @@ describe("EventCommandEditor", () => {
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
     // The core event language plus the authored quest/fact commands, the endAdventure beat, the
-    // `openShop` counter, the reusable damage trap and movement modifiers, the authored cue and
+    // `openShop` counter, reusable damage/impulse traps and movement modifiers, the authored cue and
     // the three ambience commands; deferred common-event and screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(27);
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(28);
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
     ).toBeEnabled();
@@ -437,6 +437,9 @@ describe("EventCommandEditor", () => {
     ).toBeEnabled();
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.movementEffect") }),
+    ).toBeEnabled();
+    expect(
+      within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.trapImpulse") }),
     ).toBeEnabled();
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();

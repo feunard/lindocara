@@ -12,6 +12,7 @@ import {
   MAX_CHOICE_OPTIONS,
   TRANSITION_CATEGORIES,
   type TransitionCategory,
+  TRAP_IMPULSE_LIMITS,
   WAIT_FRAMES_MAX,
   WAIT_FRAMES_MIN,
 } from "@lindocara/engine/event-commands.js";
@@ -101,7 +102,10 @@ const COMMAND_CATEGORIES: readonly {
   },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
-  { key: "character", kinds: ["teleport", "wait", "damage", "movementEffect"] },
+  {
+    key: "character",
+    kinds: ["teleport", "wait", "damage", "trapImpulse", "movementEffect"],
+  },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
   { key: "ambience", kinds: ["playSound", "setMusic", "setWeather", "setDayCycle"] },
   { key: "other", kinds: ["comment"] },
@@ -179,6 +183,8 @@ function defaultCommand(
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "damage":
       return { t: "damage", amount: 25, lethal: false };
+    case "trapImpulse":
+      return { t: "trapImpulse", impulse: "push", power: 2.5 };
     case "movementEffect": {
       const defaults = MOVEMENT_EFFECT_DEFAULTS.speed_boost;
       return {
@@ -429,6 +435,11 @@ function commandLine(
     case "damage":
       return t(command.lethal ? "editor.event.cmd.damage.lethal" : "editor.event.cmd.damage", {
         amount: command.amount,
+      });
+    case "trapImpulse":
+      return t("editor.event.cmd.trapImpulse", {
+        impulse: t(`editor.event.cmd.trapImpulse.${command.impulse}`),
+        power: command.power,
       });
     case "movementEffect":
       return t("editor.event.cmd.movementEffect", {
@@ -1066,6 +1077,51 @@ function ParamBody({
               <option value="off">{t("editor.event.cmd.off")}</option>
               <option value="on">{t("editor.event.cmd.on")}</option>
             </FieldSelect>
+          </Field>
+        </div>
+      );
+    case "trapImpulse":
+      return (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={t("editor.event.cmd.field.trapImpulse")}>
+            <FieldSelect
+              aria-label={t("editor.event.cmd.field.trapImpulse")}
+              className="w-36"
+              value={command.impulse}
+              onChange={(event) =>
+                onChange({
+                  ...command,
+                  impulse: event.currentTarget.value === "launch" ? "launch" : "push",
+                })
+              }
+            >
+              <option value="push">{t("editor.event.cmd.trapImpulse.push")}</option>
+              <option value="launch">{t("editor.event.cmd.trapImpulse.launch")}</option>
+            </FieldSelect>
+          </Field>
+          <Field label={t("editor.event.cmd.field.effectPower")}>
+            <NumberField
+              ariaLabel={t("editor.event.cmd.field.effectPower")}
+              className="w-24"
+              value={command.power}
+              min={TRAP_IMPULSE_LIMITS.min}
+              max={TRAP_IMPULSE_LIMITS.max}
+              step={0.25}
+              onChange={(power) => onChange({ ...command, power })}
+              onBlur={() =>
+                onChange({
+                  ...command,
+                  power: Number.isFinite(command.power)
+                    ? Math.min(
+                        TRAP_IMPULSE_LIMITS.max,
+                        Math.max(TRAP_IMPULSE_LIMITS.min, command.power),
+                      )
+                    : command.impulse === "launch"
+                      ? 12
+                      : 2.5,
+                })
+              }
+            />
           </Field>
         </div>
       );

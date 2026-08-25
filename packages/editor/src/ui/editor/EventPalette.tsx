@@ -31,6 +31,8 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   sign: "editor.event.preset.sign",
   chest: "editor.event.preset.chest",
   trap: "editor.event.preset.trap",
+  "push-trap": "editor.event.preset.pushTrap",
+  "launch-trap": "editor.event.preset.launchTrap",
   pursuer: "editor.event.preset.pursuer",
   endgame: "editor.event.preset.endgame",
   "pickup-speed-boost": "editor.event.preset.pickup.speedBoost",

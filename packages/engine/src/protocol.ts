@@ -391,6 +391,8 @@ export interface DisplacementStamp {
   x: number;
   y: number;
   z: number;
+  /** Optional server-granted velocity applied after the stamped position is adopted. */
+  impulse?: { x: number; y: number; z: number };
 }
 
 export interface SelfState {
@@ -1770,7 +1772,13 @@ function isSelfState(value: unknown): value is SelfState {
     // or malformed stamp read as zero would pin the client's echo below the room's counter forever.
     !isRecord(value.displacement) ||
     !isNonNegativeInteger(value.displacement.seq) ||
-    !isWorldPosition(value.displacement)
+    !isWorldPosition(value.displacement) ||
+    (value.displacement.impulse !== undefined &&
+      (!isRecord(value.displacement.impulse) ||
+        !isWorldPosition(value.displacement.impulse) ||
+        Math.abs(value.displacement.impulse.x as number) > 16 ||
+        Math.abs(value.displacement.impulse.y as number) > 16 ||
+        Math.abs(value.displacement.impulse.z as number) > 16))
   ) {
     return false;
   }

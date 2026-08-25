@@ -980,6 +980,7 @@ export class WorldClient {
     if (!hero) return;
     // All three axes, and momentum cut: a hero the room moved did not walk there.
     hero.teleport({ x: stamp.x, y: stamp.y, z: stamp.z });
+    if (stamp.impulse) hero.impulse(stamp.impulse);
     this.#reported = [];
     this.#rememberReportedFromHero();
     // The next report must actually go out even if it encodes identically to the one before the

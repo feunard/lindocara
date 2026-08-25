@@ -253,6 +253,7 @@ export type EventEffect =
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
   | { readonly kind: "damage"; readonly amount: number; readonly lethal: boolean }
+  | { readonly kind: "trapImpulse"; readonly impulse: "push" | "launch"; readonly power: number }
   | {
       readonly kind: "movementEffect";
       readonly effect: import("./movement-effects.js").MovementEffectKind;
@@ -506,6 +507,11 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "damage", amount: command.amount, lethal: command.lethal }],
+      };
+    case "trapImpulse":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "trapImpulse", impulse: command.impulse, power: command.power }],
       };
     case "movementEffect":
       return {

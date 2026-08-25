@@ -171,6 +171,8 @@ export interface HeroController {
    * carried into a teleport means nothing on the other side.
    */
   teleport(position: WorldPosition): void;
+  /** Applies a server-granted velocity after adopting its authoritative displacement stamp. */
+  impulse(velocity: WorldPosition): void;
   /**
    * Installs, keeps or withdraws the server's mobility grant (the S3 spec, decision 6).
    *
@@ -337,6 +339,15 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
       // hero is no longer where it was being spent.
       mobility = null;
       place(position);
+    },
+    impulse(velocity) {
+      mobility = null;
+      state.vx = velocity.x;
+      state.vy = velocity.y;
+      state.vz = velocity.z;
+      state.airborne = velocity.y > 0;
+      state.swimming = false;
+      state.gliding = false;
     },
     setMobility(grant) {
       if (!grant) {

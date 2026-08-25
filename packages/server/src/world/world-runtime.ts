@@ -443,6 +443,8 @@ export interface PlayerRuntime extends PlayerProfile {
    * runtime a cross-map handoff builds — the destination's welcome re-seeds the client from it.
    */
   displacement: number;
+  /** One server-granted velocity carried by the current displacement stamp. */
+  displacementImpulse: WorldPosition | null;
   /** The last `displacement` value actually shipped in a `SelfState`. The gap between the two is
    *  what `announceDisplacements` (`worldTick.ts`) owes the client before the next snapshot. */
   displacementAnnounced: number;
@@ -700,9 +702,17 @@ export function displacePlayer(player: PlayerRuntime, position: WorldPosition): 
   player.x = position.x;
   player.y = position.y;
   player.z = position.z;
+  player.displacementImpulse = null;
   player.displacement += 1;
   player.dirty = true;
   return true;
+}
+
+/** Stamp a server-granted velocity even when the hero remains at the same position. */
+export function impulsePlayer(player: PlayerRuntime, impulse: WorldPosition): void {
+  player.displacementImpulse = { ...impulse };
+  player.displacement += 1;
+  player.dirty = true;
 }
 
 export function newPlayer(
@@ -758,6 +768,7 @@ export function newPlayer(
     // Nobody has been moved by the room yet, and the welcome ships this same zero: the client's
     // first report echoes it back and is accepted.
     displacement: 0,
+    displacementImpulse: null,
     displacementAnnounced: 0,
     dirty: false,
     lastAttackAt:

@@ -1820,6 +1820,44 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("push and launch traps move their triggerer without dealing damage", async () => {
+    for (const [suffix, command] of [
+      ["push", { t: "trapImpulse", impulse: "push", power: 2.5 }],
+      ["launch", { t: "trapImpulse", impulse: "launch", power: 12 }],
+    ] as const) {
+      const trap = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [command]);
+      const fixture = await newPlayableParty(`${suffix}trap`, [trap]);
+      const clock = new FakeClock();
+      const engine = createEngine(fixture.roomId, clock);
+      const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+      await engine.join(socket);
+      const state = roomState(engine);
+      const player = playerOf(state, fixture.heroId);
+      const centre = authoredCellCentreGround(trap, gridSizeOf(state));
+      player.x = centre.x;
+      player.z = centre.z;
+      player.facing = { x: 1, z: 0 };
+      const hpBefore = player.hp;
+      const displacementBefore = player.displacement;
+
+      await engine.message(socket.id, { t: "interact" });
+      await advanceTickSettled(clock);
+
+      expect(player.hp).toBe(hpBefore);
+      expect(player.life).toBe("alive");
+      expect(player.displacement).toBeGreaterThan(displacementBefore);
+      expect(messagesOf(socket).some((message) => message.t === "event")).toBe(false);
+      if (command.impulse === "push") {
+        expect(player.x).toBeLessThan(centre.x);
+        expect(player.displacementImpulse).toBeNull();
+      } else {
+        expect(player.displacementImpulse).toEqual({ x: 0, y: 12, z: 0 });
+        expect(player.airborne).toBe(true);
+      }
+      engine.dispose();
+    }
+  });
+
   test("an authored infinite loop consumes at most its 16-command slice per drain; the room keeps ticking", async () => {
     const eventId = crypto.randomUUID();
     const runaway = scriptEvent(eventId, SPAWN_COL, SPAWN_ROW, "action", [

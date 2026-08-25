@@ -37,6 +37,8 @@ export const EVENT_PRESETS = [
   "sign",
   "chest",
   "trap",
+  "push-trap",
+  "launch-trap",
   "pursuer",
   "endgame",
   "pickup-speed-boost",
@@ -110,6 +112,16 @@ export function presetPageContent(
       return { trigger: "action", commands: [{ t: "changeGold", amount: CHEST_DEFAULT_GOLD }] };
     case "trap":
       return { trigger: "player-touch", commands: [{ t: "damage", amount: 25, lethal: false }] };
+    case "push-trap":
+      return {
+        trigger: "player-touch",
+        commands: [{ t: "trapImpulse", impulse: "push", power: 2.5 }],
+      };
+    case "launch-trap":
+      return {
+        trigger: "player-touch",
+        commands: [{ t: "trapImpulse", impulse: "launch", power: 12 }],
+      };
     case "pursuer":
       return { trigger: "action", commands: [] };
     case "endgame":
@@ -190,7 +202,8 @@ export function presetEvent(params: {
     params.selfSpawn,
   );
   const chest = params.preset === "chest";
-  const trap = params.preset === "trap";
+  const trap =
+    params.preset === "trap" || params.preset === "push-trap" || params.preset === "launch-trap";
   const pickupEffect = isMovementPickupPreset(params.preset)
     ? MOVEMENT_PICKUP_EFFECT[params.preset]
     : null;
@@ -201,7 +214,11 @@ export function presetEvent(params: {
     graphicAssetId: chest
       ? LINDOCARA_CHEST_CLOSED_ASSET_ID
       : trap
-        ? LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
+        ? params.preset === "push-trap"
+          ? LINDOCARA_RUNNER_ASSET_IDS.pushTrap
+          : params.preset === "launch-trap"
+            ? LINDOCARA_RUNNER_ASSET_IDS.launchTrap
+            : LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
         : pickupEffect
           ? LINDOCARA_PICKUP_ASSET_IDS[pickupEffect]
           : null,

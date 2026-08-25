@@ -88,6 +88,8 @@ export const WAIT_FRAMES_MAX = 600;
 
 /** Bounded authored environmental damage. `lethal` is an explicit separate rule. */
 export const EVENT_DAMAGE_LIMITS = { min: 1, max: 100_000 } as const;
+/** Bounded authored trap strength: tiles for a push, initial vertical speed for a launch. */
+export const TRAP_IMPULSE_LIMITS = { min: 0.25, max: 16 } as const;
 
 /**
  * An item id an authored `changeItems` grants or removes. `changeItems` only ever grants a
@@ -158,6 +160,7 @@ export type EventCommand =
   | { readonly t: "exitRun" }
   | { readonly t: "wait"; readonly frames: number }
   | { readonly t: "damage"; readonly amount: number; readonly lethal: boolean }
+  | { readonly t: "trapImpulse"; readonly impulse: "push" | "launch"; readonly power: number }
   | {
       readonly t: "movementEffect";
       readonly effect: MovementEffectKind;
@@ -383,6 +386,13 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       if (amount < EVENT_DAMAGE_LIMITS.min || amount > EVENT_DAMAGE_LIMITS.max) return null;
       if (typeof record.lethal !== "boolean") return null;
       return { t: "damage", amount, lethal: record.lethal };
+    }
+    case "trapImpulse": {
+      if (record.impulse !== "push" && record.impulse !== "launch") return null;
+      if (typeof record.power !== "number" || !Number.isFinite(record.power)) return null;
+      if (record.power < TRAP_IMPULSE_LIMITS.min || record.power > TRAP_IMPULSE_LIMITS.max)
+        return null;
+      return { t: "trapImpulse", impulse: record.impulse, power: record.power };
     }
     case "movementEffect": {
       if (!isMovementEffectKind(record.effect)) return null;

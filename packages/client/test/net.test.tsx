@@ -357,6 +357,35 @@ describe("WorldClient lifecycle", () => {
     expect(moves.at(-1)?.displacement).toBe(3);
   });
 
+  it("applies a server-granted launch impulse without inventing damage", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+
+    animate(client, (frame) => {
+      if (frame === 0) {
+        socket?.message({
+          t: "state",
+          self: {
+            ...(WELCOME as unknown as { self: Record<string, unknown> }).self,
+            displacement: { seq: 4, x: 0, y: 0, z: 0, impulse: { x: 0, y: 12, z: 0 } },
+          },
+        } as unknown as ServerMessage);
+      }
+      if (frame === 10) {
+        const launched = client.sample(0).players.find((player) => player.id === "hero-1");
+        expect(launched?.y ?? 0).toBeGreaterThan(0);
+        expect(launched?.hp).toBe(100);
+      }
+    });
+
+    const launchedMoves = movesOf(socket).filter((message) => message.displacement === 4);
+    expect(launchedMoves.some((message) => message.vy > 0)).toBe(true);
+  });
+
   it("throttles its reports no matter how often the server moves it", async () => {
     stubJoin();
     const client = new WorldClient();

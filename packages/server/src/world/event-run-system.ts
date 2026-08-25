@@ -75,6 +75,7 @@ export interface DispatchEffect {
     | { kind: "changeItems" }
     | { kind: "damage" }
     | { kind: "movementEffect" }
+    | { kind: "trapImpulse" }
     | { kind: "questFact" }
     /** Room-wide presentation: the sky, the clock, the soundtrack. It needs the room rather than
      *  the triggerer, because everyone standing in the rain is standing in the same rain. */

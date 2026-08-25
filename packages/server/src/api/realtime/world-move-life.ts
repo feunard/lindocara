@@ -129,6 +129,8 @@ export function applyReportedMove(
   player.x = move.x;
   player.y = move.y;
   player.z = move.z;
+  // Echoing the stamp proves the client adopted its one-shot velocity grant.
+  player.displacementImpulse = null;
   player.vy = move.vy;
   player.facing = { x: move.facing.x, z: move.facing.z };
   player.airborne = move.airborne;

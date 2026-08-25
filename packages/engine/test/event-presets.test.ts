@@ -50,6 +50,22 @@ describe("presetPageContent", () => {
       commands: [{ t: "damage", amount: 25, lethal: false }],
     });
   });
+
+  it("push and launch traps carry movement only and never damage", () => {
+    expect(presetPageContent("push-trap", MAP_ID)).toEqual({
+      trigger: "player-touch",
+      commands: [{ t: "trapImpulse", impulse: "push", power: 2.5 }],
+    });
+    expect(presetPageContent("launch-trap", MAP_ID)).toEqual({
+      trigger: "player-touch",
+      commands: [{ t: "trapImpulse", impulse: "launch", power: 12 }],
+    });
+    for (const preset of ["push-trap", "launch-trap"] as const) {
+      expect(
+        presetPageContent(preset, MAP_ID).commands.some((command) => command.t === "damage"),
+      ).toBe(false);
+    }
+  });
 });
 
 describe("presetEvent", () => {
@@ -135,6 +151,31 @@ describe("presetEvent", () => {
         },
       ],
     });
+
+    for (const [preset, graphicAssetId, impulse, power] of [
+      ["push-trap", LINDOCARA_RUNNER_ASSET_IDS.pushTrap, "push", 2.5],
+      ["launch-trap", LINDOCARA_RUNNER_ASSET_IDS.launchTrap, "launch", 12],
+    ] as const) {
+      const movementTrap = presetEvent({
+        id: crypto.randomUUID(),
+        col: 3,
+        row: 3,
+        ordinal: 2,
+        preset,
+        selfMapId: MAP_ID,
+      });
+      expect(movementTrap).toMatchObject({
+        showMarker: false,
+        pages: [
+          {
+            trigger: "player-touch",
+            graphicAssetId,
+            commands: [{ t: "trapImpulse", impulse, power }],
+          },
+        ],
+      });
+      expect(parseMapEvents([movementTrap], 20, 15)).not.toBeNull();
+    }
 
     const pursuer = presetEvent({
       id: crypto.randomUUID(),
