@@ -85,6 +85,12 @@ yarn workspace @lindocara/renderer run test   # or: yarn test:renderer â€” 
 - No React. If a change needs a hook or JSX, it belongs in `client` or `editor`.
 - One render engine. `three`, through `@lindocara/hd2d`. Two coexisting render paths is the
   arrangement S3 spent an increment ending; do not start a second one.
+- **A new placeable 3D model must preserve the building manipulation contract.** Its renderer API
+  must consume saved position, size, free orientation and the authored destructible/indestructible
+  choice; destructible content must expose its required visual states. Do not bake a transform into
+  geometry or add a renderer-only option that the editor, map compiler and runtime collision cannot
+  reproduce. The model is incomplete until enlarge, shrink, move, rotate and destruction-state
+  round trips are covered at their owning boundaries.
 - **Catalogue sheets outlive the scene.** `Hd2dRenderer.#assetTextures` is a `createTextureCache`
   holding every scenery, world-event, editor-preview and spawn-knight texture the instance has
   decoded; `#disposeScene` must never dispose it, and only `destroy()` frees it. It exists because

@@ -103,6 +103,11 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - Keep editor chrome dense, sober and keyboard-efficient. Use the existing React/Radix primitives;
   Tiny Swords art belongs in the stage, previews and restrained accents.
 - Preserve the existing handle API and editor history semantics when adding tools.
+- **Every placeable 3D family gets the complete building manipulation UX.** Selection and the
+  inspector must support movement, enlargement, shrinking and multiple orientations (free
+  0..359-degree rotation for native 3D), plus an explicit destructible/indestructible choice when
+  authoring that content. Each gesture is previewed immediately, saved, undoable and reproduced by
+  the renderer and authoritative collision. A 3D asset without those controls is not editor-ready.
 - Markers remain deliberately quarantined in the legacy map model. Entries, exits and monsters are
   typed map events. Peasant resources are curated native scenery assets defined by
   `@lindocara/engine/harvest-presets`; the Event palette must not author new harvestable events.

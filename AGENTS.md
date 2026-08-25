@@ -206,6 +206,13 @@ is precisely why they are written down.
 11. **The canvas is not React's.** `#stage` is a sibling of `#root`, created by `bootClient()`;
     nothing in `ui/` may touch it.
 12. **Never trust a client message.** `parseClientMessage` returns `null` and the frame is dropped.
+13. **Every authored 3D placeable has the building manipulation contract.** A new 3D model is not
+    complete until an author can move it, enlarge it, shrink it and use multiple orientations (free
+    0..359-degree rotation for native 3D). Its content definition must also make destructibility an
+    explicit choice: either indestructible, or destructible with the required visual states. Saved
+    transforms and destruction state must round-trip through the editor, renderer, map compiler and
+    runtime collision; a visual-only transform is a bug. This applies to buildings, bridges, traps,
+    barricades and every future placeable 3D family. → [maps-and-editor.md](./docs/maps-and-editor.md)
 
 ## Where the rest lives
 

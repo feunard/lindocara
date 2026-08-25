@@ -133,6 +133,13 @@ plus two side handles and one rear handle; dragging any of them previews the lin
 and commits the whole gesture as one undoable edit. Newly registered native building archetypes
 inherit the controls automatically. Legacy buildings retain their stored footprint, and explicit
 dimensions share the existing transform integer, so no schema migration is required.
+This building contract is also the definition of done for every new placeable 3D family. A model
+must support movement, enlargement, shrinking and multiple orientations, and its content definition
+must explicitly choose whether it is destructible. Indestructible is a valid authored choice;
+destructible content must provide the required visual states. The editor preview, undo/redo,
+serialization, renderer, map compiler and authoritative collision must all consume the same saved
+transform and state. Adding a special-case 3D model with fewer controls, or a visual transform that
+collision does not reproduce, is not allowed.
 Native 3D scenery (all current and future native buildings, bridges, traps and barricades) also supports an
 absolute 0..359-degree rotation. The inspector exposes the exact degree value, while selection on
 the map draws a purple rotation arm that can be dragged continuously; either interaction commits as
