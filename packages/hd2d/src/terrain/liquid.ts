@@ -47,7 +47,6 @@ const DIRECTIONS = [
 
 const SURFACE_CLEARANCE = 0.012;
 const FALL_EPSILON = 0.04;
-const MAX_LAVA_BUBBLES = 160;
 
 function liquidLevel(field: HeightField, i: number, j: number): number | null {
   return field.liquidLevelAt?.(i, j) ?? null;
@@ -151,12 +150,6 @@ export function liquidFallPlacements(
 
 interface SurfaceGeometry {
   geometry: THREE.BufferGeometry;
-  lavaCells: readonly { x: number; z: number; y: number; hash: number }[];
-}
-
-function cellHash(i: number, j: number): number {
-  const value = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
-  return value - Math.floor(value);
 }
 
 function surfaceGeometry(
@@ -167,7 +160,6 @@ function surfaceGeometry(
   const positions: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
-  const lavaCells: { x: number; z: number; y: number; hash: number }[] = [];
   const halfX = field.cols / 2;
   const halfZ = field.rows / 2;
 
@@ -198,14 +190,6 @@ function surfaceGeometry(
       // Les UV sont mondiales : deux bandes adjacentes partagent le même courant sans couture.
       uvs.push(x0 / 3, z0 / 3, x1 / 3, z0 / 3, x1 / 3, z1 / 3, x0 / 3, z1 / 3);
       indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
-      if (kind === "lava") {
-        for (let cell = start; cell < end; cell++) {
-          const hash = cellHash(cell, j);
-          if (hash > 0.72 && lavaCells.length < MAX_LAVA_BUBBLES) {
-            lavaCells.push({ x: cell + 0.5 - halfX, z: j + 0.5 - halfZ, y, hash });
-          }
-        }
-      }
       i++;
     }
   }
@@ -215,7 +199,7 @@ function surfaceGeometry(
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  return { geometry, lavaCells };
+  return { geometry };
 }
 
 function cloneSurfaceTexture(source: THREE.Texture): THREE.Texture {
@@ -306,74 +290,7 @@ function createSurface(
   };
 }
 
-interface LavaBubbles {
-  points: THREE.Points | null;
-  update(dt: number): void;
-  dispose(): void;
-}
-
-function createLavaBubbles(
-  cells: readonly { x: number; z: number; y: number; hash: number }[],
-): LavaBubbles {
-  if (cells.length === 0) return { points: null, update() {}, dispose() {} };
-  const positions: number[] = [];
-  const phases: number[] = [];
-  const sizes: number[] = [];
-  for (const cell of cells) {
-    positions.push(cell.x, cell.y + SURFACE_CLEARANCE * 2, cell.z);
-    phases.push(cell.hash);
-    sizes.push(0.65 + cellHash(Math.round(cell.x * 17), Math.round(cell.z * 19)) * 0.55);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("aPhase", new THREE.Float32BufferAttribute(phases, 1));
-  geometry.setAttribute("aSize", new THREE.Float32BufferAttribute(sizes, 1));
-  const material = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: /* glsl */ `
-      attribute float aPhase;
-      attribute float aSize;
-      uniform float uTime;
-      varying float vLife;
-      void main() {
-        vLife = fract(uTime * 0.13 + aPhase);
-        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = (5.0 + 18.0 * vLife) * aSize * (32.0 / max(12.0, -mvPosition.z));
-        gl_Position = projectionMatrix * mvPosition;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      varying float vLife;
-      void main() {
-        vec2 centred = gl_PointCoord - vec2(0.5);
-        float radius = length(centred);
-        float ring = smoothstep(0.1, 0.0, abs(radius - (0.13 + vLife * 0.3)));
-        float alpha = ring * (1.0 - smoothstep(0.72, 1.0, vLife));
-        if (alpha < 0.02) discard;
-        vec3 colour = mix(vec3(1.0, 0.35, 0.03), vec3(1.0, 0.86, 0.28), vLife);
-        gl_FragColor = vec4(colour, alpha * 0.82);
-      }
-    `,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const points = new THREE.Points(geometry, material);
-  points.renderOrder = 3;
-  return {
-    points,
-    update(dt) {
-      const time = material.uniforms.uTime;
-      if (time) time.value = ((time.value as number) + dt) % 4096;
-    },
-    dispose() {
-      geometry.dispose();
-      material.dispose();
-    },
-  };
-}
-
-/** Construit toutes les surfaces liquides élevées, leurs chutes et les remous de lave. */
+/** Construit toutes les surfaces liquides élevées, leurs chutes et leurs courants animés. */
 export function createLiquidTerrain(
   ctx: Hd2dContext,
   field: HeightField,
@@ -382,7 +299,6 @@ export function createLiquidTerrain(
   const group = new THREE.Group();
   const surfaces: LiquidSurface[] = [];
   const picked: THREE.Mesh[] = [];
-  let lavaBubbleCells: { x: number; z: number; y: number; hash: number }[] = [];
 
   for (const kind of ["water", "lava"] as const) {
     const built = surfaceGeometry(field, kind, opts.levelHeight);
@@ -399,11 +315,7 @@ export function createLiquidTerrain(
     picked.push(surface.mesh);
     group.add(surface.mesh);
     if (surface.overlay) group.add(surface.overlay);
-    if (kind === "lava") lavaBubbleCells = [...built.lavaCells];
   }
-
-  const bubbles = createLavaBubbles(lavaBubbleCells);
-  if (bubbles.points) group.add(bubbles.points);
 
   const falls: Waterfall[] = liquidFallPlacements(field, opts.levelHeight, opts.waterLevel).map(
     (placement) =>
@@ -421,12 +333,10 @@ export function createLiquidTerrain(
     update(dt) {
       for (const surface of surfaces) surface.update(dt);
       for (const fall of falls) fall.update(dt);
-      bubbles.update(dt);
     },
     dispose() {
       for (const surface of surfaces) surface.dispose();
       for (const fall of falls) fall.dispose();
-      bubbles.dispose();
       group.clear();
     },
   };

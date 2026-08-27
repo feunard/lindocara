@@ -60,7 +60,7 @@ describe("liquidFallPlacements", () => {
 });
 
 describe("createLiquidTerrain", () => {
-  it("builds pickable surfaces, lava bubbles and derived falls", () => {
+  it("builds pickable surfaces and derived falls without lava rings", () => {
     const field = heightFieldFromGrid({
       size: 3,
       levels: [0, 0, 0, 0, null, null, 0, null, null],
@@ -86,6 +86,7 @@ describe("createLiquidTerrain", () => {
         .sort((a, b) => a.localeCompare(b)),
     ).toEqual(["lava", "water"]);
     expect(liquids.group.children.length).toBeGreaterThan(liquids.surfaces.length);
+    expect(liquids.group.children.some((child) => child instanceof THREE.Points)).toBe(false);
     expect(() => liquids.update(1 / 60)).not.toThrow();
 
     liquids.dispose();

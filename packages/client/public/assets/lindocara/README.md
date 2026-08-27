@@ -45,8 +45,9 @@ editor and gameplay appearance cannot drift.
 
 `hd2d/lava-surface.png` was generated in-house with OpenAI image generation from the existing
 `hd2d/tileset-lave.png` as the visual reference, then reduced with nearest-neighbour filtering. It
-is a seamless molten-current layer used by the animated lava lake and lavafall renderer; no
-third-party source art is embedded in it.
+is a seamless molten-current layer used by the animated lava lake and lavafall renderer. A second
+in-house edit removed every circular ring and bubble while preserving its irregular glowing flows;
+no third-party source art is embedded in it.
 
 Ambient music lives under `audio/`:
 
