@@ -13,6 +13,7 @@ import {
   editorAssetCollisionElevation,
   LINDOCARA_BUILDING_ASSET_IDS,
   LINDOCARA_RUNNER_ASSET_IDS,
+  LINDOCARA_STRUCTURE_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
@@ -117,6 +118,21 @@ describe("catalogue colliders", () => {
       width: 2.75,
       depth: 1.125,
     });
+  });
+
+  it("offers all cave, castle, and timber walls and ceilings as architecture", () => {
+    const architecture = PLACEABLE_EDITOR_ASSETS.filter(
+      (asset) => asset.editor.category === "architecture",
+    );
+    expect(architecture.map((asset) => asset.id)).toEqual(
+      expect.arrayContaining(Object.values(LINDOCARA_STRUCTURE_ASSET_IDS)),
+    );
+    expect(architecture).toHaveLength(6);
+    for (const asset of architecture) {
+      expect(asset.editor.native3d).toBeDefined();
+      expect(asset.editor.architecturalVolume).toBeDefined();
+      expect(asset.editor.destructibility).toBe("indestructible");
+    }
   });
 
   it("offers the seven human buildings and forty faction buildings", () => {

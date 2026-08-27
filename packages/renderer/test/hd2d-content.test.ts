@@ -22,6 +22,7 @@ import {
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "../src/hd2d/scene.js";
 import type { StaticSpriteArt } from "../src/hd2d/static-content.js";
 import { placeStaticContent } from "../src/hd2d/static-content.js";
+import { makeStructureVolume } from "../src/hd2d/structure-volumes.js";
 
 /** A square map from a row-major list of levels — `null` is water. Same shape as the billboard
  *  suite's `mapOf`, plus the two authored collections this suite is about. */
@@ -495,7 +496,7 @@ describe("staticAssetSpec", () => {
     });
   });
 
-  it("resolves cave and castle shells as native architectural volumes", () => {
+  it("resolves cave, castle, and timber shells as native architectural volumes", () => {
     expect(staticAssetSpec("building.lindocara-structure.cave-wall")).toMatchObject({
       structureVolume: "cave-wall",
       url: "/assets/lindocara/hd2d/tileset-grotte.png",
@@ -503,11 +504,18 @@ describe("staticAssetSpec", () => {
     expect(staticAssetSpec("building.lindocara-structure.castle-wall")).toMatchObject({
       structureVolume: "castle-wall",
     });
+    expect(staticAssetSpec("building.lindocara-structure.timber-wall")).toMatchObject({
+      structureVolume: "timber-wall",
+      url: "/assets/lindocara/hd2d/buildings/house-front.png",
+    });
     expect(staticAssetSpec("building.lindocara-structure.cave-ceiling")).toMatchObject({
       structureVolume: "cave-ceiling",
     });
     expect(staticAssetSpec("building.lindocara-structure.castle-ceiling")).toMatchObject({
       structureVolume: "castle-ceiling",
+    });
+    expect(staticAssetSpec("building.lindocara-structure.timber-ceiling")).toMatchObject({
+      structureVolume: "timber-ceiling",
     });
   });
 
@@ -537,6 +545,13 @@ describe("staticAssetSpec", () => {
     const ceilingBounds = new THREE.Box3().setFromObject(ceiling);
     expect(ceilingBounds.max.x - ceilingBounds.min.x).toBeGreaterThan(5.8);
     expect(ceilingBounds.min.y).toBeGreaterThan(2.49);
+
+    const timberWall = makeStructureVolume("timber-wall");
+    const timberCeiling = makeStructureVolume("timber-ceiling");
+    expect(timberWall.mesh.getObjectsByProperty("name", "timber-wall-post")).toHaveLength(4);
+    expect(timberCeiling.mesh.getObjectsByProperty("name", "timber-ceiling-beam")).toHaveLength(4);
+    timberWall.dispose();
+    timberCeiling.dispose();
   });
 
   it("grounds native runner props and keeps them independent from camera-facing billboards", () => {

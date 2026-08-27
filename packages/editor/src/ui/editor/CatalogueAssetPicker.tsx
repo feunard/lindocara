@@ -56,6 +56,7 @@ const CATEGORY_ORDER = [
   "bridges",
   "signs",
   "interior-furniture",
+  "architecture",
   "traps-and-defenses",
   "buildings",
 ] as const;
@@ -68,6 +69,7 @@ const INTERIOR_SCENERY_CATEGORIES: ReadonlySet<string> = new Set([
   "small-decor",
   "signs",
   "camp-and-treasure",
+  "architecture",
 ]);
 
 function categoryRank(category: string): number {
@@ -166,8 +168,10 @@ const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
   [LINDOCARA_RUNNER_ASSET_IDS.orcBarricade]: "editor.asset.lindocara.orcBarricade",
   [LINDOCARA_STRUCTURE_ASSET_IDS.caveWall]: "editor.asset.lindocara.caveWall",
   [LINDOCARA_STRUCTURE_ASSET_IDS.castleWall]: "editor.asset.lindocara.castleWall",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.timberWall]: "editor.asset.lindocara.timberWall",
   [LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling]: "editor.asset.lindocara.caveCeiling",
   [LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling]: "editor.asset.lindocara.castleCeiling",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.timberCeiling]: "editor.asset.lindocara.timberCeiling",
 };
 
 export function assetDisplayName(asset: EditorAssetDefinition): string {

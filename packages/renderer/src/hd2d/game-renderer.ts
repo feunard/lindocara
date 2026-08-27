@@ -59,7 +59,6 @@ import {
   LINDOCARA_PICKUP_ASSET_IDS,
   LINDOCARA_PICKUP_FLOAT_HEIGHT,
   LINDOCARA_RUNNER_ASSET_IDS,
-  LINDOCARA_STRUCTURE_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -112,6 +111,7 @@ import type { Hd2dScene } from "./scene.js";
 import { createHd2dScene, HD2D_CAMERA, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
 import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
+import type { StructureVolumeKind } from "./structure-volumes.js";
 import {
   HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
   HD2D_SPLASH_TEXTURE_URL,
@@ -718,18 +718,12 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
  * the same number the deleted PixiJS path used to stand the very same sprite on the very same cell.
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
-  const structureVolume =
-    assetId === LINDOCARA_STRUCTURE_ASSET_IDS.caveWall
-      ? "cave-wall"
-      : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.castleWall
-        ? "castle-wall"
-        : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling
-          ? "cave-ceiling"
-          : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling
-            ? "castle-ceiling"
-            : null;
+  const definition = editorAsset(assetId);
+  const architecture = definition?.editor.architecturalVolume;
+  const structureVolume = architecture
+    ? (`${architecture.style}-${architecture.kind}` as StructureVolumeKind)
+    : null;
   if (structureVolume) {
-    const definition = editorAsset(assetId);
     if (!definition) return null;
     return {
       url: definition.sourcePath,
@@ -780,7 +774,6 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
       foot: 0.02,
     };
   }
-  const definition = editorAsset(assetId);
   if (!definition) return null;
   if (assetId === LINDOCARA_INTERIOR_ASSET_IDS.rug) {
     return {

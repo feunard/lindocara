@@ -8,13 +8,21 @@ import * as THREE from "three";
 
 import type { NativeStaticVisual } from "./building-volumes.js";
 
-export type StructureVolumeKind = "cave-wall" | "castle-wall" | "cave-ceiling" | "castle-ceiling";
+export type StructureVolumeKind =
+  | "cave-wall"
+  | "castle-wall"
+  | "timber-wall"
+  | "cave-ceiling"
+  | "castle-ceiling"
+  | "timber-ceiling";
 
 const STRUCTURE_DIMENSIONS: Record<StructureVolumeKind, BuildingDimensions> = {
   "cave-wall": { width: 3, depth: 0.8 },
   "castle-wall": { width: 3, depth: 0.75 },
+  "timber-wall": { width: 3, depth: 0.65 },
   "cave-ceiling": { width: 3, depth: 3 },
   "castle-ceiling": { width: 3, depth: 3 },
+  "timber-ceiling": { width: 3, depth: 3 },
 };
 
 function disposeObject(root: THREE.Object3D): void {
@@ -131,6 +139,43 @@ function buildCastleWall(root: THREE.Group): void {
   box(root, "castle-moss-seam", [1.1, 0.05, 0.06], [-0.62, 1.01, 0.53], moss);
 }
 
+function buildTimberWall(root: THREE.Group): void {
+  const plaster = new THREE.MeshLambertMaterial({ color: 0xd9c9a7, flatShading: true });
+  const plasterShade = new THREE.MeshLambertMaterial({ color: 0xb9a782, flatShading: true });
+  const timber = new THREE.MeshLambertMaterial({ color: 0x66452f, flatShading: true });
+  const timberLight = new THREE.MeshLambertMaterial({ color: 0x8a6040, flatShading: true });
+  const stone = new THREE.MeshLambertMaterial({ color: 0x74716a, flatShading: true });
+  box(root, "timber-wall-core", [2.92, 2.42, 0.38], [0, 1.21, 0], plasterShade);
+  for (const x of [-0.92, 0, 0.92]) {
+    box(root, "timber-wall-panel", [0.78, 0.94, 0.08], [x, 0.68, 0.23], plaster);
+    box(root, "timber-wall-panel", [0.78, 0.87, 0.08], [x, 1.78, 0.23], plaster);
+  }
+  for (const x of [-1.42, -0.47, 0.47, 1.42]) {
+    box(root, "timber-wall-post", [0.18, 2.55, 0.32], [x, 1.275, 0.26], timber);
+  }
+  for (const y of [0.16, 1.22, 2.42]) {
+    box(root, "timber-wall-rail", [2.98, 0.2, 0.34], [0, y, 0.25], timberLight);
+  }
+  for (const [x, rotation] of [
+    [-0.94, -0.68],
+    [0.94, 0.68],
+  ] as const) {
+    const brace = box(root, "timber-wall-brace", [0.16, 1.38, 0.3], [x, 0.7, 0.31], timber);
+    brace.rotation.z = rotation;
+  }
+  for (let index = 0; index < 7; index++) {
+    const x = -1.27 + index * 0.42;
+    const footing = box(
+      root,
+      "timber-wall-footing",
+      [0.38, 0.25 + (index % 2) * 0.05, 0.52],
+      [x, 0.13, 0.02],
+      index % 3 === 0 ? plasterShade : stone,
+    );
+    footing.rotation.y = ((index % 3) - 1) * 0.035;
+  }
+}
+
 function buildCaveCeiling(root: THREE.Group): void {
   const stone = new THREE.MeshLambertMaterial({
     color: 0x4c575b,
@@ -210,6 +255,34 @@ function buildCastleCeiling(root: THREE.Group): void {
   }
 }
 
+function buildTimberCeiling(root: THREE.Group): void {
+  const plaster = new THREE.MeshLambertMaterial({ color: 0xcbbd9e, flatShading: true });
+  const timber = new THREE.MeshLambertMaterial({ color: 0x62422d, flatShading: true });
+  const timberLight = new THREE.MeshLambertMaterial({ color: 0x8c6342, flatShading: true });
+  const iron = new THREE.MeshLambertMaterial({ color: 0x35383c, flatShading: true });
+  box(root, "timber-ceiling-core", [2.96, 0.3, 2.96], [0, 1.6, 0], plaster);
+  for (let index = 0; index < 7; index++) {
+    const x = -1.32 + index * 0.44;
+    const plank = box(
+      root,
+      "timber-ceiling-plank",
+      [0.41, 0.1, 2.9],
+      [x, 1.79 + (index % 2) * 0.012, 0],
+      index % 3 === 0 ? timberLight : timber,
+    );
+    plank.rotation.y = ((index % 3) - 1) * 0.006;
+  }
+  for (const z of [-1.22, -0.42, 0.42, 1.22]) {
+    box(root, "timber-ceiling-beam", [2.98, 0.22, 0.2], [0, 1.37, z], timber);
+    for (const x of [-1.22, 0, 1.22]) {
+      box(root, "timber-ceiling-iron", [0.1, 0.045, 0.24], [x, 1.245, z], iron);
+    }
+  }
+  for (const x of [-1.38, 1.38]) {
+    box(root, "timber-ceiling-edge", [0.18, 0.34, 2.98], [x, 1.58, 0], timberLight);
+  }
+}
+
 export function makeStructureVolume(
   kind: StructureVolumeKind,
   orientation: ElementOrientation = 0,
@@ -232,8 +305,10 @@ export function makeStructureVolume(
 
   if (kind === "cave-wall") buildCaveWall(model);
   else if (kind === "castle-wall") buildCastleWall(model);
+  else if (kind === "timber-wall") buildTimberWall(model);
   else if (kind === "cave-ceiling") buildCaveCeiling(model);
-  else buildCastleCeiling(model);
+  else if (kind === "castle-ceiling") buildCastleCeiling(model);
+  else buildTimberCeiling(model);
 
   return {
     mesh: group,

@@ -98,7 +98,7 @@ export interface EditorPlacementMetadata {
    * a ceiling is a raised slab, while a wall rises from the terrain. */
   architecturalVolume?: {
     readonly kind: "wall" | "ceiling";
-    readonly style: "cave" | "castle";
+    readonly style: "cave" | "castle" | "timber";
     readonly height?: number;
     readonly clearance?: number;
     readonly thickness?: number;
@@ -251,8 +251,10 @@ export const LINDOCARA_RUNNER_ASSET_IDS = {
 export const LINDOCARA_STRUCTURE_ASSET_IDS = {
   caveWall: "building.lindocara-structure.cave-wall",
   castleWall: "building.lindocara-structure.castle-wall",
+  timberWall: "building.lindocara-structure.timber-wall",
   caveCeiling: "building.lindocara-structure.cave-ceiling",
   castleCeiling: "building.lindocara-structure.castle-ceiling",
+  timberCeiling: "building.lindocara-structure.timber-ceiling",
 } as const;
 export const LINDOCARA_PICKUP_ASSET_IDS = {
   speed_boost: "resource.lindocara-pickup.speed-boost",
@@ -486,33 +488,44 @@ function lindocaraRunnerProp<const Id extends string>(options: {
 
 function lindocaraStructure<const Id extends string>(options: {
   id: Id;
-  style: "cave" | "castle";
+  style: "cave" | "castle" | "timber";
   kind: "wall" | "ceiling";
   native3d: { readonly width: number; readonly depth: number };
   height?: number;
   clearance?: number;
   thickness?: number;
 }) {
-  const preview = options.style === "cave" ? "grotte" : "montagne";
+  const preview =
+    options.style === "timber"
+      ? {
+          sourcePath: "/assets/lindocara/hd2d/buildings/house-front.png",
+          width: 199,
+          height: 198,
+        }
+      : {
+          sourcePath: `/assets/lindocara/hd2d/tileset-${options.style === "cave" ? "grotte" : "montagne"}.png`,
+          width: 64,
+          height: 64,
+        };
   const { width, depth } = options.native3d;
   return {
     id: options.id,
-    sourcePath: `/assets/lindocara/hd2d/tileset-${preview}.png`,
+    sourcePath: preview.sourcePath,
     pack: "LindoCara Lab",
     domain: "building",
     category: `Lindocara/Architecture/${options.style}`,
     role: "world-architecture",
     tags: ["architecture", "generated", "hd2d", options.style, options.kind, "indestructible"],
-    width: 64,
-    height: 64,
+    width: preview.width,
+    height: preview.height,
     nature: "static",
     anchor: { x: 0.5, y: 1 },
     footOffset: 0,
     editor: {
-      category: "buildings",
+      category: "architecture",
       allowedTerrain: ["grass", "water"],
       renderLayer: "object",
-      sourceRect: { x: 0, y: 0, width: 64, height: 64 },
+      sourceRect: { x: 0, y: 0, width: preview.width, height: preview.height },
       visualFootprint: centredFootprint(width, depth),
       collider: {
         x: (-width * 64) / 2,
@@ -655,6 +668,13 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     height: 2.8,
   }),
   lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.timberWall,
+    style: "timber",
+    kind: "wall",
+    native3d: { width: 3, depth: 0.65 },
+    height: 2.55,
+  }),
+  lindocaraStructure({
     id: LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling,
     style: "cave",
     kind: "ceiling",
@@ -669,6 +689,14 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     native3d: { width: 3, depth: 3 },
     clearance: 1.5,
     thickness: 0.34,
+  }),
+  lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.timberCeiling,
+    style: "timber",
+    kind: "ceiling",
+    native3d: { width: 3, depth: 3 },
+    clearance: 1.45,
+    thickness: 0.3,
   }),
   {
     id: LINDOCARA_CAMPFIRE_ASSET_ID,

@@ -43,6 +43,7 @@ describe("ElementPalette safety budget", () => {
     );
 
     expect(screen.getByRole("option", { name: "Interior furniture" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Walls and ceilings" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Buildings" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Trees" })).toBeNull();
   });

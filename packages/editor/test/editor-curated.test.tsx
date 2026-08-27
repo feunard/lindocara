@@ -74,6 +74,24 @@ describe("editor asset catalogue", () => {
     expect(screen.getByText("Traps and defenses · Orcs and trolls (1)")).toBeVisible();
   });
 
+  it("offers cave, castle, and house shells as walls and ceilings", () => {
+    setLocale("en");
+    render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "All categories" }), {
+      target: { value: "architecture" },
+    });
+    for (const name of [
+      "Cave rock wall",
+      "Castle stone wall",
+      "Timber house wall",
+      "Cave rock ceiling",
+      "Castle stone ceiling",
+      "Timber house ceiling",
+    ]) {
+      expect(screen.getByRole("button", { name: new RegExp(name, "i") })).toBeVisible();
+    }
+  });
+
   it("labels native harvest scenery with its exact resource and reward", () => {
     setLocale("en");
     render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
