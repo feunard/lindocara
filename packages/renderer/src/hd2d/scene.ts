@@ -45,6 +45,7 @@ import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import type { HeightField } from "@lindocara/hd2d/terrain/field.js";
 import { createFoam, FOAM_SPREAD } from "@lindocara/hd2d/terrain/foam.js";
 import { heightFieldFromGrid } from "@lindocara/hd2d/terrain/height-field-from-grid.js";
+import { createLiquidTerrain } from "@lindocara/hd2d/terrain/liquid.js";
 import { meshTerrain } from "@lindocara/hd2d/terrain/mesh.js";
 import { meshStairs } from "@lindocara/hd2d/terrain/stairs.js";
 import type { Water } from "@lindocara/hd2d/terrain/water.js";
@@ -87,6 +88,7 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${HD2D_TERRAIN_ROOT}/tileset-montagne.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-volcan.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-lave.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/lava-surface.png` },
   { url: `${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
@@ -228,6 +230,9 @@ export function heightFieldFor(map: MapData): HeightField {
     size: map.size,
     levels: map.levels,
     materials: map.materials,
+    ...(map.liquids && map.liquidLevels
+      ? { liquids: map.liquids, liquidLevels: map.liquidLevels }
+      : {}),
     materialKey:
       (map.environment ?? "exterior") === "interior" ? () => "interior" : terrainAtlasKey,
   });
@@ -555,6 +560,16 @@ export function createHd2dScene(
   let stairs = stairsFor(map);
   scene.add(stairs.group);
 
+  const liquidsFor = (source: MapData, sourceField: HeightField) =>
+    createLiquidTerrain(ctx, sourceField, {
+      levelHeight: source.levelHeight,
+      waterLevel: source.waterLevel,
+      waterTexture: textures.get(`${TERRAIN_ROOT}/Water.png`),
+      lavaTexture: textures.get(`${HD2D_TERRAIN_ROOT}/lava-surface.png`),
+    });
+  let liquids = liquidsFor(map, field);
+  scene.add(liquids.group);
+
   // A plane three times wider than the grid: enough that the sea loses itself in the fog before its
   // own edge does, at every zoom.
   const water =
@@ -580,10 +595,8 @@ export function createHd2dScene(
       fps: 7,
       spread: FOAM_SPREAD,
       waterLevel: source.waterLevel,
-      // Authored game maps have no water at elevation — `HeightField.waterAt` answers `null`
-      // everywhere for them — so this only ever feeds the sea's own placement. It is required
-      // rather than optional so a map that DOES grow elevated water cannot silently draw its foam
-      // at sea level, buried inside the terrain.
+      // Each strip reads its liquid cell's tier. Sea foam keeps `waterLevel`; foam around an
+      // elevated pool stays on the authored surface instead of being buried at sea level.
       levelHeight: source.levelHeight,
     });
   let foam = foamFor(map, field);
@@ -824,6 +837,10 @@ export function createHd2dScene(
       stairs.group.removeFromParent();
       stairs = stairsFor(next);
       scene.add(stairs.group);
+      liquids.dispose();
+      liquids.group.removeFromParent();
+      liquids = liquidsFor(next, field);
+      scene.add(liquids.group);
       foam.dispose();
       foam.group.removeFromParent();
       foam = foamFor(next, field);
@@ -913,7 +930,7 @@ export function createHd2dScene(
         (child) => child.userData[AUTHORED_PICK_SURFACE] === "building",
       );
       for (const hit of raycaster.intersectObjects(
-        [terrain.group, stairs.group, water.mesh, ...authoredSurfaces],
+        [terrain.group, stairs.group, ...liquids.surfaces, water.mesh, ...authoredSurfaces],
         true,
       )) {
         const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
@@ -975,6 +992,7 @@ export function createHd2dScene(
       frameCamera();
       pushMood();
       water.update(dt);
+      liquids.update(dt);
       foam.update(dt);
       // The curtain follows what the camera looks at, not the hero: they are the same point while
       // the camera is settled, and during a fly-in it is the frame that must stay full of rain.
@@ -997,6 +1015,7 @@ export function createHd2dScene(
     dispose(): void {
       terrain.dispose();
       stairs.dispose();
+      liquids.dispose();
       // The sea is NOT disposed here — it belongs to the caller and routinely outlives this scene
       // (see this function's docblock). Putting `water.dispose()` back would free a plane the next
       // scene is about to be handed, and cost 17-23 ms to rebuild for nothing.

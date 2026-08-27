@@ -43,6 +43,11 @@ obstacles and the six movement bonus/penalty pickups; no third-party source art 
 those files. The runner pursuer itself uses the Tiny Swords war pig catalogue art above, so its
 editor and gameplay appearance cannot drift.
 
+`hd2d/lava-surface.png` was generated in-house with OpenAI image generation from the existing
+`hd2d/tileset-lave.png` as the visual reference, then reduced with nearest-neighbour filtering. It
+is a seamless molten-current layer used by the animated lava lake and lavafall renderer; no
+third-party source art is embedded in it.
+
 Ambient music lives under `audio/`:
 
 - `gloamwood-ambience.mp3`: *Forest Ambience* by TinyWorlds (Ludum Dare 29), CC0.

@@ -22,6 +22,8 @@ export interface WaterfallSheetOptions {
    *  a fall and the sea it ends in must read as one substance. Cloned internally, so the caller's
    *  registry copy keeps its own wrap/repeat/offset — same discipline as `createWater`. */
   texture: THREE.Texture;
+  /** Nature du liquide. L'eau reste la valeur par défaut pour les appels historiques du labo. */
+  kind?: "water" | "lava";
   /** World position of the sheet's centre, on the cliff face. */
   x: number;
   z: number;
@@ -81,6 +83,7 @@ export function createWaterfallSheet(
   opts: WaterfallSheetOptions,
 ): WaterfallSheet {
   const drop = opts.topY - opts.bottomY;
+  const lava = opts.kind === "lava";
   const squash = opts.lipSquash ?? 0.15;
   const flare = opts.flare ?? 0.25;
 
@@ -119,9 +122,9 @@ export function createWaterfallSheet(
       // Three tones, and all of them pitched DARK: this material is unlit and the pipeline puts
       // bloom over it, so a colour picked to look right as a swatch blows out to a flat white slab
       // on screen. `uDeep` is the fast core, `uCore` the flanks, `uFoam` the threads and the churn.
-      uDeep: { value: new THREE.Color("#15556e") },
-      uCore: { value: new THREE.Color("#2e86a8") },
-      uFoam: { value: new THREE.Color("#d6f2fb") },
+      uDeep: { value: new THREE.Color(lava ? "#4b0903" : "#15556e") },
+      uCore: { value: new THREE.Color(lava ? "#c52b05" : "#2e86a8") },
+      uFoam: { value: new THREE.Color(lava ? "#ffd34d" : "#d6f2fb") },
       // How many times the texture repeats down the fall. Derived from the drop so a tall sheet
       // does not stretch one tile over its whole height — the very smear `mesh.ts` accepts for a
       // cliff face and which would read as a frozen curtain here.
@@ -213,7 +216,7 @@ export function createWaterfallSheet(
   // Drawn after the opaque terrain, so the depth buffer is already populated when it lands.
   mesh.renderOrder = 1;
 
-  const speed = opts.speed ?? 1.6;
+  const speed = opts.speed ?? (lava ? 0.58 : 1.6);
 
   return {
     mesh,
@@ -253,6 +256,7 @@ export interface Waterfall {
 /** A fall: the sheet, and the ring where it strikes the water below. */
 export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Waterfall {
   const sheet = createWaterfallSheet(ctx, opts);
+  const lava = opts.kind === "lava";
 
   const [nx, nz] = FACE_NORMAL[opts.facing];
   const offset = opts.poolOffset ?? 0.5;
@@ -265,7 +269,7 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
   const ringGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
   ringGeometry.rotateX(-Math.PI / 2);
   const ringMaterial = new THREE.MeshBasicMaterial({
-    color: 0xdff4fb,
+    color: lava ? 0xffb21c : 0xdff4fb,
     transparent: true,
     opacity: 0.32,
     depthWrite: false,
@@ -286,7 +290,7 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
       sheet.update(dt);
       phase = (phase + dt * 0.9) % 1;
       ring.scale.setScalar(0.5 + phase * 1.5);
-      ringMaterial.opacity = 0.32 * (1 - phase);
+      ringMaterial.opacity = (lava ? 0.42 : 0.32) * (1 - phase);
     },
     dispose() {
       sheet.dispose();

@@ -10,10 +10,38 @@ import { describe, expect, it } from "vitest";
 import {
   cameraFocusSurface,
   editorGroundPickPoint,
+  heightFieldFor,
   terrainAtlasKey,
   terrainGroupFor,
   waterPlaneKey,
 } from "../src/hd2d/scene.js";
+
+describe("heightFieldFor liquids", () => {
+  it("keeps authored water and lava out of the ground mesh at their own tiers", () => {
+    const source: MapData = {
+      version: 1,
+      size: 2,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: [0, null, null, 1],
+      materials: ["herbe", "herbe", "lave", "herbe"],
+      liquids: [null, "water", "lava", null],
+      liquidLevels: [null, 2, 3, null],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+
+    const field = heightFieldFor(source);
+    expect(field.levelAt(1, 0)).toBeNull();
+    expect(field.levelAt(0, 1)).toBeNull();
+    expect(field.liquidAt?.(1, 0)).toBe("water");
+    expect(field.liquidAt?.(0, 1)).toBe("lava");
+    expect(field.liquidLevelAt?.(1, 0)).toBe(2);
+    expect(field.liquidLevelAt?.(0, 1)).toBe(3);
+  });
+});
 
 describe("editor ground picking", () => {
   /** A cliff at x = 2 whose west foot stands on the ground and whose east top is `top` up. */

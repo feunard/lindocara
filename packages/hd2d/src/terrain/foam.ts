@@ -103,6 +103,7 @@ export function foamPlacements(
       const elevated: { dir: readonly [number, number]; level: number }[] = [];
       for (const [di, dj] of NEIGHBORS_4) {
         if (field.levelAt(i + di, j + dj) !== null) continue;
+        if (field.liquidAt && field.liquidAt(i + di, j + dj) !== "water") continue;
         const w = field.waterAt?.(i + di, j + dj);
         if (w === null || w === undefined) sea = true;
         else elevated.push({ dir: [di, dj], level: w });

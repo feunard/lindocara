@@ -7,13 +7,17 @@ export interface HeightField {
   levelAt(i: number, j: number): number | null;
   /** Clé de matière — sert à choisir l'atlas et à ouvrir les arêtes entre matières. */
   materialAt(i: number, j: number): string | null;
+  /** Nature du liquide occupant une case sans sol, si la source la distingue. */
+  liquidAt?(i: number, j: number): "water" | "lava" | null;
+  /** Palier de surface d'un liquide, ou null pour la mer globale du monde. */
+  liquidLevelAt?(i: number, j: number): number | null;
   /**
-   * For a WATER cell (`levelAt` is `null`), the level its surface sits at — or `null`/absent when
-   * that water is the world's own sea.
+   * Pour une case d'EAU (`levelAt` vaut `null`), palier de sa surface — ou `null`/absent quand
+   * cette eau est la mer globale du monde.
    *
-   * This is what lets water exist somewhere other than sea level. Without it a hole in the terrain
-   * always means "the ocean, far below": `wallDrop` sends the surrounding walls down their full
-   * height, and a pool cut into a summit opens a shaft to the sea rather than holding water.
+   * C'est ce qui permet une eau ailleurs qu'au niveau marin. Sans lui un trou signifie toujours
+   * « l'océan, tout en bas » : `wallDrop` descend les parois sur toute leur hauteur et un bassin
+   * creusé au sommet ouvre un puits vers la mer au lieu de retenir l'eau.
    */
   waterAt?(i: number, j: number): number | null;
 }
@@ -94,11 +98,11 @@ export function wallDrop(field: HeightField, i: number, j: number, di: number, d
   if (h === null) return 0;
   const n = field.levelAt(i + di, j + dj);
   if (n === null) {
-    // Water. It stops the wall at its own surface, not at the sea: a pool cut into a summit is a
-    // hole one would otherwise see all the way down to the ocean, through a four-level shaft.
-    const water = field.waterAt?.(i + di, j + dj);
-    if (water === null || water === undefined) return h;
-    return water < h ? h - water : 0;
+    // Un liquide arrête la paroi à sa propre surface, pas à celle de la mer : sans cela un bassin
+    // de sommet laisse voir l'océan au fond d'un puits de plusieurs paliers.
+    const liquid = field.liquidLevelAt?.(i + di, j + dj) ?? field.waterAt?.(i + di, j + dj);
+    if (liquid === null || liquid === undefined) return h;
+    return liquid < h ? h - liquid : 0;
   }
   return n < h ? h - n : 0;
 }
