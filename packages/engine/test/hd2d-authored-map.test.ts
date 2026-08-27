@@ -17,7 +17,12 @@ import {
 import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
-import { TERRAIN_MATERIAL_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
+import {
+  terrainFixedIndex,
+  TERRAIN_MATERIAL_SLOTS,
+  TINY_SWORDS_TILESET_ID,
+  waterFixedIndex,
+} from "../src/tilesets/tiny-swords.js";
 import {
   editorAsset,
   LINDOCARA_BUILDING_ASSET_IDS,
@@ -157,6 +162,18 @@ describe("compileAuthoredMap", () => {
       "herbe",
       "herbe",
     ]);
+    expect(compiled.liquids).toEqual([
+      null,
+      null,
+      "water",
+      null,
+      null,
+      null,
+      "water",
+      "water",
+      "water",
+    ]);
+    expect(compiled.liquidLevels).toEqual(Array(9).fill(null));
     expect(compiled.spawns).toEqual([{ name: "default", x: -1, z: -1 }]);
     expect(compiled.elements).toEqual([
       {
@@ -174,6 +191,36 @@ describe("compileAuthoredMap", () => {
         graphicAssetId: "resource.terrain-resources-wood-trees.tree3",
       },
     ]);
+  });
+
+  it("preserves raised water and lava as liquid surfaces instead of ground", () => {
+    const size = 3;
+    const ground = emptyLayer(size, size);
+    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    ground.ids[4] = fixedId(waterFixedIndex(2));
+    ground.ids[5] = fixedId(terrainFixedIndex("lave", 3));
+    const compiled = compileAuthoredMap({
+      ...authored(),
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [],
+      spawn: { col: 0, row: 0 },
+    });
+
+    expect(compiled.levels[4]).toBeNull();
+    expect(compiled.levels[5]).toBeNull();
+    expect(compiled.liquids?.[4]).toBe("water");
+    expect(compiled.liquids?.[5]).toBe("lava");
+    expect(compiled.liquidLevels?.[4]).toBe(2);
+    expect(compiled.liquidLevels?.[5]).toBe(3);
+
+    const terrain = zoneTerrainFromHeightfield(compiled);
+    expect(terrain.query.heightAt(0, 0)).toBeNull();
+    expect(terrain.query.liquidAt(0, 0)).toBe("water");
+    expect(terrain.query.waterLevelAt(0, 0)).toBeCloseTo(1.8);
+    expect(terrain.query.liquidAt(1, 0)).toBe("lava");
+    expect(terrain.query.waterLevelAt(1, 0)).toBeCloseTo(2.7);
   });
 
   it("recompiles content and collision while reusing unchanged terrain arrays", () => {

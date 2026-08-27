@@ -1936,7 +1936,6 @@ function AdventureEditorInner({
               field={{
                 content,
                 terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
-                fillActive: toolKey === "fill",
                 stairsActive: toolKey === "stairs",
                 spawnActive: toolKey === "spawn",
                 onPickContent: pickContent,

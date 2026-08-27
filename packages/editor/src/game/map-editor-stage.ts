@@ -162,7 +162,7 @@ export interface MapEditorStageHandle {
 
 function supportsWheelElevation(tool: EditorTool): boolean {
   const content = tool.kind === "rect" || tool.kind === "fill" ? tool.content : tool;
-  return content.kind === "elevation" || (content.kind === "block" && content.block === "grass");
+  return content.kind === "elevation" || content.kind === "block";
 }
 
 export interface MapEditorStageState {

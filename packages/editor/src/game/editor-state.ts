@@ -97,19 +97,21 @@ import {
 import {
   type ElevationStep,
   elevationStepTarget,
-  eraseRect,
   eraseTile,
   floodFillTerrain,
+  floodFillWater,
   groundElevationAt,
   inferStairsPlacement,
   paintElevation,
   paintOneCellRamp,
   paintTerrain,
   paintTerrainLayer,
+  paintWaterLayer,
   type RampDirection,
   resolveWholeLayer,
   syncElevationWalls,
   terrainFloodRegion,
+  waterFloodRegion,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -1434,6 +1436,26 @@ function erasedTerrain(map: EditorMap, col: number, row: number): TileLayer[] | 
   return syncElevationWalls([erased, ...map.layers.slice(1)], TINY_SWORDS_TILESET, col, row);
 }
 
+/** Surface tier preserved when ground becomes water. The legacy empty sea has no authored tier,
+ * but painting it again starts at zero rather than at negative infinity. */
+function surfaceElevationAt(ground: TileLayer, col: number, row: number): number {
+  const elevation = groundElevationAt(ground, col, row);
+  return isGroundElevation(elevation) ? elevation : 0;
+}
+
+function paintedWater(map: EditorMap, col: number, row: number): TileLayer[] | null {
+  const ground = map.layers[GROUND_LAYER];
+  if (!ground) return null;
+  const painted = paintWaterLayer(
+    ground,
+    TINY_SWORDS_TILESET,
+    surfaceElevationAt(ground, col, row),
+    col,
+    row,
+  );
+  return syncElevationWalls([painted, ...map.layers.slice(1)], TINY_SWORDS_TILESET, col, row);
+}
+
 /**
  * Field-mode eraser: clear the ground at one cell (with cliff-wall upkeep) and keep the spawn on
  * walkable ground, but — unlike a paint stroke's `commitTerrain` — never drop an element standing
@@ -1634,12 +1656,19 @@ function paintRectContent(
   c1: number,
   r1: number,
 ): TileLayer {
-  if (content.kind === "block" && content.block === "water") {
-    return eraseRect(ground, TINY_SWORDS_TILESET, c0, r0, c1, r1);
-  }
   let layer = ground;
   for (let row = r0; row <= r1; row += 1) {
     for (let col = c0; col <= c1; col += 1) {
+      if (content.kind === "block" && content.block === "water") {
+        layer = paintWaterLayer(
+          layer,
+          TINY_SWORDS_TILESET,
+          surfaceElevationAt(layer, col, row),
+          col,
+          row,
+        );
+        continue;
+      }
       const target = contentTarget(content, layer, col, row);
       if (target === null) continue;
       layer = paintTerrainLayer(
@@ -1664,6 +1693,15 @@ function fillContent(
   col: number,
   row: number,
 ): TileLayer | null {
+  if (content.kind === "block" && content.block === "water") {
+    return floodFillWater(
+      ground,
+      TINY_SWORDS_TILESET,
+      surfaceElevationAt(ground, col, row),
+      col,
+      row,
+    );
+  }
   // One slot for the whole region, resolved at the CLICKED cell, and that is exact rather than an
   // approximation: a flood region is by definition every cell sharing the origin's slot, so every
   // cell in it stands at the same level and a relative step reaches the same target from all of them.
@@ -1672,10 +1710,16 @@ function fillContent(
   return floodFillTerrain(ground, TINY_SWORDS_TILESET, target.material, target.level, col, row);
 }
 
-function wheelTerrainMaterial(tool: EditorTool): TerrainMaterial | null {
+type WheelTerrainTarget = { kind: "ground"; material: TerrainMaterial } | { kind: "water" };
+
+function wheelTerrainTarget(tool: EditorTool): WheelTerrainTarget | null {
   const content = tool.kind === "rect" || tool.kind === "fill" ? tool.content : tool;
-  if (content.kind === "block") return content.block === "grass" ? "herbe" : null;
-  return content.kind === "elevation" ? (content.material ?? "herbe") : null;
+  if (content.kind === "block") {
+    return content.block === "grass" ? { kind: "ground", material: "herbe" } : { kind: "water" };
+  }
+  return content.kind === "elevation"
+    ? { kind: "ground", material: content.material ?? "herbe" }
+    : null;
 }
 
 /** Raise or lower the terrain footprint currently held under the pointer. The source snapshot is
@@ -1689,9 +1733,9 @@ export function adjustTerrainToolElevation(
   direction: Exclude<ElevationStep, "keep">,
   source: EditorMap = map,
 ): EditorMap | null {
-  const material = wheelTerrainMaterial(tool);
+  const targetKind = wheelTerrainTarget(tool);
   const ground = map.layers[GROUND_LAYER];
-  if (!material || !ground) return null;
+  if (!targetKind || !ground) return null;
 
   let cells: { col: number; row: number }[];
   if (tool.kind === "rect") {
@@ -1708,7 +1752,10 @@ export function adjustTerrainToolElevation(
   } else if (tool.kind === "fill") {
     const sourceGround = source.layers[GROUND_LAYER];
     if (!sourceGround) return null;
-    cells = terrainFloodRegion(sourceGround, col, row);
+    cells =
+      targetKind.kind === "water"
+        ? waterFloodRegion(sourceGround, col, row)
+        : terrainFloodRegion(sourceGround, col, row);
   } else if (tool.kind === "block" || tool.kind === "elevation") {
     cells = [{ col, row }];
   } else {
@@ -1717,9 +1764,23 @@ export function adjustTerrainToolElevation(
 
   let painted = ground;
   for (const cell of cells) {
-    const target = elevationStepTarget(direction, groundElevationAt(painted, cell.col, cell.row));
+    const current =
+      targetKind.kind === "water"
+        ? surfaceElevationAt(painted, cell.col, cell.row)
+        : groundElevationAt(painted, cell.col, cell.row);
+    const target = elevationStepTarget(direction, current);
     if (target === null) continue;
-    painted = paintTerrainLayer(painted, TINY_SWORDS_TILESET, material, target, cell.col, cell.row);
+    painted =
+      targetKind.kind === "water"
+        ? paintWaterLayer(painted, TINY_SWORDS_TILESET, target, cell.col, cell.row)
+        : paintTerrainLayer(
+            painted,
+            TINY_SWORDS_TILESET,
+            targetKind.material,
+            target,
+            cell.col,
+            cell.row,
+          );
   }
   const bounds = changedBounds(ground, painted);
   if (!bounds) return map;
@@ -1882,7 +1943,7 @@ export function applyTool(
       const layers =
         tool.block === "grass"
           ? paintElevation(map.layers, TINY_SWORDS_TILESET, 0, col, row)
-          : erasedTerrain(map, col, row);
+          : paintedWater(map, col, row);
       if (!layers) return null;
       return commitTerrain(map, layers);
     }
@@ -2371,6 +2432,11 @@ export function placementLegalAt(
   if (tool.kind === "fill") {
     const { cols, rows } = editorMapSize(map);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+    // Filling with water may cover the technical spawn, so unlike a material fill its legality is
+    // not position-independent. Run the real mutation path and keep preview/click agreement.
+    if (tool.content.kind === "block" && tool.content.block === "water") {
+      return applyTool(map, tool, col, row, true, mode) !== null;
+    }
     const ground = map.layers[GROUND_LAYER];
     return ground !== undefined && contentTarget(tool.content, ground, col, row) !== null;
   }

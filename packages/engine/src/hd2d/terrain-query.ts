@@ -142,6 +142,11 @@ export interface TerrainQuerySource {
   at(i: number, j: number): number | null;
   /** Material of cell (i, j), or `null` off-grid / water. */
   kindAt(i: number, j: number): TerrainMaterial | null;
+  /** Explicit liquid kind. Optional so legacy maps still infer sea from absent ground and lava
+   * from its retired ground-material encoding. */
+  liquidAt?(i: number, j: number): TerrainLiquid | null;
+  /** Authored liquid surface tier, or `null` for the world's global sea / dry terrain. */
+  liquidLevelAt?(i: number, j: number): number | null;
   /** For a WATER cell, the LEVEL tier its surface sits at — or `null`/absent for the world's sea.
    *  See `TerrainQuery.waterLevelAt`. */
   waterAt?(i: number, j: number): number | null;
@@ -194,7 +199,18 @@ const THREELESS_CLAMP = (value: number): number => Math.max(0, Math.min(1, value
  * the cell-indexed accessors, this function only converts them into WORLD-coordinate queries.
  */
 export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
-  const { size, levelHeight, waterLevel, at, kindAt, waterAt, ramps = [], platforms = [] } = source;
+  const {
+    size,
+    levelHeight,
+    waterLevel,
+    at,
+    kindAt,
+    liquidAt: sourceLiquidAt,
+    liquidLevelAt,
+    waterAt,
+    ramps = [],
+    platforms = [],
+  } = source;
   const c = size / 2;
   const toCell = (w: number) => Math.floor(w + c);
   const groundHeightAt = (wx: number, wz: number): number | null => {
@@ -203,11 +219,17 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     const h = at(toCell(wx), toCell(wz));
     return h === null ? null : h * levelHeight;
   };
+  const cellLiquidAt = (i: number, j: number): TerrainLiquid | null => {
+    const explicit = sourceLiquidAt?.(i, j);
+    if (explicit) return explicit;
+    // Backward compatibility for heightfields produced before liquids had their own grid.
+    if (kindAt(i, j) === "lave") return "lava";
+    return at(i, j) === null ? "water" : null;
+  };
   const liquidAt = (wx: number, wz: number): TerrainLiquid | null => {
     const i = toCell(wx);
     const j = toCell(wz);
-    if (kindAt(i, j) === "lave") return "lava";
-    return at(i, j) === null ? "water" : null;
+    return cellLiquidAt(i, j);
   };
   const platformAt = (wx: number, wz: number, ceilingY: number): number | null => {
     let top: number | null = null;
@@ -255,7 +277,15 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
           // `r = 0`, latent for as long as only `HERO.radius = 0.3` ever called this function.
           if ((nx - wx) ** 2 + (nz - wz) ** 2 > r * r) continue;
           const h = at(i, j);
-          max = Math.max(max, h === null ? waterLevel : h * levelHeight);
+          const liquidLevel = liquidLevelAt?.(i, j);
+          max = Math.max(
+            max,
+            h === null
+              ? liquidLevel === null || liquidLevel === undefined
+                ? waterLevel
+                : liquidLevel * levelHeight
+              : h * levelHeight,
+          );
         }
       }
       if (ceilingY !== undefined) {
@@ -343,11 +373,15 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       return [i + 0.5 - c, j + 0.5 - c];
     },
     waterLevelAt(wx, wz) {
-      if (liquidAt(wx, wz) === "lava") {
-        const level = at(toCell(wx), toCell(wz));
-        if (level !== null) return level * levelHeight;
+      const i = toCell(wx);
+      const j = toCell(wz);
+      const liquidLevel = liquidLevelAt?.(i, j);
+      if (liquidLevel !== null && liquidLevel !== undefined) return liquidLevel * levelHeight;
+      if (cellLiquidAt(i, j) === "lava") {
+        const legacyLevel = at(i, j);
+        if (legacyLevel !== null) return legacyLevel * levelHeight;
       }
-      const w = waterAt?.(toCell(wx), toCell(wz));
+      const w = waterAt?.(i, j);
       return w === null || w === undefined ? waterLevel : w * levelHeight;
     },
   };

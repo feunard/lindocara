@@ -61,6 +61,7 @@ import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
+  CLIFF_WATER_SLOT,
   GRASS_SLOTS,
   isRampFixedIndex,
   MAX_TERRAIN_LEVEL,
@@ -68,6 +69,7 @@ import {
   oneCellRampFixedIndex,
   TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
+  waterLevelOfTileId,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
@@ -647,13 +649,16 @@ describe("applyTool: rect", () => {
     expect(undoEditorHistory(history).present).toEqual(base);
   });
 
-  it("erases the ground under a water rectangle and takes the wall away with it", () => {
+  it("preserves each cell's elevation under a water rectangle", () => {
     const raised = place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 2, 2) as EditorMap;
     const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
     let map = place(raised, tool, 1, 1, true) as EditorMap;
     map = place(map, tool, 3, 3, false) as EditorMap;
     expect(groundSlot(map, 2, 2)).toBe(-1);
-    expect(wallSlot(map, 2, 3)).toBe(-1);
+    expect(waterLevelOfTileId(map.layers[0]?.ids[2 * 20 + 2] ?? 0)).toBe(1);
+    // The lower neighbour still carries the drop. The renderer turns the liquid edge above it
+    // into a waterfall; losing the elevation here would flatten both back to the sea.
+    expect(wallSlot(map, 2, 3)).toBe(CLIFF_WATER_SLOT);
   });
 
   it("refuses a drag cell with no open stroke", () => {
@@ -870,11 +875,12 @@ describe("applyTool: elevation", () => {
     expect(wallSlot(flattened as EditorMap, 5, 7)).toBe(-1);
   });
 
-  it("takes the wall away when the raised ground is erased entirely", () => {
+  it("turns raised ground into raised water without flattening its edge", () => {
     const raised = place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 5, 6);
     const erased = place(raised as EditorMap, { kind: "block", block: "water" }, 5, 6);
     expect(groundSlot(erased as EditorMap, 5, 6)).toBe(-1);
-    expect(wallSlot(erased as EditorMap, 5, 7)).toBe(-1);
+    expect(waterLevelOfTileId((erased as EditorMap).layers[0]?.ids[6 * 20 + 5] ?? 0)).toBe(1);
+    expect(wallSlot(erased as EditorMap, 5, 7)).toBe(CLIFF_WALL_SLOT);
   });
 
   it("refuses a stroke whose cliff wall would land on the spawn", () => {
@@ -2076,9 +2082,10 @@ describe("placementLegalAt: fill short-circuit (perf)", () => {
     expect(placementLegalAt(FILL_GRASS, map, 19, 14)).toBe(true);
   });
 
-  it("illegal when the content has no fill slot (water), and out of bounds", () => {
+  it("supports water fill and still rejects out-of-bounds targets", () => {
     const map = blankMap("m", 20, 15);
-    expect(placementLegalAt(FILL_WATER, map, 3, 4)).toBe(false);
+    const isolated = place(map, { kind: "elevation", level: 1 }, 3, 4) as EditorMap;
+    expect(placementLegalAt(FILL_WATER, isolated, 3, 4)).toBe(true);
     expect(placementLegalAt(FILL_GRASS, map, -1, 4)).toBe(false);
     expect(placementLegalAt(FILL_GRASS, map, 20, 4)).toBe(false);
   });

@@ -13,7 +13,6 @@ function fieldBody() {
   return {
     content: { kind: "block" as const, block: "grass" as const },
     terrainActive: true,
-    fillActive: false,
     stairsActive: false,
     stairsDirection: "east" as const,
     stairsLowLevel: 0 as const,

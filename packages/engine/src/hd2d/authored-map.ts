@@ -38,11 +38,15 @@ import {
 } from "../tile-brush.js";
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
-import { oneCellRampDescriptor, terrainDescriptorOfTileId } from "../tilesets/tiny-swords.js";
+import {
+  oneCellRampDescriptor,
+  terrainDescriptorOfTileId,
+  waterLevelOfTileId,
+} from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
-import type { TerrainMaterial, TerrainRamp } from "./terrain-query.js";
+import type { TerrainLiquid, TerrainMaterial, TerrainRamp } from "./terrain-query.js";
 
 export const AUTHORED_LEVEL_HEIGHT = 0.9;
 export const AUTHORED_WATER_LEVEL = -0.05;
@@ -96,10 +100,24 @@ function authoredLevel(id: number): number | null {
   const tile = decodeTileId(id);
   if (tile.kind === "empty") return null;
   const terrain = terrainDescriptorOfTileId(id);
+  if (terrain?.material === "lave" || waterLevelOfTileId(id) !== null) return null;
   if (terrain) return terrain.level;
   // Fixed ground art is uncommon (ramps live on the wall layer), but a valid fixed tile is land,
   // never an invisible hole. Its supporting elevation remains the ground layer's base level.
   return 0;
+}
+
+function authoredLiquid(id: number): TerrainLiquid | null {
+  const tile = decodeTileId(id);
+  if (tile.kind === "empty" || waterLevelOfTileId(id) !== null) return "water";
+  return terrainDescriptorOfTileId(id)?.material === "lave" ? "lava" : null;
+}
+
+function authoredLiquidLevel(id: number): number | null {
+  const water = waterLevelOfTileId(id);
+  if (water !== null) return water;
+  const terrain = terrainDescriptorOfTileId(id);
+  return terrain?.material === "lave" ? terrain.level : null;
 }
 
 function authoredMaterial(id: number): TerrainMaterial {
@@ -114,7 +132,7 @@ export function isAuthoredWaterCell(
 ): boolean {
   if (col < 0 || row < 0 || col >= authored.cols || row >= authored.rows) return false;
   const ground = authored.layers[0];
-  return authoredLevel(ground?.ids[row * authored.cols + col] ?? 0) === null;
+  return authoredLiquid(ground?.ids[row * authored.cols + col] ?? 0) === "water";
 }
 
 /**
@@ -689,6 +707,8 @@ export function compileAuthoredMap(
   const cells = size * size;
   const levels: Array<number | null> = new Array<number | null>(cells).fill(null);
   const materials = new Array<TerrainMaterial>(cells).fill("herbe");
+  const liquids = new Array<TerrainLiquid | null>(cells).fill("water");
+  const liquidLevels = new Array<number | null>(cells).fill(null);
   const ground = authored.layers[0];
 
   for (let row = 0; row < authored.rows; row += 1) {
@@ -697,6 +717,8 @@ export function compileAuthoredMap(
       const id = ground?.ids[row * authored.cols + col] ?? 0;
       levels[index] = authoredLevel(id);
       materials[index] = authoredMaterial(id);
+      liquids[index] = authoredLiquid(id);
+      liquidLevels[index] = authoredLiquidLevel(id);
     }
   }
 
@@ -709,6 +731,8 @@ export function compileAuthoredMap(
     waterLevel: AUTHORED_WATER_LEVEL,
     levels,
     materials,
+    liquids,
+    liquidLevels,
     ramps: authoredRamps(authored, size),
     ...authoredContent(authored, events, levels, size),
   };

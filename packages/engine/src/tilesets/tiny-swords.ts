@@ -226,6 +226,17 @@ export const FIXED_TERRAIN_BASE = RAMP_ONE_CELL_FIXED_BASE + RAMP_ONE_CELL_FIXED
 export const FIXED_TERRAIN_LEVEL_COUNT = TERRAIN_LEVELS + SUNKEN_TERRAIN_LEVELS;
 export const FIXED_TERRAIN_COUNT = FIXED_TERRAIN_MATERIALS.length * FIXED_TERRAIN_LEVEL_COUNT;
 
+/**
+ * Elevated authored water, appended after every historical fixed-terrain id.
+ *
+ * Level zero deliberately keeps using `EMPTY_TILE`: it is the sea representation every stored map
+ * already carries. Only a water surface whose elevation must survive saving needs an id of its own.
+ * Reserving the complete authored range keeps the arithmetic direct for raised pools and sunken
+ * basins, while the level-zero entry remains a semantic alias that is never written.
+ */
+export const WATER_FIXED_BASE = FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT;
+export const WATER_FIXED_COUNT = FIXED_TERRAIN_LEVEL_COUNT;
+
 export interface FixedTerrainDescriptor {
   material: (typeof FIXED_TERRAIN_MATERIALS)[number];
   level: number;
@@ -263,6 +274,31 @@ export function fixedTerrainDescriptor(index: number): FixedTerrainDescriptor | 
     material,
     level: (offset % FIXED_TERRAIN_LEVEL_COUNT) - SUNKEN_TERRAIN_LEVELS,
   };
+}
+
+/** Stable fixed index for authored water at one non-zero elevation. Level zero stays `EMPTY_TILE`. */
+export function waterFixedIndex(level: number): number {
+  if (
+    !Number.isSafeInteger(level) ||
+    level === 0 ||
+    level < -SUNKEN_TERRAIN_LEVELS ||
+    level >= TERRAIN_LEVELS
+  ) {
+    return -1;
+  }
+  return WATER_FIXED_BASE + level + SUNKEN_TERRAIN_LEVELS;
+}
+
+/** Elevation encoded by an authored-water fixed id, or `null` for every other fixed tile. */
+export function waterFixedLevel(index: number): number | null {
+  if (
+    !Number.isSafeInteger(index) ||
+    index < WATER_FIXED_BASE ||
+    index >= WATER_FIXED_BASE + WATER_FIXED_COUNT
+  ) {
+    return null;
+  }
+  return index - WATER_FIXED_BASE - SUNKEN_TERRAIN_LEVELS;
 }
 
 /** The stable id of a one-cell ramp, or -1 for a direction/level pair outside the band. */
@@ -577,6 +613,19 @@ export const TINY_SWORDS_TILESET: Tileset = {
         };
       }),
     ),
+    // Elevated water is rendered by the HD-2D liquid surface, not by the retired tile path. These
+    // invisible entries exist so the authored layer can persist the surface tier without inventing
+    // a second per-cell document beside its tile ids. Level zero is declared too for dense stable
+    // arithmetic, although `waterFixedIndex(0)` deliberately writes `EMPTY_TILE` instead.
+    ...Array.from({ length: WATER_FIXED_COUNT }, () => ({
+      atlas: ATLAS,
+      col: 0,
+      row: 0,
+      passable: true,
+      priority: "below" as const,
+      renderLevel: 0 as const,
+      visible: false,
+    })),
   ],
 };
 
@@ -648,6 +697,18 @@ export function terrainDescriptorOfTileId(id: number): TerrainTileDescriptor | n
   if (RETIRED_THIN_ICE_SLOTS.has(ref.slot)) return { material: "glace", level: 0 };
   const level = elevationOfSlot(ref.slot);
   return isGroundElevation(level) ? { material: materialOfSlot(ref.slot), level } : null;
+}
+
+/**
+ * Authored water surface tier carried by one ground-layer tile id.
+ *
+ * `EMPTY_TILE` is the legacy/global sea and therefore has no authored tier; callers that need a
+ * painting baseline treat it as level zero, while the heightfield compiler keeps `null` so the
+ * world's configured `waterLevel` remains authoritative.
+ */
+export function waterLevelOfTileId(id: number): number | null {
+  const ref = decodeTileId(id);
+  return ref.kind === "fixed" ? waterFixedLevel(ref.index) : null;
 }
 
 /**

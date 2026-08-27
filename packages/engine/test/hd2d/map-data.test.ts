@@ -43,6 +43,25 @@ describe("the map codec", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
   });
 
+  it("round-trips explicit liquid surfaces and rejects ambiguous grids", () => {
+    const liquids = Array<"water" | "lava" | null>(16).fill(null);
+    const liquidLevels = Array<number | null>(16).fill(null);
+    const levels = [...map.levels];
+    liquids[5] = "water";
+    liquidLevels[5] = 2;
+    levels[5] = null;
+    liquids[6] = "lava";
+    liquidLevels[6] = 3;
+    levels[6] = null;
+    const wet: MapData = { ...map, levels, liquids, liquidLevels };
+    expect(decodeMap(encodeMap(wet))).toEqual(wet);
+    expect(decodeMap(JSON.stringify({ ...wet, liquidLevels: undefined }))).toBeNull();
+    expect(
+      decodeMap(JSON.stringify({ ...wet, liquidLevels: liquidLevels.map(() => null) })),
+    ).toBeNull();
+    expect(decodeMap(JSON.stringify({ ...wet, levels: map.levels }))).toBeNull();
+  });
+
   it("round-trips resized bridge appearance metadata and rejects it on another asset", () => {
     const bridgeMap: MapData = {
       ...map,

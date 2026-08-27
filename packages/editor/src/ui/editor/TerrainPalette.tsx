@@ -58,8 +58,6 @@ interface TerrainPaletteProps {
    *  terrain swatches read as pressed only when it is — otherwise a spawn/decoration/event owns the
    *  selection and no terrain swatch may also light up (no Herbe AND a spawn at once). */
   terrainActive: boolean;
-  /** True while the fill tool is active: fill has no water primitive, so the water swatch is gated. */
-  fillActive: boolean;
   /** True while the stairs stamp is the active tool. */
   stairsActive: boolean;
   /** True while the hero-spawn tool is the active tool, so its palette button reads as pressed. */
@@ -83,7 +81,6 @@ interface TerrainPaletteProps {
 export function TerrainPalette({
   content,
   terrainActive,
-  fillActive,
   stairsActive,
   spawnActive,
   onPickContent,
@@ -140,8 +137,6 @@ export function TerrainPalette({
             label={t("editor.tool.water")}
             active={waterActive}
             preview={<TerrainTilePreview kind="water" level={0} />}
-            disabled={fillActive}
-            title={fillActive ? t("editor.shell.fill.water_disabled") : undefined}
             onClick={() => onPickContent({ kind: "block", block: "water" })}
           />
         </div>

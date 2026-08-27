@@ -34,6 +34,8 @@ import {
   terrainDescriptorOfTileId,
   terrainFixedIndex,
   terrainSlot,
+  waterFixedIndex,
+  waterLevelOfTileId,
 } from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
@@ -277,6 +279,25 @@ export function terrainFloodRegion(
   });
 }
 
+/** Contiguous authored-water region. Empty cells are the level-zero sea; raised/sunken water ids
+ * join only water at the identical tier, so a fill or held-wheel gesture never crosses a fall. */
+export function waterFloodRegion(
+  layer: TileLayer,
+  col: number,
+  row: number,
+): { col: number; row: number }[] {
+  if (!inBounds(layer, col, row)) return [];
+  const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
+  const startRef = decodeTileId(startId);
+  const startLevel = waterLevelOfTileId(startId);
+  if (startRef.kind !== "empty" && startLevel === null) return [{ col, row }];
+  return floodRegion(layer, col, row, (candidateCol, candidateRow) => {
+    const candidateId = layer.ids[indexOf(layer, candidateCol, candidateRow)] ?? EMPTY_TILE;
+    if (startRef.kind === "empty") return decodeTileId(candidateId).kind === "empty";
+    return waterLevelOfTileId(candidateId) === startLevel;
+  });
+}
+
 /**
  * Fill the contiguous 4-neighbour region sharing the start cell's slot — empty counts as a slot of
  * its own, and a fixed tile is a region of exactly one cell, always replaced. Filling a region with
@@ -353,6 +374,61 @@ export function paintTerrainLayer(
   return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
 }
 
+/** Paint water while preserving its authored surface tier. Level zero remains the historical empty
+ * tile; every other tier uses the append-only fixed-water band. */
+export function paintWaterLayer(
+  layer: TileLayer,
+  tileset: Tileset,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer {
+  if (level === 0) return eraseTile(layer, tileset, col, row);
+  const fixedIndex = waterFixedIndex(level);
+  if (fixedIndex < 0 || !inBounds(layer, col, row)) return layer;
+  const ids = [...layer.ids];
+  ids[indexOf(layer, col, row)] = fixedId(fixedIndex);
+  return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
+}
+
+/** Flood one semantic region with water at `level`, including fill-to-empty at sea level. */
+export function floodFillWater(
+  layer: TileLayer,
+  tileset: Tileset,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer {
+  if (!inBounds(layer, col, row)) return layer;
+  const fixedIndex = waterFixedIndex(level);
+  if (level !== 0 && fixedIndex < 0) return layer;
+  const fillId = level === 0 ? EMPTY_TILE : fixedId(fixedIndex);
+  const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
+  if (startId === fillId) return layer;
+  const region = terrainFloodRegion(layer, col, row);
+  const ids = [...layer.ids];
+  for (const cell of region) ids[indexOf(layer, cell.col, cell.row)] = fillId;
+  const draft = { ...layer, ids };
+  const resolveVisited = new Set<number>();
+  for (const cell of region) {
+    for (const target of [
+      cell,
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ]) {
+      if (!inBounds(draft, target.col, target.row)) continue;
+      const targetIndex = indexOf(draft, target.col, target.row);
+      if (resolveVisited.has(targetIndex)) continue;
+      resolveVisited.add(targetIndex);
+      const resolved = resolvedId(draft, tileset, target.col, target.row);
+      if (resolved !== null) ids[targetIndex] = resolved;
+    }
+  }
+  return { ...layer, ids };
+}
+
 /** Flood one contiguous semantic material/elevation region. Generated fixed ground joins its
  * neighbours like an autotile region instead of behaving as unrelated hand-placed fixtures. */
 export function floodFillTerrain(
@@ -413,10 +489,8 @@ export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer
  *  lower than any authored level, so a cliff at the map's edge still gets its face. */
 function elevationAt(ground: TileLayer, col: number, row: number): number {
   if (!inBounds(ground, col, row)) return elevationOfSlot(-1);
-  return (
-    terrainDescriptorOfTileId(ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE)?.level ??
-    elevationOfSlot(-1)
-  );
+  const id = ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE;
+  return terrainDescriptorOfTileId(id)?.level ?? waterLevelOfTileId(id) ?? elevationOfSlot(-1);
 }
 
 /**

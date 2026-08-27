@@ -1,7 +1,17 @@
-import { eraseTile, paintAutotile, resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
+import {
+  eraseTile,
+  paintAutotile,
+  paintWaterLayer,
+  resolveWholeLayer,
+  waterFloodRegion,
+} from "@lindocara/engine/tile-brush.js";
 import { emptyLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId } from "@lindocara/engine/tileset.js";
-import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
+import {
+  GRASS_SLOTS,
+  TINY_SWORDS_TILESET,
+  waterLevelOfTileId,
+} from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
 
 const GRASS = GRASS_SLOTS[0];
@@ -39,6 +49,21 @@ describe("the autotile brush", () => {
     ids[2 * 5 + 2] = 1025;
     const layer = paintAutotile({ ...base, ids }, set, GRASS, 3, 2);
     expect(idAt(layer, 2, 2)).toBe(1025);
+  });
+
+  it("stores non-zero water elevation and keeps each tier as its own flood region", () => {
+    let layer = paintAutotile(emptyLayer(5, 5), set, GRASS, 2, 2);
+    layer = paintAutotile(layer, set, GRASS, 3, 2);
+    layer = paintWaterLayer(layer, set, 2, 2, 2);
+    layer = paintWaterLayer(layer, set, 2, 3, 2);
+    expect(waterLevelOfTileId(idAt(layer, 2, 2))).toBe(2);
+    expect(waterFloodRegion(layer, 2, 2)).toEqual([
+      { col: 2, row: 2 },
+      { col: 3, row: 2 },
+    ]);
+    layer = paintWaterLayer(layer, set, 0, 3, 2);
+    expect(idAt(layer, 3, 2)).toBe(0);
+    expect(waterFloodRegion(layer, 2, 2)).toEqual([{ col: 2, row: 2 }]);
   });
 
   // The test that guards the whole frozen-variant design.

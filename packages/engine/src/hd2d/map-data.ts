@@ -31,6 +31,7 @@ import { isNativeSceneryAsset } from "../native-scenery.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
+  type TerrainLiquid,
   type TerrainMaterial,
   type TerrainQuerySource,
   type TerrainRamp,
@@ -72,6 +73,10 @@ function toTerrainMaterial(value: unknown): TerrainMaterial | null {
     : null;
 }
 
+function toTerrainLiquid(value: unknown): TerrainLiquid | null {
+  return value === "water" || value === "lava" ? value : null;
+}
+
 /**
  * The largest grid side a heightfield may declare, in cells — so `decodeMap` bounds `size` rather
  * than only checking it is a positive integer.
@@ -110,6 +115,10 @@ export interface MapData {
   levels: readonly (number | null)[];
   /** `size * size`. Meaningless wherever `levels` is `null`. */
   materials: readonly TerrainMaterial[];
+  /** Explicit liquid kind per cell. Optional heightfields retain legacy inference. */
+  liquids?: readonly (TerrainLiquid | null)[];
+  /** Authored surface tier per explicit liquid. `null` means the global sea or no liquid. */
+  liquidLevels?: readonly (number | null)[];
   /** Optional for backward compatibility with heightfields written before authored stairs. */
   ramps?: readonly TerrainRamp[];
   colliders: readonly ColliderRect[];
@@ -339,6 +348,30 @@ export function decodeMap(s: string): MapData | null {
   const decodedMaterials = (materials as unknown[]).map(toTerrainMaterial);
   if (decodedMaterials.some((material) => material === null)) return null;
 
+  const hasLiquids = value.liquids !== undefined;
+  const hasLiquidLevels = value.liquidLevels !== undefined;
+  if (hasLiquids !== hasLiquidLevels) return null;
+  let decodedLiquids: Array<TerrainLiquid | null> | undefined;
+  let decodedLiquidLevels: Array<number | null> | undefined;
+  if (hasLiquids) {
+    if (!Array.isArray(value.liquids) || value.liquids.length !== cells) return null;
+    if (!Array.isArray(value.liquidLevels) || value.liquidLevels.length !== cells) return null;
+    decodedLiquids = [];
+    decodedLiquidLevels = [];
+    for (let index = 0; index < cells; index += 1) {
+      const rawLiquid = value.liquids[index];
+      const liquid = rawLiquid === null ? null : toTerrainLiquid(rawLiquid);
+      const level = value.liquidLevels[index];
+      if (rawLiquid !== null && liquid === null) return null;
+      if (level !== null && !isFiniteNumber(level)) return null;
+      if (liquid === null && level !== null) return null;
+      if (liquid === "lava" && level === null) return null;
+      if (liquid !== null && levels[index] !== null) return null;
+      decodedLiquids.push(liquid);
+      decodedLiquidLevels.push(level as number | null);
+    }
+  }
+
   if (value.ramps !== undefined && !Array.isArray(value.ramps)) return null;
   const rawRamps = Array.isArray(value.ramps) ? value.ramps : [];
   const decodedRamps = rawRamps.map(toRamp);
@@ -377,6 +410,9 @@ export function decodeMap(s: string): MapData | null {
     waterLevel,
     levels: levels as (number | null)[],
     materials: decodedMaterials as TerrainMaterial[],
+    ...(decodedLiquids === undefined
+      ? {}
+      : { liquids: decodedLiquids, liquidLevels: decodedLiquidLevels as Array<number | null> }),
     ...(value.ramps === undefined ? {} : { ramps: decodedRamps as TerrainRamp[] }),
     colliders: decodedColliders as ColliderRect[],
     spawns: decodedSpawns as { name: string; x: number; z: number }[],
@@ -390,20 +426,45 @@ export function decodeMap(s: string): MapData | null {
  *  procedural noise. */
 export function mapToQuerySource(m: MapData): TerrainQuerySource {
   const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
+  const indexOf = (i: number, j: number): number => j * m.size + i;
+  const liquidAt = (i: number, j: number): TerrainLiquid | null => {
+    if (!inBounds(i, j)) return "water";
+    const index = indexOf(i, j);
+    const explicit = m.liquids?.[index] ?? null;
+    if (explicit) return explicit;
+    if (m.levels[index] !== null && m.materials[index] === "lave") return "lava";
+    return m.levels[index] === null ? "water" : null;
+  };
+  const liquidLevelAt = (i: number, j: number): number | null => {
+    if (!inBounds(i, j)) return null;
+    const index = indexOf(i, j);
+    const explicit = m.liquids?.[index] ?? null;
+    if (explicit) return m.liquidLevels?.[index] ?? null;
+    return m.levels[index] !== null && m.materials[index] === "lave"
+      ? (m.levels[index] ?? null)
+      : null;
+  };
   return {
     size: m.size,
     levelHeight: m.levelHeight,
     waterLevel: m.waterLevel,
     at(i, j) {
       if (!inBounds(i, j)) return null;
-      return m.levels[j * m.size + i] ?? null;
+      if (liquidAt(i, j)) return null;
+      return m.levels[indexOf(i, j)] ?? null;
     },
     kindAt(i, j) {
       if (!inBounds(i, j)) return null;
+      if (liquidAt(i, j)) return null;
       // Water has no material — `levels` stays the authority, `materials` is "meaningless"
       // wherever it is `null` (see the field's comment), so we don't even read it.
-      if (m.levels[j * m.size + i] === null) return null;
-      return m.materials[j * m.size + i] ?? null;
+      if (m.levels[indexOf(i, j)] === null) return null;
+      return m.materials[indexOf(i, j)] ?? null;
+    },
+    liquidAt,
+    liquidLevelAt,
+    waterAt(i, j) {
+      return liquidAt(i, j) === "water" ? liquidLevelAt(i, j) : null;
     },
     ramps: m.ramps ?? [],
     platforms: m.colliders.flatMap((collider) =>

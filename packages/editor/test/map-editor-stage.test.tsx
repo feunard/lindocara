@@ -21,8 +21,11 @@ import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
-import { oneCellRampFixedIndex } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { terrainDescriptorOfTileId } from "@lindocara/engine/tilesets/tiny-swords.js";
+import {
+  oneCellRampFixedIndex,
+  terrainDescriptorOfTileId,
+  waterLevelOfTileId,
+} from "@lindocara/engine/tilesets/tiny-swords.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -252,6 +255,25 @@ describe("HD-2D map editor stage", () => {
       level: 1,
     });
     expect(zoomChanges).not.toHaveBeenCalled();
+    stage.undo();
+    expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toEqual({
+      material: "herbe",
+      level: 0,
+    });
+    stage.dispose();
+  });
+
+  it("raises held water as water instead of flattening it back to sea level", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    stage.setTool({ kind: "block", block: "water" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 10, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(waterLevelOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toBe(2);
     stage.undo();
     expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toEqual({
       material: "herbe",
