@@ -97,6 +97,7 @@ import {
 import {
   type ElevationStep,
   elevationStepTarget,
+  eraseStairsAt,
   eraseTile,
   floodFillTerrain,
   floodFillWater,
@@ -1427,9 +1428,12 @@ function commitTerrain(map: EditorMap, layers: TileLayer[]): EditorMap | null {
   return keepsSpawnClear(next) ? next : null;
 }
 
-/** Clear the ground at one cell and let layer 1 catch up: erasing raised ground orphans the cliff
- *  face it was casting, and a stale face is an invisible collider. */
+/** Remove a complete staircase first; otherwise clear the ground at one cell and let layer 1 catch
+ *  up. Stairs live on layer 1 and replace a cliff face, so erasing only layer 0 left the newer
+ *  automatic runs visible and passable while also destroying their terrain support. */
 function erasedTerrain(map: EditorMap, col: number, row: number): TileLayer[] | null {
+  const withoutStairs = eraseStairsAt(map.layers, TINY_SWORDS_TILESET, col, row);
+  if (withoutStairs !== map.layers) return withoutStairs;
   const ground = map.layers[GROUND_LAYER];
   if (!ground) return null;
   const erased = eraseTile(ground, TINY_SWORDS_TILESET, col, row);
@@ -1457,12 +1461,13 @@ function paintedWater(map: EditorMap, col: number, row: number): TileLayer[] | n
 }
 
 /**
- * Field-mode eraser: clear the ground at one cell (with cliff-wall upkeep) and keep the spawn on
- * walkable ground, but — unlike a paint stroke's `commitTerrain` — never drop an element standing
- * over the drowned cell. A mode owns exactly one collection, so a Field erase takes ONLY terrain; the
- * decor floating above it is Element mode's to remove. Same reference when the cell was already void,
- * so a repeated click reads as a no-op. Refused (`null`) only when the erase would drown the spawn —
- * the one guard `commitTerrain` provides that Field erase still wants.
+ * Field-mode eraser: remove the complete staircase at the cell, or clear its ground (with cliff-wall
+ * upkeep) when there is no staircase, and keep the spawn on walkable ground. Unlike a paint stroke's
+ * `commitTerrain`, it never drops an element standing over the drowned cell. A mode owns exactly one
+ * collection, so a Field erase takes ONLY terrain; the decor floating above it is Element mode's to
+ * remove. Same reference when the cell was already void, so a repeated click reads as a no-op.
+ * Refused (`null`) only when the erase would drown the spawn — the one guard `commitTerrain` provides
+ * that Field erase still wants.
  */
 function erasedTerrainMap(map: EditorMap, col: number, row: number): EditorMap | null {
   const layers = erasedTerrain(map, col, row);

@@ -26,6 +26,7 @@ import {
   isGroundElevation,
   MAX_TERRAIN_LEVEL,
   MIN_TERRAIN_LEVEL,
+  oneCellRampDescriptor,
   oneCellRampFixedIndex,
   RAMP_FIXED_TILE_COUNT,
   RAMP_LEVEL_3_FIXED_BASE,
@@ -964,6 +965,97 @@ export function paintOneCellRamp(
   ids[indexOf(walls, col, row)] = fixedId(index);
   const painted = withNeighboursResolved({ ...walls, ids }, tileset, col, row);
   return [ground, painted, ...layers.slice(2)];
+}
+
+/**
+ * Efface l'escalier touché sans creuser son terrain porteur.
+ *
+ * Les rampes automatiques sont des cellules indépendantes dans le format de carte, mais une volée
+ * peut couvrir plusieurs niveaux et plusieurs cases de large. La gomme les traite comme un seul
+ * objet : elle suit les marches compatibles dans le sens de la pente et sur sa largeur, puis remet
+ * les parois de falaise que l'escalier remplaçait. Les anciens escaliers officiels à deux cellules
+ * conservent le même contrat atomique.
+ */
+export function eraseStairsAt(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  col: number,
+  row: number,
+): TileLayer[] {
+  const ground = layers[0];
+  const walls = layers[1];
+  if (!ground || !walls || !inBounds(walls, col, row)) return layers as TileLayer[];
+  const current = decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE);
+  if (current.kind !== "fixed") return layers as TileLayer[];
+
+  const oneCell = oneCellRampDescriptor(current.index);
+  const removed: { col: number; row: number }[] = [];
+  if (oneCell) {
+    const highSide = RAMP_HIGH_SIDE[oneCell.direction];
+    const across = highSide.col === 0 ? { col: 1, row: 0 } : { col: 0, row: 1 };
+    const pending = [{ col, row, lowLevel: oneCell.lowLevel }];
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const cell = pending.pop();
+      if (!cell || !inBounds(walls, cell.col, cell.row)) continue;
+      const key = `${cell.col}:${cell.row}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const ref = decodeTileId(walls.ids[indexOf(walls, cell.col, cell.row)] ?? EMPTY_TILE);
+      const descriptor = ref.kind === "fixed" ? oneCellRampDescriptor(ref.index) : null;
+      if (
+        !descriptor ||
+        descriptor.direction !== oneCell.direction ||
+        descriptor.lowLevel !== cell.lowLevel
+      ) {
+        continue;
+      }
+      removed.push({ col: cell.col, row: cell.row });
+      pending.push(
+        {
+          col: cell.col + highSide.col,
+          row: cell.row + highSide.row,
+          lowLevel: cell.lowLevel + 1,
+        },
+        {
+          col: cell.col - highSide.col,
+          row: cell.row - highSide.row,
+          lowLevel: cell.lowLevel - 1,
+        },
+        {
+          col: cell.col + across.col,
+          row: cell.row + across.row,
+          lowLevel: cell.lowLevel,
+        },
+        {
+          col: cell.col - across.col,
+          row: cell.row - across.row,
+          lowLevel: cell.lowLevel,
+        },
+      );
+    }
+  } else {
+    const legacy = stairsDescriptor(current.index);
+    if (!legacy) return layers as TileLayer[];
+    const anchor = stairsAnchorAt(col, row, legacy);
+    for (const placement of stairsTilePlacements(legacy.direction, legacy.lowLevel)) {
+      const targetCol = anchor.col + placement.col;
+      const targetRow = anchor.row + placement.row;
+      if (
+        inBounds(walls, targetCol, targetRow) &&
+        walls.ids[indexOf(walls, targetCol, targetRow)] === fixedId(placement.fixedIndex)
+      ) {
+        removed.push({ col: targetCol, row: targetRow });
+      }
+    }
+  }
+
+  if (removed.length === 0) return layers as TileLayer[];
+  const ids = [...walls.ids];
+  for (const cell of removed) ids[indexOf(walls, cell.col, cell.row)] = EMPTY_TILE;
+  let restored: TileLayer = { ...walls, ids };
+  for (const cell of removed) restored = syncWall(ground, restored, tileset, cell.col, cell.row);
+  return [ground, restored, ...layers.slice(2)];
 }
 
 /**

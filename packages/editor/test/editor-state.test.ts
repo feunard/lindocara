@@ -613,6 +613,24 @@ describe("applyTool: eraser (mode-scoped)", () => {
     expect(clicked).not.toBe(map);
     expect(groundSlot(clicked, 3, 4)).toBe(-1);
   });
+
+  it("removes the whole connected staircase without erasing its terrain, as one undoable edit", () => {
+    let base = place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 6, 4) as EditorMap;
+    base = place(base, { kind: "elevation", level: 1 }, 6, 5) as EditorMap;
+    const stairs = place(base, { kind: "stairs" }, 5, 5) as EditorMap;
+    const groundBefore = stairs.layers[0];
+
+    // This click lands on one lane of the widened staircase. Both connected lanes disappear.
+    const erased = place(stairs, eraserTool, 5, 5, true, "field") as EditorMap;
+    expect(erased).not.toBe(stairs);
+    expect(erased.layers[0]).toBe(groundBefore);
+    expect(decodeMap(toSaveInput(erased).heightfield)?.ramps).toEqual([]);
+
+    const committed = commitEditorHistory(createEditorHistory(stairs), erased);
+    expect(committed.past).toHaveLength(1);
+    expect(undoEditorHistory(committed).present).toEqual(stairs);
+    expect(redoEditorHistory(undoEditorHistory(committed)).present).toEqual(erased);
+  });
 });
 
 describe("applyTool: rect", () => {

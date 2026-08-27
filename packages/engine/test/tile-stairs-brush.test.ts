@@ -2,6 +2,7 @@ import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { bakeCollision, EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import {
+  eraseStairsAt,
   eraseTile,
   groundElevationAt,
   inferStairsPlacement,
@@ -247,6 +248,30 @@ describe("the official two-cell stairs stamp", () => {
                 ref.index === stairsFixedIndex(direction, 0, "low")),
           ).toBe(false);
         }
+      }
+    }
+  });
+
+  it("erases both official halves from either clicked part without changing the ground", () => {
+    for (const part of ["high", "low"] as const) {
+      const stamped = paintStairs(
+        fieldForDirection("east"),
+        set,
+        anchor.col,
+        anchor.row,
+        "east",
+        0,
+      );
+      const groundBefore = layerAt(stamped, 0);
+      const clicked = partCell("east", part);
+      const erased = eraseStairsAt(stamped, set, clicked.col, clicked.row);
+
+      expect(layerAt(erased, 0)).toBe(groundBefore);
+      for (const placement of stairsTilePlacements("east", 0)) {
+        const ref = decodeTileId(
+          idAt(layerAt(erased, 1), anchor.col + placement.col, anchor.row + placement.row),
+        );
+        expect(ref.kind === "fixed" && isRampFixedIndex(ref.index)).toBe(false);
       }
     }
   });
@@ -511,5 +536,40 @@ describe("automatic stair runs", () => {
         expect.objectContaining({ direction: "west", lowLevel: 0, width: 1, depth: 3 }),
       ]),
     );
+  });
+
+  it("erases a complete widened run from any one of its cells and restores the cliffs", () => {
+    const size = 24;
+    let layers: TileLayer[] = [
+      emptyLayer(size, size),
+      emptyLayer(size, size),
+      emptyLayer(size, size),
+    ];
+    for (const row of [10, 11, 12]) layers = paintElevation(layers, set, 4, 4, row);
+    const plan = inferStairsRun(layerAt(layers, 0), 4, 11, "west");
+    if (!plan) throw new Error("expected a widened stair run");
+    const painted = paintStairsRun(layers, set, plan);
+    const groundBefore = layerAt(painted, 0);
+
+    // The clicked cell is in the middle lane and halfway down the staircase, not at an endpoint.
+    const erased = eraseStairsAt(painted, set, 6, 11);
+    expect(erased).not.toBe(painted);
+    expect(layerAt(erased, 0)).toBe(groundBefore);
+    for (const cell of plan.cells) {
+      const ref = decodeTileId(idAt(layerAt(erased, 1), cell.col, cell.row));
+      expect(ref.kind === "fixed" && isRampFixedIndex(ref.index)).toBe(false);
+    }
+    expect(
+      compileAuthoredMap({
+        environment: "exterior",
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols: size,
+        rows: size,
+        layers: erased,
+        elements: [],
+        spawn: { col: 0, row: 0 },
+        markers: EMPTY_MARKERS,
+      }).ramps,
+    ).toEqual([]);
   });
 });
