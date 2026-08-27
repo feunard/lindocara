@@ -10,12 +10,15 @@ describe("biome visual witness", () => {
     const authoredMaterials = compiled.materials.filter(
       (_, index) => compiled.levels[index] !== null,
     );
-    expect(new Set(authoredMaterials)).toEqual(new Set(["grotte", "montagne", "volcan", "lave"]));
+    expect(new Set(authoredMaterials)).toEqual(new Set(["grotte", "montagne", "volcan"]));
+    expect(new Set(compiled.liquids?.filter((liquid) => liquid !== null))).toEqual(
+      new Set(["lava", "water"]),
+    );
     expect(compiled.levels).toContain(-1);
     expect(compiled.levels).toContain(2);
     expect(compiled.elements.map((element) => element.assetId)).toEqual(
       Object.values(LINDOCARA_STRUCTURE_ASSET_IDS),
     );
-    expect(compiled.colliders).toHaveLength(4);
+    expect(compiled.colliders).toHaveLength(6);
   });
 });

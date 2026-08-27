@@ -943,15 +943,9 @@ function AdventureEditorInner({
   function selectTool(key: EditorPaintTool | "stairs"): void {
     setToolKey(key);
     setSelectedAsset(null);
-    // Fill has no water primitive, so entering fill with water selected would be a dead brush. The
-    // palette disables the water swatch while fill is active; this closes the reverse by falling the
-    // content back to grass when fill is picked over a water selection.
-    const next: RectFillContent =
-      key === "fill" && content.kind === "block" && content.block === "water"
-        ? { kind: "block", block: "grass" }
-        : content;
-    if (next !== content) setContent(next);
-    pushTool(paintToolFor(key, next));
+    // Every terrain content, including raised water, is valid with pencil, rectangle and fill.
+    // Keeping the selected content makes switching paint shapes predictable in both directions.
+    pushTool(paintToolFor(key, content));
   }
 
   function selectSpawn(): void {

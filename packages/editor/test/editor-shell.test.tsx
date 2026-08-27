@@ -1746,19 +1746,21 @@ describe("AdventureEditorScreen shell", () => {
     expect(within(screen.getByTestId("terrain-stairs")).getAllByRole("button")).toHaveLength(1);
   });
 
-  it("gates the fill+water dead combination: the water swatch is disabled while fill is active", async () => {
+  it("supports raised water with fill regardless of selection order", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
     const water = screen.getByRole("button", { name: t("editor.tool.water") });
-    expect(water).toBeDisabled();
-
-    // A disabled swatch dispatches nothing, so no fill+water tool ever reaches the stage.
-    const before = stageMock.setTool.mock.calls.length;
     await userEvent.click(water);
-    expect(stageMock.setTool.mock.calls).toHaveLength(before);
-    expect(stageMock.setTool).not.toHaveBeenCalledWith({
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "fill",
+      content: { kind: "block", block: "water" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.pencil") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "fill",
       content: { kind: "block", block: "water" },
     });

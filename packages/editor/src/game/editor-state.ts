@@ -1684,9 +1684,8 @@ function paintRectContent(
   return layer;
 }
 
-/** A flood fill of `content` on the ground layer, or null when the content has no fill primitive —
- *  `floodFill` (`tile-brush.ts`) only ever fills toward a slot, so water (fill-to-empty) has no
- *  expression here without a new shared brush, which is out of this task's scope. */
+/** A flood fill of `content` on the ground layer. Water uses its dedicated height-preserving
+ *  flood brush; terrain materials resolve the target slot shared by the origin region. */
 function fillContent(
   ground: TileLayer,
   content: RectFillContent,
@@ -2415,11 +2414,9 @@ export function placementLegalAt(
   // A tool the active mode does not own can never place — the same gate `applyTool` runs, applied
   // here too so the fill short-circuit below respects the mode rather than reading as legal.
   if (!toolAllowedInMode(tool, mode)) return false;
-  // Fill's legality is position-independent past the content check. `floodFill` never fails on
-  // position — out of bounds or already-filled it returns the layer unchanged — so `applyTool`'s
-  // fill branch is null only when the content has no fill slot (water). Answer that directly instead
-  // of flooding the whole ground layer, resyncing walls and cloning a map on every hovered cell just
-  // to discard the result. `applyTool` itself is unchanged: a real fill click still runs the flood.
+  // Material fill legality is position-independent past the content check. Answer it directly
+  // instead of flooding the whole ground layer, resyncing walls and cloning a map on every hovered
+  // cell just to discard the result. Water is the exception because it may cover the spawn.
   if (tool.kind === "fill") {
     const { cols, rows } = editorMapSize(map);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;

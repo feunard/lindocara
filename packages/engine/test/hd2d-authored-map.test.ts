@@ -196,9 +196,10 @@ describe("compileAuthoredMap", () => {
   it("preserves raised water and lava as liquid surfaces instead of ground", () => {
     const size = 3;
     const ground = emptyLayer(size, size);
-    ground.ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
-    ground.ids[4] = fixedId(waterFixedIndex(2));
-    ground.ids[5] = fixedId(terrainFixedIndex("lave", 3));
+    const ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    ids[4] = fixedId(waterFixedIndex(2));
+    ids[5] = fixedId(terrainFixedIndex("lave", 3));
+    ground.ids = ids;
     const compiled = compileAuthoredMap({
       ...authored(),
       cols: size,

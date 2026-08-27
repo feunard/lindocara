@@ -1,4 +1,4 @@
-/** Deterministic side-by-side witness for generated terrain and authored cave/castle shells. */
+/** Deterministic side-by-side witness for generated terrain and authored interior shells. */
 import { EMPTY_MARKERS, MAP_LAYERS, type MapData } from "@lindocara/engine/map-data.js";
 import { paintTerrain } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -53,6 +53,15 @@ export function buildBiomeWitnessMap(): MapData {
         dimensions: { width: 3, depth: 0.75 },
       },
       {
+        col: 16,
+        row: 14,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: LINDOCARA_STRUCTURE_ASSET_IDS.timberWall,
+        rotation: 6,
+        dimensions: { width: 3, depth: 0.7 },
+      },
+      {
         col: 4,
         row: 10,
         offsetX: 0,
@@ -66,6 +75,14 @@ export function buildBiomeWitnessMap(): MapData {
         offsetX: 0,
         offsetY: 0,
         assetId: LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling,
+        dimensions: { width: 3, depth: 3 },
+      },
+      {
+        col: 16,
+        row: 10,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: LINDOCARA_STRUCTURE_ASSET_IDS.timberCeiling,
         dimensions: { width: 3, depth: 3 },
       },
     ],
