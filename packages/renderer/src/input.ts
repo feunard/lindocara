@@ -22,6 +22,8 @@ const CAMERA_WHEEL_PERCENT_PER_PIXEL = 0.1;
 export const CAMERA_PITCH_DEFAULT = 38 * (Math.PI / 180);
 export const CAMERA_PITCH_MIN = 20 * (Math.PI / 180);
 export const CAMERA_PITCH_MAX = 70 * (Math.PI / 180);
+/** Keeps the default HD-2D composition while allowing a 90-degree lateral viewing arc. */
+export const CAMERA_PARTIAL_YAW_LIMIT = Math.PI / 4;
 export const CAMERA_ZOOM_MIN = 50;
 export const CAMERA_ZOOM_MAX = 180;
 
@@ -78,6 +80,13 @@ export function cameraYawAfterDelta(currentYaw: number, orbitDelta: number): num
   const yaw = Number.isFinite(currentYaw) ? currentYaw : 0;
   const delta = Number.isFinite(orbitDelta) ? orbitDelta : 0;
   return Math.atan2(Math.sin(yaw + delta), Math.cos(yaw + delta));
+}
+
+/** Applies the lateral movement available in the default HD-2D camera mode. */
+export function cameraPartialYawAfterDelta(currentYaw: number, orbitDelta: number): number {
+  const yaw = Number.isFinite(currentYaw) ? currentYaw : 0;
+  const delta = Number.isFinite(orbitDelta) ? orbitDelta : 0;
+  return Math.max(-CAMERA_PARTIAL_YAW_LIMIT, Math.min(CAMERA_PARTIAL_YAW_LIMIT, yaw + delta));
 }
 
 export function cameraPitchAfterDelta(currentPitch: number, orbitDelta: number): number {

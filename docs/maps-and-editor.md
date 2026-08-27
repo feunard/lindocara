@@ -80,10 +80,11 @@ history, dirty navigation guards, selection/inspectors, stable marker ids with o
 complete marker preview.
 
 The gameplay camera policy is adventure metadata too. New and legacy adventures default to the
-fixed HD-2D side view (`cameraMode: "hd2d"`). Authors may opt an adventure into `"orbit"`, which
-enables unrestricted horizontal orbit plus the existing bounded pitch control. The room copies that
-policy into every welcome frame; clients treat an absent field as `"hd2d"` for compatibility and
-reset yaw/pitch to the authored fixed composition whenever that mode is active. The editor's own
+HD-2D side view (`cameraMode: "hd2d"`), which keeps pitch fixed but lets players move laterally
+through a 90-degree arc around the authored heading. Authors may opt an adventure into `"orbit"`,
+which enables unrestricted horizontal orbit plus the existing bounded pitch control. The room copies
+that policy into every welcome frame; clients treat an absent field as `"hd2d"` for compatibility
+and reset yaw/pitch to the authored baseline before applying that limited arc. The editor's own
 authoring camera remains freely orbitable independently of this player-facing setting.
 
 Teleporter authoring is a two-click atomic gesture: the first click records the entrance and the

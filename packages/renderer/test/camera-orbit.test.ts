@@ -1,11 +1,13 @@
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { cameraOrbitOffset } from "@lindocara/renderer/hd2d/scene.js";
 import {
+  CAMERA_PARTIAL_YAW_LIMIT,
   CAMERA_PITCH_MAX,
   CAMERA_PITCH_MIN,
   CAMERA_ZOOM_MAX,
   CAMERA_ZOOM_MIN,
   cameraOrbitDelta,
+  cameraPartialYawAfterDelta,
   cameraPitchAfterDelta,
   cameraYawAfterDelta,
   cameraZoomAfterWheel,
@@ -50,6 +52,13 @@ describe("camera orbit input", () => {
     expect(cameraYawAfterDelta(0, Math.PI)).toBeCloseTo(Math.PI);
     expect(cameraYawAfterDelta(Math.PI, Math.PI / 2)).toBeCloseTo(-Math.PI / 2);
     expect(cameraYawAfterDelta(-1.2, 0)).toBeCloseTo(-1.2);
+  });
+
+  it("keeps the default camera inside a partial lateral viewing arc", () => {
+    expect(cameraPartialYawAfterDelta(0, Math.PI / 6)).toBeCloseTo(Math.PI / 6);
+    expect(cameraPartialYawAfterDelta(0, Math.PI)).toBe(CAMERA_PARTIAL_YAW_LIMIT);
+    expect(cameraPartialYawAfterDelta(0, -Math.PI)).toBe(-CAMERA_PARTIAL_YAW_LIMIT);
+    expect(cameraPartialYawAfterDelta(Number.NaN, Number.NaN)).toBe(0);
   });
 
   it("clamps the vertical viewing angle and wheel zoom to playable ranges", () => {

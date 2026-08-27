@@ -73,8 +73,6 @@ import {
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import {
   CAMERA_PITCH_DEFAULT,
-  cameraPitchAfterDelta,
-  cameraYawAfterDelta,
   cameraZoomAfterWheel,
   rotateMovementInput,
   trackActions,
@@ -94,6 +92,7 @@ import { cancelHudLayoutEdit, isHudLayoutEditing } from "../state/hud-layout.js"
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { leaveAdventureTest } from "./adventure-test.js";
+import { cameraPitchAfterModeDelta, cameraYawAfterModeDelta } from "./camera-policy.js";
 import { ChestFeedbackTracker } from "./chest-feedback.js";
 import {
   activeReactivationDeadline,
@@ -635,9 +634,9 @@ async function startGameIdentity(
       activeWorldSize = world.size;
       cameraMode = world.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE;
       useUiStore.getState().setGameMode(world.gameMode ?? DEFAULT_ADVENTURE_GAME_MODE);
-      // The default HD-2D mode is a fixed authored composition. Returning from an orbit-enabled
-      // adventure (or receiving a newer policy on reconnect) must also return the renderer itself
-      // to that baseline, not only stop consuming future orbit deltas.
+      // Returning from an orbit-enabled adventure (or receiving a newer policy on reconnect) must
+      // return the renderer itself to the default HD-2D heading and pitch. The player can then use
+      // the mode's limited lateral arc without carrying a full-orbit angle across adventures.
       if (cameraMode === "hd2d") {
         if (cameraYaw !== 0) renderer.rotateCamera(-cameraYaw);
         cameraYaw = 0;
@@ -1427,17 +1426,15 @@ async function startGameIdentity(
     fireThunderDue();
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);
-    const orbitEnabled = cameraMode === "orbit";
-    const nextCameraYaw = cameraYawAfterDelta(
-      cameraYaw,
-      paused || !orbitEnabled ? 0 : cameraSample.yawDelta,
-    );
+    const yawDelta = paused ? 0 : cameraSample.yawDelta;
+    const nextCameraYaw = cameraYawAfterModeDelta(cameraMode, cameraYaw, yawDelta);
     const cameraDelta = nextCameraYaw - cameraYaw;
     cameraYaw = nextCameraYaw;
     if (cameraDelta !== 0) renderer.rotateCamera(cameraDelta);
-    const nextCameraPitch = cameraPitchAfterDelta(
+    const nextCameraPitch = cameraPitchAfterModeDelta(
+      cameraMode,
       cameraPitch,
-      paused || !orbitEnabled ? 0 : cameraSample.pitchDelta,
+      paused ? 0 : cameraSample.pitchDelta,
     );
     if (nextCameraPitch !== cameraPitch) {
       cameraPitch = nextCameraPitch;

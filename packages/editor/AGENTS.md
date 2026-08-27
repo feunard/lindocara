@@ -83,8 +83,8 @@ same HD-2D renderer and terrain compiler as the shipped game. PixiJS is not a su
 - Distance fog is off while authoring (`setFogEnabled(false)`), because the play-tuned band tightens
   as the camera pulls back and zooming out is how an author inspects a whole map.
 - `AdventureSettingsDialog` owns the player-facing camera policy. `hd2d` is the compatibility and
-  creation default (fixed yaw/pitch); `orbit` enables full yaw plus bounded pitch in gameplay. This
-  does not restrict the authoring camera described above.
+  creation default (fixed pitch plus a 90-degree lateral yaw arc); `orbit` enables full yaw plus
+  bounded pitch in gameplay. This does not restrict the authoring camera described above.
 
 ## Commands
 

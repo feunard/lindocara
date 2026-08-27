@@ -2300,7 +2300,7 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.players.count": "{count} joueurs max",
   "adventure.camera.orbit": "Caméra 360° avec inclinaison",
   "adventure.camera.hint":
-    "Désactivé, conserve la vue latérale HD-2D fixe. Activé, permet aux joueurs de tourner autour du héros et d’incliner la caméra.",
+    "Désactivé, conserve la vue latérale HD-2D avec un débattement horizontal limité. Activé, permet aux joueurs de tourner à 360° autour du héros et d’incliner la caméra.",
   "adventure.mode.hardcore": "Endless runner hardcore",
   "adventure.mode.hardcore.hint":
     "La mort termine la course. Recommencer replace le héros et le poursuivant implacable à l’entrée ; les aventures standard ne changent pas.",

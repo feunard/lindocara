@@ -2274,7 +2274,7 @@ export const en = {
   "adventure.players.count": "{count} players max",
   "adventure.camera.orbit": "360° camera with tilt",
   "adventure.camera.hint":
-    "Off keeps the fixed HD-2D side view. On lets players orbit all around the hero and tilt the camera.",
+    "Off keeps the HD-2D side view with limited horizontal movement. On lets players orbit 360° around the hero and tilt the camera.",
   "adventure.mode.hardcore": "Hardcore endless runner",
   "adventure.mode.hardcore.hint":
     "Death ends the run. Retry returns the hero and the relentless pursuer to the course entrance; standard adventures are unchanged.",

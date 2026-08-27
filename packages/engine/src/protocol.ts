@@ -774,7 +774,7 @@ export interface WorldInfo {
   buildings?: readonly WorldBuildingSnapshot[];
   /** Fully resolved room audio: map overrides have already been applied by the server. */
   audio?: AdventureAudioConfig;
-  /** Adventure-wide camera policy. Missing frames use the fixed HD-2D side view. */
+  /** Adventure-wide camera policy. Missing frames use the limited HD-2D side view. */
   cameraMode?: AdventureCameraMode;
   /** Adventure-wide gameplay rules. Missing frames use ordinary RPG rules. */
   gameMode?: AdventureGameMode;

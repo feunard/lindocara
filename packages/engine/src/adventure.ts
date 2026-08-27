@@ -24,9 +24,9 @@ const MAP_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 /**
  * The camera policy authored once for the whole adventure.
  *
- * `hd2d` keeps the shipped side view fixed; `orbit` lets the player turn a full circle and tilt
- * the view. The constant is also the compatibility fallback for adventures and welcome frames
- * created before this setting existed.
+ * `hd2d` keeps the shipped side view with a limited lateral arc and fixed pitch; `orbit` lets the
+ * player turn a full circle and tilt the view. The constant is also the compatibility fallback for
+ * adventures and welcome frames created before this setting existed.
  */
 export type AdventureCameraMode = "hd2d" | "orbit";
 export const DEFAULT_ADVENTURE_CAMERA_MODE: AdventureCameraMode = "hd2d";
@@ -93,7 +93,7 @@ export interface AdventureInput {
 export interface CreateAdventureInput {
   title: string;
   maxPlayers: number;
-  /** Defaults to the fixed HD-2D side view. */
+  /** Defaults to the HD-2D side view with limited lateral movement. */
   cameraMode?: AdventureCameraMode;
   /** Defaults to the ordinary cooperative RPG rules. */
   gameMode?: AdventureGameMode;
