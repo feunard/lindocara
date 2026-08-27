@@ -101,9 +101,9 @@ import {
   floodFillTerrain,
   floodFillWater,
   groundElevationAt,
-  inferStairsPlacement,
+  inferStairsRun,
   paintElevation,
-  paintOneCellRamp,
+  paintStairsRun,
   paintTerrain,
   paintTerrainLayer,
   paintWaterLayer,
@@ -256,7 +256,7 @@ export type EditorTool =
   | { kind: "fill"; content: RectFillContent }
   /**
    * One stamp, no declarations. The direction and the pair of levels are READ off the cell under
-   * the cursor (`inferStairsPlacement`), because the terrain already answers both questions exactly.
+   * the cursor (`inferStairsRun`), including any missing descending support cells.
    * `prefer` is the only hint, and it is not the author's: the stage refreshes it from the camera's
    * yaw so a cell where two ramps genuinely fit climbs the way the author is looking.
    */
@@ -2028,18 +2028,9 @@ export function applyTool(
     case "stairs": {
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
-      const placement = inferStairsPlacement(ground, col, row, tool.prefer);
-      if (!placement) return null;
-      // ONE cell, any of four directions. `paintStairs` and its two-cell bands are still what reads
-      // a map stored before ramps were geometry; nothing writes them any more.
-      const layers = paintOneCellRamp(
-        map.layers,
-        TINY_SWORDS_TILESET,
-        col,
-        row,
-        placement.direction,
-        placement.lowLevel,
-      );
+      const plan = inferStairsRun(ground, col, row, tool.prefer);
+      if (!plan) return null;
+      const layers = paintStairsRun(map.layers, TINY_SWORDS_TILESET, plan);
       if (layers === map.layers) return null;
       return commitTerrain(map, layers);
     }

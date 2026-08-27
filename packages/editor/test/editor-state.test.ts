@@ -729,13 +729,12 @@ describe("applyTool: fill", () => {
 
 describe("applyTool: stairs", () => {
   function eastBoundary(): EditorMap {
-    // Click low entrance (5,5); the two native halves land at rows 4/5 and replace the two cliff
-    // faces immediately to their right.
+    // Click low entrance (5,5); the matching banks on rows 4/5 allow a two-cell-wide ramp.
     const top = place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 6, 4) as EditorMap;
     return place(top, { kind: "elevation", level: 1 }, 6, 5) as EditorMap;
   }
 
-  it("stamps ONE cell from the low entrance, as one undo entry", () => {
+  it("widens over the compatible adjacent bank as one undo entry", () => {
     const base = eastBoundary();
     // No direction, no levels: the stamp reads both off the boundary under the cursor.
     const tool: EditorTool = { kind: "stairs" };
@@ -745,11 +744,9 @@ describe("applyTool: stairs", () => {
       kind: "fixed",
       index: oneCellRampFixedIndex("east", 0),
     });
-    // The cell above is NOT part of the ramp any more: a slope is geometry, and the second cell
-    // existed only because the official sprite was two cells tall. It keeps whatever the cliff
-    // upkeep put there, which on this boundary is a cliff face.
+    // The adjacent row has the same high bank and becomes the second lane of one wide ramp.
     const above = decodeTileId(next.layers[1]?.ids[4 * 20 + 5] ?? EMPTY_TILE);
-    expect(above.kind === "fixed" && isRampFixedIndex(above.index)).toBe(false);
+    expect(above.kind === "fixed" && isRampFixedIndex(above.index)).toBe(true);
 
     const history = commitEditorHistory(createEditorHistory(base), next);
     expect(history.past).toHaveLength(1);

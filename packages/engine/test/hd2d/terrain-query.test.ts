@@ -223,6 +223,18 @@ describe("authored stair ramps", () => {
     expect(query.canTraverseRamp(-0.05, 0, 0.05, 0, 0.2)).toBe(true);
     expect(query.canTraverseRamp(-0.5, 0.85, -0.5, 1.05, 0.2)).toBe(false);
   });
+
+  it("crosses directly between consecutive levels of one staircase", () => {
+    const chained = makeQuery(levels, {
+      levelHeight: 0.9,
+      ramps: [
+        { x: -1, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 0 },
+        { x: 0, z: -1, width: 1, depth: 2, direction: "east", lowLevel: 1 },
+      ],
+    });
+    expect(chained.canTraverseRamp(-0.05, 0, 0.05, 0, 0.2)).toBe(true);
+    expect(chained.canTraverseRamp(0.05, 0, -0.05, 0, 0.2)).toBe(true);
+  });
 });
 
 describe("authored building platforms", () => {

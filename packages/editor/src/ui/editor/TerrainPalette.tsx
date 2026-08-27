@@ -179,10 +179,8 @@ export function TerrainPalette({
           <p className="px-0.5 text-[10px] text-zinc-400">{t("editor.shell.terrain.step.hint")}</p>
         </div>
 
-        {/* One button. The direction and the pair of levels used to be six more buttons the author
-            had to set BEFORE clicking, and the map already answers both exactly: the stamp reads
-            them off the cell under the cursor (`inferStairsPlacement`). What is left to say is the
-            part the terrain cannot: the art only exists for banks that run north to south. */}
+        {/* One button. The map derives the direction, the complete descending run and its safe
+            adjacent width from the clicked edge; the preview shows every cell before commit. */}
         <div
           data-testid="terrain-stairs"
           className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"

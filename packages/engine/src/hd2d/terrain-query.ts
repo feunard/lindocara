@@ -330,13 +330,24 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       ) {
         return false;
       }
+      const near = Math.max(0.08, radius);
       if (from && to && from.x === to.x && from.z === to.z) return true;
+      if (from && to) {
+        const touchesAlong = alongX
+          ? Math.abs(from.x + from.width - to.x) <= near ||
+            Math.abs(to.x + to.width - from.x) <= near
+          : Math.abs(from.z + from.depth - to.z) <= near ||
+            Math.abs(to.z + to.depth - from.z) <= near;
+        const joinsHeight =
+          Math.abs(from.highHeight - to.lowHeight) <= 1e-3 ||
+          Math.abs(to.highHeight - from.lowHeight) <= 1e-3;
+        return from.direction === to.direction && touchesAlong && joinsHeight;
+      }
       const alongOrigin = alongX ? ramp.x : ramp.z;
       const alongSpan = alongX ? ramp.width : ramp.depth;
       const climbsPositive = ramp.direction === "east" || ramp.direction === "south";
       const lowEdge = climbsPositive ? alongOrigin : alongOrigin + alongSpan;
       const highEdge = climbsPositive ? alongOrigin + alongSpan : alongOrigin;
-      const near = Math.max(0.08, radius);
       const alongFrom = alongX ? fromX : fromZ;
       const alongTo = alongX ? toX : toZ;
       if (to && !from) {

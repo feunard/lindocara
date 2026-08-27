@@ -893,9 +893,30 @@ const RAMP_HIGH_SIDE: Readonly<Record<RampDirection, { col: number; row: number 
   north: { col: 0, row: -1 },
 };
 
+const OPPOSITE_RAMP_DIRECTION: Readonly<Record<RampDirection, RampDirection>> = {
+  east: "west",
+  west: "east",
+  south: "north",
+  north: "south",
+};
+
+const MAX_AUTOMATIC_STAIRS_WIDTH = 3;
+
 export interface StairsPlacement {
   direction: RampDirection;
   lowLevel: number;
+}
+
+export interface StairsRunCell extends StairsPlacement {
+  col: number;
+  row: number;
+  material: TerrainMaterial;
+}
+
+export interface StairsRunPlan {
+  direction: RampDirection;
+  highLevel: number;
+  cells: readonly StairsRunCell[];
 }
 
 /**
@@ -976,6 +997,127 @@ export function inferStairsPlacement(
     }
   }
   return fits.find((placement) => placement.direction === prefer) ?? fits[0] ?? null;
+}
+
+interface StairsRunCandidate {
+  direction: RampDirection;
+  highCol: number;
+  highRow: number;
+  highLevel: number;
+}
+
+function terrainAt(ground: TileLayer, col: number, row: number) {
+  if (!inBounds(ground, col, row)) return null;
+  return terrainDescriptorOfTileId(ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE);
+}
+
+function stairsRunLane(
+  ground: TileLayer,
+  candidate: StairsRunCandidate,
+  acrossCol: number,
+  acrossRow: number,
+): StairsRunCell[] | null {
+  const highCol = candidate.highCol + acrossCol;
+  const highRow = candidate.highRow + acrossRow;
+  const high = terrainAt(ground, highCol, highRow);
+  if (!high || high.level !== candidate.highLevel) return null;
+  const highSide = RAMP_HIGH_SIDE[candidate.direction];
+  const outwardCol = -highSide.col;
+  const outwardRow = -highSide.row;
+  const cells: StairsRunCell[] = [];
+  for (let lowLevel = candidate.highLevel - 1; lowLevel >= 0; lowLevel--) {
+    const distance = candidate.highLevel - lowLevel;
+    const col = highCol + outwardCol * distance;
+    const row = highRow + outwardRow * distance;
+    if (!inBounds(ground, col, row)) break;
+    const existing = terrainAt(ground, col, row);
+    // Never tunnel through a second plateau. Lower terrain and water are the missing support the
+    // staircase is explicitly allowed to build; a cell as high as the preceding step is a wall.
+    if (existing && existing.level >= lowLevel + 1) break;
+    cells.push({ col, row, direction: candidate.direction, lowLevel, material: high.material });
+  }
+  return cells.length > 0 ? cells : null;
+}
+
+/**
+ * Planifie un escalier complet depuis un rebord élevé jusqu'au niveau zéro.
+ *
+ * Le clic peut viser la case haute, la première case basse ou directement l'eau. Chaque case
+ * manquante devient un palier un niveau plus bas que la précédente. Une bande compatible de part
+ * et d'autre élargit automatiquement le passage jusqu'à trois cases, sans envahir tout un rivage.
+ */
+export function inferStairsRun(
+  ground: TileLayer,
+  col: number,
+  row: number,
+  prefer?: RampDirection,
+): StairsRunPlan | null {
+  if (!inBounds(ground, col, row)) return null;
+  const here = terrainAt(ground, col, row);
+  const candidates: StairsRunCandidate[] = [];
+
+  // Le curseur désigne la première marche basse (y compris une case d'eau) et regarde la berge.
+  for (const direction of RAMP_DIRECTIONS) {
+    const side = RAMP_HIGH_SIDE[direction];
+    const high = terrainAt(ground, col + side.col, row + side.row);
+    if (!high || high.level <= 0 || (here && here.level >= high.level)) continue;
+    candidates.push({
+      direction,
+      highCol: col + side.col,
+      highRow: row + side.row,
+      highLevel: high.level,
+    });
+  }
+
+  // Le curseur désigne le rebord haut : l'escalier part vers le voisin plus bas ou vers le vide.
+  if (here && here.level > 0) {
+    for (const outward of RAMP_DIRECTIONS) {
+      const delta = RAMP_HIGH_SIDE[outward];
+      const neighbour = terrainAt(ground, col + delta.col, row + delta.row);
+      if (neighbour && neighbour.level >= here.level) continue;
+      candidates.push({
+        direction: OPPOSITE_RAMP_DIRECTION[outward],
+        highCol: col,
+        highRow: row,
+        highLevel: here.level,
+      });
+    }
+  }
+
+  const candidate = candidates.find((item) => item.direction === prefer) ?? candidates[0] ?? null;
+  if (!candidate) return null;
+  const alongX = candidate.direction === "east" || candidate.direction === "west";
+  const across = alongX ? { col: 0, row: 1 } : { col: 1, row: 0 };
+  const lanes: StairsRunCell[][] = [];
+  const centre = stairsRunLane(ground, candidate, 0, 0);
+  if (!centre) return null;
+  lanes.push(centre);
+  for (const offset of [-1, 1]) {
+    if (lanes.length >= MAX_AUTOMATIC_STAIRS_WIDTH) break;
+    const lane = stairsRunLane(ground, candidate, across.col * offset, across.row * offset);
+    if (lane) lanes.push(lane);
+  }
+  return {
+    direction: candidate.direction,
+    highLevel: candidate.highLevel,
+    cells: lanes.flat(),
+  };
+}
+
+/** Peint le terrain porteur puis toutes les rampes d'un plan automatique en une seule opération. */
+export function paintStairsRun(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  plan: StairsRunPlan,
+): TileLayer[] {
+  let painted = [...layers];
+  for (const cell of plan.cells) {
+    painted = paintTerrain(painted, tileset, cell.material, cell.lowLevel, cell.col, cell.row);
+  }
+  for (const cell of plan.cells) {
+    painted = paintOneCellRamp(painted, tileset, cell.col, cell.row, cell.direction, cell.lowLevel);
+  }
+  return painted;
 }
 
 /**

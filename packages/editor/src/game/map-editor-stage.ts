@@ -60,7 +60,7 @@ import {
   nativeSceneryDimensionsOrDefault,
   proportionalNativeSceneryDimensions,
 } from "@lindocara/engine/native-scenery.js";
-import { inferStairsPlacement, type RampDirection } from "@lindocara/engine/tile-brush.js";
+import { inferStairsRun, type RampDirection } from "@lindocara/engine/tile-brush.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type CellOffset,
@@ -906,7 +906,7 @@ export function openMapEditorStage(
       const groundLayer = map.layers[0];
       const hoveredStairs =
         hover && tool.kind === "stairs" && groundLayer
-          ? inferStairsPlacement(groundLayer, hover.col, hover.row, stairsPreference())
+          ? inferStairsRun(groundLayer, hover.col, hover.row, stairsPreference())
           : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
@@ -970,13 +970,9 @@ export function openMapEditorStage(
         stairsPreview:
           hover && tool.kind === "stairs"
             ? {
-                ramp: authoredOneCellRamp(
-                  hover.col,
-                  hover.row,
-                  size,
-                  hoveredStairs?.direction ?? "east",
-                  hoveredStairs?.lowLevel ?? 0,
-                ),
+                ramps: hoveredStairs?.cells.map((cell) =>
+                  authoredOneCellRamp(cell.col, cell.row, size, cell.direction, cell.lowLevel),
+                ) ?? [authoredOneCellRamp(hover.col, hover.row, size, "east", 0)],
                 valid: hoveredStairs !== null,
                 levelHeight: heightfield.levelHeight,
               }

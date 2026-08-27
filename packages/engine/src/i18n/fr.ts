@@ -1485,7 +1485,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
   "editor.stairs.hint":
-    "Cliquez sur la case basse contre une falaise : la rampe trouve seule son sens et les deux niveaux qu’elle relie, et les héros la parcourent dans les deux sens. Une seule case, sur les quatre côtés. L’aperçu passe au rouge là où aucune ne convient.",
+    "Cliquez sur un rebord haut, sa berge basse ou l’eau voisine. L’escalier choisit l’un des quatre sens, construit chaque niveau manquant jusqu’au sol et s’élargit sur le terrain adjacent compatible.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

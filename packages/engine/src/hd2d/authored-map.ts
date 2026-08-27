@@ -207,7 +207,42 @@ function authoredRamps(authored: AuthoredMapData, size: number): TerrainRamp[] {
       ramps.push(authoredStairsRamp(col, row, size, descriptor.direction, descriptor.lowLevel));
     }
   }
-  return ramps;
+  const sorted = [...ramps].sort(
+    (a, b) =>
+      a.direction.localeCompare(b.direction) ||
+      a.lowLevel - b.lowLevel ||
+      a.x - b.x ||
+      a.z - b.z ||
+      a.width - b.width ||
+      a.depth - b.depth,
+  );
+  const merged: TerrainRamp[] = [];
+  for (const ramp of sorted) {
+    const previous = merged.at(-1);
+    if (previous && previous.direction === ramp.direction && previous.lowLevel === ramp.lowLevel) {
+      const alongX = ramp.direction === "east" || ramp.direction === "west";
+      if (
+        alongX &&
+        previous.x === ramp.x &&
+        previous.width === ramp.width &&
+        Math.abs(previous.z + previous.depth - ramp.z) < 1e-9
+      ) {
+        previous.depth += ramp.depth;
+        continue;
+      }
+      if (
+        !alongX &&
+        previous.z === ramp.z &&
+        previous.depth === ramp.depth &&
+        Math.abs(previous.x + previous.width - ramp.x) < 1e-9
+      ) {
+        previous.width += ramp.width;
+        continue;
+      }
+    }
+    merged.push({ ...ramp });
+  }
+  return merged;
 }
 
 /** Select a bridge deck's bank elevation from its two ends, never from unrelated terrain beside it. */

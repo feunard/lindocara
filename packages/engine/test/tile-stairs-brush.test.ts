@@ -3,9 +3,12 @@ import { bakeCollision, EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import {
   eraseTile,
+  groundElevationAt,
   inferStairsPlacement,
+  inferStairsRun,
   paintElevation,
   paintOneCellRamp,
+  paintStairsRun,
   paintStairs,
   type StairsDirection,
   stairsFixedIndex,
@@ -435,5 +438,78 @@ describe("a one-cell ramp", () => {
         lowLevel: 0,
       },
     ]);
+  });
+});
+
+describe("automatic stair runs", () => {
+  it("infers front, back, left, and right approaches", () => {
+    const sides = {
+      east: { col: 1, row: 0 },
+      west: { col: -1, row: 0 },
+      south: { col: 0, row: 1 },
+      north: { col: 0, row: -1 },
+    } as const;
+    for (const direction of ["east", "west", "south", "north"] as const) {
+      const side = sides[direction];
+      let layers = blank();
+      layers = paintElevation(layers, set, 1, anchor.col + side.col, anchor.row + side.row);
+      expect(inferStairsRun(layerAt(layers, 0), anchor.col, anchor.row, direction)).toMatchObject({
+        direction,
+        highLevel: 1,
+      });
+    }
+  });
+
+  it("starts on water when a raised bank is within reach", () => {
+    let layers = blank();
+    layers = paintElevation(layers, set, 1, anchor.col, anchor.row);
+    const plan = inferStairsRun(layerAt(layers, 0), anchor.col + 1, anchor.row, "west");
+    expect(plan).toMatchObject({ direction: "west", highLevel: 1 });
+    expect(plan?.cells).toEqual([
+      expect.objectContaining({ col: anchor.col + 1, row: anchor.row, lowLevel: 0 }),
+    ]);
+    if (!plan) throw new Error("expected stairs from the water edge");
+
+    const painted = paintStairsRun(layers, set, plan);
+    expect(groundElevationAt(layerAt(painted, 0), anchor.col + 1, anchor.row)).toBe(0);
+    expect(decodeTileId(idAt(layerAt(painted, 1), anchor.col + 1, anchor.row))).toEqual({
+      kind: "fixed",
+      index: oneCellRampFixedIndex("west", 0),
+    });
+  });
+
+  it("builds a widened ten-level descent into empty cells", () => {
+    const size = 24;
+    let layers: TileLayer[] = [
+      emptyLayer(size, size),
+      emptyLayer(size, size),
+      emptyLayer(size, size),
+    ];
+    for (const row of [10, 11, 12]) layers = paintElevation(layers, set, 10, 4, row);
+    const plan = inferStairsRun(layerAt(layers, 0), 4, 11, "west");
+    expect(plan).toMatchObject({ direction: "west", highLevel: 10 });
+    expect(plan?.cells).toHaveLength(30);
+    if (!plan) throw new Error("expected a ten-level stair run");
+
+    const painted = paintStairsRun(layers, set, plan);
+    expect(groundElevationAt(layerAt(painted, 0), 5, 10)).toBe(9);
+    expect(groundElevationAt(layerAt(painted, 0), 14, 12)).toBe(0);
+    const compiled = compileAuthoredMap({
+      environment: "exterior",
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: size,
+      rows: size,
+      layers: painted,
+      elements: [],
+      spawn: { col: 0, row: 0 },
+      markers: EMPTY_MARKERS,
+    });
+    expect(compiled.ramps).toHaveLength(10);
+    expect(compiled.ramps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ direction: "west", lowLevel: 9, width: 1, depth: 3 }),
+        expect.objectContaining({ direction: "west", lowLevel: 0, width: 1, depth: 3 }),
+      ]),
+    );
   });
 });

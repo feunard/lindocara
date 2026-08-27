@@ -174,7 +174,7 @@ export interface Hd2dEditorOverlay {
   /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
    *  element mode places at quarter cells and marks one of those. Defaults to 1. */
   cursorCells?: number;
-  stairsPreview?: { ramp: TerrainRamp; valid: boolean; levelHeight: number } | null;
+  stairsPreview?: { ramps: readonly TerrainRamp[]; valid: boolean; levelHeight: number } | null;
   assetPreview?: {
     point: GroundVector;
     footprint: readonly GroundVector[];
@@ -2040,7 +2040,7 @@ export class Hd2dVisualLayer {
       const atlases = this.#textures ? terrainAtlases(this.#textures) : null;
       const fallback = atlases?.lvl0;
       if (atlases && fallback) {
-        const preview = meshStairs([overlay.stairsPreview.ramp], {
+        const preview = meshStairs(overlay.stairsPreview.ramps, {
           levelHeight: overlay.stairsPreview.levelHeight,
           // The preview is tinted a flat highlight colour anyway, but it still asks for the right
           // bank's atlas: the ghost's geometry must be the geometry the real ramp will have.
