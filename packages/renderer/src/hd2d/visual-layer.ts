@@ -42,6 +42,7 @@ import {
   type StaticSpriteArt,
   staticAnimationFrame,
 } from "./static-content.js";
+import { makeStructureVolume } from "./structure-volumes.js";
 
 export const HD2D_SPLASH_TEXTURE_URL = "/assets/lindocara/hd2d/splash.png";
 export const HD2D_SHEEP_EXPLOSION_TEXTURE_URL = "/assets/lindocara/hd2d/sheep-explosion.png";
@@ -2076,33 +2077,35 @@ export class Hd2dVisualLayer {
     ]) {
       const sky = layer.renderLayer === "sky";
       const flat = sky || layer.renderMode === "flat";
-      const preview: Billboard | Sprite | NativeStaticVisual = layer.runnerProp
-        ? makeRunnerPropVolume(layer.runnerProp)
-        : layer.buildingVolume
-          ? makeBuildingVolume({ front: layer.texture, ...layer.buildingVolume })
-          : layer.bridgeOrientation
-            ? makeBridgeVolume(layer.texture, layer.bridgeOrientation)
-            : flat
-              ? makeFlatSprite(this.#scene.ctx, {
-                  texture: layer.texture,
-                  cols: layer.cols ?? 1,
-                  rows: layer.rows ?? 1,
-                  size: layer.flatSize ?? layer.height * (layer.aspect ?? 1),
-                  aspect: 1 / (layer.aspect ?? 1),
-                  alphaTest: 0.5,
-                  graftCloudShadow: () => undefined,
-                })
-              : makeBillboard(this.#scene.ctx, {
-                  texture: layer.texture,
-                  cols: layer.cols ?? 1,
-                  rows: layer.rows ?? 1,
-                  height: layer.height,
-                  aspect: layer.aspect ?? 1,
-                  foot: layer.foot ?? 0,
-                  ...(layer.uvRect ? { uvRect: layer.uvRect } : {}),
-                  ...(layer.lit === undefined ? {} : { lit: layer.lit }),
-                  pitch: HD2D_CAMERA.pitch,
-                });
+      const preview: Billboard | Sprite | NativeStaticVisual = layer.structureVolume
+        ? makeStructureVolume(layer.structureVolume)
+        : layer.runnerProp
+          ? makeRunnerPropVolume(layer.runnerProp)
+          : layer.buildingVolume
+            ? makeBuildingVolume({ front: layer.texture, ...layer.buildingVolume })
+            : layer.bridgeOrientation
+              ? makeBridgeVolume(layer.texture, layer.bridgeOrientation)
+              : flat
+                ? makeFlatSprite(this.#scene.ctx, {
+                    texture: layer.texture,
+                    cols: layer.cols ?? 1,
+                    rows: layer.rows ?? 1,
+                    size: layer.flatSize ?? layer.height * (layer.aspect ?? 1),
+                    aspect: 1 / (layer.aspect ?? 1),
+                    alphaTest: 0.5,
+                    graftCloudShadow: () => undefined,
+                  })
+                : makeBillboard(this.#scene.ctx, {
+                    texture: layer.texture,
+                    cols: layer.cols ?? 1,
+                    rows: layer.rows ?? 1,
+                    height: layer.height,
+                    aspect: layer.aspect ?? 1,
+                    foot: layer.foot ?? 0,
+                    ...(layer.uvRect ? { uvRect: layer.uvRect } : {}),
+                    ...(layer.lit === undefined ? {} : { lit: layer.lit }),
+                    pitch: HD2D_CAMERA.pitch,
+                  });
       materialOpacity(preview.mesh, 0.62);
       preview.mesh.traverse((child) => {
         if (!(child instanceof THREE.Mesh)) return;
@@ -2141,6 +2144,7 @@ export class Hd2dVisualLayer {
           placement.point.z,
         );
       } else if (
+        preview.art.structureVolume ||
         preview.art.runnerProp ||
         preview.art.buildingVolume ||
         preview.art.bridgeOrientation
@@ -2168,7 +2172,7 @@ export class Hd2dVisualLayer {
       preview.sprite.setFrame(
         staticAnimationFrame(now, preview.art.animationDurationMs ?? 0, frames),
       );
-      if (preview.art.runnerProp || preview.art.buildingVolume) {
+      if (preview.art.structureVolume || preview.art.runnerProp || preview.art.buildingVolume) {
         (preview.sprite as NativeStaticVisual).update(now);
       }
     }

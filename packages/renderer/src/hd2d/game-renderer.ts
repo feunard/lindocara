@@ -59,6 +59,7 @@ import {
   LINDOCARA_PICKUP_ASSET_IDS,
   LINDOCARA_PICKUP_FLOAT_HEIGHT,
   LINDOCARA_RUNNER_ASSET_IDS,
+  LINDOCARA_STRUCTURE_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -717,6 +718,27 @@ function generatedBuildingSpec(assetId: string): StaticAssetSpec | null {
  * the same number the deleted PixiJS path used to stand the very same sprite on the very same cell.
  */
 export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
+  const structureVolume =
+    assetId === LINDOCARA_STRUCTURE_ASSET_IDS.caveWall
+      ? "cave-wall"
+      : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.castleWall
+        ? "castle-wall"
+        : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling
+          ? "cave-ceiling"
+          : assetId === LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling
+            ? "castle-ceiling"
+            : null;
+  if (structureVolume) {
+    const definition = editorAsset(assetId);
+    if (!definition) return null;
+    return {
+      url: definition.sourcePath,
+      height: 1,
+      aspect: 1,
+      foot: 0,
+      structureVolume,
+    };
+  }
   const generatedBuilding = generatedBuildingSpec(assetId);
   if (generatedBuilding) return generatedBuilding;
   if (assetId === "terrain.bridge.wood.horizontal" || assetId === "terrain.bridge.wood.vertical") {

@@ -59,6 +59,7 @@ import {
   runnerPropHeight,
 } from "./runner-prop-volumes.js";
 import { AUTHORED_PICK_SURFACE, HD2D_CAMERA } from "./scene.js";
+import { makeStructureVolume, type StructureVolumeKind } from "./structure-volumes.js";
 
 /**
  * One catalogue appearance, reduced to what a billboard is built from.
@@ -118,6 +119,8 @@ export interface StaticSpriteArt {
   bridgeOrientation?: "horizontal" | "vertical";
   /** Native grounded runner prop, replacing a camera-facing or horizontal sprite. */
   runnerProp?: RunnerPropKind;
+  /** Native wall or raised ceiling shell. */
+  structureVolume?: StructureVolumeKind;
 }
 
 /** Resolves a catalogue asset id to the art it draws with, or `null` when this build has no such
@@ -276,19 +279,21 @@ export function placeStaticContent(
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
-    const native = sprite.runnerProp
-      ? makeRunnerPropVolume(sprite.runnerProp, orientation, rotation, dimensions)
-      : sprite.buildingVolume
-        ? makeBuildingVolume({
-            front: sprite.texture,
-            ...sprite.buildingVolume,
-            orientation,
-            ...(rotation === undefined ? {} : { rotation }),
-            ...(building ? { dimensions: building } : {}),
-          })
-        : sprite.bridgeOrientation
-          ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge, rotation)
-          : null;
+    const native = sprite.structureVolume
+      ? makeStructureVolume(sprite.structureVolume, orientation, rotation, dimensions)
+      : sprite.runnerProp
+        ? makeRunnerPropVolume(sprite.runnerProp, orientation, rotation, dimensions)
+        : sprite.buildingVolume
+          ? makeBuildingVolume({
+              front: sprite.texture,
+              ...sprite.buildingVolume,
+              orientation,
+              ...(rotation === undefined ? {} : { rotation }),
+              ...(building ? { dimensions: building } : {}),
+            })
+          : sprite.bridgeOrientation
+            ? makeBridgeVolume(sprite.texture, sprite.bridgeOrientation, bridge, rotation)
+            : null;
     const volume =
       native === null &&
       (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")

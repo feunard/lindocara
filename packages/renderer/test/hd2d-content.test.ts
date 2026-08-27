@@ -495,6 +495,50 @@ describe("staticAssetSpec", () => {
     });
   });
 
+  it("resolves cave and castle shells as native architectural volumes", () => {
+    expect(staticAssetSpec("building.lindocara-structure.cave-wall")).toMatchObject({
+      structureVolume: "cave-wall",
+      url: "/assets/lindocara/hd2d/tileset-grotte.png",
+    });
+    expect(staticAssetSpec("building.lindocara-structure.castle-wall")).toMatchObject({
+      structureVolume: "castle-wall",
+    });
+    expect(staticAssetSpec("building.lindocara-structure.cave-ceiling")).toMatchObject({
+      structureVolume: "cave-ceiling",
+    });
+    expect(staticAssetSpec("building.lindocara-structure.castle-ceiling")).toMatchObject({
+      structureVolume: "castle-ceiling",
+    });
+  });
+
+  it("builds detailed wall and ceiling meshes in world space", () => {
+    const map = flatMap(8, {
+      elements: [
+        { assetId: "wall", x: -1, z: 1, rotation: 37 },
+        { assetId: "ceiling", x: 2, z: 1, dimensions: { width: 6, depth: 6 } },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(
+      createHd2dContext(),
+      scene,
+      map,
+      resolverFor({
+        wall: art({ structureVolume: "cave-wall" }),
+        ceiling: art({ structureVolume: "castle-ceiling" }),
+      }),
+    );
+    const wall = scene.root.getObjectByName("structure-cave-wall");
+    const ceiling = scene.root.getObjectByName("structure-castle-ceiling");
+    if (!wall || !ceiling) throw new Error("expected native wall and ceiling");
+    expect(wall.getObjectsByProperty("name", "cave-wall-rock").length).toBeGreaterThan(20);
+    expect(wall.rotation.y).toBeCloseTo((-37 * Math.PI) / 180);
+    expect(ceiling.getObjectsByProperty("name", "castle-ceiling-rib")).toHaveLength(5);
+    const ceilingBounds = new THREE.Box3().setFromObject(ceiling);
+    expect(ceilingBounds.max.x - ceilingBounds.min.x).toBeGreaterThan(5.8);
+    expect(ceilingBounds.min.y).toBeGreaterThan(2.49);
+  });
+
   it("grounds native runner props and keeps them independent from camera-facing billboards", () => {
     const map = flatMap(6, {
       elements: [

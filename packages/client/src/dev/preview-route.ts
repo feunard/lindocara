@@ -3,6 +3,7 @@
 import { AMBIENCE_FULL, AMBIENCE_NONE } from "@lindocara/renderer/ambience.js";
 import { setHd2dGroundPalette } from "@lindocara/renderer/hd2d/scene.js";
 
+import { buildBiomeWitnessMap } from "./biome-witness-map.js";
 import {
   buildBuildingRoofMap,
   parseRoofWitnessBuilding,
@@ -15,7 +16,7 @@ export interface PreviewRequest {
   ambience: boolean;
   /** Starting camera multiplier. Below 1 pulls back. */
   zoom: number;
-  witness: "reference" | "roofs";
+  witness: "reference" | "roofs" | "biomes";
   building: RoofWitnessBuilding;
   autoClimb: boolean;
 }
@@ -28,7 +29,12 @@ export function previewRequest(search: string): PreviewRequest | null {
     palette: params.get("palette"),
     ambience: params.get("ambience") !== "0",
     zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
-    witness: params.get("preview") === "roofs" ? "roofs" : "reference",
+    witness:
+      params.get("preview") === "roofs"
+        ? "roofs"
+        : params.get("preview") === "biomes"
+          ? "biomes"
+          : "reference",
     building: parseRoofWitnessBuilding(params.get("building")),
     autoClimb: params.get("autoclimb") === "1",
   };
@@ -58,7 +64,11 @@ export async function startPreviewRoute(request: PreviewRequest): Promise<void> 
   const palette = request.palette;
   const paletteApplied = palette === null ? true : setHd2dGroundPalette(palette);
   const reference = request.witness === "reference" ? buildReferenceMapBuild() : null;
-  const map = reference?.map ?? buildBuildingRoofMap(request.building);
+  const map =
+    reference?.map ??
+    (request.witness === "biomes"
+      ? buildBiomeWitnessMap()
+      : buildBuildingRoofMap(request.building));
   const root = document.querySelector("#root");
   let roofMaxY = Number.NEGATIVE_INFINITY;
   let roofMinZ = Number.POSITIVE_INFINITY;
@@ -126,6 +136,14 @@ export async function startPreviewRoute(request: PreviewRequest): Promise<void> 
       `palette ${palette ?? "altitude"}${paletteApplied ? "" : "  (unknown - ignored)"}   ambience ${request.ambience ? "on" : "off"}`,
       "WASD / arrows to walk    wheel or - / + to zoom, 0 resets",
       "?palette=color1..color5    ?ambience=0    ?zoom=0.5",
+    ]);
+  } else if (request.witness === "biomes") {
+    captionInto(root, [
+      "HD-2D biome witness",
+      "Cave · mountain · volcano · lava",
+      "Native cave/castle walls and ceilings",
+      "WASD / arrows to swim and walk    wheel or - / + to zoom",
+      "?preview=biomes&ambience=0&zoom=0.75",
     ]);
   }
 }
