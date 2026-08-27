@@ -38,12 +38,7 @@ import {
 } from "../tile-brush.js";
 import { TILE_SIZE } from "../tilemap.js";
 import { decodeTileId, fixedId } from "../tileset.js";
-import {
-  elevationOfSlot,
-  isGroundElevation,
-  materialOfSlot,
-  oneCellRampDescriptor,
-} from "../tilesets/tiny-swords.js";
+import { oneCellRampDescriptor, terrainDescriptorOfTileId } from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
@@ -100,21 +95,15 @@ function authoredElementRenderPoint(element: MapElement, size: number): { x: num
 function authoredLevel(id: number): number | null {
   const tile = decodeTileId(id);
   if (tile.kind === "empty") return null;
-  if (tile.kind === "autotile") {
-    const elevation = elevationOfSlot(tile.slot);
-    // A slot that is not ground at all (a cliff face, a retired brush) still SUPPORTS ground, and
-    // its base is the ground plane. A sunken slot is ground, at a negative level, and passes
-    // through: `< 0` here used to mean "not ground" and would now flatten every pit.
-    return isGroundElevation(elevation) ? elevation : 0;
-  }
+  const terrain = terrainDescriptorOfTileId(id);
+  if (terrain) return terrain.level;
   // Fixed ground art is uncommon (ramps live on the wall layer), but a valid fixed tile is land,
   // never an invisible hole. Its supporting elevation remains the ground layer's base level.
   return 0;
 }
 
 function authoredMaterial(id: number): TerrainMaterial {
-  const tile = decodeTileId(id);
-  return tile.kind === "autotile" ? materialOfSlot(tile.slot) : "herbe";
+  return terrainDescriptorOfTileId(id)?.material ?? "herbe";
 }
 
 /** Whether an authored editor cell compiles to open water in the shipped heightfield. */
@@ -596,6 +585,33 @@ export function authoredElementColliders(
     h: rect.height / TILE_SIZE,
     ...(rect.rotation ? { rotation: rect.rotation } : {}),
   };
+  const architecture = asset?.editor.architecturalVolume;
+  const nativeDimensions = asset?.editor.native3d;
+  if (architecture && nativeDimensions) {
+    const dimensions = element.dimensions ?? nativeDimensions;
+    const verticalScale = Math.sqrt(
+      (dimensions.width / nativeDimensions.width) * (dimensions.depth / nativeDimensions.depth),
+    );
+    const base = elementBaseTop(element, levels, size);
+    if (architecture.kind === "ceiling") {
+      const bottom = base + (architecture.clearance ?? 1.4) * verticalScale;
+      return [
+        {
+          ...collider,
+          bottom,
+          top: bottom + (architecture.thickness ?? 0.35) * verticalScale,
+          support: "center",
+        },
+      ];
+    }
+    return [
+      {
+        ...collider,
+        top: base + (architecture.height ?? 2.7) * verticalScale,
+        support: "center",
+      },
+    ];
+  }
   if (asset?.editor.terrainOverride === "walkable") {
     const top = authoredBridgeTop(authored, element, levels, size);
     const orientation = bridgeOrientation(element.assetId);

@@ -1,5 +1,6 @@
 import type { ColliderQuery, StepDeps } from "@lindocara/engine/hd2d/hero-state.js";
 import type {
+  TerrainLiquid,
   TerrainMaterial,
   TerrainQuery,
   TerrainRampSample,
@@ -12,6 +13,7 @@ interface Options {
   hauteur?: (x: number, z: number) => number | null;
   surface?: (x: number, z: number, ceilingY: number) => number | null;
   matiere?: (x: number, z: number) => TerrainMaterial | null;
+  liquide?: (x: number, z: number) => TerrainLiquid | null;
   /** World height of the water surface at a point. Default: 0 everywhere, which is what every map
    *  without water at elevation answers. */
   eau?: (x: number, z: number) => number;
@@ -36,6 +38,9 @@ export function depsPlates(o: Options = {}): StepDeps {
     maxHeightAround: (x, z, r, ceilingY) => o.maxAutour?.(x, z, r, ceilingY) ?? hauteur(x, z) ?? 0,
     levelAt: (x, z) => (hauteur(x, z) === null ? null : 0),
     kindAt: (x, z) => matiere(x, z),
+    liquidAt: (x, z) =>
+      o.liquide?.(x, z) ??
+      (matiere(x, z) === "lave" ? "lava" : hauteur(x, z) === null ? "water" : null),
     rampAt: (x, z) => o.rampe?.(x, z) ?? null,
     canTraverseRamp: (fromX, fromZ, toX, toZ, r) =>
       o.franchit?.(fromX, fromZ, toX, toZ, r) ?? false,

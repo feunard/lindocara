@@ -94,6 +94,17 @@ export interface EditorPlacementMetadata {
    * front edge, matching buildings, so every future native prop inherits the same rotation and
    * proportional-resize tools without an asset-specific editor branch. */
   native3d?: { readonly width: number; readonly depth: number };
+  /** Authored cave/castle shell. The collider compiler and native renderer share these dimensions;
+   * a ceiling is a raised slab, while a wall rises from the terrain. */
+  architecturalVolume?: {
+    readonly kind: "wall" | "ceiling";
+    readonly style: "cave" | "castle";
+    readonly height?: number;
+    readonly clearance?: number;
+    readonly thickness?: number;
+  };
+  /** Explicit for every authored 3D placeable introduced outside the building state machine. */
+  destructibility?: "indestructible" | "destructible";
   /** Optional creator-facing grouping for authored architecture. Legacy assets omit it. */
   buildingFaction?: "human" | "goblin" | "orc-troll" | "beastfolk" | "wild-tribe";
   /** Function inside a faction pack; used only to organize authoring, never as a gameplay rule. */
@@ -236,6 +247,12 @@ export const LINDOCARA_RUNNER_ASSET_IDS = {
   barricade: "decoration.lindocara-runner.barricade",
   goblinBarricade: "decoration.lindocara-runner.goblin-barricade",
   orcBarricade: "decoration.lindocara-runner.orc-barricade",
+} as const;
+export const LINDOCARA_STRUCTURE_ASSET_IDS = {
+  caveWall: "building.lindocara-structure.cave-wall",
+  castleWall: "building.lindocara-structure.castle-wall",
+  caveCeiling: "building.lindocara-structure.cave-ceiling",
+  castleCeiling: "building.lindocara-structure.castle-ceiling",
 } as const;
 export const LINDOCARA_PICKUP_ASSET_IDS = {
   speed_boost: "resource.lindocara-pickup.speed-boost",
@@ -467,6 +484,55 @@ function lindocaraRunnerProp<const Id extends string>(options: {
   } as const satisfies EditorAssetDefinition;
 }
 
+function lindocaraStructure<const Id extends string>(options: {
+  id: Id;
+  style: "cave" | "castle";
+  kind: "wall" | "ceiling";
+  native3d: { readonly width: number; readonly depth: number };
+  height?: number;
+  clearance?: number;
+  thickness?: number;
+}) {
+  const preview = options.style === "cave" ? "grotte" : "montagne";
+  const { width, depth } = options.native3d;
+  return {
+    id: options.id,
+    sourcePath: `/assets/lindocara/hd2d/tileset-${preview}.png`,
+    pack: "LindoCara Lab",
+    domain: "building",
+    category: `Lindocara/Architecture/${options.style}`,
+    role: "world-architecture",
+    tags: ["architecture", "generated", "hd2d", options.style, options.kind, "indestructible"],
+    width: 64,
+    height: 64,
+    nature: "static",
+    anchor: { x: 0.5, y: 1 },
+    footOffset: 0,
+    editor: {
+      category: "buildings",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "object",
+      sourceRect: { x: 0, y: 0, width: 64, height: 64 },
+      visualFootprint: centredFootprint(width, depth),
+      collider: {
+        x: (-width * 64) / 2,
+        y: -depth * 64,
+        width: width * 64,
+        height: depth * 64,
+      },
+      native3d: options.native3d,
+      architecturalVolume: {
+        kind: options.kind,
+        style: options.style,
+        ...(options.height === undefined ? {} : { height: options.height }),
+        ...(options.clearance === undefined ? {} : { clearance: options.clearance }),
+        ...(options.thickness === undefined ? {} : { thickness: options.thickness }),
+      },
+      destructibility: "indestructible",
+    },
+  } as const satisfies EditorAssetDefinition;
+}
+
 const LINDOCARA_LAB_EDITOR_ASSETS = [
   lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.speed_boost, "speed-boost.png", ["buff", "speed"]),
   lindocaraPickup(LINDOCARA_PICKUP_ASSET_IDS.light_gravity, "light-gravity.png", [
@@ -573,6 +639,36 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     collisionElevation: 3,
     native3d: { width: 3.25, depth: 1.45 },
     editorFaction: "orc-troll",
+  }),
+  lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.caveWall,
+    style: "cave",
+    kind: "wall",
+    native3d: { width: 3, depth: 0.8 },
+    height: 2.7,
+  }),
+  lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.castleWall,
+    style: "castle",
+    kind: "wall",
+    native3d: { width: 3, depth: 0.75 },
+    height: 2.8,
+  }),
+  lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling,
+    style: "cave",
+    kind: "ceiling",
+    native3d: { width: 3, depth: 3 },
+    clearance: 1.35,
+    thickness: 0.42,
+  }),
+  lindocaraStructure({
+    id: LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling,
+    style: "castle",
+    kind: "ceiling",
+    native3d: { width: 3, depth: 3 },
+    clearance: 1.5,
+    thickness: 0.34,
   }),
   {
     id: LINDOCARA_CAMPFIRE_ASSET_ID,

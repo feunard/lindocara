@@ -99,26 +99,26 @@ import {
   elevationStepTarget,
   eraseRect,
   eraseTile,
-  floodFill,
+  floodFillTerrain,
   groundElevationAt,
   inferStairsPlacement,
-  paintAutotile,
   paintElevation,
   paintOneCellRamp,
   paintTerrain,
+  paintTerrainLayer,
   type RampDirection,
   resolveWholeLayer,
-  slotAt,
   syncElevationWalls,
+  terrainFloodRegion,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { autotileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
+  isGroundElevation,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
-  terrainSlot,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import {
   type EditorAssetId,
@@ -1603,17 +1603,17 @@ function changedBounds(
  * go on this particular cell. The cell is a parameter precisely because of the second: a relative
  * brush has no answer until it knows what it landed on.
  */
-function contentSlot(
+function contentTarget(
   content: RectFillContent,
   ground: TileLayer,
   col: number,
   row: number,
-): number | null {
+): { material: TerrainMaterial; level: number } | null {
   if (content.kind === "elevation") {
     const target = elevationTargetLevel(content, groundElevationAt(ground, col, row));
-    return target === null ? null : terrainSlot(content.material ?? "herbe", target);
+    return target === null ? null : { material: content.material ?? "herbe", level: target };
   }
-  return content.block === "grass" ? GRASS_SLOTS[0] : null;
+  return content.block === "grass" ? { material: "herbe", level: 0 } : null;
 }
 
 /**
@@ -1640,9 +1640,16 @@ function paintRectContent(
   let layer = ground;
   for (let row = r0; row <= r1; row += 1) {
     for (let col = c0; col <= c1; col += 1) {
-      const slot = contentSlot(content, layer, col, row);
-      if (slot === null) continue;
-      layer = paintAutotile(layer, TINY_SWORDS_TILESET, slot, col, row);
+      const target = contentTarget(content, layer, col, row);
+      if (target === null) continue;
+      layer = paintTerrainLayer(
+        layer,
+        TINY_SWORDS_TILESET,
+        target.material,
+        target.level,
+        col,
+        row,
+      );
     }
   }
   return layer;
@@ -1660,9 +1667,70 @@ function fillContent(
   // One slot for the whole region, resolved at the CLICKED cell, and that is exact rather than an
   // approximation: a flood region is by definition every cell sharing the origin's slot, so every
   // cell in it stands at the same level and a relative step reaches the same target from all of them.
-  const slot = contentSlot(content, ground, col, row);
-  if (slot === null) return null;
-  return floodFill(ground, TINY_SWORDS_TILESET, slot, col, row);
+  const target = contentTarget(content, ground, col, row);
+  if (target === null) return null;
+  return floodFillTerrain(ground, TINY_SWORDS_TILESET, target.material, target.level, col, row);
+}
+
+function wheelTerrainMaterial(tool: EditorTool): TerrainMaterial | null {
+  const content = tool.kind === "rect" || tool.kind === "fill" ? tool.content : tool;
+  if (content.kind === "block") return content.block === "grass" ? "herbe" : null;
+  return content.kind === "elevation" ? (content.material ?? "herbe") : null;
+}
+
+/** Raise or lower the terrain footprint currently held under the pointer. The source snapshot is
+ * load-bearing for flood fill: after a fill changes its material, its new edge can touch an older
+ * region of that material, but the wheel must still affect only the region the held click selected. */
+export function adjustTerrainToolElevation(
+  map: EditorMap,
+  tool: EditorTool,
+  col: number,
+  row: number,
+  direction: Exclude<ElevationStep, "keep">,
+  source: EditorMap = map,
+): EditorMap | null {
+  const material = wheelTerrainMaterial(tool);
+  const ground = map.layers[GROUND_LAYER];
+  if (!material || !ground) return null;
+
+  let cells: { col: number; row: number }[];
+  if (tool.kind === "rect") {
+    const anchor = map.strokeAnchor;
+    if (!anchor) return null;
+    const bounds = clampToMap(map, anchor.col, anchor.row, col, row);
+    if (!bounds) return null;
+    cells = [];
+    for (let cellRow = bounds.r0; cellRow <= bounds.r1; cellRow += 1) {
+      for (let cellCol = bounds.c0; cellCol <= bounds.c1; cellCol += 1) {
+        cells.push({ col: cellCol, row: cellRow });
+      }
+    }
+  } else if (tool.kind === "fill") {
+    const sourceGround = source.layers[GROUND_LAYER];
+    if (!sourceGround) return null;
+    cells = terrainFloodRegion(sourceGround, col, row);
+  } else if (tool.kind === "block" || tool.kind === "elevation") {
+    cells = [{ col, row }];
+  } else {
+    return null;
+  }
+
+  let painted = ground;
+  for (const cell of cells) {
+    const target = elevationStepTarget(direction, groundElevationAt(painted, cell.col, cell.row));
+    if (target === null) continue;
+    painted = paintTerrainLayer(painted, TINY_SWORDS_TILESET, material, target, cell.col, cell.row);
+  }
+  const bounds = changedBounds(ground, painted);
+  if (!bounds) return map;
+  const layers = syncElevationWallsForRect(
+    [painted, ...map.layers.slice(1)],
+    bounds.c0,
+    bounds.r0,
+    bounds.c1,
+    bounds.r1,
+  );
+  return commitTerrain(map, layers);
 }
 
 /**
@@ -1767,7 +1835,7 @@ function openWaterAt(map: EditorMap, col: number, row: number): boolean {
   const ground = map.layers[GROUND_LAYER];
   if (!ground) return false;
   if (col < 0 || row < 0 || col >= ground.cols || row >= ground.rows) return false;
-  return slotAt(ground, col, row) < 0;
+  return !isGroundElevation(groundElevationAt(ground, col, row));
 }
 
 /** The asset a placement actually writes. Everything places what the palette selected, except a
@@ -2304,7 +2372,7 @@ export function placementLegalAt(
     const { cols, rows } = editorMapSize(map);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
     const ground = map.layers[GROUND_LAYER];
-    return ground !== undefined && contentSlot(tool.content, ground, col, row) !== null;
+    return ground !== undefined && contentTarget(tool.content, ground, col, row) !== null;
   }
   // Before the first door is picked there is no pair to try, so legality is the single-cell rule.
   // Once one IS picked the stage passes it as `tool.from` and the full commit below answers.

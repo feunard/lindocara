@@ -55,6 +55,7 @@ import { advanceCombatActions } from "../../world/combat-action-system.js";
 import { applyGuardDamage } from "../../world/combat-system.js";
 import { advanceDamageOverTime } from "../../world/damage-over-time-system.js";
 import { worldView } from "../../world/interest-system.js";
+import { advanceLavaHazard } from "../../world/lava-hazard-system.js";
 import { processExpiredLoot } from "../../world/loot-system.js";
 import {
   advanceGuards,
@@ -112,6 +113,7 @@ import {
 import {
   broadcastHeroPartyStates,
   damageMonster,
+  damagePlayerFromEvent,
   damagePlayer,
   healPlayer,
   markMonsterDead,
@@ -302,6 +304,17 @@ export function advanceWorldTick(w: WorldGlue): void {
     savePlayer: (player, connectionId) => deps.savePlayer(player, connectionId),
     // No `onPlayerMoved`: the tick no longer moves anyone. The same choreography now runs in
     // `applyReportedMove`, where a client-owned hero's position actually changes.
+  });
+  advanceLavaHazard({
+    exposureTicks: state.lavaExposureTicks,
+    players: state.players.values(),
+    terrain: zone(state).terrain,
+    damage: (player, amount) => {
+      const connectionId = connectionOf(state, player.id);
+      if (connectionId !== undefined) {
+        damagePlayerFromEvent(w, connectionId, player, amount, false, now);
+      }
+    },
   });
   // The guardian is a room-owned hazard, not a monster: no HP, no threat entry and no combat
   // target path can ever reach it. It reads the last accepted swimming positions and kills through

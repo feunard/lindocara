@@ -20,11 +20,24 @@ const ELEVATION_STEPS: readonly { step: Exclude<ElevationStep, "keep">; previewL
   { step: "raise", previewLevel: 1 },
   { step: "lower", previewLevel: 0 },
 ];
-const MATERIAL_OPTIONS: readonly TerrainMaterial[] = ["herbe", "sable", "neige", "glace"];
-const MATERIAL_BACKGROUNDS: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
-  sable: "linear-gradient(145deg, #e6c57a, #b98345)",
-  neige: "linear-gradient(145deg, #ffffff, #b9d7df)",
-  glace: "linear-gradient(145deg, #d8fbff, #69b9d1)",
+const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
+  "herbe",
+  "sable",
+  "neige",
+  "glace",
+  "grotte",
+  "montagne",
+  "volcan",
+  "lave",
+];
+const MATERIAL_SOURCES: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
+  sable: "/assets/lindocara/tiny-swords/terrain/Tilemap_Flat.png",
+  neige: "/assets/lindocara/hd2d/tileset-neige.png",
+  glace: "/assets/lindocara/hd2d/tileset-glace.png",
+  grotte: "/assets/lindocara/hd2d/tileset-grotte.png",
+  montagne: "/assets/lindocara/hd2d/tileset-montagne.png",
+  volcan: "/assets/lindocara/hd2d/tileset-volcan.png",
+  lave: "/assets/lindocara/hd2d/tileset-lave.png",
 };
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its
@@ -209,22 +222,31 @@ function TerrainMaterialPreview({
   level: 0 | 1 | 2 | 3;
 }) {
   if (material === "herbe") return <TerrainTilePreview kind="grass" level={level} />;
+  const atlasCol = level === 0 ? 0 : 5;
   return (
     <span
       aria-hidden="true"
-      className="size-8 flex-none rounded border border-black/10 shadow-inner"
-      style={{
-        background: MATERIAL_BACKGROUNDS[material],
-        filter:
-          level === 1
-            ? "brightness(.9)"
-            : level === 2
-              ? "brightness(.8)"
-              : level === 3
-                ? "brightness(.7)"
-                : undefined,
-      }}
-    />
+      className="relative size-8 flex-none overflow-hidden rounded border border-black/10 bg-zinc-100 shadow-inner"
+    >
+      <span
+        className="absolute top-1/2 left-1/2 size-16"
+        style={{
+          backgroundImage: `url("${MATERIAL_SOURCES[material]}")`,
+          backgroundPosition: `${-atlasCol * 64}px 0`,
+          backgroundRepeat: "no-repeat",
+          filter:
+            level === 1
+              ? "brightness(.9)"
+              : level === 2
+                ? "brightness(.8)"
+                : level === 3
+                  ? "brightness(.7)"
+                  : undefined,
+          imageRendering: "pixelated",
+          transform: "translate(-50%, -50%) scale(.5)",
+        }}
+      />
+    </span>
   );
 }
 

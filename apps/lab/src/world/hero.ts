@@ -401,6 +401,7 @@ export function createHero(
       state.y = state.groundY;
       state.airborne = false;
       state.swimming = false;
+      state.liquid = null;
       state.vy = 0;
       // Entrée ET sortie de pièce sont des téléportations logiques, à l'instar des transitions
       // d'eau : l'élan qu'on avait avant ne veut rien dire de l'autre côté.

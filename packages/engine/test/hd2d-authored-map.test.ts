@@ -18,7 +18,11 @@ import { stairsFixedIndex, stairsTilePlacements } from "../src/tile-brush.js";
 import { emptyLayer } from "../src/tile-layer-codec.js";
 import { autotileId, fixedId } from "../src/tileset.js";
 import { TERRAIN_MATERIAL_SLOTS, TINY_SWORDS_TILESET_ID } from "../src/tilesets/tiny-swords.js";
-import { LINDOCARA_BUILDING_ASSET_IDS } from "../src/tiny-swords-catalog.js";
+import {
+  editorAsset,
+  LINDOCARA_BUILDING_ASSET_IDS,
+  LINDOCARA_STRUCTURE_ASSET_IDS,
+} from "../src/tiny-swords-catalog.js";
 
 function authored(): MapData {
   const ground = emptyLayer(3, 2);
@@ -55,6 +59,72 @@ function authored(): MapData {
 }
 
 describe("compileAuthoredMap", () => {
+  it("compiles walls as columns and ceilings as raised passable slabs", () => {
+    const cols = 8;
+    const ground = emptyLayer(cols, cols);
+    ground.ids = ground.ids.map(() => autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    const source: MapData = {
+      ...authored(),
+      cols,
+      rows: cols,
+      layers: [ground, emptyLayer(cols, cols), emptyLayer(cols, cols)],
+      elements: [
+        {
+          col: 4,
+          row: 4,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: LINDOCARA_STRUCTURE_ASSET_IDS.caveWall,
+          rotation: 37,
+          dimensions: { width: 6, depth: 1.6 },
+        },
+        {
+          col: 4,
+          row: 2,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling,
+          dimensions: { width: 6, depth: 6 },
+        },
+      ],
+      spawn: { col: 0, row: 0 },
+    };
+
+    const compiled = compileAuthoredMap(source);
+    const [wall, ceiling] = compiled.colliders;
+    expect(wall).toMatchObject({ rotation: (37 * Math.PI) / 180, top: 5.4 });
+    expect(wall?.bottom).toBeUndefined();
+    expect(ceiling?.bottom).toBeCloseTo(2.7);
+    expect((ceiling?.top ?? 0) - (ceiling?.bottom ?? 0)).toBeCloseTo(0.84);
+    expect(compiled.elements).toEqual([
+      expect.objectContaining({
+        assetId: LINDOCARA_STRUCTURE_ASSET_IDS.caveWall,
+        rotation: 37,
+        dimensions: { width: 6, depth: 1.6 },
+      }),
+      expect.objectContaining({
+        assetId: LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling,
+        dimensions: { width: 6, depth: 6 },
+      }),
+    ]);
+    for (const id of Object.values(LINDOCARA_STRUCTURE_ASSET_IDS)) {
+      expect(editorAsset(id)?.editor).toMatchObject({
+        native3d: expect.any(Object),
+        architecturalVolume: expect.any(Object),
+        destructibility: "indestructible",
+      });
+    }
+    const terrain = zoneTerrainFromHeightfield(compiled);
+    const wallPoint = compiled.elements[0];
+    const ceilingPoint = compiled.elements[1];
+    if (!wallPoint || !ceilingPoint || ceiling?.top === undefined) {
+      throw new Error("compiled architecture fixture missing");
+    }
+    expect(canStand(terrain, wallPoint.x, wallPoint.z, 0.2, 0)).toBe(false);
+    expect(canStand(terrain, ceilingPoint.x, ceilingPoint.z, 0.2, 0)).toBe(true);
+    expect(canStand(terrain, ceilingPoint.x, ceilingPoint.z, 0.2, ceiling.top)).toBe(true);
+  });
+
   it("compiles rectangular terrain, content and event positions into one square heightfield", () => {
     const page = {
       ...defaultEventPage(),

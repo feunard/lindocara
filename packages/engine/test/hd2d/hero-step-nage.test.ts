@@ -6,6 +6,27 @@ import { depsPlates } from "./helpers/step-deps.js";
 
 const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: false };
 
+describe("stepHero - lava", () => {
+  it("swims with a full breath reserve and no drowning event", () => {
+    const deps = depsPlates({
+      hauteur: () => 0,
+      matiere: () => "lave",
+      liquide: () => "lava",
+      eau: () => 0,
+    });
+    const state = createHeroState(0, 0, 0, 12, 2.2);
+    const events: string[] = [];
+    for (let index = 0; index < 600; index += 1) {
+      for (const event of stepHero(state, immobile, 1 / 60, deps)) events.push(event.t);
+    }
+    expect(state.swimming).toBe(true);
+    expect(state.liquid).toBe("lava");
+    expect(state.breath).toBe(12);
+    expect(events).toContain("entree-eau");
+    expect(events).not.toContain("noyade");
+  });
+});
+
 describe("stepHero — swimming", () => {
   it("enters the water falling off an edge, and announces it exactly once", () => {
     const deps = depsPlates({ hauteur: (x) => (x < 0 ? 0 : null) });

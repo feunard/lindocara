@@ -83,6 +83,10 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${TERRAIN_ROOT}/Tilemap_Flat.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-neige.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/tileset-glace.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-grotte.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-montagne.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-volcan.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/tileset-lave.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
@@ -109,6 +113,14 @@ export function setHd2dGroundPalette(palette: string): boolean {
 export function terrainAtlasKey(material: string, level: number): string {
   if (material === "sable" || material === "neige") return material;
   if (material === "glace") return "glace";
+  if (
+    material === "grotte" ||
+    material === "montagne" ||
+    material === "volcan" ||
+    material === "lave"
+  ) {
+    return `${material}-${level === 0 ? "ground" : "raised"}`;
+  }
   // A SUNKEN level takes a raised sheet, not level 0's. Level 0's group is the water-edge one
   // because level 0 is what borders the sea, and its white shore line is painted in; a pit floor
   // borders the wall of the pit it sits in on every side, so that line would draw surf around a
@@ -146,6 +158,16 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     tilePx: 64,
   });
   const palette = groundPaletteOverride ? `Tilemap_${groundPaletteOverride}.png` : null;
+  const generated = (material: "grotte" | "montagne" | "volcan" | "lave") => ({
+    [`${material}-ground`]: {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-${material}.png`),
+    },
+    [`${material}-raised`]: {
+      ...sheet("Tilemap_color1.png", "cliff-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-${material}.png`),
+    },
+  });
   return {
     lvl0: sheet(palette ?? "Tilemap_color1.png", "water-edge", 9, 6),
     lvl1: sheet(palette ?? "Tilemap_color3.png", "cliff-edge", 9, 6),
@@ -162,6 +184,10 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
       ...sheet("Tilemap_color1.png", "cliff-edge", 9, 6),
       texture: textures.get(`${HD2D_TERRAIN_ROOT}/tileset-glace.png`),
     },
+    ...generated("grotte"),
+    ...generated("montagne"),
+    ...generated("volcan"),
+    ...generated("lave"),
     interior: {
       ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
       texture: textures.get(`${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`),

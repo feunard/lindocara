@@ -14,6 +14,7 @@ import {
   LINDOCARA_BUILDING_ASSET_IDS,
   LINDOCARA_INTERIOR_ASSET_IDS,
   LINDOCARA_RUNNER_ASSET_IDS,
+  LINDOCARA_STRUCTURE_ASSET_IDS,
   NPC_MODEL_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -163,6 +164,10 @@ const LINDOCARA_ASSET_LABELS: Readonly<Record<string, MessageKey>> = {
   [LINDOCARA_RUNNER_ASSET_IDS.barricade]: "editor.asset.lindocara.barricade",
   [LINDOCARA_RUNNER_ASSET_IDS.goblinBarricade]: "editor.asset.lindocara.goblinBarricade",
   [LINDOCARA_RUNNER_ASSET_IDS.orcBarricade]: "editor.asset.lindocara.orcBarricade",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.caveWall]: "editor.asset.lindocara.caveWall",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.castleWall]: "editor.asset.lindocara.castleWall",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.caveCeiling]: "editor.asset.lindocara.caveCeiling",
+  [LINDOCARA_STRUCTURE_ASSET_IDS.castleCeiling]: "editor.asset.lindocara.castleCeiling",
 };
 
 export function assetDisplayName(asset: EditorAssetDefinition): string {

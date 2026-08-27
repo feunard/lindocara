@@ -19,7 +19,17 @@ import {
  *  mechanic is gone; ice is just ice. Stored maps painted with it are still accepted and read as
  *  `"glace"` — see `decodeMap` — so no authored map had to be migrated, and none became
  *  unjoinable. */
-export type TerrainMaterial = "sable" | "herbe" | "neige" | "glace";
+export type TerrainMaterial =
+  | "sable"
+  | "herbe"
+  | "neige"
+  | "glace"
+  | "grotte"
+  | "montagne"
+  | "volcan"
+  | "lave";
+
+export type TerrainLiquid = "water" | "lava";
 
 /** Which way a ramp CLIMBS: `east`/`west` slope along x, `north`/`south` along z. All four exist
  *  because a cliff runs in any direction and an author should not have to rebuild the hill to get
@@ -87,6 +97,8 @@ export interface TerrainQuery {
   levelAt(wx: number, wz: number): number | null;
   /** Ground material under a point, or `null` if it is water / off the map. */
   kindAt(wx: number, wz: number): TerrainMaterial | null;
+  /** Liquid occupying the cell: open water (including off-map sea), lava, or dry terrain. */
+  liquidAt(wx: number, wz: number): TerrainLiquid | null;
   /** Stair slope under a point, if any. */
   rampAt(wx: number, wz: number): TerrainRampSample | null;
   /** Whether one grounded movement segment follows a stair corridor or crosses one endpoint. */
@@ -191,6 +203,12 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     const h = at(toCell(wx), toCell(wz));
     return h === null ? null : h * levelHeight;
   };
+  const liquidAt = (wx: number, wz: number): TerrainLiquid | null => {
+    const i = toCell(wx);
+    const j = toCell(wz);
+    if (kindAt(i, j) === "lave") return "lava";
+    return at(i, j) === null ? "water" : null;
+  };
   const platformAt = (wx: number, wz: number, ceilingY: number): number | null => {
     let top: number | null = null;
     for (const platform of platforms) {
@@ -255,6 +273,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     kindAt(wx, wz) {
       return kindAt(toCell(wx), toCell(wz));
     },
+    liquidAt,
     rampAt(wx, wz) {
       return rampSampleAt(ramps, levelHeight, wx, wz);
     },
@@ -324,6 +343,10 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       return [i + 0.5 - c, j + 0.5 - c];
     },
     waterLevelAt(wx, wz) {
+      if (liquidAt(wx, wz) === "lava") {
+        const level = at(toCell(wx), toCell(wz));
+        if (level !== null) return level * levelHeight;
+      }
       const w = waterAt?.(toCell(wx), toCell(wz));
       return w === null || w === undefined ? waterLevel : w * levelHeight;
     },

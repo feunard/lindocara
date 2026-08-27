@@ -4,7 +4,7 @@
 // (the rule): this is the only one of the three with NO dependency of its own, so the only one the
 // other two can import without a cycle. It moved into `@lindocara/engine` in S2, unchanged.
 
-import type { TerrainMaterial, TerrainQuery } from "./terrain-query.js";
+import type { TerrainLiquid, TerrainMaterial, TerrainQuery } from "./terrain-query.js";
 
 /** Rectangle where the hero can walk indoors — a flat floor, no gravity, no swimming, no jumping.
  *  MOVED from the lab's `hero.ts`: `hero.ts` must RE-EXPORT it from here rather than keep a second
@@ -54,6 +54,8 @@ export interface HeroState {
   vy: number;
   airborne: boolean;
   swimming: boolean;
+  /** Which liquid currently drives swimming. Lava deliberately carries no oxygen countdown. */
+  liquid: TerrainLiquid | null;
   breath: number;
   coyote: number;
   /** The canopy is open: a slow, steady descent instead of gravity. */
@@ -121,8 +123,8 @@ export type HeroEvent =
   | { t: "brasse" }
   | { t: "saut" }
   | { t: "reception"; force: number }
-  | { t: "entree-eau"; x: number; y: number; z: number }
-  | { t: "sortie-eau"; x: number; y: number; z: number }
+  | { t: "entree-eau"; liquid: TerrainLiquid; x: number; y: number; z: number }
+  | { t: "sortie-eau"; liquid: TerrainLiquid; x: number; y: number; z: number }
   | { t: "noyade"; x: number; y: number; z: number }
   | { t: "trace"; x: number; z: number; cote: number }
   | { t: "haleine" }
@@ -203,6 +205,7 @@ export function createHeroState(
     vy: 0,
     airborne: false,
     swimming: false,
+    liquid: null,
     breath,
     coyote: 0,
     gliding: false,

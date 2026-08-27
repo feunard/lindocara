@@ -245,7 +245,7 @@ describe("the map codec", () => {
 
   it("still rejects a material that was never real", () => {
     expect(
-      decodeMap(JSON.stringify({ ...map, materials: map.materials.map(() => "lave") })),
+      decodeMap(JSON.stringify({ ...map, materials: map.materials.map(() => "magma") })),
     ).toBeNull();
   });
 });

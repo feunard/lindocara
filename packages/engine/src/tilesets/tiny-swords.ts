@@ -10,7 +10,7 @@
  * 0, the raised group at column 5, and the cliff wall band beneath the raised group.
  */
 import type { TerrainMaterial } from "../hd2d/terrain-query.js";
-import type { Tileset } from "../tileset.js";
+import { decodeTileId, type Tileset } from "../tileset.js";
 
 export const TINY_SWORDS_TILESET_ID = "tiny-swords";
 
@@ -119,19 +119,20 @@ export type TerrainLevelSlots = readonly [
  *  Levels 0-3 keep their historical slots exactly (0, 1, 2 and 19 for grass); 4 and up are appended
  *  after every other declared slot, so no stored id changed meaning. */
 export const GRASS_SLOTS: TerrainLevelSlots = [0, 1, 2, 19, 24, 28, 32, 36, 40, 44, 48];
+export const LEGACY_AUTOTILE_TERRAIN_MATERIALS = ["herbe", "sable", "neige", "glace"] as const;
+export type LegacyAutotileTerrainMaterial = (typeof LEGACY_AUTOTILE_TERRAIN_MATERIALS)[number];
+export const FIXED_TERRAIN_MATERIALS = ["grotte", "montagne", "volcan", "lave"] as const;
 export const AUTHORED_TERRAIN_MATERIALS = [
-  "herbe",
-  "sable",
-  "neige",
-  "glace",
+  ...LEGACY_AUTOTILE_TERRAIN_MATERIALS,
+  ...FIXED_TERRAIN_MATERIALS,
 ] as const satisfies readonly TerrainMaterial[];
-const EXTRA_TERRAIN_MATERIALS = AUTHORED_TERRAIN_MATERIALS.slice(1);
+const EXTRA_TERRAIN_MATERIALS = LEGACY_AUTOTILE_TERRAIN_MATERIALS.slice(1);
 export const TERRAIN_MATERIAL_SLOTS = {
   herbe: GRASS_SLOTS,
   sable: [7, 8, 9, 20, 25, 29, 33, 37, 41, 45, 49],
   neige: [10, 11, 12, 21, 26, 30, 34, 38, 42, 46, 50],
   glace: [13, 14, 15, 22, 27, 31, 35, 39, 43, 47, 51],
-} as const satisfies Readonly<Record<TerrainMaterial, TerrainLevelSlots>>;
+} as const satisfies Readonly<Record<LegacyAutotileTerrainMaterial, TerrainLevelSlots>>;
 
 /**
  * The slots the retired thin-ice brush painted, still readable as ordinary ice.
@@ -160,7 +161,7 @@ export const SUNKEN_MATERIAL_SLOTS = {
   sable: [53, 57, 61],
   neige: [54, 58, 62],
   glace: [55, 59, 63],
-} as const satisfies Readonly<Record<TerrainMaterial, SunkenLevelSlots>>;
+} as const satisfies Readonly<Record<LegacyAutotileTerrainMaterial, SunkenLevelSlots>>;
 
 const RETIRED_THIN_ICE_SLOTS: ReadonlySet<number> = new Set([16, 17, 18, 23]);
 export const CLIFF_WALL_SLOT = 3;
@@ -212,6 +213,57 @@ export const RAMP_ONE_CELL_LEVELS: readonly number[] = Array.from(
 export const RAMP_ONE_CELL_FIXED_BASE = 20;
 export const RAMP_ONE_CELL_FIXED_COUNT =
   RAMP_ONE_CELL_DIRECTIONS.length * RAMP_ONE_CELL_LEVELS.length;
+
+/**
+ * The semantic ground band appended after every historical fixed id.
+ *
+ * The autotile reservation is full, and increasing it would move `FIXED_BASE`, reinterpreting every
+ * stored ramp and cliff id. New materials therefore live in an append-only fixed band. They still
+ * compile to the same heightfield and renderer mesh as legacy autotiles; only the retired 2D tile
+ * preview loses neighbour-aware edges, which is preferable to corrupting saved maps.
+ */
+export const FIXED_TERRAIN_BASE = RAMP_ONE_CELL_FIXED_BASE + RAMP_ONE_CELL_FIXED_COUNT;
+export const FIXED_TERRAIN_LEVEL_COUNT = TERRAIN_LEVELS + SUNKEN_TERRAIN_LEVELS;
+export const FIXED_TERRAIN_COUNT = FIXED_TERRAIN_MATERIALS.length * FIXED_TERRAIN_LEVEL_COUNT;
+
+export interface FixedTerrainDescriptor {
+  material: (typeof FIXED_TERRAIN_MATERIALS)[number];
+  level: number;
+}
+
+/** Stable fixed index for one generated material/elevation pair, or -1 outside that band. */
+export function terrainFixedIndex(material: TerrainMaterial, level: number): number {
+  const materialIndex = (FIXED_TERRAIN_MATERIALS as readonly TerrainMaterial[]).indexOf(material);
+  if (
+    materialIndex < 0 ||
+    !Number.isSafeInteger(level) ||
+    level < -SUNKEN_TERRAIN_LEVELS ||
+    level >= TERRAIN_LEVELS
+  ) {
+    return -1;
+  }
+  return (
+    FIXED_TERRAIN_BASE + materialIndex * FIXED_TERRAIN_LEVEL_COUNT + level + SUNKEN_TERRAIN_LEVELS
+  );
+}
+
+/** Material and elevation encoded by the append-only fixed ground band. */
+export function fixedTerrainDescriptor(index: number): FixedTerrainDescriptor | null {
+  if (
+    !Number.isSafeInteger(index) ||
+    index < FIXED_TERRAIN_BASE ||
+    index >= FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT
+  ) {
+    return null;
+  }
+  const offset = index - FIXED_TERRAIN_BASE;
+  const material = FIXED_TERRAIN_MATERIALS[Math.floor(offset / FIXED_TERRAIN_LEVEL_COUNT)];
+  if (!material) return null;
+  return {
+    material,
+    level: (offset % FIXED_TERRAIN_LEVEL_COUNT) - SUNKEN_TERRAIN_LEVELS,
+  };
+}
 
 /** The stable id of a one-cell ramp, or -1 for a direction/level pair outside the band. */
 export function oneCellRampFixedIndex(
@@ -390,7 +442,7 @@ export const TINY_SWORDS_TILESET: Tileset = {
     // mirrors AUTHORED_TERRAIN_MATERIALS and therefore yields the declared slots 19 through 22,
     // with 23 the retired thin ice's own level 3: the five-material shape this band was written
     // for, and the one the tables have always described.
-    ...AUTHORED_TERRAIN_MATERIALS.map(() => ({
+    ...LEGACY_AUTOTILE_TERRAIN_MATERIALS.map(() => ({
       atlas: ATLAS,
       origin: { col: 5, row: 0 },
       kind: "edge16" as const,
@@ -416,7 +468,7 @@ export const TINY_SWORDS_TILESET: Tileset = {
     ...Array.from({ length: TERRAIN_LEVELS - 4 }, (_unused, index) => index + 4).flatMap(
       (level) => {
         const tint = raisedTint(level) ?? RAISED_3_TINT;
-        return AUTHORED_TERRAIN_MATERIALS.map(() => ({
+        return LEGACY_AUTOTILE_TERRAIN_MATERIALS.map(() => ({
           atlas: ATLAS,
           origin: { col: 5, row: 0 },
           kind: "edge16" as const,
@@ -433,7 +485,7 @@ export const TINY_SWORDS_TILESET: Tileset = {
     // them and the shadow inside it, not a different sheet.
     ...Array.from({ length: SUNKEN_TERRAIN_LEVELS }, (_unused, index) => index + 1).flatMap(
       (depth) =>
-        AUTHORED_TERRAIN_MATERIALS.map(() => ({
+        LEGACY_AUTOTILE_TERRAIN_MATERIALS.map(() => ({
           atlas: ATLAS,
           origin: { col: 0, row: 0 },
           kind: "edge16" as const,
@@ -507,6 +559,24 @@ export const TINY_SWORDS_TILESET: Tileset = {
           | 3,
       })),
     ),
+    // Semantic ground for the generated cave/mountain/volcano/lava atlases. These ids are
+    // append-only: see `FIXED_TERRAIN_BASE` above. The shipped HD-2D renderer draws the compiled
+    // material atlas; this fallback cell only keeps the legacy tile renderer valid.
+    ...FIXED_TERRAIN_MATERIALS.flatMap(() =>
+      Array.from({ length: FIXED_TERRAIN_LEVEL_COUNT }, (_unused, index) => {
+        const level = index - SUNKEN_TERRAIN_LEVELS;
+        const tint = level < 0 ? sunkenTint(-level) : raisedTint(level);
+        return {
+          atlas: ATLAS,
+          col: level <= 0 ? 0 : 5,
+          row: 0,
+          passable: true,
+          priority: "below" as const,
+          renderLevel: Math.min(3, Math.max(0, level)) as 0 | 1 | 2 | 3,
+          ...(tint === undefined ? {} : { tint }),
+        };
+      }),
+    ),
   ],
 };
 
@@ -535,7 +605,7 @@ export function isGroundElevation(elevation: number): boolean {
 /** Which elevation level a ground slot stands at, or `NO_GROUND_ELEVATION` for anything that is
  *  not authored ground. Sunken slots answer with a NEGATIVE level, which is the whole point. */
 export function elevationOfSlot(slot: number): number {
-  for (const material of AUTHORED_TERRAIN_MATERIALS) {
+  for (const material of LEGACY_AUTOTILE_TERRAIN_MATERIALS) {
     const level = (TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).indexOf(slot);
     if (level >= 0) return level;
     const depth = (SUNKEN_MATERIAL_SLOTS[material] as readonly number[]).indexOf(slot);
@@ -547,7 +617,7 @@ export function elevationOfSlot(slot: number): number {
 /** The physical/visual material encoded by an authored ground slot. Non-ground legacy slots keep
  * the historical grass fallback; their elevation is still rejected separately above. */
 export function materialOfSlot(slot: number): TerrainMaterial {
-  for (const material of AUTHORED_TERRAIN_MATERIALS) {
+  for (const material of LEGACY_AUTOTILE_TERRAIN_MATERIALS) {
     if ((TERRAIN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
     if ((SUNKEN_MATERIAL_SLOTS[material] as readonly number[]).includes(slot)) return material;
   }
@@ -557,8 +627,27 @@ export function materialOfSlot(slot: number): TerrainMaterial {
 
 /** The slot painting `material` at `level`, sunken levels included, or `null` off the range. */
 export function terrainSlot(material: TerrainMaterial, level: number): number | null {
-  if (level >= 0) return TERRAIN_MATERIAL_SLOTS[material][level] ?? null;
-  return SUNKEN_MATERIAL_SLOTS[material][-level - 1] ?? null;
+  if (!(LEGACY_AUTOTILE_TERRAIN_MATERIALS as readonly TerrainMaterial[]).includes(material)) {
+    return null;
+  }
+  const legacyMaterial = material as LegacyAutotileTerrainMaterial;
+  if (level >= 0) return TERRAIN_MATERIAL_SLOTS[legacyMaterial][level] ?? null;
+  return SUNKEN_MATERIAL_SLOTS[legacyMaterial][-level - 1] ?? null;
+}
+
+export interface TerrainTileDescriptor {
+  material: TerrainMaterial;
+  level: number;
+}
+
+/** Material/elevation encoded by one stored ground tile id, including generated fixed materials. */
+export function terrainDescriptorOfTileId(id: number): TerrainTileDescriptor | null {
+  const ref = decodeTileId(id);
+  if (ref.kind === "fixed") return fixedTerrainDescriptor(ref.index);
+  if (ref.kind !== "autotile") return null;
+  if (RETIRED_THIN_ICE_SLOTS.has(ref.slot)) return { material: "glace", level: 0 };
+  const level = elevationOfSlot(ref.slot);
+  return isGroundElevation(level) ? { material: materialOfSlot(ref.slot), level } : null;
 }
 
 /**

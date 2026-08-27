@@ -129,6 +129,10 @@ const MATERIAL_COLORS: Record<TerrainMaterial, number> = {
   herbe: 0x7fa653,
   neige: 0xdfe7ee,
   glace: 0x9fc4d8,
+  grotte: 0x5f574e,
+  montagne: 0x77818a,
+  volcan: 0x403b3a,
+  lave: 0xe85b21,
 };
 
 export interface BakedTerrain {

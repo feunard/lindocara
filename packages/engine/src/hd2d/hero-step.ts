@@ -190,7 +190,9 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
  */
 function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "entree-eau" }> {
   const { hero } = deps;
+  const liquid = deps.query.liquidAt(state.x, state.z) ?? "water";
   state.swimming = true;
+  state.liquid = liquid;
   state.airborne = false;
   state.vy = 0;
   state.vx = 0;
@@ -199,20 +201,28 @@ function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "
   const surface = deps.query.waterLevelAt(state.x, state.z);
   state.y = surface;
   state.groundY = surface;
-  return { t: "entree-eau", x: state.x, y: surface, z: state.z };
+  return { t: "entree-eau", liquid, x: state.x, y: surface, z: state.z };
 }
 
 /** Leaves the water onto a shore at `y` — never a cliff: `canEnter` (above, the `climb`
  *  constraint) has already ruled that out upstream, this function only records the exit. */
 function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
   const { hero } = deps;
+  const liquid = state.liquid ?? "water";
   state.swimming = false;
+  state.liquid = null;
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
   state.y = y;
   state.groundY = y;
-  return { t: "sortie-eau", x: state.x, y: deps.query.waterLevelAt(state.x, state.z), z: state.z };
+  return {
+    t: "sortie-eau",
+    liquid,
+    x: state.x,
+    y: deps.query.waterLevelAt(state.x, state.z),
+    z: state.z,
+  };
 }
 
 /**
@@ -233,6 +243,7 @@ function drown(state: HeroState, deps: StepDeps): HeroEvent {
   const x = state.x;
   const z = state.z;
   state.swimming = false;
+  state.liquid = null;
   state.airborne = false;
   state.vy = 0;
   state.vx = 0;
@@ -327,6 +338,7 @@ export function stepHero(
     state.y = state.room.y;
     state.airborne = false;
     state.swimming = false;
+    state.liquid = null;
     state.vy = 0;
   }
   const footprintZ = empreinteZ(state.z);
@@ -366,12 +378,14 @@ export function stepHero(
     nearbyPlatform !== null && (state.airborne || Math.abs(nearbyPlatform - state.groundY) <= 0.08)
       ? nearbyPlatform
       : null;
-  const sol =
+  const liquid = state.room ? null : query.liquidAt(state.x, footprintZ);
+  const support =
     supportedPlatform === null
       ? centreSurface
       : centreSurface === null
         ? supportedPlatform
         : Math.max(centreSurface, supportedPlatform);
+  const sol = liquid !== null && supportedPlatform === null ? null : support;
 
   // Indoors, the floor is flat: no gravity, no swimming, no jumping. The whole vertical block is
   // guarded by `!state.room` so none of these mechanics run indoors.
@@ -464,7 +478,7 @@ export function stepHero(
       // SAME frame. `!state.room` is already guaranteed by the enclosing branch: redundant but kept
       // out of caution, as a reminder that a room's virtual coordinates must never be read as if
       // they were real terrain.
-      const eau = !state.room && sol === null;
+      const eau = !state.room && liquid !== null && sol === null;
       if (eau && !state.airborne) events.push(enterWater(state, deps));
     } else {
       // --- swim resolution -----------------------------------------------------------------------
@@ -472,6 +486,7 @@ export function stepHero(
       if (sol !== null) {
         events.push(leaveWater(state, deps, sol));
       } else {
+        state.liquid = liquid ?? state.liquid ?? "water";
         const surface = query.waterLevelAt(state.x, state.z);
         if (surface < state.y - WATER_SPILL_DROP) {
           // The water has fallen away beneath: carried over a lip, which is what the top of a
@@ -479,15 +494,27 @@ export function stepHero(
           // down the drop — the rule pins a swimmer to the water every frame, and that is right
           // everywhere except an edge. Horizontal speed is kept: he is carried over, not stopped.
           state.swimming = false;
+          const departedLiquid = state.liquid ?? "water";
+          state.liquid = null;
           state.airborne = true;
           state.vy = 0;
-          events.push({ t: "sortie-eau", x: state.x, y: state.y, z: state.z });
+          events.push({
+            t: "sortie-eau",
+            liquid: departedLiquid,
+            x: state.x,
+            y: state.y,
+            z: state.z,
+          });
         } else {
           state.y = surface;
           // The rate comes from the zone (see `HeroInput.souffleTaux`): the hero no longer needs
           // to know WHICH water drains faster, only to read what it's given.
-          state.breath -= dt * input.souffleTaux;
-          if (state.breath <= 0) events.push(drown(state, deps));
+          if (state.liquid === "water") {
+            state.breath -= dt * input.souffleTaux;
+            if (state.breath <= 0) events.push(drown(state, deps));
+          } else {
+            state.breath = hero.swim.breath;
+          }
         }
       }
     }

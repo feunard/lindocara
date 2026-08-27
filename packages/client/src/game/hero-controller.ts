@@ -230,6 +230,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     state.vy = 0;
     state.airborne = false;
     state.swimming = false;
+    state.liquid = null;
     state.gliding = false;
     state.breath = hero.swim.breath;
   }
@@ -297,6 +298,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     state.vy = 0;
     state.airborne = false;
     state.swimming = false;
+    state.liquid = null;
     state.gliding = false;
     if (grant.remaining <= 0 || grant.window <= 0) endMobility();
   }
@@ -347,6 +349,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
       state.vz = velocity.z;
       state.airborne = velocity.y > 0;
       state.swimming = false;
+      state.liquid = null;
       state.gliding = false;
     },
     setMobility(grant) {

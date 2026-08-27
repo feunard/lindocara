@@ -83,6 +83,7 @@ import type {
   ElementEventBinding,
 } from "./editor-state.js";
 import {
+  adjustTerrainToolElevation,
   applyTool,
   beginEventDraft,
   canLinkDoorAt,
@@ -157,6 +158,11 @@ export interface MapEditorStageHandle {
   highlightEvent(id: string | null): void;
   selectEvent(id: string): void;
   dispose(): void;
+}
+
+function supportsWheelElevation(tool: EditorTool): boolean {
+  const content = tool.kind === "rect" || tool.kind === "fill" ? tool.content : tool;
+  return content.kind === "elevation" || (content.kind === "block" && content.block === "grass");
 }
 
 export interface MapEditorStageState {
@@ -625,6 +631,7 @@ export function openMapEditorStage(
     let panning = false;
     let spaceHeld = false;
     let strokeStart: EditorMap | null = null;
+    let rectangleWheelSteps = 0;
     let dragSelection: EditorSelection | null = null;
     // The first door of a pending link. Held here rather than on the map so the completed pair is
     // ONE `applyTool` call and therefore one undo step, and so a half-finished link can never be
@@ -1320,6 +1327,12 @@ export function openMapEditorStage(
       if (next === map) return;
       const previous = map;
       map = next;
+      if (tool.kind === "rect" && rectangleWheelSteps !== 0 && strokeStart) {
+        const direction = rectangleWheelSteps > 0 ? "raise" : "lower";
+        for (let step = 0; step < Math.abs(rectangleWheelSteps); step += 1) {
+          map = adjustTerrainToolElevation(map, tool, col, row, direction, strokeStart) ?? map;
+        }
+      }
       if (tool.kind === "event") {
         const placed = map.events.find((event) => event.col === col && event.row === row);
         if (placed) selected = { kind: "event", id: placed.id };
@@ -1508,6 +1521,7 @@ export function openMapEditorStage(
       }
       painting = true;
       strokeStart = map;
+      rectangleWheelSteps = 0;
       lastPaintedKey = "";
       paintAt(event.clientX, event.clientY, true);
     };
@@ -1574,6 +1588,7 @@ export function openMapEditorStage(
         notify();
       }
       strokeStart = null;
+      rectangleWheelSteps = 0;
       dragSelection = null;
       painting = false;
       panning = false;
@@ -1617,6 +1632,30 @@ export function openMapEditorStage(
 
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
+      if (painting && strokeStart && event.deltaY !== 0) {
+        const placement = placementAt(event.clientX, event.clientY);
+        const direction = event.deltaY < 0 ? "raise" : "lower";
+        const terrainTool = activeTool();
+        if (supportsWheelElevation(terrainTool)) {
+          if (!placement) return;
+          const next = adjustTerrainToolElevation(
+            map,
+            terrainTool,
+            placement.col,
+            placement.row,
+            direction,
+            strokeStart,
+          );
+          if (next && next !== map) {
+            const previous = map;
+            map = next;
+            if (tool.kind === "rect") rectangleWheelSteps += direction === "raise" ? 1 : -1;
+            strokeRedraw(previous);
+            notify();
+          }
+          return;
+        }
+      }
       const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
       zoom = Math.max(2, Math.min(250, zoom * factor));
       renderer.setCameraZoom(zoom);

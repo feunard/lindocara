@@ -116,6 +116,7 @@ export interface LocalMovementStatus {
   breath: number;
   maxBreath: number;
   swimming: boolean;
+  liquid: "water" | "lava" | null;
   /** Local vertical velocity, exposed for diagnostics and the future animation owner. */
   vy: number;
 }
@@ -458,6 +459,7 @@ export class WorldClient {
       breath: hero.state.breath,
       maxBreath: hero.maxBreath,
       swimming: hero.state.swimming,
+      liquid: hero.state.liquid,
       vy: hero.state.vy,
     };
   }

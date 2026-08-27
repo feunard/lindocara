@@ -11,8 +11,8 @@ describe("movement sound routing", () => {
       { t: "brasse" },
       { t: "saut" },
       { t: "reception", force: 1 },
-      { t: "entree-eau", x: 0, y: 0, z: 0 },
-      { t: "sortie-eau", x: 0, y: 0, z: 0 },
+      { t: "entree-eau", liquid: "water", x: 0, y: 0, z: 0 },
+      { t: "sortie-eau", liquid: "water", x: 0, y: 0, z: 0 },
       { t: "glider-open" },
     ];
     for (const event of audible) expect(movementSoundCue(event)).not.toBeNull();

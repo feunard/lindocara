@@ -38,9 +38,13 @@ export function movementSoundCue(event: HeroEvent): MovementSampleCue | null {
       // number: one event, one force, two consequences that must agree.
       return { key: "land", gain: MOVEMENT_GAINS.land * event.force };
     case "entree-eau":
-      return { key: "water.enter", gain: MOVEMENT_GAINS.waterEnter };
+      return event.liquid === "lava"
+        ? null
+        : { key: "water.enter", gain: MOVEMENT_GAINS.waterEnter };
     case "sortie-eau":
-      return { key: "water.leave", gain: MOVEMENT_GAINS.waterLeave };
+      return event.liquid === "lava"
+        ? null
+        : { key: "water.leave", gain: MOVEMENT_GAINS.waterLeave };
     case "glider-open":
       return { key: "glider.open", gain: MOVEMENT_GAINS.gliderOpen };
     case "noyade":

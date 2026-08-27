@@ -265,6 +265,12 @@ export function canStand(
   const surface = terrain.query.surfaceAt?.(x, z, ceiling) ?? terrain.query.heightAt(x, z);
   // `null` is water or off the grid. Neither is ground a server-simulated body may stand on.
   if (surface === null) return false;
+  if (
+    terrain.query.liquidAt(x, z) !== null &&
+    surface <= terrain.query.waterLevelAt(x, z) + HEIGHT_EPSILON
+  ) {
+    return false;
+  }
 
   // A ramp is the one place ground may rise under a walking body, so on one the ceiling becomes
   // the RAMP'S OWN TOP rather than the flat `groundY + MAX_STEP`.

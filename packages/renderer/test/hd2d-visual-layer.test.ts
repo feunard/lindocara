@@ -386,7 +386,7 @@ describe("Hd2dVisualLayer hero movement", () => {
       [
         { t: "trace", x: 0, z: 0, cote: 1 },
         { t: "haleine" },
-        { t: "entree-eau", x: 0, y: 0, z: 0 },
+        { t: "entree-eau", liquid: "water", x: 0, y: 0, z: 0 },
       ],
       hero,
     );

@@ -86,6 +86,10 @@ export function frictionPour(m: TerrainMaterial | null, hero: HeroSettings): num
       return hero.friction.neige;
     case "sable":
     case "herbe":
+    case "grotte":
+    case "montagne":
+    case "volcan":
+    case "lave":
     case null:
       return hero.friction.herbe;
   }
@@ -102,6 +106,10 @@ export function vitesseMaxPour(m: TerrainMaterial | null, hero: HeroSettings): n
       return hero.speed * hero.vitesseSol.neige;
     case "sable":
     case "herbe":
+    case "grotte":
+    case "montagne":
+    case "volcan":
+    case "lave":
     case null:
       return hero.speed * hero.vitesseSol.herbe;
   }

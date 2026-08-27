@@ -231,7 +231,12 @@ function closeInterior(): void {
 function renderPlayer(
   player: PlayerSnapshot | undefined,
   corpse: GroundVector | null,
-  movement: { breath: number; maxBreath: number; swimming: boolean } | null,
+  movement: {
+    breath: number;
+    maxBreath: number;
+    swimming: boolean;
+    liquid: "water" | "lava" | null;
+  } | null,
 ): void {
   useUiStore.getState().setSelf(
     player
@@ -241,13 +246,14 @@ function renderPlayer(
           level: player.level,
           hp: player.hp,
           maxHp: player.maxHp,
-          breath: movement?.swimming
-            ? {
-                // One React update per elapsed second, not one per animation frame.
-                current: Math.ceil(Math.max(0, movement.breath)),
-                max: Math.ceil(movement.maxBreath),
-              }
-            : null,
+          breath:
+            movement?.swimming && movement.liquid === "water"
+              ? {
+                  // One React update per elapsed second, not one per animation frame.
+                  current: Math.ceil(Math.max(0, movement.breath)),
+                  max: Math.ceil(movement.maxBreath),
+                }
+              : null,
           life: player.life,
           // Rounded, so a walking ghost does not re-render the HUD every frame.
           corpseDistance:
@@ -1545,6 +1551,7 @@ async function startGameIdentity(
           ...player,
           breath: movement?.breath ?? null,
           maxBreath: movement?.maxBreath ?? null,
+          liquid: movement?.liquid ?? null,
           vy: movement?.vy ?? 0,
         };
       },

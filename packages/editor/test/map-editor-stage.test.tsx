@@ -22,6 +22,7 @@ import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
 import { oneCellRampFixedIndex } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { terrainDescriptorOfTileId } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -227,6 +228,90 @@ describe("HD-2D map editor stage", () => {
       expect.any(Object),
       expect.objectContaining({ canUndo: true, dirty: true }),
     );
+    stage.dispose();
+  });
+
+  it("raises the held terrain brush with the wheel without zooming", async () => {
+    const zoomChanges = vi.fn();
+    const stage = await openMapEditorStage(
+      blankMap("Map", 20, 15),
+      vi.fn(),
+      undefined,
+      undefined,
+      zoomChanges,
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    stage.setTool({ kind: "elevation", step: "keep", material: "grotte" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toEqual({
+      material: "grotte",
+      level: 1,
+    });
+    expect(zoomChanges).not.toHaveBeenCalled();
+    stage.undo();
+    expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toEqual({
+      material: "herbe",
+      level: 0,
+    });
+    stage.dispose();
+  });
+
+  it("keeps wheel elevation on a resized terrain rectangle", async () => {
+    const point = { x: -8.5, z: -7.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    stage.setTool({
+      kind: "rect",
+      content: { kind: "elevation", step: "keep", material: "montagne" },
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    point.x = -6.5;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 20, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 20, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 20, clientY: 10 }));
+    point.x = -5.5;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    for (let col = 1; col <= 4; col += 1) {
+      expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + col] ?? 0)).toEqual({
+        material: "montagne",
+        level: 2,
+      });
+    }
+    expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[2 * 20 + 5] ?? 0)).toEqual({
+      material: "herbe",
+      level: 0,
+    });
+    stage.dispose();
+  });
+
+  it("raises exactly the source flood region while the fill click is held", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    stage.setTool({
+      kind: "fill",
+      content: { kind: "elevation", step: "keep", material: "volcan" },
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    for (const index of [0, 2 * 20 + 1, 20 * 15 - 1]) {
+      expect(terrainDescriptorOfTileId(stage.current().layers[0]?.ids[index] ?? 0)).toEqual({
+        material: "volcan",
+        level: 1,
+      });
+    }
     stage.dispose();
   });
 

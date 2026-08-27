@@ -31,6 +31,8 @@ import {
   RAMP_LEVEL_3_FIXED_BASE,
   RAMP_ONE_CELL_DIRECTIONS,
   RAMP_ONE_CELL_LEVELS,
+  terrainDescriptorOfTileId,
+  terrainFixedIndex,
   terrainSlot,
 } from "./tilesets/tiny-swords.js";
 
@@ -218,9 +220,9 @@ function sameRegion(
  */
 function floodRegion(
   layer: TileLayer,
-  startRef: { kind: "autotile"; slot: number } | { kind: "empty" },
   col: number,
   row: number,
+  matches: (col: number, row: number) => boolean,
 ): { col: number; row: number }[] {
   const cap = layer.cols * layer.rows * 4;
   const visited = new Set<number>([indexOf(layer, col, row)]);
@@ -243,12 +245,36 @@ function floodRegion(
       if (!inBounds(layer, next.col, next.row)) continue;
       const idx = indexOf(layer, next.col, next.row);
       if (visited.has(idx)) continue;
-      if (!sameRegion(layer, startRef, next.col, next.row)) continue;
+      if (!matches(next.col, next.row)) continue;
       visited.add(idx);
       stack.push(next);
     }
   }
   return region;
+}
+
+/** The contiguous semantic terrain region under a cell. Unlike the legacy slot-only flood helper,
+ * generated fixed terrain joins neighbouring cells with the same material and elevation. */
+export function terrainFloodRegion(
+  layer: TileLayer,
+  col: number,
+  row: number,
+): { col: number; row: number }[] {
+  if (!inBounds(layer, col, row)) return [];
+  const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
+  const startRef = decodeTileId(startId);
+  const startTerrain = terrainDescriptorOfTileId(startId);
+  if (startRef.kind === "fixed" && !startTerrain) return [{ col, row }];
+  return floodRegion(layer, col, row, (candidateCol, candidateRow) => {
+    const candidateId = layer.ids[indexOf(layer, candidateCol, candidateRow)] ?? EMPTY_TILE;
+    if (startRef.kind === "empty") return decodeTileId(candidateId).kind === "empty";
+    const candidate = terrainDescriptorOfTileId(candidateId);
+    return (
+      candidate !== null &&
+      candidate.material === startTerrain?.material &&
+      candidate.level === startTerrain.level
+    );
+  });
 }
 
 /**
@@ -274,7 +300,11 @@ export function floodFill(
   if (startRef.kind === "autotile" && startRef.slot === slot) return layer;
 
   const region: { col: number; row: number }[] =
-    startRef.kind === "fixed" ? [{ col, row }] : floodRegion(layer, startRef, col, row);
+    startRef.kind === "fixed"
+      ? [{ col, row }]
+      : floodRegion(layer, col, row, (candidateCol, candidateRow) =>
+          sameRegion(layer, startRef, candidateCol, candidateRow),
+        );
 
   const ids = [...layer.ids];
   const fillId = autotileId(slot, 0);
@@ -304,6 +334,69 @@ export function floodFill(
   return { ...layer, ids };
 }
 
+/** Paint one semantic terrain cell, whether its storage is a legacy autotile or an append-only
+ * generated-material fixed id. Neighbouring legacy masks are still refreshed around a fixed write. */
+export function paintTerrainLayer(
+  layer: TileLayer,
+  tileset: Tileset,
+  material: TerrainMaterial,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer {
+  const slot = terrainSlot(material, level);
+  if (slot !== null) return paintAutotile(layer, tileset, slot, col, row);
+  const fixedIndex = terrainFixedIndex(material, level);
+  if (fixedIndex < 0 || !inBounds(layer, col, row)) return layer;
+  const ids = [...layer.ids];
+  ids[indexOf(layer, col, row)] = fixedId(fixedIndex);
+  return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
+}
+
+/** Flood one contiguous semantic material/elevation region. Generated fixed ground joins its
+ * neighbours like an autotile region instead of behaving as unrelated hand-placed fixtures. */
+export function floodFillTerrain(
+  layer: TileLayer,
+  tileset: Tileset,
+  material: TerrainMaterial,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer {
+  if (!inBounds(layer, col, row)) return layer;
+  const slot = terrainSlot(material, level);
+  const fixedIndex = terrainFixedIndex(material, level);
+  if (slot === null && fixedIndex < 0) return layer;
+  const fillId = slot === null ? fixedId(fixedIndex) : autotileId(slot, 0);
+  const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
+  const startTerrain = terrainDescriptorOfTileId(startId);
+  if (startTerrain?.material === material && startTerrain.level === level) return layer;
+
+  const region = terrainFloodRegion(layer, col, row);
+
+  const ids = [...layer.ids];
+  for (const cell of region) ids[indexOf(layer, cell.col, cell.row)] = fillId;
+  const draft: TileLayer = { ...layer, ids };
+  const resolveVisited = new Set<number>();
+  for (const cell of region) {
+    for (const target of [
+      cell,
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ]) {
+      if (!inBounds(draft, target.col, target.row)) continue;
+      const targetIndex = indexOf(draft, target.col, target.row);
+      if (resolveVisited.has(targetIndex)) continue;
+      resolveVisited.add(targetIndex);
+      const resolved = resolvedId(draft, tileset, target.col, target.row);
+      if (resolved !== null) ids[targetIndex] = resolved;
+    }
+  }
+  return { ...layer, ids };
+}
+
 /** Every autotile cell re-resolved from scratch. The oracle the brush is tested against. */
 export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer {
   const ids = [...layer.ids];
@@ -319,7 +412,11 @@ export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer
 /** Which elevation level a ground cell stands at. Empty and off-map read as `NO_GROUND_ELEVATION`:
  *  lower than any authored level, so a cliff at the map's edge still gets its face. */
 function elevationAt(ground: TileLayer, col: number, row: number): number {
-  return elevationOfSlot(slotAt(ground, col, row));
+  if (!inBounds(ground, col, row)) return elevationOfSlot(-1);
+  return (
+    terrainDescriptorOfTileId(ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE)?.level ??
+    elevationOfSlot(-1)
+  );
 }
 
 /**
@@ -360,7 +457,7 @@ export function elevationStepTarget(step: ElevationStep, current: number): numbe
 /** Which elevation the ground layer already holds at a cell: `NO_GROUND_ELEVATION` for water, void
  *  and off-map, and a NEGATIVE level for a pit floor, which is ground like any other. */
 export function groundElevationAt(ground: TileLayer, col: number, row: number): number {
-  return elevationOfSlot(slotAt(ground, col, row));
+  return elevationAt(ground, col, row);
 }
 
 /**
@@ -392,13 +489,12 @@ export function paintTerrain(
   col: number,
   row: number,
 ): TileLayer[] {
-  const slot = terrainSlot(material, level);
-  if (slot === null) return [...layers];
   const ground = layers[0];
   const walls = layers[1];
   if (!ground || !walls) return [...layers];
 
-  const paintedGround = paintAutotile(ground, tileset, slot, col, row);
+  const paintedGround = paintTerrainLayer(ground, tileset, material, level, col, row);
+  if (paintedGround === ground) return [...layers];
   return syncElevationWalls([paintedGround, walls, ...layers.slice(2)], tileset, col, row);
 }
 

@@ -441,6 +441,8 @@ export interface WorldRoomState {
   polarityOrbs: PolarityOrbRuntime[];
   /** Room-local damage-over-time stacks (legacy `#damageOverTime`). */
   damageOverTime: DamageOverTimeRuntime[];
+  /** Continuous lava exposure, in room ticks, reset immediately on leaving the liquid. */
+  lavaExposureTicks: Map<string, number>;
   /** Quest resource-site respawn deadlines (legacy `#siteRespawnAt`). */
   siteRespawnAt: Map<string, number>;
   /** A* runtime for this room's terrain; `null` exactly when `location` is. */
@@ -568,6 +570,7 @@ export function createWorldRoomState(
     lumenTrails: [],
     polarityOrbs: [],
     damageOverTime: [],
+    lavaExposureTicks: new Map(),
     siteRespawnAt: new Map(),
     navigation: definition
       ? createNavigationRuntime(definition.terrain, definition.navigation)
