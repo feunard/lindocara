@@ -1,0 +1,22 @@
+[
+  {
+    "prompt": "A single perfectly flat square seamless sample of a rocky cave floor viewed from directly above, layered slate-grey and charcoal flagstones embedded in muted umber earth, small cracks, a few mineral flecks and subtle damp patches, chunky readable shapes, uniform detail density edge to edge, no wall, no cliff, no border, no grass, no object, no text",
+    "seed": 82701,
+    "out": "studio/pixel-art/refs/terrain-materials/grotte-source.png"
+  },
+  {
+    "prompt": "A single perfectly flat square seamless sample of rugged mountain ground viewed from directly above, angular blue-grey granite plates, pale stone chips, narrow dark fissures and restrained ochre lichen, hard wind-scoured surface, chunky readable shapes, uniform detail density edge to edge, no cliff edge, no snow, no object, no text",
+    "seed": 82702,
+    "out": "studio/pixel-art/refs/terrain-materials/montagne-source.png"
+  },
+  {
+    "prompt": "A single perfectly flat square seamless sample of dry volcanic ground viewed from directly above, black basalt plates, charcoal ash, deep umber cracks, sparse dull red embers trapped far below the surface, no flowing lava, chunky readable shapes, uniform detail density edge to edge, no cliff edge, no object, no text",
+    "seed": 82703,
+    "out": "studio/pixel-art/refs/terrain-materials/volcan-source.png"
+  },
+  {
+    "prompt": "A single perfectly flat square seamless sample of flowing fantasy lava viewed from directly above, broad molten orange and golden-yellow currents divided by dark cooling crimson-black crust islands, bright hot seams, controlled glow, chunky readable shapes, uniform detail density edge to edge, no cliff edge, no flames, no object, no text",
+    "seed": 82704,
+    "out": "studio/pixel-art/refs/terrain-materials/lave-source.png"
+  }
+]
