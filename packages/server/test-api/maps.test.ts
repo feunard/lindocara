@@ -334,6 +334,28 @@ describe("list, get, update, delete", () => {
     expect(await afterDelete.json()).toMatchObject({ error: "map_not_found" });
   });
 
+  test("persists camera and gameplay policies carried by an editor map save", async () => {
+    const { userId, token } = await registerAndLogin("mappolicy");
+    const adventureId = await newAdventure(userId);
+    const id = await newMapId(adventureId, token, "Policy map");
+
+    const response = await putMap(id, token, {
+      ...mapBody({ name: "Policy map" }),
+      adventure: {
+        title: "Policy adventure",
+        maxPlayers: 4,
+        cameraMode: "orbit",
+        gameMode: "hardcore_runner",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await probe.adventures.findById(adventureId)).toMatchObject({
+      cameraMode: "orbit",
+      gameMode: "hardcore_runner",
+    });
+  });
+
   test("round-trips reciprocal teleporter links and the locator-ring preference", async () => {
     const { userId, token } = await registerAndLogin("maplinkedtp");
     const id = await newMapId(await newAdventure(userId), token, "Linked passage");

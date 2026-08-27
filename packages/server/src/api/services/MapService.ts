@@ -500,6 +500,12 @@ export class MapService {
       await this.adventures.updateById(owningAdventure.id, {
         title: proposedAdventure.title.trim(),
         maxPlayers: proposedAdventure.maxPlayers,
+        ...(proposedAdventure.cameraMode !== undefined
+          ? { cameraMode: proposedAdventure.cameraMode }
+          : {}),
+        ...(proposedAdventure.gameMode !== undefined
+          ? { gameMode: proposedAdventure.gameMode }
+          : {}),
         ...(proposedAdventure.graph !== undefined
           ? { graph: JSON.stringify(proposedAdventure.graph) }
           : {}),

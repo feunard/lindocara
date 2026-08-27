@@ -1295,8 +1295,9 @@ function AdventureEditorInner({
           ? refreshMember(baseDraft, memberInfoFromEditor(map.id, map.revision, savedSnapshot))
           : baseDraft
         : null;
-    // The map save rides the adventure's shell (title/players/registry) atomically; it never carries a
-    // graph now (the editor authors none), so the server preserves the stored graph untouched.
+    // The map save rides the adventure's shell (title, players, camera/game policies, audio and
+    // registry) atomically; it never carries a graph now (the editor authors none), so the server
+    // preserves the stored graph untouched.
     const adventureInput = refreshed ? toAdventureInput(refreshed) : null;
     setError(null);
     setSavingMap(true);
