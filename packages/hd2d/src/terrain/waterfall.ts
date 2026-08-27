@@ -253,7 +253,7 @@ export interface Waterfall {
   dispose(): void;
 }
 
-/** A fall: the sheet, and the ring where it strikes the water below. */
+/** A fall: its animated sheet, plus a water-only ripple where it strikes the basin below. */
 export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Waterfall {
   const sheet = createWaterfallSheet(ctx, opts);
   const lava = opts.kind === "lava";
@@ -263,24 +263,28 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
   const basinX = opts.x + nx * offset;
   const basinZ = opts.z + nz * offset;
 
-  // The plunge ring: a flat annulus that grows and fades on a loop, the way `makeRipple` animates
-  // the hero's swim wake. Built here rather than reusing `makeRipple` because that one is sized
-  // and paced for a single stroke, and a plunge pool ripples continuously.
-  const ringGeometry = new THREE.RingGeometry(0.5, 0.62, 24);
-  ringGeometry.rotateX(-Math.PI / 2);
-  const ringMaterial = new THREE.MeshBasicMaterial({
-    color: lava ? 0xffb21c : 0xdff4fb,
-    transparent: true,
-    opacity: 0.32,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-  ring.position.set(basinX, opts.bottomY + FACE_CLEARANCE, basinZ);
-  ring.renderOrder = 2;
-
   const group = new THREE.Group();
-  group.add(sheet.mesh, ring);
+  group.add(sheet.mesh);
+
+  // Water spreads a readable ripple at impact. Lava deliberately does not: an expanding geometric
+  // annulus reads as a generated bubble, and used to keep popping around every lavafall even after
+  // the lava surface's own bubble system had been removed.
+  let ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> | null = null;
+  if (!lava) {
+    const geometry = new THREE.RingGeometry(0.5, 0.62, 24);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xdff4fb,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    ring = new THREE.Mesh(geometry, material);
+    ring.position.set(basinX, opts.bottomY + FACE_CLEARANCE, basinZ);
+    ring.renderOrder = 2;
+    group.add(ring);
+  }
 
   let phase = 0;
   return {
@@ -288,14 +292,15 @@ export function createWaterfall(ctx: Hd2dContext, opts: WaterfallOptions): Water
     impact: new THREE.Vector3(opts.x, opts.bottomY, opts.z),
     update(dt) {
       sheet.update(dt);
+      if (!ring) return;
       phase = (phase + dt * 0.9) % 1;
       ring.scale.setScalar(0.5 + phase * 1.5);
-      ringMaterial.opacity = (lava ? 0.42 : 0.32) * (1 - phase);
+      ring.material.opacity = 0.32 * (1 - phase);
     },
     dispose() {
       sheet.dispose();
-      ringGeometry.dispose();
-      ringMaterial.dispose();
+      ring?.geometry.dispose();
+      ring?.material.dispose();
     },
   };
 }

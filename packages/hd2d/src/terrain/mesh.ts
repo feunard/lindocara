@@ -292,7 +292,13 @@ export function meshTerrain(
         // `TerrainAtlas.wallRowInWater`). Un voisin sans palier EST la mer — `levelAt` répond
         // `null` aussi bien sur l'eau qu'hors grille — et c'est exactement le côté que `wallDrop`
         // fait descendre jusqu'en bas.
-        const footInWater = field.levelAt(i + di, j + dj) === null;
+        // Legacy fields only knew ground versus void, so a missing neighbour remains sea by
+        // default. Modern fields name lava explicitly: it must never receive the white foam foot
+        // reserved for a cliff that actually plunges into water.
+        const neighbourLiquid = field.liquidAt?.(i + di, j + dj);
+        const footInWater =
+          neighbourLiquid === "water" ||
+          (neighbourLiquid !== "lava" && field.levelAt(i + di, j + dj) === null);
         const wallRow = footInWater ? (atlas.wallRowInWater ?? atlas.wallRow) : atlas.wallRow;
 
         // Une seule cellule d'UV s'étire sur toute la chute : répéter la rangée une fois par palier

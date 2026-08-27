@@ -41,6 +41,37 @@ describe("heightFieldFor liquids", () => {
     expect(field.liquidLevelAt?.(1, 0)).toBe(2);
     expect(field.liquidLevelAt?.(0, 1)).toBe(3);
   });
+
+  it("draws a volcanic ground rim around lava instead of a water shoreline", () => {
+    const source: MapData = {
+      version: 1,
+      size: 3,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: [0, 0, 0, 0, null, 0, 0, 0, 0],
+      materials: Array.from({ length: 9 }, () => "herbe"),
+      liquids: [null, null, null, null, "lava", null, null, null, null],
+      liquidLevels: [null, null, null, null, 0, null, null, null, null],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+
+    const field = heightFieldFor(source);
+    expect(field.materialAt(1, 0)).toBe("volcan-ground");
+    expect(field.materialAt(0, 1)).toBe("volcan-ground");
+    expect(field.materialAt(2, 1)).toBe("volcan-ground");
+    expect(field.materialAt(1, 2)).toBe("volcan-ground");
+    // Diagonal ground is not part of the one-cell cardinal rim.
+    expect(field.materialAt(0, 0)).toBe("lvl0");
+
+    const waterField = heightFieldFor({
+      ...source,
+      liquids: [null, null, null, null, "water", null, null, null, null],
+    });
+    expect(waterField.materialAt(1, 0)).toBe("lvl0");
+  });
 });
 
 describe("editor ground picking", () => {

@@ -186,6 +186,26 @@ describe("meshTerrain", () => {
     built.dispose();
   });
 
+  it("does not paint a water fringe where a cliff drops into lava", () => {
+    const ctx = createHd2dContext();
+    const lavaFoot: HeightField = {
+      cols: 1,
+      rows: 1,
+      levelAt: (i, j) => (i === 0 && j === 0 ? 1 : null),
+      materialAt: (i, j) => (i === 0 && j === 0 ? "herbe" : null),
+      liquidAt: (i, j) => (i === 0 && j === 0 ? null : "lava"),
+      liquidLevelAt: (i, j) => (i === 0 && j === 0 ? null : 0),
+    };
+    const built = meshTerrain(ctx, lavaFoot, {
+      atlases: { herbe: atlas() },
+      levelHeight: 0.9,
+    });
+    const vs = wallV(built.group);
+    expect(vs.length).toBeGreaterThan(0);
+    for (const v of vs) expect(v).toBeGreaterThan(ROW_5_MAX_V);
+    built.dispose();
+  });
+
   it("ne descend aucune paroi depuis le palier 0", () => {
     // Ce que le sable dépend de : sa feuille (10x4) n'a aucune bande de paroi, donc son atlas ne
     // déclare pas de rangée à pied d'eau. C'est sans conséquence tant que le palier 0 n'en émet

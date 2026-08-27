@@ -134,9 +134,10 @@ export function terrainAtlasKey(material: string, level: number): string {
 /**
  * One atlas per key `terrainAtlasKey` can return.
  *
- * `block` says which 4x4 group the sheet holds. Level 0 always borders the WATER directly (a level-0
+ * `block` says which 4x4 group the sheet holds. Level 0 normally borders the WATER directly (a level-0
  * cell never carries a cliff face towards the sea — see `wallDrop`), so it takes the water-edge
- * group, whose white shore line is already painted in. Raised levels necessarily border a VOID
+ * group, whose white shore line is already painted in. `heightFieldFor` replaces that atlas with
+ * volcanic ground on the cardinal rim of lava, which is not a shoreline. Raised levels border a VOID
  * (they dominate a lower neighbour), so they take the bushy cliff-edge group, the one that joins the
  * stone wall on rows 4-5. Sand only ever exists at level 0, but Update 010's flat sheet reuses the
  * SAME column layout as the cliff-edge group for its own sand-against-grass trim.
@@ -226,7 +227,7 @@ export function terrainGroupFor(
 /** The serialized grid, read as the field the mesher consumes. `null` levels stay water: they are
  *  the water plane's business, never a ground quad laid flat at the sea's height. */
 export function heightFieldFor(map: MapData): HeightField {
-  return heightFieldFromGrid({
+  const field = heightFieldFromGrid({
     size: map.size,
     levels: map.levels,
     materials: map.materials,
@@ -236,6 +237,29 @@ export function heightFieldFor(map: MapData): HeightField {
     materialKey:
       (map.environment ?? "exterior") === "interior" ? () => "interior" : terrainAtlasKey,
   });
+  return {
+    ...field,
+    materialAt(i, j) {
+      const material = field.materialAt(i, j);
+      const level = field.levelAt(i, j);
+      if (material === null || level === null) return material;
+      // A lava lake is not a shoreline. Reuse the volcanic ground language for the one-cell rim
+      // around it, so the autotile's open edge is cracked rock rather than the level-zero grass
+      // sheet's painted white water fringe. Only presentation changes; the stored material and the
+      // shared heightfield collision remain untouched.
+      for (const [di, dj] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ] as const) {
+        if (field.liquidAt?.(i + di, j + dj) === "lava") {
+          return terrainAtlasKey("volcan", level);
+        }
+      }
+      return material;
+    },
+  };
 }
 
 // --- settings -----------------------------------------------------------------------------------

@@ -101,9 +101,10 @@ describe("createWaterfallSheet", () => {
 });
 
 describe("createWaterfall", () => {
-  const fall = () =>
+  const fall = (kind: "water" | "lava" = "water") =>
     createWaterfall(createHd2dContext(), {
       texture: texture(),
+      kind,
       x: -23,
       z: 10,
       width: 1.4,
@@ -117,6 +118,18 @@ describe("createWaterfall", () => {
   // `center` and a `level` — because a pool given its own flat shader reads as a painted disc.
   it("groups a sheet and a plunge ring, and builds no pool of its own", () => {
     expect(fall().group.children).toHaveLength(2);
+  });
+
+  it("does not generate an impact ring around a lavafall", () => {
+    const lavafall = fall("lava");
+    expect(lavafall.group.children).toHaveLength(1);
+    expect(
+      lavafall.group.children.some(
+        (child) => child instanceof THREE.Mesh && child.geometry instanceof THREE.RingGeometry,
+      ),
+    ).toBe(false);
+    expect(() => lavafall.update(1 / 60)).not.toThrow();
+    lavafall.dispose();
   });
 
   it("reports the impact point at the foot of the sheet, where the water lands", () => {

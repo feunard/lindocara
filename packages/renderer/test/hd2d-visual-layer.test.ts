@@ -21,6 +21,7 @@ import {
 function harness(
   size = 20,
   surfaceY = 0,
+  liquid: "water" | "lava" = "water",
 ): {
   canvas: HTMLCanvasElement;
   layer: Hd2dVisualLayer;
@@ -49,7 +50,11 @@ function harness(
   const scene = {
     camera,
     ctx: { yaw: () => 0 },
-    query: { heightAt: () => 0 },
+    query: {
+      heightAt: () => 0,
+      liquidAt: () => liquid,
+      waterLevelAt: () => surfaceY,
+    },
     scene: root,
     pickGround(raycaster: THREE.Raycaster) {
       const hit = raycaster.ray.intersectPlane(surface, point);
@@ -426,6 +431,34 @@ describe("Hd2dVisualLayer hero movement", () => {
     // The timer still fires: 550 ms later there is a second ring.
     layer.syncLocalHero(swimmer, movement, 1_600);
     expect(layer.diagnostics().effects).toBe(before + 1);
+    layer.dispose();
+  });
+
+  it("never emits swim rings while the hero is in lava", () => {
+    const { layer } = harness(20, 2.7, "lava");
+    const swimmer = { ...hero, y: 2.7, swimming: true };
+    const movement = { breath: 10, maxBreath: 10, swimming: true };
+
+    layer.syncLocalHero(swimmer, movement, 1_000);
+    layer.syncLocalHero(swimmer, movement, 1_600);
+
+    expect(layer.diagnostics().effects).toBe(0);
+    layer.dispose();
+  });
+
+  it("does not reuse water splashes when entering or leaving lava", () => {
+    const { layer } = harness(20, 2.7, "lava");
+    const swimmer = { ...hero, y: 2.7, swimming: true };
+
+    layer.playHeroMovement(
+      [
+        { t: "entree-eau", liquid: "lava", x: 0, y: 2.7, z: 0 },
+        { t: "sortie-eau", liquid: "lava", x: 0, y: 2.7, z: 0 },
+      ],
+      swimmer,
+    );
+
+    expect(layer.diagnostics().effects).toBe(0);
     layer.dispose();
   });
 

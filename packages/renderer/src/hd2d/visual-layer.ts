@@ -696,9 +696,15 @@ export class Hd2dVisualLayer {
    * wireframe hoop on the water. It was also fogged, unlike the primitive (`fog: false`), so
    * distant ripples washed out into the haze.
    */
-  #ripple(x: number, z: number, strength = 1, now = performance.now()): void {
+  #ripple(
+    x: number,
+    z: number,
+    surfaceY = this.#waterLevel,
+    strength = 1,
+    now = performance.now(),
+  ): void {
     const mesh = makeRipple();
-    mesh.position.set(x, this.#waterLevel + 0.025, z);
+    mesh.position.set(x, surfaceY + 0.025, z);
     this.#root.add(mesh);
     this.#trackEffect({
       object: mesh,
@@ -830,7 +836,10 @@ export class Hd2dVisualLayer {
       // (550 ms, the lab's `ONDE_TOUTES_LES`); emitting one here as well put two overlapping
       // series on the water — the stroke's own ~850 ms beat on top of the timer's — which reads
       // as churn rather than as a swimmer.
-      else if (event.t === "entree-eau" || event.t === "sortie-eau" || event.t === "noyade")
+      else if (
+        ((event.t === "entree-eau" || event.t === "sortie-eau") && event.liquid === "water") ||
+        event.t === "noyade"
+      )
         this.#splash(event.x, event.y, event.z, now);
       else if (event.t === "reception" && hero)
         this.pulse(hero.x, hero.z, 0xd8c49c, Math.min(1.2, 0.45 + event.force * 0.04), 360, now);
@@ -889,9 +898,13 @@ export class Hd2dVisualLayer {
   ): void {
     this.#swimDisc.visible = hero?.swimming ?? false;
     if (hero?.swimming) {
-      this.#swimDisc.position.set(hero.x, this.#waterLevel + 0.03, hero.z);
-      if (now >= this.#nextRippleAt) {
-        this.#ripple(hero.x, hero.z, 1, now);
+      const surfaceY = this.#scene.query.waterLevelAt(hero.x, hero.z);
+      const liquid = this.#scene.query.liquidAt(hero.x, hero.z);
+      this.#swimDisc.position.set(hero.x, surfaceY + 0.03, hero.z);
+      // Swimming remains the locomotion state in lava, but water ripples must not follow it there:
+      // those expanding blue rings were the second procedural effect still popping over lava.
+      if (liquid === "water" && now >= this.#nextRippleAt) {
+        this.#ripple(hero.x, hero.z, surfaceY, 1, now);
         this.#nextRippleAt = now + 550;
       }
     } else this.#nextRippleAt = now;
