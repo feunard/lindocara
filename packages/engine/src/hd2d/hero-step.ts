@@ -313,17 +313,23 @@ export function stepHero(
   if (canEnter(state, state.x, nz, deps)) state.z = nz;
   else if (!canPreserveVaultMomentum(state, state.x, nz, deps)) state.vz = 0;
 
-  const suitSurface =
+  const followsRamp =
     etaitAuSol &&
-    (query.canTraverseRamp(avantX, empreinteZ(avantZ), state.x, empreinteZ(state.z), hero.radius) ||
-      (query.platformHeightAlong?.(
+    query.canTraverseRamp(avantX, empreinteZ(avantZ), state.x, empreinteZ(state.z), hero.radius);
+  const rampSurface = followsRamp
+    ? (query.rampAt(state.x, empreinteZ(state.z)) ?? query.rampAt(avantX, empreinteZ(avantZ)))
+    : null;
+  const platformSurface = etaitAuSol
+    ? (query.platformHeightAlong?.(
         avantX,
         empreinteZ(avantZ),
         state.x,
         empreinteZ(state.z),
         hero.radius,
         avantGroundY,
-      ) ?? null) !== null);
+      ) ?? null)
+    : null;
+  const suitSurface = rampSurface !== null || platformSurface !== null;
 
   // --- vertical: room floor, ground, jump, gravity, coyote, landing --------------------------
   // Ported as is from the lab's `hero.ts` — plus the room floor and the `sol` (ground) computation
@@ -359,9 +365,11 @@ export function stepHero(
     ? state.y + world.levelHeight * hero.swim.climb
     : state.airborne
       ? state.y + 0.02
-      : suitSurface
-        ? Number.POSITIVE_INFINITY
-        : state.groundY + world.maxStep * world.levelHeight + 1e-3;
+      : rampSurface
+        ? rampSurface.highHeight + 1e-3
+        : platformSurface !== null
+          ? Number.POSITIVE_INFINITY
+          : state.groundY + world.maxStep * world.levelHeight + 1e-3;
   const centreSurface = state.room
     ? state.room.y
     : (query.surfaceAt?.(state.x, footprintZ, surfaceCeiling) ??

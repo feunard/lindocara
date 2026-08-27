@@ -80,6 +80,34 @@ describe("stepHero — the vertical axis", () => {
     expect(s.airborne).toBe(false);
   });
 
+  it("climbs stairs under a bridge without snapping onto the deck", () => {
+    const ramp = {
+      x: -0.5,
+      z: -0.5,
+      width: 1,
+      depth: 1,
+      direction: "east" as const,
+      lowLevel: 0,
+      progress: 0.5,
+      lowHeight: 0,
+      highHeight: 0.9,
+      height: 0.45,
+    };
+    const deps = depsPlates({
+      surface: (_x, _z, ceilingY) => (ceilingY >= 1.8 ? 1.8 : ramp.height),
+      rampe: () => ramp,
+      franchit: () => true,
+    });
+    const state = createHeroState(0, 0, ramp.height, 10, 2.2);
+    state.groundY = ramp.height;
+    for (let index = 0; index < 8; index++) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    }
+    expect(state.y).toBeCloseTo(ramp.height, 6);
+    expect(state.y).toBeLessThan(1.8);
+    expect(state.airborne).toBe(false);
+  });
+
   it("still stands on a deck it is already walking along", () => {
     // The other half of the same rule: bounding the ceiling must not drop a hero THROUGH the deck
     // it is on. Its own surface is at its feet, so it stays within one step of its ground.

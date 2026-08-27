@@ -381,18 +381,17 @@ export const AUTHORED_PICK_SURFACE = "authoredPickSurface";
  * stays true whatever height it was clicked at: "select the architecture you pointed at" is a
  * different question from "which ground did you mean".
  *
- * A terrain cliff is the interesting one, and the height of the hit is what decides it.
+ * A terrain cliff belongs to the plateau cell that emitted it, over its whole visible height.
  *
  * The face is one vertical quad on a cell boundary, so it borders exactly two grounds: the low cell
  * it drops into, and the plateau it holds up. Answering with the foot every time is correct in map
  * coordinates and wrong on screen, because the answer is DRAWN at the bottom of the wall: on a
- * ten-level cliff, pointing near the top put the preview nine world units below the pointer, and
- * sliding up and down the face never changed the answer at all. That was invisible while terrain
- * stopped at level 2 and became the loudest half of feedback #18 the day the range opened to +10.
+ * ten-level cliff, pointing anywhere on the visible wall must keep the same selected terrain. If
+ * the lower neighbour won near the foot, a one-pixel pointer movement changed both the selected
+ * cell and the asset under the cursor even though the pointer never left the wall.
  *
- * `groundAt` resolves it without a threshold constant: ask which of the two neighbouring grounds
- * the cursor is actually nearer to in height. A tie, and a caller with no heightfield to offer,
- * both keep the historical foot.
+ * `groundAt` only proves that the inward side is real terrain. A caller with no heightfield, or a
+ * face whose inward side is void, keeps the conservative historical foot.
  */
 export function editorGroundPickPoint(
   point: Pick<THREE.Vector3, "x" | "y" | "z">,
@@ -409,10 +408,8 @@ export function editorGroundPickPoint(
   if (onBuilding) return step(-1);
   if (!groundAt) return foot;
   const plateau = step(-1);
-  const footGround = groundAt(foot.x, foot.z);
   const plateauGround = groundAt(plateau.x, plateau.z);
-  if (footGround === null || plateauGround === null) return foot;
-  return Math.abs(plateauGround - point.y) < Math.abs(footGround - point.y) ? plateau : foot;
+  return plateauGround === null ? foot : plateau;
 }
 
 // --- the scene ----------------------------------------------------------------------------------

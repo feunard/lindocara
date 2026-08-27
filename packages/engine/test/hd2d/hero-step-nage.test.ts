@@ -198,4 +198,29 @@ describe("stepHero — going over the lip", () => {
     expect(state.airborne).toBe(false);
     expect(state.y).toBeCloseTo(HIGH, 5);
   });
+
+  for (const destination of ["water", "lava"] as const) {
+    it(`can move away after falling from raised lava into ${destination}`, () => {
+      const deps = depsPlates({
+        hauteur: () => null,
+        liquide: (x) => (x < 0 ? "lava" : destination),
+        eau: (x) => (x < 0 ? HIGH : 0),
+        // While the collision disc still touches the upper lip, the query legitimately sees its
+        // height. Moving away must reduce that overlap instead of freezing both horizontal axes.
+        maxAutour: (x, _z, radius) => (x - radius < 0 ? HIGH : 0),
+      });
+      const state = createHeroState(-0.7, 0, HIGH, 10, 2.2);
+      state.swimming = true;
+      state.liquid = "lava";
+      let sawAirborne = false;
+      for (let index = 0; index < 240; index++) {
+        stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+        sawAirborne ||= state.airborne;
+      }
+      expect(sawAirborne).toBe(true);
+      expect(state.x).toBeGreaterThan(0.8);
+      expect(state.swimming).toBe(true);
+      expect(state.liquid).toBe(destination);
+    });
+  }
 });

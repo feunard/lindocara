@@ -70,22 +70,13 @@ describe("editor ground picking", () => {
     });
   });
 
-  /**
-   * A face is one vertical quad on a cell boundary, so its whole height used to answer with the
-   * cell at its FOOT. That is right in map coordinates and wrong on screen: the answer is DRAWN at
-   * the bottom of the wall, so pointing near the top of a ten-level cliff put the ghost nine world
-   * units below the pointer, and sliding up and down the face never changed the answer at all.
-   *
-   * The hit's height is what disambiguates, and it needs no threshold constant: ask which of the
-   * two neighbouring grounds the cursor is actually closer to.
-   */
-  it("reads a tall face as the plateau near its top and as the foot near its bottom", () => {
+  it("keeps the complete visible face attached to its plateau cell", () => {
     const tall = cliff(9);
     const wall = { x: 2, z: 3.5 };
     const outward = { x: -1, y: 0, z: 0 };
 
     expect(editorGroundPickPoint({ ...wall, y: 0.4 }, outward, false, tall)).toEqual({
-      x: 1.5,
+      x: 2.5,
       z: 3.5,
     });
     expect(editorGroundPickPoint({ ...wall, y: 8.6 }, outward, false, tall)).toEqual({
@@ -94,21 +85,11 @@ describe("editor ground picking", () => {
     });
   });
 
-  it("still answers the foot across a one-level cliff, where the whole face is 0.9 tall", () => {
-    // The regression this must not cause: shallow terrain is most of every map, and a rule that
-    // flipped to the plateau halfway up a 0.9 wall would move an answer nobody complained about.
-    // It does flip at the midpoint here too, which is correct and barely reachable.
+  it("does the same across a one-level cliff", () => {
     const shallow = cliff(0.9);
     expect(
       editorGroundPickPoint({ x: 2, y: 0.1, z: 3.5 }, { x: -1, y: 0, z: 0 }, false, shallow),
-    ).toEqual({ x: 1.5, z: 3.5 });
-  });
-
-  it("prefers the foot on an exact tie, keeping the historical answer", () => {
-    const tall = cliff(9);
-    expect(
-      editorGroundPickPoint({ x: 2, y: 4.5, z: 3.5 }, { x: -1, y: 0, z: 0 }, false, tall),
-    ).toEqual({ x: 1.5, z: 3.5 });
+    ).toEqual({ x: 2.5, z: 3.5 });
   });
 
   it("leaves a building wall alone even with terrain to consult", () => {
@@ -227,7 +208,7 @@ describe("picking a real cliff face", () => {
     return null;
   };
 
-  it("answers the plateau high on the face and the foot low on it", () => {
+  it("answers the same plateau cell over the whole visible face", () => {
     const ctx = createHd2dContext();
     const { group } = terrainGroupFor(ctx, hillside(), allAtlases());
     group.updateMatrixWorld(true);
@@ -237,12 +218,10 @@ describe("picking a real cliff face", () => {
     const low = pickAt(group, 0.5);
     if (!high || !low) throw new Error("the pointer ray missed the cliff entirely");
 
-    // World x maps to a column as `floor(x + size / 2)`, so 4 is the plateau and 3 is the bank.
+    // World x maps to a column as `floor(x + size / 2)`, so 4 is the plateau.
     expect(Math.floor(high.x + SIZE / 2)).toBe(4);
-    expect(Math.floor(low.x + SIZE / 2)).toBe(3);
-    // Both used to answer 3, whatever height the ray struck: that is the bug, and the gap between
-    // the two answers here is the whole 9.0 of drawn face the ghost used to fall through.
-    expect(high.x).not.toBeCloseTo(low.x, 6);
+    expect(Math.floor(low.x + SIZE / 2)).toBe(4);
+    expect(high.x).toBeCloseTo(low.x, 6);
   });
 });
 
