@@ -1,4 +1,5 @@
 import { Button } from "@alepha/ui/components/ui/button";
+import { Checkbox } from "@alepha/ui/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -51,12 +52,16 @@ export function MapInteriorShellDialog({
     environment === "exterior" ? "exterior" : (initial?.style ?? "interior-none"),
   );
   const [saving, setSaving] = useState(false);
+  const [openOuterWalls, setOpenOuterWalls] = useState(initial?.openOuterWalls ?? true);
+  const [openInnerWalls, setOpenInnerWalls] = useState(initial?.openInnerWalls ?? true);
 
   useEffect(() => {
     if (!open) return;
     setChoice(environment === "exterior" ? "exterior" : (initial?.style ?? "interior-none"));
+    setOpenOuterWalls(initial?.openOuterWalls ?? true);
+    setOpenInnerWalls(initial?.openInnerWalls ?? true);
     setSaving(false);
-  }, [environment, initial?.style, open]);
+  }, [environment, initial?.openInnerWalls, initial?.openOuterWalls, initial?.style, open]);
 
   async function save(): Promise<void> {
     if (saving) return;
@@ -67,7 +72,11 @@ export function MapInteriorShellDialog({
           ? await onSave("exterior")
           : choice === "interior-none"
             ? await onSave("interior")
-            : await onSave("interior", { style: choice });
+            : await onSave("interior", {
+                style: choice,
+                ...(openOuterWalls ? {} : { openOuterWalls: false }),
+                ...(openInnerWalls ? {} : { openInnerWalls: false }),
+              });
       if (saved) onOpenChange(false);
     } finally {
       setSaving(false);
@@ -161,11 +170,51 @@ export function MapInteriorShellDialog({
           })}
         </div>
         {selectedStyle ? (
-          <p className="rounded-md border border-zinc-200 bg-zinc-50 p-2 text-xs text-zinc-700">
-            {t("editor.interiorShell.structuralFloor", {
-              terrain: t(`editor.interiorShell.floor.${selectedStyle}`),
-            })}
-          </p>
+          <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-zinc-700">
+            <p className="text-xs">
+              {t("editor.interiorShell.structuralFloor", {
+                terrain: t(`editor.interiorShell.floor.${selectedStyle}`),
+              })}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label
+                className="flex cursor-pointer items-start gap-2 text-xs"
+                htmlFor="open-outer-walls"
+              >
+                <Checkbox
+                  id="open-outer-walls"
+                  checked={openOuterWalls}
+                  onCheckedChange={(checked) => setOpenOuterWalls(checked === true)}
+                />
+                <span>
+                  <span className="block font-medium">
+                    {t("editor.interiorShell.openOuterWalls")}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t("editor.interiorShell.openOuterWallsHint")}
+                  </span>
+                </span>
+              </label>
+              <label
+                className="flex cursor-pointer items-start gap-2 text-xs"
+                htmlFor="open-inner-walls"
+              >
+                <Checkbox
+                  id="open-inner-walls"
+                  checked={openInnerWalls}
+                  onCheckedChange={(checked) => setOpenInnerWalls(checked === true)}
+                />
+                <span>
+                  <span className="block font-medium">
+                    {t("editor.interiorShell.openInnerWalls")}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t("editor.interiorShell.openInnerWallsHint")}
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
         ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

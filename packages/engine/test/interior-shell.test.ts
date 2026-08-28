@@ -6,6 +6,7 @@ import {
   interiorShellColliders,
   interiorShellFloorMaterial,
   interiorShellLevels,
+  interiorShellRunGroups,
   interiorShellRuns,
 } from "@lindocara/engine/interior-shell.js";
 import { describe, expect, it } from "vitest";
@@ -138,6 +139,14 @@ describe("interior shell boundary", () => {
       ]),
     );
     expect(runs).toHaveLength(8);
+    const groups = interiorShellRunGroups(
+      4,
+      Array.from({ length: 16 }, () => 0),
+      Array.from({ length: 16 }, () => "volcan" as const),
+      shell,
+    );
+    expect(groups.outer).toHaveLength(4);
+    expect(groups.inner).toHaveLength(4);
   });
 
   it("drops inner-room cells as soon as their structural floor is repainted", () => {
@@ -148,6 +157,8 @@ describe("interior shell boundary", () => {
     expect(filterInteriorShellInnerWalls(shell, (col) => col === 2).innerWalls).toEqual([
       { col: 2, row: 1, length: 1 },
     ]);
-    expect(filterInteriorShellInnerWalls(shell, () => false)).toEqual({ style: "cave" });
+    expect(filterInteriorShellInnerWalls({ ...shell, openOuterWalls: false }, () => false)).toEqual(
+      { style: "cave", openOuterWalls: false },
+    );
   });
 });

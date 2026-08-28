@@ -26,7 +26,10 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery, TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { interiorShellFloorMaterial } from "@lindocara/engine/interior-shell.js";
+import {
+  interiorShellFloorMaterial,
+  interiorShellLevels,
+} from "@lindocara/engine/interior-shell.js";
 import {
   type MapWeather,
   stormFlashIntensity,
@@ -268,18 +271,38 @@ export function heightFieldFor(map: MapData): HeightField {
       : {}),
     materialKey: interior ? interiorMaterialKey : terrainAtlasKey,
   });
+  // Maps saved before explicit level-zero water used the same empty tile for a pool and the
+  // architectural void. A shell can recover the distinction without guessing: an empty cell fully
+  // enclosed by structural floor belongs to the room, while one reachable from the edge is void.
+  const legacyInteriorLevels =
+    interior && map.interiorShell
+      ? interiorShellLevels(
+          map.size,
+          map.levels,
+          map.materials,
+          map.interiorShell.style,
+          map.liquidLevels ?? [],
+        )
+      : null;
+  const legacyInteriorWaterLevel = (i: number, j: number): number | null => {
+    if (!legacyInteriorLevels || i < 0 || j < 0 || i >= map.size || j >= map.size) return null;
+    return legacyInteriorLevels[j * map.size + i] ?? null;
+  };
   return {
     ...field,
     liquidAt(i, j) {
       const liquid = field.liquidAt?.(i, j) ?? null;
       if (!interior) return liquid;
       const level = field.liquidLevelAt?.(i, j) ?? null;
-      return liquid === "water" && level === null ? null : liquid;
+      if (liquid !== "water" || level !== null) return liquid;
+      return legacyInteriorWaterLevel(i, j) === null ? null : "water";
     },
     liquidLevelAt(i, j) {
       const liquid = field.liquidAt?.(i, j) ?? null;
       const level = field.liquidLevelAt?.(i, j) ?? null;
-      return interior && liquid === "water" && level === null ? null : level;
+      return interior && liquid === "water" && level === null
+        ? legacyInteriorWaterLevel(i, j)
+        : level;
     },
     materialAt(i, j) {
       const material = field.materialAt(i, j);

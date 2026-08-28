@@ -74,7 +74,7 @@ describe("heightFieldFor liquids", () => {
     ).toBe("interior");
   });
 
-  it("keeps a liquid pool enclosed by structural floor visible", () => {
+  it("recovers a legacy level-zero pool enclosed by structural floor", () => {
     const source: MapData = {
       version: 1,
       environment: "interior",
@@ -95,13 +95,15 @@ describe("heightFieldFor liquids", () => {
         "volcan",
       ],
       liquids: [null, null, null, null, "water", null, null, null, null],
-      liquidLevels: [null, null, null, null, 0, null, null, null, null],
+      liquidLevels: [null, null, null, null, null, null, null, null, null],
       colliders: [],
       spawns: [],
       elements: [],
       events: [],
     };
-    expect(heightFieldFor(source).liquidAt?.(1, 1)).toBe("water");
+    const field = heightFieldFor(source);
+    expect(field.liquidAt?.(1, 1)).toBe("water");
+    expect(field.liquidLevelAt?.(1, 1)).toBe(0);
   });
 
   it.each([-2, -1, 0, 1, 2])(

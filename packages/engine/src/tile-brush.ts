@@ -268,6 +268,7 @@ export function terrainFloodRegion(
   const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
   const startRef = decodeTileId(startId);
   const startTerrain = terrainDescriptorOfTileId(startId);
+  if (waterLevelOfTileId(startId) !== null) return waterFloodRegion(layer, col, row);
   if (startRef.kind === "fixed" && !startTerrain) return [{ col, row }];
   return floodRegion(layer, col, row, (candidateCol, candidateRow) => {
     const candidateId = layer.ids[indexOf(layer, candidateCol, candidateRow)] ?? EMPTY_TILE;
@@ -376,8 +377,8 @@ export function paintTerrainLayer(
   return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
 }
 
-/** Paint water while preserving its authored surface tier. Level zero remains the historical empty
- * tile; every other tier uses the append-only fixed-water band. */
+/** Paint explicit water while preserving its authored surface tier, including level zero. Empty
+ * cells remain available as implicit exterior sea / interior architectural void. */
 export function paintWaterLayer(
   layer: TileLayer,
   tileset: Tileset,
@@ -385,7 +386,6 @@ export function paintWaterLayer(
   col: number,
   row: number,
 ): TileLayer {
-  if (level === 0) return eraseTile(layer, tileset, col, row);
   const fixedIndex = waterFixedIndex(level);
   if (fixedIndex < 0 || !inBounds(layer, col, row)) return layer;
   const ids = [...layer.ids];
@@ -393,7 +393,7 @@ export function paintWaterLayer(
   return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
 }
 
-/** Flood one semantic region with water at `level`, including fill-to-empty at sea level. */
+/** Flood one semantic region with explicit water at `level`. */
 export function floodFillWater(
   layer: TileLayer,
   tileset: Tileset,
@@ -403,8 +403,8 @@ export function floodFillWater(
 ): TileLayer {
   if (!inBounds(layer, col, row)) return layer;
   const fixedIndex = waterFixedIndex(level);
-  if (level !== 0 && fixedIndex < 0) return layer;
-  const fillId = level === 0 ? EMPTY_TILE : fixedId(fixedIndex);
+  if (fixedIndex < 0) return layer;
+  const fillId = fixedId(fixedIndex);
   const startId = layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE;
   if (startId === fillId) return layer;
   const region = terrainFloodRegion(layer, col, row);
@@ -778,6 +778,8 @@ interface WantedCliff {
 
 function wantedCliffDirection(ground: TileLayer, col: number, row: number): WantedCliff | null {
   const here = elevationAt(ground, col, row);
+  const hereIsGround =
+    terrainDescriptorOfTileId(ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE) !== null;
   const neighbours: readonly [CliffDirection, number][] = [
     ["north", elevationAt(ground, col, row - 1)],
     ["east", elevationAt(ground, col + 1, row)],
@@ -791,9 +793,7 @@ function wantedCliffDirection(ground: TileLayer, col: number, row: number): Want
   //   because a shore beside level-0 ground is a beach and gets foam, not a cliff.
   const wanted = neighbours.find(
     ([, elevation]) =>
-      isGroundElevation(elevation) &&
-      elevation > here &&
-      (isGroundElevation(here) || elevation > 0),
+      isGroundElevation(elevation) && elevation > here && (hereIsGround || elevation > 0),
   );
   if (!wanted) return null;
   return { direction: wanted[0], highLevel: wanted[1] >= 2 ? 2 : 1 };
@@ -865,7 +865,7 @@ function syncWall(
   if (wanted.direction === "north") {
     // WATER-footed, not merely low-lying: a pit floor is ground, and its wall wears the land foot.
     const wantedSlot = northCliffSlot(
-      !isGroundElevation(elevationAt(ground, col, row)),
+      terrainDescriptorOfTileId(ground.ids[indexOf(ground, col, row)] ?? EMPTY_TILE) === null,
       wanted.highLevel,
     );
     if (current.kind === "autotile" && current.slot === wantedSlot) return walls;

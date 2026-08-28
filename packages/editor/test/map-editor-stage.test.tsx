@@ -226,7 +226,7 @@ describe("HD-2D map editor stage", () => {
     canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
 
-    expect(stage.current().layers[0]?.ids[2 * 20 + 1]).toBe(0);
+    expect(waterLevelOfTileId(stage.current().layers[0]?.ids[2 * 20 + 1] ?? 0)).toBe(0);
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({ canUndo: true, dirty: true }),
@@ -554,10 +554,10 @@ describe("HD-2D map editor stage", () => {
     expect(rebuildsDuringStroke).toBe(1);
     expect(rebuildsAfterRelease).toBe(2);
     // Every sprayed cell is painted regardless of the rebuild cadence — the throttle defers only
-    // the world rebuild, never the edit itself. Water erases the ground layer to the empty tile.
+    // the world rebuild, never the edit itself. Water keeps an explicit tier-zero storage id.
     const ground = stage.current().layers[0];
     for (let step = 0; step <= 3; step += 1) {
-      expect(ground?.ids[2 * 20 + 1 + step]).toBe(0);
+      expect(waterLevelOfTileId(ground?.ids[2 * 20 + 1 + step] ?? 0)).toBe(0);
     }
     // `vi.clearAllMocks` resets calls, not implementations — hand the shared pick mock its
     // default back so the tests after this one keep receiving the fixed cell they rely on.

@@ -121,7 +121,7 @@ import {
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { autotileId, fixedId } from "@lindocara/engine/tileset.js";
+import { autotileId, EMPTY_TILE, fixedId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
   isGroundElevation,
@@ -130,6 +130,7 @@ import {
   terrainSlot,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
+  waterLevelOfTileId,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import {
   type EditorAssetId,
@@ -1312,11 +1313,19 @@ export function applyInteriorShellSetting(
   const previous = map.interiorShell;
   const interiorShell: InteriorShell = {
     style: requested.style,
+    ...(requested.openOuterWalls === false ? { openOuterWalls: false } : {}),
+    ...(requested.openInnerWalls === false ? { openInnerWalls: false } : {}),
     ...(previous?.innerWalls && previous.innerWalls.length > 0
       ? { innerWalls: previous.innerWalls }
       : {}),
   };
-  if (previous?.style === requested.style && map.environment === environment) return map;
+  if (
+    previous?.style === requested.style &&
+    (previous.openOuterWalls ?? true) === (requested.openOuterWalls ?? true) &&
+    (previous.openInnerWalls ?? true) === (requested.openInnerWalls ?? true) &&
+    map.environment === environment
+  )
+    return map;
 
   const ground = map.layers[GROUND_LAYER];
   if (!ground) return { ...map, environment, interiorShell };
@@ -1748,10 +1757,10 @@ function changedBounds(
 /**
  * The autotile slot a terrain selection paints on ONE cell, or null when it paints nothing there.
  *
- * Null has two meanings and both are correct: water has no slot at all (it erases, the same "empty
- * ground is the sea" rule the block tool uses), and a relative elevation step can have nowhere to
- * go on this particular cell. The cell is a parameter precisely because of the second: a relative
- * brush has no answer until it knows what it landed on.
+ * Null has two meanings and both are correct: water has no terrain slot (its explicit fixed id is
+ * written by `paintWaterLayer`), and a relative elevation step can have nowhere to go on this
+ * particular cell. The cell is a parameter precisely because of the second: a relative brush has no
+ * answer until it knows what it landed on.
  */
 function contentTarget(
   content: RectFillContent,
@@ -1769,12 +1778,11 @@ function contentTarget(
 /**
  * A rectangle of `content` on the ground layer.
  *
- * Water erases the whole rectangle in one pass. Everything else is painted CELL BY CELL, because a
- * relative elevation step resolves against each cell's own height: a "+1" rectangle dragged across
- * a slope raises every cell it covers by one rather than flattening them all to whatever the first
- * cell happened to be. Reading each cell's level back off the in-progress layer is safe: a
- * rectangle touches every cell once, and the neighbour re-resolution `paintAutotile` performs
- * changes variants, never slots.
+ * Water and terrain are painted CELL BY CELL, because each water surface preserves its source tier
+ * and a relative elevation step resolves against each cell's own height. A "+1" rectangle dragged
+ * across a slope raises every cell it covers by one rather than flattening them all to whatever the
+ * first cell happened to be. Reading each cell's level back off the in-progress layer is safe: a
+ * rectangle touches every cell once, and neighbour re-resolution changes variants, never slots.
  */
 function paintRectContent(
   ground: TileLayer,
@@ -2016,14 +2024,14 @@ function doorLinkEvent(params: {
   };
 }
 
-/** Open water in the authoring document: on the ground layer an empty cell IS the sea, the same
- *  reading the water brush writes (`applyTool`'s `block` case erases rather than paints). Off-map
- *  answers false, so a crossing measured against the border stops there like it stops at a bank. */
+/** Open water in the authoring document: both historical empty sea and explicit authored-water ids
+ *  count. Off-map answers false, so a crossing measured against the border stops at the map edge. */
 function openWaterAt(map: EditorMap, col: number, row: number): boolean {
   const ground = map.layers[GROUND_LAYER];
   if (!ground) return false;
   if (col < 0 || row < 0 || col >= ground.cols || row >= ground.rows) return false;
-  return !isGroundElevation(groundElevationAt(ground, col, row));
+  const id = ground.ids[row * ground.cols + col] ?? EMPTY_TILE;
+  return id === EMPTY_TILE || waterLevelOfTileId(id) !== null;
 }
 
 /** The asset a placement actually writes. Everything places what the palette selected, except a

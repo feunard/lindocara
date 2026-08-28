@@ -31,6 +31,10 @@ export interface InteriorShellCellRun {
 
 export interface InteriorShell {
   style: InteriorShellStyle;
+  /** Camera-facing perimeter walls become a low cutaway. Missing preserves the historical `true`. */
+  openOuterWalls?: boolean;
+  /** Camera-facing walls painted inside the room become a low cutaway. Missing means `true`. */
+  openInnerWalls?: boolean;
   /**
    * Sparse architectural mask, independent from the visible terrain.
    *
@@ -48,11 +52,24 @@ export function parseMapEnvironment(value: unknown): MapEnvironment | null {
 
 export function parseInteriorShell(value: unknown): InteriorShell | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const record = value as { style?: unknown; innerWalls?: unknown };
+  const record = value as {
+    style?: unknown;
+    openOuterWalls?: unknown;
+    openInnerWalls?: unknown;
+    innerWalls?: unknown;
+  };
   const style = record.style;
   if (typeof style !== "string") return null;
   if (!(INTERIOR_SHELL_STYLES as readonly string[]).includes(style)) return null;
-  if (record.innerWalls === undefined) return { style: style as InteriorShellStyle };
+  if (record.openOuterWalls !== undefined && typeof record.openOuterWalls !== "boolean")
+    return null;
+  if (record.openInnerWalls !== undefined && typeof record.openInnerWalls !== "boolean")
+    return null;
+  const options = {
+    ...(record.openOuterWalls === undefined ? {} : { openOuterWalls: record.openOuterWalls }),
+    ...(record.openInnerWalls === undefined ? {} : { openInnerWalls: record.openInnerWalls }),
+  };
+  if (record.innerWalls === undefined) return { style: style as InteriorShellStyle, ...options };
   if (!Array.isArray(record.innerWalls) || record.innerWalls.length > 65_536) return null;
   const innerWalls: InteriorShellCellRun[] = [];
   let innerWallCells = 0;
@@ -79,5 +96,5 @@ export function parseInteriorShell(value: unknown): InteriorShell | null {
       length: run.length as number,
     });
   }
-  return { style: style as InteriorShellStyle, innerWalls };
+  return { style: style as InteriorShellStyle, ...options, innerWalls };
 }

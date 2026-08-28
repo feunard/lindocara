@@ -214,10 +214,11 @@ describe("compileAuthoredMap", () => {
     ]);
   });
 
-  it("preserves raised water and lava as liquid surfaces instead of ground", () => {
+  it("preserves explicit level-zero/raised water and lava as liquid surfaces instead of ground", () => {
     const size = 3;
     const ground = emptyLayer(size, size);
     const ids = Array<number>(size * size).fill(autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
+    ids[3] = fixedId(waterFixedIndex(0));
     ids[4] = fixedId(waterFixedIndex(2));
     ids[5] = fixedId(terrainFixedIndex("lave", 3));
     ground.ids = ids;
@@ -230,10 +231,13 @@ describe("compileAuthoredMap", () => {
       spawn: { col: 0, row: 0 },
     });
 
+    expect(compiled.levels[3]).toBeNull();
     expect(compiled.levels[4]).toBeNull();
     expect(compiled.levels[5]).toBeNull();
+    expect(compiled.liquids?.[3]).toBe("water");
     expect(compiled.liquids?.[4]).toBe("water");
     expect(compiled.liquids?.[5]).toBe("lava");
+    expect(compiled.liquidLevels?.[3]).toBe(0);
     expect(compiled.liquidLevels?.[4]).toBe(2);
     expect(compiled.liquidLevels?.[5]).toBe(3);
 

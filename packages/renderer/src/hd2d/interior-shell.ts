@@ -3,7 +3,7 @@ import {
   INTERIOR_SHELL_SILL_HEIGHT,
   INTERIOR_SHELL_THICKNESS,
   INTERIOR_SHELL_WALL_HEIGHT,
-  interiorShellBoundaryRuns,
+  interiorShellRunGroups,
   type InteriorShellRun,
   type InteriorShellSide,
 } from "@lindocara/engine/interior-shell.js";
@@ -69,6 +69,8 @@ interface SideMeshes {
   full: THREE.Group;
   cutaway: THREE.Group;
 }
+
+type WallGroup = "outer" | "inner";
 
 function wallTexture(style: InteriorShellStyle, textures: TextureRegistry): THREE.Texture {
   const surface = STYLE_SURFACE[style];
@@ -157,72 +159,81 @@ export function createInteriorShell(map: MapData, textures: TextureRegistry): In
   const capMaterial = new THREE.MeshLambertMaterial({ color: surface.cap, flatShading: true });
   const voidMaterial = new THREE.MeshLambertMaterial({ color: surface.shadow, flatShading: true });
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
-  const runs = interiorShellBoundaryRuns(
+  const runGroups = interiorShellRunGroups(
     map.size,
     map.levels,
     map.materials,
     shell,
     map.liquidLevels ?? [],
   );
-  const sideMeshes = new Map<InteriorShellSide, SideMeshes>();
+  const sideMeshes = new Map<WallGroup, Map<InteriorShellSide, SideMeshes>>();
 
-  for (const side of ["north", "east", "south", "west"] as const) {
-    const sideRuns = runs.filter((run) => run.side === side);
-    const full = new THREE.Group();
-    full.name = `${side}-full`;
-    const wall = instancesFor(
-      `${side}-wall`,
-      sideRuns,
-      unitBox,
-      wallMaterial,
-      INTERIOR_SHELL_WALL_HEIGHT,
-      INTERIOR_SHELL_WALL_HEIGHT / 2,
-      map.levelHeight,
-    );
-    if (wall) full.add(wall);
-    const cap = instancesFor(
-      `${side}-cap`,
-      sideRuns,
-      unitBox,
-      capMaterial,
-      0.12,
-      INTERIOR_SHELL_WALL_HEIGHT + 0.06,
-      map.levelHeight,
-    );
-    if (cap) full.add(cap);
+  for (const group of ["outer", "inner"] as const) {
+    const groupMeshes = new Map<InteriorShellSide, SideMeshes>();
+    const prefix = group === "outer" ? "" : "inner-";
+    for (const side of ["north", "east", "south", "west"] as const) {
+      const sideRuns = runGroups[group].filter((run) => run.side === side);
+      const full = new THREE.Group();
+      full.name = `${prefix}${side}-full`;
+      const wall = instancesFor(
+        `${prefix}${side}-wall`,
+        sideRuns,
+        unitBox,
+        wallMaterial,
+        INTERIOR_SHELL_WALL_HEIGHT,
+        INTERIOR_SHELL_WALL_HEIGHT / 2,
+        map.levelHeight,
+      );
+      if (wall) full.add(wall);
+      const cap = instancesFor(
+        `${prefix}${side}-cap`,
+        sideRuns,
+        unitBox,
+        capMaterial,
+        0.12,
+        INTERIOR_SHELL_WALL_HEIGHT + 0.06,
+        map.levelHeight,
+      );
+      if (cap) full.add(cap);
 
-    const cutaway = new THREE.Group();
-    cutaway.name = `${side}-cutaway`;
-    const sill = instancesFor(
-      `${side}-sill`,
-      sideRuns,
-      unitBox,
-      wallMaterial,
-      INTERIOR_SHELL_SILL_HEIGHT,
-      INTERIOR_SHELL_SILL_HEIGHT / 2,
-      map.levelHeight,
-    );
-    if (sill) cutaway.add(sill);
-    const abyss = instancesFor(
-      `${side}-black-margin`,
-      sideRuns,
-      unitBox,
-      voidMaterial,
-      0.72,
-      -0.36,
-      map.levelHeight,
-      INTERIOR_SHELL_THICKNESS * 0.34,
-    );
-    if (abyss) cutaway.add(abyss);
-    root.add(full, cutaway);
-    sideMeshes.set(side, { full, cutaway });
+      const cutaway = new THREE.Group();
+      cutaway.name = `${prefix}${side}-cutaway`;
+      const sill = instancesFor(
+        `${prefix}${side}-sill`,
+        sideRuns,
+        unitBox,
+        wallMaterial,
+        INTERIOR_SHELL_SILL_HEIGHT,
+        INTERIOR_SHELL_SILL_HEIGHT / 2,
+        map.levelHeight,
+      );
+      if (sill) cutaway.add(sill);
+      const abyss = instancesFor(
+        `${prefix}${side}-black-margin`,
+        sideRuns,
+        unitBox,
+        voidMaterial,
+        0.72,
+        -0.36,
+        map.levelHeight,
+        INTERIOR_SHELL_THICKNESS * 0.34,
+      );
+      if (abyss) cutaway.add(abyss);
+      root.add(full, cutaway);
+      groupMeshes.set(side, { full, cutaway });
+    }
+    sideMeshes.set(group, groupMeshes);
   }
 
   const setCameraYaw = (yaw: number): void => {
     const near = sideForYaw(yaw);
-    for (const [side, meshes] of sideMeshes) {
-      meshes.full.visible = side !== near;
-      meshes.cutaway.visible = side === near;
+    for (const [group, groupMeshes] of sideMeshes) {
+      const open =
+        group === "outer" ? shell.openOuterWalls !== false : shell.openInnerWalls !== false;
+      for (const [side, meshes] of groupMeshes) {
+        meshes.full.visible = !open || side !== near;
+        meshes.cutaway.visible = open && side === near;
+      }
     }
   };
   setCameraYaw(0);

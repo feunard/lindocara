@@ -81,4 +81,25 @@ describe("interior shell visual", () => {
     outer.dispose();
     nested.dispose();
   });
+
+  it("opens perimeter and painted inner walls independently", () => {
+    const visual = createInteriorShell(
+      {
+        ...map,
+        interiorShell: {
+          style: "castle",
+          openOuterWalls: false,
+          openInnerWalls: true,
+          innerWalls: [{ col: 0, row: 0, length: 1 }],
+        },
+      },
+      registry(),
+    );
+
+    expect(visual.group.getObjectByName("south-full")?.visible).toBe(true);
+    expect(visual.group.getObjectByName("south-cutaway")?.visible).toBe(false);
+    expect(visual.group.getObjectByName("inner-south-full")?.visible).toBe(false);
+    expect(visual.group.getObjectByName("inner-south-cutaway")?.visible).toBe(true);
+    visual.dispose();
+  });
 });

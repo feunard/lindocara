@@ -86,7 +86,9 @@ export function filterInteriorShellInnerWalls(
   }
   const innerWalls = normalizedCellRuns(cells);
   if (sameCellRuns(current, innerWalls)) return shell;
-  return innerWalls.length === 0 ? { style: shell.style } : { ...shell, innerWalls };
+  if (innerWalls.length > 0) return { ...shell, innerWalls };
+  const { innerWalls: _removed, ...withoutInnerWalls } = shell;
+  return withoutInnerWalls;
 }
 
 /**
@@ -266,6 +268,30 @@ function innerWallLevels(
   return inner;
 }
 
+export interface InteriorShellRunGroups {
+  outer: readonly InteriorShellRun[];
+  inner: readonly InteriorShellRun[];
+}
+
+/** Unmerged visual groups, so outer and author-painted inner walls can cut away independently. */
+export function interiorShellRunGroups(
+  size: number,
+  levels: readonly (number | null)[],
+  materials: readonly TerrainMaterial[],
+  shell: InteriorShell,
+  liquidLevels: readonly (number | null)[] = [],
+): InteriorShellRunGroups {
+  return {
+    outer: interiorShellRuns(
+      size,
+      interiorShellLevels(size, levels, materials, shell.style, liquidLevels),
+    ),
+    inner: shell.innerWalls
+      ? interiorShellRuns(size, innerWallLevels(size, levels, materials, shell))
+      : [],
+  };
+}
+
 /** Merge overlapping/adjacent world runs, including an inner wall that reaches the outer shell. */
 function mergeBoundaryRuns(size: number, runs: readonly InteriorShellRun[]): InteriorShellRun[] {
   const edges: Edge[] = [];
@@ -320,12 +346,8 @@ export function interiorShellBoundaryRuns(
   shell: InteriorShell,
   liquidLevels: readonly (number | null)[] = [],
 ): InteriorShellRun[] {
-  const outer = interiorShellRuns(
-    size,
-    interiorShellLevels(size, levels, materials, shell.style, liquidLevels),
-  );
-  if (!shell.innerWalls || shell.innerWalls.length === 0) return outer;
-  const inner = interiorShellRuns(size, innerWallLevels(size, levels, materials, shell));
+  const { outer, inner } = interiorShellRunGroups(size, levels, materials, shell, liquidLevels);
+  if (inner.length === 0) return [...outer];
   return mergeBoundaryRuns(size, [...outer, ...inner]);
 }
 

@@ -52,8 +52,8 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import {
-  eraseRect,
   groundElevationAt,
+  paintWaterLayer,
   paintRectAutotile,
   slotAt,
   stairsTilePlacements,
@@ -186,6 +186,36 @@ describe("blankMap", () => {
 });
 
 describe("interior architecture", () => {
+  it("saves painted level-zero water as an explicit visible interior pool", () => {
+    let map = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "volcano",
+    });
+    map = place(map, { kind: "block", block: "water" }, 4, 4) as EditorMap;
+
+    const decoded = decodeMap(toSaveInput(map).heightfield);
+    expect(decoded).not.toBeNull();
+    expect(
+      decoded?.liquids?.some(
+        (liquid, index) => liquid === "water" && decoded.liquidLevels?.[index] === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("persists independent perimeter and inner-wall cutaway choices", () => {
+    const map = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "castle",
+      openOuterWalls: false,
+      openInnerWalls: true,
+    });
+
+    expect(map.interiorShell).toEqual({ style: "castle", openOuterWalls: false });
+    expect(toSaveInput(map).interiorShell).toEqual({ style: "castle", openOuterWalls: false });
+    expect(decodeMap(toSaveInput(map).heightfield)?.interiorShell).toEqual({
+      style: "castle",
+      openOuterWalls: false,
+    });
+  });
+
   it("converts existing solid terrain on first coating without flattening it", () => {
     let map = place(blankMap("room", 20, 15), { kind: "elevation", level: 2 }, 3, 3) as EditorMap;
     map = place(map, { kind: "block", block: "water" }, 4, 4) as EditorMap;
@@ -794,14 +824,12 @@ describe("applyTool: rect", () => {
 
     // Shrinking the terrain preview also leaves the independent scenery untouched.
     expect(map.elements).toEqual([{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }]);
-    const expectedGround = eraseRect(
-      withTree.layers[0] as TileLayer,
-      TINY_SWORDS_TILESET,
-      1,
-      1,
-      2,
-      2,
-    );
+    let expectedGround = withTree.layers[0] as TileLayer;
+    for (let row = 1; row <= 2; row += 1) {
+      for (let col = 1; col <= 2; col += 1) {
+        expectedGround = paintWaterLayer(expectedGround, TINY_SWORDS_TILESET, 0, col, row);
+      }
+    }
     expect(map.layers[0]).toEqual(expectedGround);
   });
 });

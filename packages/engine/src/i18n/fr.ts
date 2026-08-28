@@ -1512,6 +1512,12 @@ export const fr: Record<keyof typeof en, string> = {
     "Choisir un revêtement convertit le sol existant en sol structurel. Vous pouvez ensuite peindre librement ; repeindre ce même sol dessine des murs et plafonds imbriqués.",
   "editor.interiorShell.structuralFloor":
     "Sol structurel : {terrain}. Ce pinceau seul étend l’enveloppe.",
+  "editor.interiorShell.openOuterWalls": "Ouvrir les murs périphériques",
+  "editor.interiorShell.openOuterWallsHint":
+    "Le mur face à la caméra s’abaisse pour dégager la vue sur la pièce.",
+  "editor.interiorShell.openInnerWalls": "Ouvrir aussi les murs intérieurs",
+  "editor.interiorShell.openInnerWallsHint":
+    "Les murs créés en repeignant le sol structurel suivent le même découpage face caméra.",
   "editor.interiorShell.floor.timber": "plancher intérieur (pinceau Sable)",
   "editor.interiorShell.floor.castle": "dallage en pierre (pinceau Sable)",
   "editor.interiorShell.floor.cave": "Grotte",

@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 const map: MapData = {
   version: 1,
   environment: "interior",
-  interiorShell: { style: "cave", innerWalls: [{ col: 1, row: 1, length: 2 }] },
+  interiorShell: {
+    style: "cave",
+    openOuterWalls: false,
+    openInnerWalls: true,
+    innerWalls: [{ col: 1, row: 1, length: 2 }],
+  },
   size: 4,
   levelHeight: 0.9,
   waterLevel: 0,

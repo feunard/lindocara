@@ -244,9 +244,15 @@ function shiftMapContent(
     return end <= start ? [] : [{ col: start, row, length: end - start }];
   });
   const innerWalls = shiftedInnerWalls ? compactInnerWallRuns(shiftedInnerWalls) : undefined;
-  const interiorShell = map.interiorShell
+  const interiorShell: InteriorShell | undefined = map.interiorShell
     ? {
         style: map.interiorShell.style,
+        ...(map.interiorShell.openOuterWalls === undefined
+          ? {}
+          : { openOuterWalls: map.interiorShell.openOuterWalls }),
+        ...(map.interiorShell.openInnerWalls === undefined
+          ? {}
+          : { openInnerWalls: map.interiorShell.openInnerWalls }),
         ...(innerWalls && innerWalls.length > 0 ? { innerWalls } : {}),
       }
     : undefined;

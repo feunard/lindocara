@@ -209,11 +209,13 @@ the architecture. Repainting the selected structural floor over cells already us
 sparse architectural mask independent of the visible terrain, allowing nested rooms and partitions
 inside an already enclosed map. Repainting those cells with another terrain removes that inner
 architecture. The mask follows canvas padding/cropping and round-trips with the map. Contiguous
-exposed edges become one boundary run for collision and GPU instances
-for rendering. The camera-facing direction is a low cutaway sill over the black void and follows
-camera yaw; the other three directions remain full-height walls. The same runs compile into finite
-heightfield colliders, keeping the visible enclosure and both movement authorities on one geometry
-source. Omitting `interiorShell` preserves older open interiors.
+exposed edges become one boundary run for collision and GPU instances for rendering. The coating
+dialog controls camera-facing cutaways independently for perimeter walls and author-painted inner
+walls: either group can remain full height or lower to a sill over the black void as camera yaw
+changes. These visual openings never weaken collision; the merged full boundary still compiles into
+finite heightfield colliders, keeping the visible enclosure and both movement authorities on one
+geometry source. Missing cutaway flags preserve the historical open-both behaviour, and omitting
+`interiorShell` preserves older open interiors.
 
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
@@ -262,8 +264,10 @@ hero's actual multidirectional travel after a short manual-control grace period.
 descending adds a small temporary pitch offset, then returns to the player's manually selected
 inclination on any flat landing, including raised floors. Horizontal and vertical orbit gestures
 lock independently so an intentional manual look remains available without diagonal axis drift.
-Painted water keeps its explicit liquid tier and renders inside an interior at every elevation;
-only implicit level-less water outside authored ground becomes the black architectural void.
+Painted water keeps its explicit liquid tier and renders inside an interior at every elevation.
+Level zero uses the previously reserved fixed-water slot, so it is distinguishable from a historical
+empty cell. For older interiors, a level-less cell enclosed by structural floor is recovered as a
+level-zero pool; only edge-connected implicit water becomes the black architectural void.
 Swimming billboards read the queried liquid surface at their own cell rather than the map-wide sea
 level, so excavated water and lava at negative tiers also hold the hero visibly inside that liquid.
 Fill has no fill-to-empty primitive; the UI disables it rather than let it

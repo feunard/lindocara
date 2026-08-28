@@ -62,8 +62,17 @@ describe("the autotile brush", () => {
       { col: 3, row: 2 },
     ]);
     layer = paintWaterLayer(layer, set, 0, 3, 2);
-    expect(idAt(layer, 3, 2)).toBe(0);
+    expect(waterLevelOfTileId(idAt(layer, 3, 2))).toBe(0);
     expect(waterFloodRegion(layer, 2, 2)).toEqual([{ col: 2, row: 2 }]);
+  });
+
+  it("distinguishes explicitly painted level-zero water from an empty interior void", () => {
+    const empty = emptyLayer(3, 3);
+    const painted = paintWaterLayer(empty, set, 0, 1, 1);
+
+    expect(idAt(empty, 1, 1)).toBe(0);
+    expect(idAt(painted, 1, 1)).not.toBe(0);
+    expect(waterLevelOfTileId(idAt(painted, 1, 1))).toBe(0);
   });
 
   // The test that guards the whole frozen-variant design.

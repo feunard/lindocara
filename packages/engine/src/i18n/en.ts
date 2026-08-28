@@ -1497,6 +1497,11 @@ export const en = {
     "Choosing a coating converts the existing solid ground to its structural floor. Other terrain can then be painted freely; repainting that same floor draws nested walls and ceiling rims.",
   "editor.interiorShell.structuralFloor":
     "Structural floor: {terrain}. This brush alone extends the envelope.",
+  "editor.interiorShell.openOuterWalls": "Open perimeter walls",
+  "editor.interiorShell.openOuterWallsHint": "The camera-facing wall lowers to reveal the room.",
+  "editor.interiorShell.openInnerWalls": "Open inner walls too",
+  "editor.interiorShell.openInnerWallsHint":
+    "Walls created by repainting the structural floor use the same camera-facing cutaway.",
   "editor.interiorShell.floor.timber": "interior boards (Sand brush)",
   "editor.interiorShell.floor.castle": "stone paving (Sand brush)",
   "editor.interiorShell.floor.cave": "Cave",

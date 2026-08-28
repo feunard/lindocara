@@ -229,10 +229,10 @@ export const FIXED_TERRAIN_COUNT = FIXED_TERRAIN_MATERIALS.length * FIXED_TERRAI
 /**
  * Elevated authored water, appended after every historical fixed-terrain id.
  *
- * Level zero deliberately keeps using `EMPTY_TILE`: it is the sea representation every stored map
- * already carries. Only a water surface whose elevation must survive saving needs an id of its own.
- * Reserving the complete authored range keeps the arithmetic direct for raised pools and sunken
- * basins, while the level-zero entry remains a semantic alias that is never written.
+ * Historical empty cells remain the implicit exterior sea / interior void. Every water surface the
+ * author PAINTS uses this band, including level zero, so an interior pool cannot become
+ * indistinguishable from black architectural void after saving. The zero slot was reserved from the
+ * beginning, so activating it does not renumber any following fixed asset.
  */
 export const WATER_FIXED_BASE = FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT;
 export const WATER_FIXED_COUNT = FIXED_TERRAIN_LEVEL_COUNT;
@@ -291,14 +291,9 @@ export function fixedTerrainDescriptor(index: number): FixedTerrainDescriptor | 
   };
 }
 
-/** Stable fixed index for authored water at one non-zero elevation. Level zero stays `EMPTY_TILE`. */
+/** Stable fixed index for authored water at one elevation, including an explicit level-zero pool. */
 export function waterFixedIndex(level: number): number {
-  if (
-    !Number.isSafeInteger(level) ||
-    level === 0 ||
-    level < -SUNKEN_TERRAIN_LEVELS ||
-    level >= TERRAIN_LEVELS
-  ) {
+  if (!Number.isSafeInteger(level) || level < -SUNKEN_TERRAIN_LEVELS || level >= TERRAIN_LEVELS) {
     return -1;
   }
   return WATER_FIXED_BASE + level + SUNKEN_TERRAIN_LEVELS;

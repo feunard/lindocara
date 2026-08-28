@@ -121,7 +121,7 @@ export interface MapData {
   materials: readonly TerrainMaterial[];
   /** Explicit liquid kind per cell. Optional heightfields retain legacy inference. */
   liquids?: readonly (TerrainLiquid | null)[];
-  /** Authored surface tier per explicit liquid. `null` means the global sea or no liquid. */
+  /** Authored surface tier per explicit liquid. Zero is explicit; `null` means implicit sea/void. */
   liquidLevels?: readonly (number | null)[];
   /** Optional for backward compatibility with heightfields written before authored stairs. */
   ramps?: readonly TerrainRamp[];

@@ -46,7 +46,7 @@ import { isNativeSceneryAsset, nativeSceneryDimensionsOrDefault } from "./native
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
-import { isRampFixedIndex, tilesetById } from "./tilesets/tiny-swords.js";
+import { isRampFixedIndex, tilesetById, waterLevelOfTileId } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
@@ -646,12 +646,15 @@ export function bakeCollision(map: MapData): TileMap {
   const ground = map.layers[0];
   for (let index = 0; index < cells; index += 1) {
     const id = ground?.ids[index] ?? EMPTY_TILE;
-    kinds[index] = id === EMPTY_TILE ? "water" : "grass";
+    kinds[index] = id === EMPTY_TILE || waterLevelOfTileId(id) !== null ? "water" : "grass";
   }
   for (const layer of map.layers) {
     for (let index = 0; index < cells; index += 1) {
       const id = layer.ids[index] ?? EMPTY_TILE;
       if (id === EMPTY_TILE) continue;
+      // Explicit water is a non-empty storage id so interiors can distinguish it from black void,
+      // but it remains water for the one authoritative collision bake.
+      if (waterLevelOfTileId(id) !== null) continue;
       const ref = decodeTileId(id);
       if (ref.kind === "fixed" && isRampFixedIndex(ref.index)) {
         // Keep staircase semantics in the server-baked grid so authoritative movement and client
