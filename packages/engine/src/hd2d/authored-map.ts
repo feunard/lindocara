@@ -20,11 +20,7 @@ import {
   WINDMILL_ROOF_RADIUS,
 } from "../buildings.js";
 import { isNativeHarvestAsset } from "../harvest-presets.js";
-import {
-  interiorShellColliders,
-  interiorShellLevels,
-  interiorShellRuns,
-} from "../interior-shell.js";
+import { interiorShellBoundaryRuns, interiorShellColliders } from "../interior-shell.js";
 import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
@@ -716,15 +712,12 @@ function authoredContent(
       ),
       ...(authored.environment === "interior" && authored.interiorShell
         ? interiorShellColliders(
-            interiorShellRuns(
+            interiorShellBoundaryRuns(
               size,
-              interiorShellLevels(
-                size,
-                levels,
-                materials,
-                authored.interiorShell.style,
-                liquidLevels,
-              ),
+              levels,
+              materials,
+              authored.interiorShell,
+              liquidLevels,
             ),
             AUTHORED_LEVEL_HEIGHT,
           )

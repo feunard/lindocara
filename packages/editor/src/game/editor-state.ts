@@ -43,6 +43,11 @@ import {
 import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
+import {
+  addInteriorShellInnerWalls,
+  filterInteriorShellInnerWalls,
+  interiorShellFloorMaterial,
+} from "@lindocara/engine/interior-shell.js";
 import { cropMapToRect, derivedMapRect, padMapToCanvas } from "@lindocara/engine/map-canvas.js";
 import {
   bakeCollision,
@@ -116,10 +121,13 @@ import {
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { autotileId } from "@lindocara/engine/tileset.js";
+import { autotileId, fixedId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
   isGroundElevation,
+  terrainDescriptorOfTileId,
+  terrainFixedIndex,
+  terrainSlot,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -182,7 +190,12 @@ export interface EditorMap {
    * Deliberately excluded from `serializedMap`: it is stroke-local plumbing, not map content, and
    * must never make the map read as dirty or unsaved on its own.
    */
-  strokeAnchor?: { col: number; row: number; layers: TileLayer[] };
+  strokeAnchor?: {
+    col: number;
+    row: number;
+    layers: TileLayer[];
+    interiorShell?: InteriorShell;
+  };
 }
 
 /** Terrain strokes write the ground; only `paintElevation` reaches past it, and it owns the reach. */
@@ -1279,6 +1292,58 @@ export function toMapData(map: EditorMap): MapData {
 }
 
 /**
+ * Apply an interior coating and re-skin the ground that belongs to the envelope.
+ *
+ * The first coating adopts every existing solid floor so an imported/exterior map immediately has
+ * an enclosing wall. A later theme change converts only the previous structural material, keeping
+ * pools and decorative terrain authored after the first conversion intact. Heights never change.
+ */
+export function applyInteriorShellSetting(
+  map: EditorMap,
+  environment: MapEnvironment,
+  requested?: InteriorShell,
+): EditorMap {
+  if (environment !== "interior" || !requested) {
+    const next: EditorMap = { ...map, environment };
+    delete next.interiorShell;
+    return next;
+  }
+
+  const previous = map.interiorShell;
+  const interiorShell: InteriorShell = {
+    style: requested.style,
+    ...(previous?.innerWalls && previous.innerWalls.length > 0
+      ? { innerWalls: previous.innerWalls }
+      : {}),
+  };
+  if (previous?.style === requested.style && map.environment === environment) return map;
+
+  const ground = map.layers[GROUND_LAYER];
+  if (!ground) return { ...map, environment, interiorShell };
+  const from = previous ? interiorShellFloorMaterial(previous.style) : null;
+  const to = interiorShellFloorMaterial(requested.style);
+  const ids = [...ground.ids];
+  let changed = false;
+  for (let row = 0; row < ground.rows; row += 1) {
+    for (let col = 0; col < ground.cols; col += 1) {
+      const index = row * ground.cols + col;
+      const descriptor = terrainDescriptorOfTileId(ground.ids[index] ?? 0);
+      if (!descriptor || (from !== null && descriptor.material !== from)) continue;
+      if (descriptor.material === to) continue;
+      const slot = terrainSlot(to, descriptor.level);
+      const fixedIndex = terrainFixedIndex(to, descriptor.level);
+      if (slot === null && fixedIndex < 0) continue;
+      ids[index] = slot === null ? fixedId(fixedIndex) : autotileId(slot, 0);
+      changed = true;
+    }
+  }
+  const layers = !changed
+    ? map.layers
+    : [resolveWholeLayer({ ...ground, ids }, TINY_SWORDS_TILESET), ...map.layers.slice(1)];
+  return { ...map, environment, interiorShell, layers };
+}
+
+/**
  * The editor's save body. Structurally `api.ts`'s `MapSaveInput` — spelled out here rather than
  * imported so `client/game/` keeps depending on nothing above it. `selfMapId`, forwarded to
  * `croppedForSave`, is this session's own map id — the caller passes it whenever it knows one, so
@@ -1311,7 +1376,7 @@ export function toSaveInput(
   return {
     name: map.name,
     environment: map.environment ?? "exterior",
-    ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
+    ...(cropped.interiorShell ? { interiorShell: cropped.interiorShell } : {}),
     weather: map.weather ?? "none",
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
@@ -1420,6 +1485,51 @@ function sameLayers(a: readonly TileLayer[], b: readonly TileLayer[]): boolean {
   });
 }
 
+function structuralFloorAt(
+  ground: TileLayer,
+  shell: InteriorShell,
+  col: number,
+  row: number,
+): boolean {
+  const id = ground.ids[row * ground.cols + col];
+  if (id === undefined) return false;
+  return terrainDescriptorOfTileId(id)?.material === interiorShellFloorMaterial(shell.style);
+}
+
+/** A material-only repaint of the selected coating is the gesture that authors an inner room. */
+function structuralRepaintCells(
+  map: EditorMap,
+  content: RectFillContent,
+  cells: readonly { col: number; row: number }[],
+  ground = map.layers[GROUND_LAYER],
+): Array<{ col: number; row: number }> {
+  const shell = map.environment === "interior" ? map.interiorShell : undefined;
+  if (
+    !shell ||
+    !ground ||
+    content.kind !== "elevation" ||
+    !("step" in content) ||
+    content.step !== "keep" ||
+    content.material !== interiorShellFloorMaterial(shell.style)
+  )
+    return [];
+  return cells.filter((cell) => structuralFloorAt(ground, shell, cell.col, cell.row));
+}
+
+function reconciledInteriorShell(
+  map: EditorMap,
+  layers: readonly TileLayer[],
+  addedInnerWalls: readonly { col: number; row: number }[],
+): InteriorShell | undefined {
+  const shell = map.environment === "interior" ? map.interiorShell : undefined;
+  const ground = layers[GROUND_LAYER];
+  if (!shell || !ground) return shell;
+  const pruned = filterInteriorShellInnerWalls(shell, (col, row) =>
+    structuralFloorAt(ground, shell, col, row),
+  );
+  return addInteriorShellInnerWalls(pruned, addedInnerWalls);
+}
+
 /**
  * Adopt a repainted layer stack, or refuse it.
  *
@@ -1427,9 +1537,19 @@ function sameLayers(a: readonly TileLayer[], b: readonly TileLayer[]): boolean {
  * prop never deletes it. A stroke that would make the map's technical spawn unwalkable is still
  * refused outright.
  */
-function commitTerrain(map: EditorMap, layers: TileLayer[]): EditorMap | null {
-  if (sameLayers(map.layers, layers)) return map;
-  const next: EditorMap = { ...map, layers };
+function commitTerrain(
+  map: EditorMap,
+  layers: TileLayer[],
+  addedInnerWalls: readonly { col: number; row: number }[] = [],
+): EditorMap | null {
+  const interiorShell = reconciledInteriorShell(map, layers, addedInnerWalls);
+  if (sameLayers(map.layers, layers) && interiorShell === map.interiorShell) return map;
+  const next: EditorMap = {
+    ...map,
+    layers,
+    ...(interiorShell ? { interiorShell } : {}),
+  };
+  if (!interiorShell) delete next.interiorShell;
   return keepsSpawnClear(next) ? next : null;
 }
 
@@ -1477,9 +1597,7 @@ function paintedWater(map: EditorMap, col: number, row: number): TileLayer[] | n
 function erasedTerrainMap(map: EditorMap, col: number, row: number): EditorMap | null {
   const layers = erasedTerrain(map, col, row);
   if (!layers) return null;
-  if (sameLayers(map.layers, layers)) return map;
-  const next: EditorMap = { ...map, layers };
-  return keepsSpawnClear(next) ? next : null;
+  return commitTerrain(map, layers);
 }
 
 /** Element-mode eraser: drop the TOPMOST element covering the cell (the last in array/render order),
@@ -1964,6 +2082,7 @@ export function applyTool(
     case "elevation": {
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
+      const innerWalls = structuralRepaintCells(map, tool, [{ col, row }], ground);
       const target = elevationTargetLevel(tool, groundElevationAt(ground, col, row));
       if (target === null) return null;
       const layers = paintTerrain(
@@ -1974,7 +2093,7 @@ export function applyTool(
         col,
         row,
       );
-      return commitTerrain(map, layers);
+      return commitTerrain(map, layers, innerWalls);
     }
     /**
      * Anchors on stroke start, then every later cell of the same drag repaints the whole rectangle
@@ -1988,7 +2107,15 @@ export function applyTool(
      */
     case "rect": {
       if (isStrokeStart) {
-        return { ...map, strokeAnchor: { col, row, layers: map.layers } };
+        return {
+          ...map,
+          strokeAnchor: {
+            col,
+            row,
+            layers: map.layers,
+            ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
+          },
+        };
       }
       const anchor = map.strokeAnchor;
       if (!anchor) return null;
@@ -1996,6 +2123,18 @@ export function applyTool(
       if (!bounds) return null;
       const ground = anchor.layers[GROUND_LAYER];
       if (!ground) return null;
+      const cells: Array<{ col: number; row: number }> = [];
+      for (let cellRow = bounds.r0; cellRow <= bounds.r1; cellRow += 1) {
+        for (let cellCol = bounds.c0; cellCol <= bounds.c1; cellCol += 1) {
+          cells.push({ col: cellCol, row: cellRow });
+        }
+      }
+      const anchoredMap: EditorMap = {
+        ...map,
+        ...(anchor.interiorShell ? { interiorShell: anchor.interiorShell } : {}),
+      };
+      if (!anchor.interiorShell) delete anchoredMap.interiorShell;
+      const innerWalls = structuralRepaintCells(anchoredMap, tool.content, cells, ground);
       const painted = paintRectContent(
         ground,
         tool.content,
@@ -2011,17 +2150,23 @@ export function applyTool(
         bounds.c1,
         bounds.r1,
       );
-      return commitTerrain(map, layers);
+      return commitTerrain(anchoredMap, layers, innerWalls);
     }
     /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; the active mode
      *  never applies since the content is always terrain. */
     case "fill": {
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
+      const innerWalls = structuralRepaintCells(
+        map,
+        tool.content,
+        terrainFloodRegion(ground, col, row),
+        ground,
+      );
       const painted = fillContent(ground, tool.content, col, row);
       if (!painted) return null;
       const bounds = changedBounds(ground, painted);
-      if (!bounds) return map;
+      if (!bounds) return commitTerrain(map, map.layers, innerWalls);
       const layers = syncElevationWallsForRect(
         [painted, ...map.layers.slice(1)],
         bounds.c0,
@@ -2029,7 +2174,7 @@ export function applyTool(
         bounds.c1,
         bounds.r1,
       );
-      return commitTerrain(map, layers);
+      return commitTerrain(map, layers, innerWalls);
     }
     /** Layer 1 by its own fixed rule — a ramp is a wall-layer fixture no matter the active mode.
      *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed

@@ -3,8 +3,7 @@ import {
   INTERIOR_SHELL_SILL_HEIGHT,
   INTERIOR_SHELL_THICKNESS,
   INTERIOR_SHELL_WALL_HEIGHT,
-  interiorShellLevels,
-  interiorShellRuns,
+  interiorShellBoundaryRuns,
   type InteriorShellRun,
   type InteriorShellSide,
 } from "@lindocara/engine/interior-shell.js";
@@ -158,9 +157,12 @@ export function createInteriorShell(map: MapData, textures: TextureRegistry): In
   const capMaterial = new THREE.MeshLambertMaterial({ color: surface.cap, flatShading: true });
   const voidMaterial = new THREE.MeshLambertMaterial({ color: surface.shadow, flatShading: true });
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
-  const runs = interiorShellRuns(
+  const runs = interiorShellBoundaryRuns(
     map.size,
-    interiorShellLevels(map.size, map.levels, map.materials, shell.style, map.liquidLevels ?? []),
+    map.levels,
+    map.materials,
+    shell,
+    map.liquidLevels ?? [],
   );
   const sideMeshes = new Map<InteriorShellSide, SideMeshes>();
 

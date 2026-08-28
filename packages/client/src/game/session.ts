@@ -63,6 +63,7 @@ import {
   type ZoneId,
   zoneDefinition,
 } from "@lindocara/engine/zones.js";
+import { getCameraSettings } from "@lindocara/renderer/camera-settings.js";
 import { getDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { healingEffectColor, shouldFloatEvent } from "@lindocara/renderer/feedback.js";
 import {
@@ -92,7 +93,13 @@ import { cancelHudLayoutEdit, isHudLayoutEditing } from "../state/hud-layout.js"
 import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { leaveAdventureTest } from "./adventure-test.js";
-import { cameraPitchAfterModeDelta, cameraYawAfterModeDelta } from "./camera-policy.js";
+import {
+  cameraFollowDirection,
+  cameraPitchAfterModeDelta,
+  cameraSlopePitchOffset,
+  cameraYawAfterModeDelta,
+  cameraYawAfterMovement,
+} from "./camera-policy.js";
 import { ChestFeedbackTracker } from "./chest-feedback.js";
 import {
   activeReactivationDeadline,
@@ -494,6 +501,9 @@ async function startGameIdentity(
   const cameraOrbit = trackCameraOrbit(canvas);
   let cameraYaw = 0;
   let cameraPitch = CAMERA_PITCH_DEFAULT;
+  let cameraSlopePitch = 0;
+  let renderedCameraPitch = CAMERA_PITCH_DEFAULT;
+  let cameraFollowResumeAt = 0;
   let cameraZoom = 100;
   let cameraMode: AdventureCameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
   let stopActions: (() => void) | null = null;
@@ -633,6 +643,8 @@ async function startGameIdentity(
       activeZoneId = world.zoneId;
       activeWorldSize = world.size;
       cameraMode = world.cameraMode ?? DEFAULT_ADVENTURE_CAMERA_MODE;
+      cameraSlopePitch = 0;
+      cameraFollowResumeAt = 0;
       useUiStore.getState().setGameMode(world.gameMode ?? DEFAULT_ADVENTURE_GAME_MODE);
       // Returning from an orbit-enabled adventure (or receiving a newer policy on reconnect) must
       // return the renderer itself to the default HD-2D heading and pitch. The player can then use
@@ -642,6 +654,7 @@ async function startGameIdentity(
         cameraYaw = 0;
         cameraPitch = CAMERA_PITCH_DEFAULT;
         renderer.setCameraPitch(cameraPitch);
+        renderedCameraPitch = cameraPitch;
       }
       dayNightCycleEnabled = world.dayNightCycle ?? true;
       fixedLighting = world.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING;
@@ -1427,6 +1440,7 @@ async function startGameIdentity(
     const paused = isGameplayInputPaused();
     const cameraSample = cameraOrbit.takeSample(dt);
     const yawDelta = paused ? 0 : cameraSample.yawDelta;
+    if (yawDelta !== 0) cameraFollowResumeAt = now + 900;
     const nextCameraYaw = cameraYawAfterModeDelta(cameraMode, cameraYaw, yawDelta);
     const cameraDelta = nextCameraYaw - cameraYaw;
     cameraYaw = nextCameraYaw;
@@ -1438,17 +1452,14 @@ async function startGameIdentity(
     );
     if (nextCameraPitch !== cameraPitch) {
       cameraPitch = nextCameraPitch;
-      renderer.setCameraPitch(cameraPitch);
     }
     const nextCameraZoom = cameraZoomAfterWheel(cameraZoom, paused ? 0 : cameraSample.wheelPixels);
     if (nextCameraZoom !== cameraZoom) {
       cameraZoom = nextCameraZoom;
       renderer.setCameraZoom(cameraZoom);
     }
-    const movementEvents = client.update(
-      paused ? NO_INPUT : rotateMovementInput(input.current(), cameraYaw),
-      dt,
-    );
+    const movementInput = paused ? NO_INPUT : input.current();
+    const movementEvents = client.update(rotateMovementInput(movementInput, cameraYaw), dt);
     sound.movement(movementEvents);
     const movementStatus = client.movementStatus();
     const sample = client.sample(now);
@@ -1462,6 +1473,41 @@ async function startGameIdentity(
     for (const feedback of chestFeedback.sync(sample.events)) sound.chest(feedback === "open");
     combatAudio.setServerThreat(sample.monsters);
     const self = sample.players.find((player) => player.id === client.selfId);
+    if (cameraMode === "orbit" && self && currentSelf && !paused) {
+      const deltaX = self.x - currentSelf.x;
+      const deltaZ = self.z - currentSelf.z;
+      const horizontalDistance = Math.hypot(deltaX, deltaZ);
+      const followDirection = cameraFollowDirection(movementInput, cameraYaw);
+      if (now >= cameraFollowResumeAt && horizontalDistance >= 0.0001 && followDirection) {
+        const followedYaw = cameraYawAfterMovement(
+          cameraYaw,
+          followDirection.x,
+          followDirection.z,
+          dt,
+          getCameraSettings().followSpeed,
+        );
+        const followedDelta = Math.atan2(
+          Math.sin(followedYaw - cameraYaw),
+          Math.cos(followedYaw - cameraYaw),
+        );
+        cameraYaw = followedYaw;
+        if (followedDelta !== 0) renderer.rotateCamera(followedDelta);
+      }
+      cameraSlopePitch = cameraSlopePitchOffset(
+        cameraSlopePitch,
+        self.y - currentSelf.y,
+        horizontalDistance,
+        self.airborne,
+        dt,
+      );
+    } else {
+      cameraSlopePitch = cameraSlopePitchOffset(cameraSlopePitch, 0, 0, true, dt);
+    }
+    const wantedCameraPitch = cameraPitch + cameraSlopePitch;
+    if (Math.abs(wantedCameraPitch - renderedCameraPitch) > 0.000_01) {
+      renderer.setCameraPitch(wantedCameraPitch);
+      renderedCameraPitch = wantedCameraPitch;
+    }
     sound.setSeaGuardianNearby(
       Boolean(
         self?.swimming &&

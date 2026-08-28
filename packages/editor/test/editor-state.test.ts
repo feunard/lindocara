@@ -1,4 +1,5 @@
 import {
+  applyInteriorShellSetting,
   applyTool,
   beginEventDraft,
   blankMap,
@@ -67,6 +68,7 @@ import {
   MAX_TERRAIN_LEVEL,
   MIN_TERRAIN_LEVEL,
   oneCellRampFixedIndex,
+  terrainDescriptorOfTileId,
   TERRAIN_MATERIAL_SLOTS,
   TINY_SWORDS_TILESET,
   waterLevelOfTileId,
@@ -89,6 +91,13 @@ function groundSlot(map: EditorMap, col: number, row: number): number {
 function wallSlot(map: EditorMap, col: number, row: number): number {
   const walls = map.layers[1];
   return walls ? slotAt(walls, col, row) : -1;
+}
+
+function groundTerrain(map: EditorMap, col: number, row: number) {
+  const ground = map.layers[0];
+  return ground
+    ? terrainDescriptorOfTileId(ground.ids[row * ground.cols + col] ?? EMPTY_TILE)
+    : null;
 }
 
 /** The mode a tool belongs to: Field owns the terrain brushes and the spawn, Element the prop tool,
@@ -173,6 +182,86 @@ describe("blankMap", () => {
     expect(saved.interiorShell).toEqual({ style: "volcano" });
     expect(decodeMap(saved.heightfield)?.environment).toBe("interior");
     expect(decodeMap(saved.heightfield)?.interiorShell).toEqual({ style: "volcano" });
+  });
+});
+
+describe("interior architecture", () => {
+  it("converts existing solid terrain on first coating without flattening it", () => {
+    let map = place(blankMap("room", 20, 15), { kind: "elevation", level: 2 }, 3, 3) as EditorMap;
+    map = place(map, { kind: "block", block: "water" }, 4, 4) as EditorMap;
+
+    const coated = applyInteriorShellSetting(map, "interior", { style: "volcano" });
+
+    expect(coated.environment).toBe("interior");
+    expect(groundTerrain(coated, 2, 2)).toEqual({ material: "volcan", level: 0 });
+    expect(groundTerrain(coated, 3, 3)).toEqual({ material: "volcan", level: 2 });
+    expect(groundSlot(coated, 4, 4)).toBe(-1);
+  });
+
+  it("changes only the previous structural floor when switching coating", () => {
+    let map = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "cave",
+    });
+    map = place(map, { kind: "elevation", material: "herbe", step: "keep" }, 3, 3) as EditorMap;
+
+    const changed = applyInteriorShellSetting(map, "interior", { style: "volcano" });
+
+    expect(groundTerrain(changed, 2, 2)).toEqual({ material: "volcan", level: 0 });
+    expect(groundSlot(changed, 3, 3)).toBe(GRASS_SLOTS[0]);
+  });
+
+  it("turns a same-material repaint into nested walls and removes them with other terrain", () => {
+    const coated = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "volcano",
+    });
+    const nested = place(
+      coated,
+      { kind: "elevation", material: "volcan", step: "keep" },
+      3,
+      3,
+    ) as EditorMap;
+
+    expect(nested.layers).toEqual(coated.layers);
+    expect(nested.interiorShell?.innerWalls).toEqual([{ col: 3, row: 3, length: 1 }]);
+
+    const repainted = place(
+      nested,
+      { kind: "elevation", material: "herbe", step: "keep" },
+      3,
+      3,
+    ) as EditorMap;
+    expect(repainted.interiorShell).toEqual({ style: "volcano" });
+  });
+
+  it("restores the architectural anchor when a live rectangle shrinks", () => {
+    const coated = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "volcano",
+    });
+    const tool = {
+      kind: "rect" as const,
+      content: { kind: "elevation" as const, material: "volcan" as const, step: "keep" as const },
+    };
+    const anchored = place(coated, tool, 3, 3, true) as EditorMap;
+    const expanded = place(anchored, tool, 5, 5, false) as EditorMap;
+    const shrunk = place(expanded, tool, 4, 4, false) as EditorMap;
+
+    expect(shrunk.interiorShell?.innerWalls).toEqual([
+      { col: 3, row: 3, length: 2 },
+      { col: 3, row: 4, length: 2 },
+    ]);
+  });
+
+  it("crops the nested-wall mask into saved map coordinates", () => {
+    const map = {
+      ...blankMap("room", 20, 15),
+      environment: "interior" as const,
+      interiorShell: {
+        style: "cave" as const,
+        innerWalls: [{ col: 3, row: 4, length: 2 }],
+      },
+    };
+
+    expect(toSaveInput(map).interiorShell?.innerWalls).toEqual([{ col: 3, row: 4, length: 2 }]);
   });
 });
 

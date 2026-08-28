@@ -7,6 +7,7 @@ import {
 } from "@lindocara/client/state/hud-layout.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { SettingsMenu } from "@lindocara/client/ui/SettingsMenu.js";
+import { getCameraSettings, setCameraSettings } from "@lindocara/renderer/camera-settings.js";
 import { getDisplaySettings, setDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { getInputSettings, resetInputBindings } from "@lindocara/renderer/input-settings.js";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -18,6 +19,11 @@ describe("SettingsMenu", () => {
     setLocale("en");
     setAudioSettings({ muted: false, sfxVolume: 0.65, ambientVolume: 0.45 });
     setDisplaySettings({ healthBars: "both", grid: false });
+    setCameraSettings({
+      followSpeed: 1,
+      horizontalSensitivity: 1,
+      verticalSensitivity: 1,
+    });
     resetInputBindings();
     localStorage.clear();
     reloadHudLayout();
@@ -69,6 +75,28 @@ describe("SettingsMenu", () => {
 
     await userEvent.selectOptions(screen.getByLabelText("Language"), "fr");
     expect(currentLocale()).toBe("fr");
+  });
+
+  it("persists independent camera follow, horizontal and vertical speeds", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu inGame />);
+    await userEvent.click(screen.getByRole("tab", { name: "Camera" }));
+
+    fireEvent.change(screen.getByRole("slider", { name: /Movement follow speed/ }), {
+      target: { value: 135 },
+    });
+    fireEvent.change(screen.getByRole("slider", { name: /Horizontal orientation speed/ }), {
+      target: { value: 80 },
+    });
+    fireEvent.change(screen.getByRole("slider", { name: /Vertical tilt speed/ }), {
+      target: { value: 55 },
+    });
+
+    expect(getCameraSettings()).toEqual({
+      followSpeed: 1.35,
+      horizontalSensitivity: 0.8,
+      verticalSensitivity: 0.55,
+    });
   });
 
   it("closes via resume", async () => {

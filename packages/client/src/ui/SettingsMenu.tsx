@@ -1,4 +1,11 @@
 import {
+  CAMERA_SETTING_MAX,
+  CAMERA_SETTING_MIN,
+  getCameraSettings,
+  setCameraSettings,
+  subscribeCameraSettings,
+} from "@lindocara/renderer/camera-settings.js";
+import {
   getDisplaySettings,
   setDisplaySettings,
   subscribeDisplaySettings,
@@ -32,7 +39,11 @@ function useDisplaySettings() {
   return useSyncExternalStore(subscribeDisplaySettings, getDisplaySettings, getDisplaySettings);
 }
 
-type SettingsTab = "audio" | "interface" | "controls";
+function useCameraSettings() {
+  return useSyncExternalStore(subscribeCameraSettings, getCameraSettings, getCameraSettings);
+}
+
+type SettingsTab = "audio" | "interface" | "camera" | "controls";
 
 function SettingsMenuItem({
   order,
@@ -60,6 +71,7 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
   const game = useUiStore((s) => s.game);
   const audio = useAudioSettings();
   const display = useDisplaySettings();
+  const camera = useCameraSettings();
   const [tab, setTab] = useState<SettingsTab>("audio");
 
   useEffect(() => {
@@ -76,6 +88,8 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
   if (!open) return null;
 
   const percent = (value: number) => Math.round(value * 100);
+  const advanceCameraSetting = (value: number): number =>
+    value >= CAMERA_SETTING_MAX ? CAMERA_SETTING_MIN : Math.min(CAMERA_SETTING_MAX, value + 0.1);
 
   return (
     // `onMouseDown` is click-outside-to-dismiss on the backdrop. The keyboard
@@ -111,7 +125,7 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
           </header>
 
           <div className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
-            {(["audio", "interface", "controls"] as const).map((candidate, index) => (
+            {(["audio", "interface", "camera", "controls"] as const).map((candidate, index) => (
               <SettingsMenuItem
                 key={candidate}
                 order={10 + index}
@@ -273,6 +287,44 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                     </TinyButton>
                   </SettingsMenuItem>
                 )}
+              </div>
+            )}
+
+            {tab === "camera" && (
+              <div className="settings-pane" role="tabpanel">
+                <p className="settings-section-label">{t("settings.camera")}</p>
+                {(
+                  [
+                    ["followSpeed", "settings.camera.follow"],
+                    ["horizontalSensitivity", "settings.camera.horizontal"],
+                    ["verticalSensitivity", "settings.camera.vertical"],
+                  ] as const
+                ).map(([setting, label], index) => (
+                  <SettingsMenuItem
+                    key={setting}
+                    order={20 + index}
+                    onActivate={() =>
+                      setCameraSettings({ [setting]: advanceCameraSetting(camera[setting]) })
+                    }
+                  >
+                    <label className="settings-row" htmlFor={`settings-camera-${setting}`}>
+                      <span className="settings-row-label">
+                        {t(label)}
+                        <span className="settings-value">{percent(camera[setting])}%</span>
+                      </span>
+                      <TinyRange
+                        id={`settings-camera-${setting}`}
+                        min={CAMERA_SETTING_MIN * 100}
+                        max={CAMERA_SETTING_MAX * 100}
+                        step={5}
+                        value={percent(camera[setting])}
+                        onChange={(event) =>
+                          setCameraSettings({ [setting]: Number(event.target.value) / 100 })
+                        }
+                      />
+                    </label>
+                  </SettingsMenuItem>
+                ))}
               </div>
             )}
 

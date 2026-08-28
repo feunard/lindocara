@@ -85,6 +85,7 @@ import type {
 } from "./editor-state.js";
 import {
   adjustTerrainToolElevation,
+  applyInteriorShellSetting,
   applyTool,
   beginEventDraft,
   canLinkDoorAt,
@@ -1035,7 +1036,7 @@ export function openMapEditorStage(
       const contentOnly =
         previous.layers === map.layers &&
         previous.environment === map.environment &&
-        previous.interiorShell?.style === map.interiorShell?.style &&
+        previous.interiorShell === map.interiorShell &&
         previousSize.cols === nextSize.cols &&
         previousSize.rows === nextSize.rows;
       if (contentOnly && compiledCache?.map === previous) {
@@ -1820,12 +1821,7 @@ export function openMapEditorStage(
           return;
         }
         const previous = map;
-        const next: EditorMap = {
-          ...map,
-          environment,
-          ...(interiorShell ? { interiorShell } : {}),
-        };
-        if (!interiorShell) delete next.interiorShell;
+        const next = applyInteriorShellSetting(map, environment, interiorShell);
         history = commitEditorHistory({ ...history, present: map }, next);
         map = next;
         redrawMapChange(previous);

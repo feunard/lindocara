@@ -64,6 +64,27 @@ function authored(): MapData {
 }
 
 describe("compileAuthoredMap", () => {
+  it("compiles nested interior-room perimeters into authoritative colliders", () => {
+    const size = 4;
+    const ground = emptyLayer(size, size);
+    ground.ids = ground.ids.map(() => fixedId(terrainFixedIndex("grotte", 0)));
+    const source: MapData = {
+      ...authored(),
+      environment: "interior",
+      interiorShell: {
+        style: "cave",
+        innerWalls: [{ col: 1, row: 1, length: 1 }],
+      },
+      cols: size,
+      rows: size,
+      layers: [ground, emptyLayer(size, size), emptyLayer(size, size)],
+      elements: [],
+      spawn: { col: 2, row: 2 },
+    };
+
+    expect(compileAuthoredMap(source).colliders).toHaveLength(8);
+  });
+
   it("compiles walls as columns and ceilings as raised passable slabs", () => {
     const cols = 8;
     const ground = emptyLayer(cols, cols);

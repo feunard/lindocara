@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 const map: MapData = {
   version: 1,
   environment: "interior",
-  interiorShell: { style: "cave" },
+  interiorShell: { style: "cave", innerWalls: [{ col: 1, row: 1, length: 2 }] },
   size: 4,
   levelHeight: 0.9,
   waterLevel: 0,
@@ -55,6 +55,14 @@ describe("the map codec", () => {
   it("rejects an envelope outside an interior or with an unknown material", () => {
     expect(decodeMap(JSON.stringify({ ...map, environment: "exterior" }))).toBeNull();
     expect(decodeMap(JSON.stringify({ ...map, interiorShell: { style: "water" } }))).toBeNull();
+    expect(
+      decodeMap(
+        JSON.stringify({
+          ...map,
+          interiorShell: { style: "cave", innerWalls: [{ col: 3, row: 1, length: 2 }] },
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("round-trips explicit liquid surfaces and rejects ambiguous grids", () => {

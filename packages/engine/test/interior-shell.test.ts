@@ -1,5 +1,8 @@
 import {
   INTERIOR_SHELL_WALL_HEIGHT,
+  addInteriorShellInnerWalls,
+  filterInteriorShellInnerWalls,
+  interiorShellBoundaryRuns,
   interiorShellColliders,
   interiorShellFloorMaterial,
   interiorShellLevels,
@@ -106,5 +109,45 @@ describe("interior shell boundary", () => {
     expect(interiorShellFloorMaterial("volcano")).toBe("volcan");
     expect(interiorShellFloorMaterial("ice")).toBe("glace");
     expect(interiorShellFloorMaterial("snow")).toBe("neige");
+  });
+
+  it("persists compact inner-room masks and builds their perimeter inside the outer room", () => {
+    const shell = addInteriorShellInnerWalls({ style: "volcano" }, [
+      { col: 1, row: 1 },
+      { col: 2, row: 1 },
+      { col: 1, row: 2 },
+      { col: 2, row: 2 },
+    ]);
+    expect(shell.innerWalls).toEqual([
+      { col: 1, row: 1, length: 2 },
+      { col: 1, row: 2, length: 2 },
+    ]);
+
+    const runs = interiorShellBoundaryRuns(
+      4,
+      Array.from({ length: 16 }, () => 0),
+      Array.from({ length: 16 }, () => "volcan" as const),
+      shell,
+    );
+    expect(runs).toEqual(
+      expect.arrayContaining([
+        { side: "north", x: 0, z: -1, length: 2, level: 0 },
+        { side: "east", x: 1, z: 0, length: 2, level: 0 },
+        { side: "south", x: 0, z: 1, length: 2, level: 0 },
+        { side: "west", x: -1, z: 0, length: 2, level: 0 },
+      ]),
+    );
+    expect(runs).toHaveLength(8);
+  });
+
+  it("drops inner-room cells as soon as their structural floor is repainted", () => {
+    const shell = addInteriorShellInnerWalls({ style: "cave" }, [
+      { col: 1, row: 1 },
+      { col: 2, row: 1 },
+    ]);
+    expect(filterInteriorShellInnerWalls(shell, (col) => col === 2).innerWalls).toEqual([
+      { col: 2, row: 1, length: 1 },
+    ]);
+    expect(filterInteriorShellInnerWalls(shell, () => false)).toEqual({ style: "cave" });
   });
 });

@@ -504,6 +504,10 @@ export const en = {
   "settings.sfx": "Effects & actions",
   "settings.ambient": "Music & ambience",
   "settings.interface": "Interface",
+  "settings.camera": "Camera",
+  "settings.camera.follow": "Movement follow speed",
+  "settings.camera.horizontal": "Horizontal orientation speed",
+  "settings.camera.vertical": "Vertical tilt speed",
   "settings.language": "Language",
   "settings.controls": "Controls",
   "settings.session": "Session",
@@ -1490,7 +1494,7 @@ export const en = {
   "editor.interiorShell.button": "Interior envelope",
   "editor.interiorShell.title": "Interior envelope — {name}",
   "editor.interiorShell.hint":
-    "Choose the structural coating, then paint any terrain inside it. Only the matching structural floor grows the walls and ceiling rim.",
+    "Choosing a coating converts the existing solid ground to its structural floor. Other terrain can then be painted freely; repainting that same floor draws nested walls and ceiling rims.",
   "editor.interiorShell.structuralFloor":
     "Structural floor: {terrain}. This brush alone extends the envelope.",
   "editor.interiorShell.floor.timber": "interior boards (Sand brush)",
@@ -2298,9 +2302,9 @@ export const en = {
   "adventure.name": "Title",
   "adventure.players": "Max players",
   "adventure.players.count": "{count} players max",
-  "adventure.camera.orbit": "360° camera with tilt",
+  "adventure.camera.orbit": "Movement-following 360° camera",
   "adventure.camera.hint":
-    "Off keeps the HD-2D side view with limited horizontal movement. On lets players orbit 360° around the hero and tilt the camera.",
+    "Off keeps the HD-2D side view. On smoothly follows the hero's movement and inclines on stairs; horizontal and vertical drags remain separate manual controls.",
   "adventure.mode.hardcore": "Hardcore endless runner",
   "adventure.mode.hardcore.hint":
     "Death ends the run. Retry returns the hero and the relentless pursuer to the course entrance; standard adventures are unchanged.",

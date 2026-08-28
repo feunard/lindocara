@@ -58,4 +58,27 @@ describe("interior shell visual", () => {
     expect(visual.group.getObjectByName("north-wall")).toBeUndefined();
     visual.dispose();
   });
+
+  it("instances persisted inner-room walls in the same directional batches", () => {
+    const outer = createInteriorShell(map, registry());
+    const nested = createInteriorShell(
+      {
+        ...map,
+        interiorShell: { style: "castle", innerWalls: [{ col: 0, row: 0, length: 1 }] },
+      },
+      registry(),
+    );
+    const wallInstances = (group: THREE.Group): number => {
+      let count = 0;
+      group.traverse((object) => {
+        if (object instanceof THREE.InstancedMesh && object.name.endsWith("-wall")) {
+          count += object.count;
+        }
+      });
+      return count;
+    };
+    expect(wallInstances(nested.group)).toBeGreaterThan(wallInstances(outer.group));
+    outer.dispose();
+    nested.dispose();
+  });
 });

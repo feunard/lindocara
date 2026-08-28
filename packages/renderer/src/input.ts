@@ -7,6 +7,7 @@
 import { type Input, NO_INPUT } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 
+import { getCameraSettings } from "./camera-settings.js";
 import {
   type ControlId,
   firstConnectedGamepad,
@@ -19,6 +20,7 @@ const GAMEPAD_AXIS_DEADZONE = 0.2;
 const CAMERA_MOUSE_RADIANS_PER_PIXEL = 0.006;
 const CAMERA_GAMEPAD_RADIANS_PER_SECOND = 1.8;
 const CAMERA_WHEEL_PERCENT_PER_PIXEL = 0.1;
+const CAMERA_DRAG_AXIS_THRESHOLD = 4;
 export const CAMERA_PITCH_DEFAULT = 38 * (Math.PI / 180);
 export const CAMERA_PITCH_MIN = 20 * (Math.PI / 180);
 export const CAMERA_PITCH_MAX = 70 * (Math.PI / 180);
@@ -142,8 +144,11 @@ export interface CameraOrbitTracker {
 /** Right-drag, wheel and the standard gamepad's right stick, scoped to the game canvas. */
 export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   let dragging = false;
+  let dragAxis: "pitch" | "yaw" | null = null;
   let lastX = 0;
   let lastY = 0;
+  let pendingPixelsX = 0;
+  let pendingPixelsY = 0;
   let mousePixelsX = 0;
   let mousePixelsY = 0;
   let wheelPixels = 0;
@@ -151,6 +156,9 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 2) return;
     dragging = true;
+    dragAxis = null;
+    pendingPixelsX = 0;
+    pendingPixelsY = 0;
     lastX = event.clientX;
     lastY = event.clientY;
     setInputMode("keyboard");
@@ -161,10 +169,25 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
     if (!dragging) return;
     const fallbackX = event.clientX - lastX;
     const fallbackY = event.clientY - lastY;
-    mousePixelsX +=
+    const deltaX =
       Number.isFinite(event.movementX) && event.movementX !== 0 ? event.movementX : fallbackX;
-    mousePixelsY +=
+    const deltaY =
       Number.isFinite(event.movementY) && event.movementY !== 0 ? event.movementY : fallbackY;
+    if (dragAxis === "yaw") mousePixelsX += deltaX;
+    else if (dragAxis === "pitch") mousePixelsY += deltaY;
+    else {
+      pendingPixelsX += deltaX;
+      pendingPixelsY += deltaY;
+      if (
+        Math.max(Math.abs(pendingPixelsX), Math.abs(pendingPixelsY)) >= CAMERA_DRAG_AXIS_THRESHOLD
+      ) {
+        dragAxis = Math.abs(pendingPixelsX) >= Math.abs(pendingPixelsY) ? "yaw" : "pitch";
+        if (dragAxis === "yaw") mousePixelsX += pendingPixelsX;
+        else mousePixelsY += pendingPixelsY;
+        pendingPixelsX = 0;
+        pendingPixelsY = 0;
+      }
+    }
     lastX = event.clientX;
     lastY = event.clientY;
     event.preventDefault();
@@ -172,6 +195,9 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   const stopDrag = (event?: PointerEvent): void => {
     if (event && event.button !== 2) return;
     dragging = false;
+    dragAxis = null;
+    pendingPixelsX = 0;
+    pendingPixelsY = 0;
   };
   const onContextMenu = (event: MouseEvent): void => event.preventDefault();
   const onWheel = (event: WheelEvent): void => {
@@ -181,6 +207,9 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   };
   const onBlur = (): void => {
     dragging = false;
+    dragAxis = null;
+    pendingPixelsX = 0;
+    pendingPixelsY = 0;
     mousePixelsX = 0;
     mousePixelsY = 0;
     wheelPixels = 0;
@@ -207,9 +236,15 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       const axisY = gamepad?.axes[3] ?? 0;
       if (Math.abs(axisX) > GAMEPAD_AXIS_DEADZONE || Math.abs(axisY) > GAMEPAD_AXIS_DEADZONE)
         setInputMode("gamepad");
-      const pitchDelta = -cameraOrbitDelta(mouseY, axisY, dt);
+      // One gesture owns one axis. Horizontal orbit therefore keeps camera height/pitch fixed,
+      // while a separate deliberate vertical drag still offers the manual look control. The
+      // gamepad follows the same dominant-axis rule so a diagonal stick cannot drift both.
+      const yawAxis = Math.abs(axisX) >= Math.abs(axisY) ? axisX : 0;
+      const pitchAxis = Math.abs(axisY) > Math.abs(axisX) ? axisY : 0;
+      const sensitivity = getCameraSettings();
+      const pitchDelta = -cameraOrbitDelta(mouseY, pitchAxis, dt) * sensitivity.verticalSensitivity;
       return {
-        yawDelta: cameraOrbitDelta(mouseX, axisX, dt),
+        yawDelta: cameraOrbitDelta(mouseX, yawAxis, dt) * sensitivity.horizontalSensitivity,
         pitchDelta: pitchDelta === 0 ? 0 : pitchDelta,
         wheelPixels: wheel,
       };

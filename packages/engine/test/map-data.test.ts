@@ -161,12 +161,24 @@ describe("parsing a map off the wire", () => {
 
   it("accepts validated interior envelopes and rejects them on exterior maps", () => {
     expect(
-      parseMapData(wire({ environment: "interior", interiorShell: { style: "volcano" } }))
-        ?.interiorShell,
-    ).toEqual({ style: "volcano" });
+      parseMapData(
+        wire({
+          environment: "interior",
+          interiorShell: { style: "volcano", innerWalls: [{ col: 0, row: 0, length: 2 }] },
+        }),
+      )?.interiorShell,
+    ).toEqual({ style: "volcano", innerWalls: [{ col: 0, row: 0, length: 2 }] });
     expect(parseMapData(wire({ interiorShell: { style: "castle" } }))).toBeNull();
     expect(
       parseMapData(wire({ environment: "interior", interiorShell: { style: "sand" } })),
+    ).toBeNull();
+    expect(
+      parseMapData(
+        wire({
+          environment: "interior",
+          interiorShell: { style: "castle", innerWalls: [{ col: 1, row: 0, length: 2 }] },
+        }),
+      ),
     ).toBeNull();
   });
 

@@ -22,8 +22,22 @@ export const INTERIOR_SHELL_STYLES = [
 ] as const;
 export type InteriorShellStyle = (typeof INTERIOR_SHELL_STYLES)[number];
 
+/** One horizontal run of cells whose perimeter authors an inner room or partition. */
+export interface InteriorShellCellRun {
+  col: number;
+  row: number;
+  length: number;
+}
+
 export interface InteriorShell {
   style: InteriorShellStyle;
+  /**
+   * Sparse architectural mask, independent from the visible terrain.
+   *
+   * Runs keep a filled room proportional to its rows instead of serializing one object per cell.
+   * Missing means the historical outer envelope only.
+   */
+  innerWalls?: readonly InteriorShellCellRun[];
 }
 
 export function parseMapEnvironment(value: unknown): MapEnvironment | null {
@@ -34,8 +48,36 @@ export function parseMapEnvironment(value: unknown): MapEnvironment | null {
 
 export function parseInteriorShell(value: unknown): InteriorShell | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const style = (value as { style?: unknown }).style;
+  const record = value as { style?: unknown; innerWalls?: unknown };
+  const style = record.style;
   if (typeof style !== "string") return null;
   if (!(INTERIOR_SHELL_STYLES as readonly string[]).includes(style)) return null;
-  return { style: style as InteriorShellStyle };
+  if (record.innerWalls === undefined) return { style: style as InteriorShellStyle };
+  if (!Array.isArray(record.innerWalls) || record.innerWalls.length > 65_536) return null;
+  const innerWalls: InteriorShellCellRun[] = [];
+  let innerWallCells = 0;
+  for (const candidate of record.innerWalls) {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate))
+      return null;
+    const run = candidate as { col?: unknown; row?: unknown; length?: unknown };
+    if (
+      !Number.isSafeInteger(run.col) ||
+      !Number.isSafeInteger(run.row) ||
+      !Number.isSafeInteger(run.length) ||
+      (run.col as number) < 0 ||
+      (run.row as number) < 0 ||
+      (run.length as number) <= 0 ||
+      (run.col as number) + (run.length as number) > 256 ||
+      (run.row as number) >= 256
+    )
+      return null;
+    innerWallCells += run.length as number;
+    if (innerWallCells > 65_536) return null;
+    innerWalls.push({
+      col: run.col as number,
+      row: run.row as number,
+      length: run.length as number,
+    });
+  }
+  return { style: style as InteriorShellStyle, innerWalls };
 }

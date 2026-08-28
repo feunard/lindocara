@@ -18,6 +18,7 @@
 import type { EventCommand } from "./event-commands.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
 import { EMPTY_MARKERS, MAP_LAYERS } from "./map-data.js";
+import type { InteriorShell, InteriorShellCellRun } from "./map-environment.js";
 import type { MapEvent, MapEventPage } from "./map-events.js";
 import {
   MAP_MAX_COLS,
@@ -42,6 +43,7 @@ export interface MapCanvasContent {
   readonly layers: readonly TileLayer[];
   readonly elements: readonly MapElement[];
   readonly spawn: { readonly col: number; readonly row: number };
+  readonly interiorShell?: InteriorShell | undefined;
   readonly markers?: MapMarkers | undefined;
   readonly events?: readonly MapEvent[] | undefined;
 }
@@ -53,11 +55,26 @@ export interface CanvasMapPatch {
   spawn: { col: number; row: number };
   markers: MapMarkers;
   events: MapEvent[];
+  interiorShell?: InteriorShell;
 }
 
 function layerDims(map: MapCanvasContent): { cols: number; rows: number } {
   const ground = map.layers[0];
   return { cols: ground?.cols ?? 0, rows: ground?.rows ?? 0 };
+}
+
+function compactInnerWallRuns(runs: readonly InteriorShellCellRun[]): InteriorShellCellRun[] {
+  const ordered = [...runs].sort((left, right) => left.row - right.row || left.col - right.col);
+  const compact: InteriorShellCellRun[] = [];
+  for (const run of ordered) {
+    const previous = compact.at(-1);
+    if (previous && previous.row === run.row && run.col <= previous.col + previous.length) {
+      previous.length = Math.max(previous.length, run.col + run.length - previous.col);
+    } else {
+      compact.push({ ...run });
+    }
+  }
+  return compact;
 }
 
 function shiftLayer(
@@ -219,6 +236,20 @@ function shiftMapContent(
     row: item.row + dRow,
   });
   const markers = map.markers ?? EMPTY_MARKERS;
+  const shiftedInnerWalls = map.interiorShell?.innerWalls?.flatMap((run) => {
+    const row = run.row + dRow;
+    if (row < 0 || row >= rows) return [];
+    const start = Math.max(0, run.col + dCol);
+    const end = Math.min(cols, run.col + run.length + dCol);
+    return end <= start ? [] : [{ col: start, row, length: end - start }];
+  });
+  const innerWalls = shiftedInnerWalls ? compactInnerWallRuns(shiftedInnerWalls) : undefined;
+  const interiorShell = map.interiorShell
+    ? {
+        style: map.interiorShell.style,
+        ...(innerWalls && innerWalls.length > 0 ? { innerWalls } : {}),
+      }
+    : undefined;
   return {
     layers: Array.from({ length: MAP_LAYERS }, (_unused, index) =>
       shiftLayer(map.layers[index], dCol, dRow, cols, rows),
@@ -234,6 +265,7 @@ function shiftMapContent(
       ...shift(event),
       pages: shiftEventPages(event.pages, selfMapId, dCol, dRow),
     })),
+    ...(interiorShell ? { interiorShell } : {}),
   };
 }
 
@@ -270,6 +302,10 @@ export function contentBounds(map: MapCanvasContent, selfMapId?: string): MapRec
         if ((layer.ids[row * layer.cols + col] ?? EMPTY_TILE) !== EMPTY_TILE) include(col, row);
       }
     }
+  }
+  for (const run of map.interiorShell?.innerWalls ?? []) {
+    include(run.col, run.row);
+    include(run.col + run.length - 1, run.row);
   }
   for (const element of map.elements) include(element.col, element.row);
   const events = map.events ?? [];

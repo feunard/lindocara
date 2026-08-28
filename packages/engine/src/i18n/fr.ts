@@ -509,6 +509,10 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.sfx": "Effets & actions",
   "settings.ambient": "Musique & ambiance",
   "settings.interface": "Interface",
+  "settings.camera": "Caméra",
+  "settings.camera.follow": "Vitesse du suivi du déplacement",
+  "settings.camera.horizontal": "Vitesse d’orientation horizontale",
+  "settings.camera.vertical": "Vitesse d’inclinaison verticale",
   "settings.language": "Langue",
   "settings.controls": "Commandes",
   "settings.session": "Session",
@@ -1505,7 +1509,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.interiorShell.button": "Enveloppe intérieure",
   "editor.interiorShell.title": "Enveloppe intérieure — {name}",
   "editor.interiorShell.hint":
-    "Choisissez le revêtement structurel, puis peignez librement tout autre terrain à l’intérieur. Seul le sol assorti agrandit les murs et la couronne de plafond.",
+    "Choisir un revêtement convertit le sol existant en sol structurel. Vous pouvez ensuite peindre librement ; repeindre ce même sol dessine des murs et plafonds imbriqués.",
   "editor.interiorShell.structuralFloor":
     "Sol structurel : {terrain}. Ce pinceau seul étend l’enveloppe.",
   "editor.interiorShell.floor.timber": "plancher intérieur (pinceau Sable)",
@@ -2325,9 +2329,9 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.name": "Titre",
   "adventure.players": "Joueurs max",
   "adventure.players.count": "{count} joueurs max",
-  "adventure.camera.orbit": "Caméra 360° avec inclinaison",
+  "adventure.camera.orbit": "Caméra 360° suivant le déplacement",
   "adventure.camera.hint":
-    "Désactivé, conserve la vue latérale HD-2D avec un débattement horizontal limité. Activé, permet aux joueurs de tourner à 360° autour du héros et d’incliner la caméra.",
+    "Désactivé, conserve la vue latérale HD-2D. Activé, suit doucement les déplacements et s’incline dans les escaliers ; les glissements horizontal et vertical restent des réglages manuels séparés.",
   "adventure.mode.hardcore": "Endless runner hardcore",
   "adventure.mode.hardcore.hint":
     "La mort termine la course. Recommencer replace le héros et le poursuivant implacable à l’entrée ; les aventures standard ne changent pas.",

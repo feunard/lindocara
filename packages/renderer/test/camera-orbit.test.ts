@@ -23,7 +23,7 @@ describe("camera orbit input", () => {
     expect(cameraOrbitDelta(Number.NaN, Number.NaN, Number.NaN)).toBe(0);
   });
 
-  it("consumes a two-axis right-button drag and wheel once", () => {
+  it("locks a diagonal right-button drag to its dominant axis", () => {
     const canvas = document.createElement("canvas");
     const tracker = trackCameraOrbit(canvas);
     canvas.dispatchEvent(
@@ -40,11 +40,26 @@ describe("camera orbit input", () => {
 
     const drag = tracker.takeSample(0);
     expect(drag.yawDelta).toBeCloseTo(0.18);
-    expect(drag.pitchDelta).toBeCloseTo(-0.12);
+    expect(drag.pitchDelta).toBe(0);
     expect(drag.wheelPixels).toBe(120);
     expect(tracker.takeSample(0)).toEqual({ yawDelta: 0, pitchDelta: 0, wheelPixels: 0 });
     expect(contextMenu.defaultPrevented).toBe(true);
     expect(wheel.defaultPrevented).toBe(true);
+    tracker.stop();
+  });
+
+  it("keeps intentional vertical right-drag available for manual pitch", () => {
+    const canvas = document.createElement("canvas");
+    const tracker = trackCameraOrbit(canvas);
+    canvas.dispatchEvent(
+      new MouseEvent("pointerdown", { button: 2, clientX: 10, clientY: 10, cancelable: true }),
+    );
+    canvas.dispatchEvent(
+      new MouseEvent("pointermove", { clientX: 12, clientY: 40, cancelable: true }),
+    );
+    canvas.dispatchEvent(new MouseEvent("pointerup", { button: 2 }));
+
+    expect(tracker.takeSample(0)).toEqual({ yawDelta: 0, pitchDelta: -0.18, wheelPixels: 0 });
     tracker.stop();
   });
 

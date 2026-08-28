@@ -196,7 +196,7 @@ function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
  *   monsters and guards. `waterLevel` remains the off-map fallback.
  */
 function elevationOf(actor: ActorView, scene: BillboardScene): number {
-  if (actor.swimming) return scene.waterLevel;
+  if (actor.swimming) return scene.query.waterLevelAt(actor.x, actor.z);
   if (actor.airborne || actor.gliding) return actor.y;
   const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
   if (actor.kind !== "player") return terrain;

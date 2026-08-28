@@ -82,7 +82,9 @@ complete marker preview.
 The gameplay camera policy is adventure metadata too. New and legacy adventures default to the
 HD-2D side view (`cameraMode: "hd2d"`), which keeps pitch fixed but lets players move laterally
 through a 90-degree arc around the authored heading. Authors may opt an adventure into `"orbit"`,
-which enables unrestricted horizontal orbit plus the existing bounded pitch control. The room copies
+which enables movement-following unrestricted horizontal orbit plus the existing bounded pitch
+control. Player settings persist independent 25–200% multipliers for automatic follow, horizontal
+orientation and vertical tilt, and apply them live. The room copies
 that policy into every welcome frame; clients treat an absent field as `"hd2d"` for compatibility
 and reset yaw/pitch to the authored baseline before applying that limited arc. The editor's own
 authoring camera remains freely orbitable independently of this player-facing setting.
@@ -198,9 +200,16 @@ cave, mountain, volcano, ice or snow; each resolves to surfaces already shipped 
 sand, water and grass are deliberately unavailable as wall materials. Each style names one
 structural-floor brush: cave/mountain/volcano/ice/snow use their matching terrain, while timber and
 castle reuse Sand as a neutral authored marker rendered as boards or stone paving. Only that floor
-grows the envelope. Any other terrain or liquid may be painted inside; a flood fill keeps enclosed
+grows the envelope. Applying the first coating converts every existing solid floor to that
+structural material without changing its elevation or water; changing coating later converts only
+the previous structural floor, preserving decorative terrain painted since. Any other terrain or
+liquid may be painted inside; a flood fill keeps enclosed
 patches in the room without creating walls around them, while outside-connected cells do not extend
-the architecture. Contiguous exposed edges become one boundary run for collision and GPU instances
+the architecture. Repainting the selected structural floor over cells already using it writes a
+sparse architectural mask independent of the visible terrain, allowing nested rooms and partitions
+inside an already enclosed map. Repainting those cells with another terrain removes that inner
+architecture. The mask follows canvas padding/cropping and round-trips with the map. Contiguous
+exposed edges become one boundary run for collision and GPU instances
 for rendering. The camera-facing direction is a low cutaway sill over the black void and follows
 camera yaw; the other three directions remain full-height walls. The same runs compile into finite
 heightfield colliders, keeping the visible enclosure and both movement authorities on one geometry
@@ -248,7 +257,16 @@ cliff upkeep. Baked ramp cells reduce hero movement to 86%; the renderer adds a 
 lift and raises the camera target, blending through the stair and reversing on descent. The elevation offset is applied after ordinary
 map-bound camera clamping, otherwise a stair near the north edge silently loses the whole effect.
 Client movement, server validation and local preview all read the same
-baked `ramp` kind. Fill has no fill-to-empty primitive; the UI disables it rather than let it
+baked `ramp` kind. In an adventure using the 360-degree camera, horizontal follow eases behind the
+hero's actual multidirectional travel after a short manual-control grace period. Climbing or
+descending adds a small temporary pitch offset, then returns to the player's manually selected
+inclination on any flat landing, including raised floors. Horizontal and vertical orbit gestures
+lock independently so an intentional manual look remains available without diagonal axis drift.
+Painted water keeps its explicit liquid tier and renders inside an interior at every elevation;
+only implicit level-less water outside authored ground becomes the black architectural void.
+Swimming billboards read the queried liquid surface at their own cell rather than the map-wide sea
+level, so excavated water and lava at negative tiers also hold the hero visibly inside that liquid.
+Fill has no fill-to-empty primitive; the UI disables it rather than let it
 silently no-op.
 
 The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:

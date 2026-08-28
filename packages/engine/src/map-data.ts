@@ -805,6 +805,8 @@ export function parseMapData(value: unknown): MapData | null {
   const width = cols as number;
   const height = rows as number;
   if (width <= 0 || height <= 0) return null;
+  if (interiorShell?.innerWalls?.some((run) => run.row >= height || run.col + run.length > width))
+    return null;
 
   if (!Array.isArray(layers) || layers.length !== MAP_LAYERS) return null;
   const parsedLayers: TileLayer[] = [];

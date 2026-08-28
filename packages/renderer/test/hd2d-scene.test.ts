@@ -18,7 +18,7 @@ import {
 } from "../src/hd2d/scene.js";
 
 describe("heightFieldFor liquids", () => {
-  it("turns interior water into black void while preserving volcanic lava", () => {
+  it("turns implicit interior water into black void while preserving volcanic lava", () => {
     const source: MapData = {
       version: 1,
       environment: "interior",
@@ -28,7 +28,7 @@ describe("heightFieldFor liquids", () => {
       levels: [0, null, null, 0],
       materials: ["herbe", "herbe", "lave", "herbe"],
       liquids: [null, "water", "lava", null],
-      liquidLevels: [null, 0, 0, null],
+      liquidLevels: [null, null, 0, null],
       colliders: [],
       spawns: [],
       elements: [],
@@ -103,6 +103,32 @@ describe("heightFieldFor liquids", () => {
     };
     expect(heightFieldFor(source).liquidAt?.(1, 1)).toBe("water");
   });
+
+  it.each([-2, -1, 0, 1, 2])(
+    "keeps explicitly painted interior water visible at elevation %i even on an open edge",
+    (level) => {
+      const source: MapData = {
+        version: 1,
+        environment: "interior",
+        interiorShell: { style: "volcano" },
+        size: 1,
+        levelHeight: 0.5,
+        waterLevel: -0.05,
+        levels: [null],
+        materials: ["herbe"],
+        liquids: ["water"],
+        liquidLevels: [level],
+        colliders: [],
+        spawns: [],
+        elements: [],
+        events: [],
+      };
+
+      const field = heightFieldFor(source);
+      expect(field.liquidAt?.(0, 0)).toBe("water");
+      expect(field.liquidLevelAt?.(0, 0)).toBe(level);
+    },
+  );
 
   it("takes each staircase atlas from the terrain of its high landing", () => {
     const source = mapOf(3, [

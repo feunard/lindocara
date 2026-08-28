@@ -345,6 +345,12 @@ export function decodeMap(s: string): MapData | null {
   const { size, levelHeight, waterLevel, levels, materials, colliders, spawns } = value;
   if (!Number.isInteger(size) || (size as number) <= 0 || (size as number) > MAX_HEIGHTFIELD_SIZE)
     return null;
+  if (
+    interiorShell?.innerWalls?.some(
+      (run) => run.row >= (size as number) || run.col + run.length > (size as number),
+    )
+  )
+    return null;
   if (!isFiniteNumber(levelHeight) || !isFiniteNumber(waterLevel)) return null;
 
   const cells = (size as number) * (size as number);

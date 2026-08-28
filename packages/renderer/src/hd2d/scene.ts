@@ -26,10 +26,7 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainQuery, TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import {
-  interiorShellFloorMaterial,
-  interiorShellLevels,
-} from "@lindocara/engine/interior-shell.js";
+import { interiorShellFloorMaterial } from "@lindocara/engine/interior-shell.js";
 import {
   type MapWeather,
   stormFlashIntensity,
@@ -232,21 +229,12 @@ export function terrainGroupFor(
 
 /** The serialized grid, read as the field the mesher consumes. `null` levels stay water outdoors:
  *  they are the water plane's business, never a ground quad laid flat at the sea's height. In an
- *  interior ordinary water is the black architectural void; lava remains an authored liquid so a
- *  volcanic chamber can still contain glowing pools. */
+ *  interior only implicit water with no authored tier is architectural void; a painted water tile
+ *  has an explicit liquid level (including zero/negative) and remains a visible pool like lava. */
 export function heightFieldFor(map: MapData): HeightField {
   const interior = (map.environment ?? "exterior") === "interior";
   const structuralMaterial = map.interiorShell
     ? interiorShellFloorMaterial(map.interiorShell.style)
-    : null;
-  const shellLevels = map.interiorShell
-    ? interiorShellLevels(
-        map.size,
-        map.levels,
-        map.materials,
-        map.interiorShell.style,
-        map.liquidLevels ?? [],
-      )
     : null;
   const interiorMaterialKey = (material: string, level: number): string => {
     // Legacy interiors without an envelope retain their historical wood floor. Once a coating is
@@ -285,15 +273,13 @@ export function heightFieldFor(map: MapData): HeightField {
     liquidAt(i, j) {
       const liquid = field.liquidAt?.(i, j) ?? null;
       if (!interior) return liquid;
-      if (shellLevels) return shellLevels[j * map.size + i] === null ? null : liquid;
-      return liquid === "water" ? null : liquid;
+      const level = field.liquidLevelAt?.(i, j) ?? null;
+      return liquid === "water" && level === null ? null : liquid;
     },
     liquidLevelAt(i, j) {
       const liquid = field.liquidAt?.(i, j) ?? null;
-      if (interior && shellLevels && shellLevels[j * map.size + i] === null) return null;
-      return interior && !shellLevels && liquid === "water"
-        ? null
-        : (field.liquidLevelAt?.(i, j) ?? null);
+      const level = field.liquidLevelAt?.(i, j) ?? null;
+      return interior && liquid === "water" && level === null ? null : level;
     },
     materialAt(i, j) {
       const material = field.materialAt(i, j);
