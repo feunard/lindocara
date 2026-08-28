@@ -237,6 +237,21 @@ export const FIXED_TERRAIN_COUNT = FIXED_TERRAIN_MATERIALS.length * FIXED_TERRAI
 export const WATER_FIXED_BASE = FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT;
 export const WATER_FIXED_COUNT = FIXED_TERRAIN_LEVEL_COUNT;
 
+/**
+ * Negative stair transitions are appended after every pre-existing fixed band.
+ *
+ * They cannot be inserted into `RAMP_ONE_CELL_LEVELS`: that array participates in the arithmetic
+ * of all positive ramp ids, and lengthening it would renumber a direction at a time before also
+ * shifting semantic terrain and water. Appending this separate band makes old maps byte-stable.
+ */
+export const RAMP_SUNKEN_ONE_CELL_LEVELS: readonly number[] = Array.from(
+  { length: SUNKEN_TERRAIN_LEVELS },
+  (_unused, index) => -SUNKEN_TERRAIN_LEVELS + index,
+);
+export const RAMP_SUNKEN_ONE_CELL_FIXED_BASE = WATER_FIXED_BASE + WATER_FIXED_COUNT;
+export const RAMP_SUNKEN_ONE_CELL_FIXED_COUNT =
+  RAMP_ONE_CELL_DIRECTIONS.length * RAMP_SUNKEN_ONE_CELL_LEVELS.length;
+
 export interface FixedTerrainDescriptor {
   material: (typeof FIXED_TERRAIN_MATERIALS)[number];
   level: number;
@@ -308,24 +323,37 @@ export function oneCellRampFixedIndex(
 ): number {
   const facing = RAMP_ONE_CELL_DIRECTIONS.indexOf(direction);
   const level = (RAMP_ONE_CELL_LEVELS as readonly number[]).indexOf(lowLevel);
-  if (facing < 0 || level < 0) return -1;
-  return RAMP_ONE_CELL_FIXED_BASE + facing * RAMP_ONE_CELL_LEVELS.length + level;
+  if (facing < 0) return -1;
+  if (level >= 0) return RAMP_ONE_CELL_FIXED_BASE + facing * RAMP_ONE_CELL_LEVELS.length + level;
+  const sunkenLevel = RAMP_SUNKEN_ONE_CELL_LEVELS.indexOf(lowLevel);
+  return sunkenLevel < 0
+    ? -1
+    : RAMP_SUNKEN_ONE_CELL_FIXED_BASE + facing * RAMP_SUNKEN_ONE_CELL_LEVELS.length + sunkenLevel;
 }
 
 /** The direction and transition a one-cell ramp id encodes, or null for any other id. */
 export function oneCellRampDescriptor(
   index: number,
 ): { direction: (typeof RAMP_ONE_CELL_DIRECTIONS)[number]; lowLevel: number } | null {
+  if (!Number.isSafeInteger(index)) return null;
   if (
-    !Number.isSafeInteger(index) ||
-    index < RAMP_ONE_CELL_FIXED_BASE ||
-    index >= RAMP_ONE_CELL_FIXED_BASE + RAMP_ONE_CELL_FIXED_COUNT
+    index >= RAMP_ONE_CELL_FIXED_BASE &&
+    index < RAMP_ONE_CELL_FIXED_BASE + RAMP_ONE_CELL_FIXED_COUNT
   ) {
-    return null;
+    const offset = index - RAMP_ONE_CELL_FIXED_BASE;
+    const direction = RAMP_ONE_CELL_DIRECTIONS[Math.floor(offset / RAMP_ONE_CELL_LEVELS.length)];
+    const lowLevel = RAMP_ONE_CELL_LEVELS[offset % RAMP_ONE_CELL_LEVELS.length];
+    return direction === undefined || lowLevel === undefined ? null : { direction, lowLevel };
   }
-  const offset = index - RAMP_ONE_CELL_FIXED_BASE;
-  const direction = RAMP_ONE_CELL_DIRECTIONS[Math.floor(offset / RAMP_ONE_CELL_LEVELS.length)];
-  const lowLevel = RAMP_ONE_CELL_LEVELS[offset % RAMP_ONE_CELL_LEVELS.length];
+  if (
+    index < RAMP_SUNKEN_ONE_CELL_FIXED_BASE ||
+    index >= RAMP_SUNKEN_ONE_CELL_FIXED_BASE + RAMP_SUNKEN_ONE_CELL_FIXED_COUNT
+  )
+    return null;
+  const offset = index - RAMP_SUNKEN_ONE_CELL_FIXED_BASE;
+  const direction =
+    RAMP_ONE_CELL_DIRECTIONS[Math.floor(offset / RAMP_SUNKEN_ONE_CELL_LEVELS.length)];
+  const lowLevel = RAMP_SUNKEN_ONE_CELL_LEVELS[offset % RAMP_SUNKEN_ONE_CELL_LEVELS.length];
   return direction === undefined || lowLevel === undefined ? null : { direction, lowLevel };
 }
 
@@ -626,6 +654,23 @@ export const TINY_SWORDS_TILESET: Tileset = {
       renderLevel: 0 as const,
       visible: false,
     })),
+    // Sunken one-cell stairs, appended after every terrain and liquid id. Their 2D fallback is
+    // darkened with the depth of the high landing; HD-2D replaces it with material-aware geometry.
+    ...RAMP_ONE_CELL_DIRECTIONS.flatMap((direction) =>
+      RAMP_SUNKEN_ONE_CELL_LEVELS.map((lowLevel) => ({
+        atlas: ATLAS,
+        col: direction === "west" || direction === "north" ? 3 : 0,
+        row: 4,
+        passable: true,
+        priority: "below" as const,
+        renderLevel: 0 as const,
+        tint: sunkenTint(Math.max(1, -(lowLevel + 1))),
+        rotationQuarterTurns: (direction === "south" ? 1 : direction === "north" ? 3 : 0) as
+          | 0
+          | 1
+          | 3,
+      })),
+    ),
   ],
 };
 

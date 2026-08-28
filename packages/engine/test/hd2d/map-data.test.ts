@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 const map: MapData = {
   version: 1,
   environment: "interior",
+  interiorShell: { style: "cave" },
   size: 4,
   levelHeight: 0.9,
   waterLevel: 0,
@@ -41,6 +42,19 @@ const map: MapData = {
 describe("the map codec", () => {
   it("round-trips without losing anything", () => {
     expect(decodeMap(encodeMap(map))).toEqual(map);
+  });
+
+  it("round-trips ramps excavated below level zero", () => {
+    const excavated: MapData = {
+      ...map,
+      ramps: [{ x: -1, z: -1, width: 1, depth: 1, direction: "south", lowLevel: -2 }],
+    };
+    expect(decodeMap(encodeMap(excavated))).toEqual(excavated);
+  });
+
+  it("rejects an envelope outside an interior or with an unknown material", () => {
+    expect(decodeMap(JSON.stringify({ ...map, environment: "exterior" }))).toBeNull();
+    expect(decodeMap(JSON.stringify({ ...map, interiorShell: { style: "water" } }))).toBeNull();
   });
 
   it("round-trips explicit liquid surfaces and rejects ambiguous grids", () => {
@@ -136,7 +150,7 @@ describe("the map codec", () => {
   });
 
   it("keeps legacy heightfields exterior by default", () => {
-    const { environment: _environment, ...legacy } = map;
+    const { environment: _environment, interiorShell: _interiorShell, ...legacy } = map;
     expect(decodeMap(JSON.stringify(legacy))).toEqual({ ...legacy, environment: "exterior" });
   });
 

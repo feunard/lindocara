@@ -26,7 +26,16 @@ import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { nextMapName } from "@lindocara/engine/map-naming.js";
-import { Music2, Pencil, Plus, Settings2, SlidersHorizontal, Star, Trash2 } from "lucide-react";
+import {
+  Box,
+  Music2,
+  Pencil,
+  Plus,
+  Settings2,
+  SlidersHorizontal,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
@@ -72,6 +81,7 @@ interface MapListPanelProps {
   onActiveDeleted(): void;
   onOpenMapAudio(): void;
   onOpenHeroSettings?(): void;
+  onOpenInteriorShell?(): void;
   onOpenSettings(): void;
   onError(code: string): void;
   /** The adventure's authored start map, or null while it still derives (the earliest map). */
@@ -105,6 +115,7 @@ export function MapListPanel({
   onActiveDeleted,
   onOpenMapAudio,
   onOpenHeroSettings,
+  onOpenInteriorShell,
   onOpenSettings,
   onError,
   startMapId,
@@ -379,6 +390,16 @@ export function MapListPanel({
       </div>
 
       <div className="grid gap-1.5 border-t border-zinc-200 p-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={!activeMapId || busy || locked}
+          onClick={() => onOpenInteriorShell?.()}
+        >
+          <Box />
+          {t("editor.interiorShell.button")}
+        </Button>
         <Button
           variant="outline"
           size="sm"

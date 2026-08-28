@@ -162,11 +162,17 @@ describe("blankMap", () => {
     expect(toSaveInput(map).fixedLighting).toBe("night-middle");
   });
 
-  it("preserves an interior environment through the editable save document", () => {
-    const map = { ...blankMap("room", 20, 15), environment: "interior" as const };
+  it("preserves an interior environment and envelope through the editable save document", () => {
+    const map = {
+      ...blankMap("room", 20, 15),
+      environment: "interior" as const,
+      interiorShell: { style: "volcano" as const },
+    };
     const saved = toSaveInput(map);
     expect(saved.environment).toBe("interior");
+    expect(saved.interiorShell).toEqual({ style: "volcano" });
     expect(decodeMap(saved.heightfield)?.environment).toBe("interior");
+    expect(decodeMap(saved.heightfield)?.interiorShell).toEqual({ style: "volcano" });
   });
 });
 
@@ -770,14 +776,18 @@ describe("applyTool: stairs", () => {
     expect(history.past).toHaveLength(1);
   });
 
-  it("refuses flat ground instead of manufacturing its own elevation", () => {
+  it("excavates a negative flight from flat ground as one undo entry", () => {
     const base = blankMap("m", 20, 15);
-    // No direction, no levels: the stamp reads both off the boundary under the cursor.
     const tool: EditorTool = { kind: "stairs" };
-    expect(place(base, tool, 5, 5)).toBeNull();
+    const next = place(base, tool, 5, 5) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 6] ?? EMPTY_TILE)).toEqual({
+      kind: "fixed",
+      index: oneCellRampFixedIndex("west", -1),
+    });
 
-    const history = commitEditorHistory(createEditorHistory(base), base);
-    expect(history.past).toHaveLength(0);
+    const history = commitEditorHistory(createEditorHistory(base), next);
+    expect(history.past).toHaveLength(1);
   });
 
   it("water painted on the ramp cell removes the ramp", () => {

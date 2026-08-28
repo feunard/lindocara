@@ -11,12 +11,126 @@ import {
   cameraFocusSurface,
   editorGroundPickPoint,
   heightFieldFor,
+  stairMaterialKeyFor,
   terrainAtlasKey,
   terrainGroupFor,
   waterPlaneKey,
 } from "../src/hd2d/scene.js";
 
 describe("heightFieldFor liquids", () => {
+  it("turns interior water into black void while preserving volcanic lava", () => {
+    const source: MapData = {
+      version: 1,
+      environment: "interior",
+      size: 2,
+      levelHeight: 0.5,
+      waterLevel: -0.05,
+      levels: [0, null, null, 0],
+      materials: ["herbe", "herbe", "lave", "herbe"],
+      liquids: [null, "water", "lava", null],
+      liquidLevels: [null, 0, 0, null],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+    const field = heightFieldFor(source);
+    expect(field.liquidAt?.(1, 0)).toBeNull();
+    expect(field.liquidLevelAt?.(1, 0)).toBeNull();
+    expect(field.liquidAt?.(0, 1)).toBe("lava");
+    expect(field.liquidLevelAt?.(0, 1)).toBe(0);
+  });
+
+  it("themes only the structural floor and leaves every other interior terrain intact", () => {
+    const source: MapData = {
+      version: 1,
+      environment: "interior",
+      interiorShell: { style: "volcano" },
+      size: 1,
+      levelHeight: 0.5,
+      waterLevel: -0.05,
+      levels: [0],
+      materials: ["volcan"],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+    expect(heightFieldFor(source).materialAt(0, 0)).toBe("volcan-ground");
+    expect(heightFieldFor({ ...source, materials: ["herbe"] }).materialAt(0, 0)).toBe("lvl0");
+    expect(
+      heightFieldFor({
+        ...source,
+        interiorShell: { style: "castle" },
+        materials: ["sable"],
+      }).materialAt(0, 0),
+    ).toBe("montagne-ground");
+    expect(
+      heightFieldFor({
+        ...source,
+        interiorShell: { style: "timber" },
+        materials: ["sable"],
+      }).materialAt(0, 0),
+    ).toBe("interior");
+  });
+
+  it("keeps a liquid pool enclosed by structural floor visible", () => {
+    const source: MapData = {
+      version: 1,
+      environment: "interior",
+      interiorShell: { style: "volcano" },
+      size: 3,
+      levelHeight: 0.5,
+      waterLevel: -0.05,
+      levels: [0, 0, 0, 0, null, 0, 0, 0, 0],
+      materials: [
+        "volcan",
+        "volcan",
+        "volcan",
+        "volcan",
+        "herbe",
+        "volcan",
+        "volcan",
+        "volcan",
+        "volcan",
+      ],
+      liquids: [null, null, null, null, "water", null, null, null, null],
+      liquidLevels: [null, null, null, null, 0, null, null, null, null],
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+    };
+    expect(heightFieldFor(source).liquidAt?.(1, 1)).toBe("water");
+  });
+
+  it("takes each staircase atlas from the terrain of its high landing", () => {
+    const source = mapOf(3, [
+      [0, "herbe"],
+      [0, "herbe"],
+      [0, "herbe"],
+      [0, "herbe"],
+      [0, "herbe"],
+      [1, "montagne"],
+      [0, "herbe"],
+      [0, "herbe"],
+      [0, "herbe"],
+    ]);
+    const ramp = { x: -0.5, z: -0.5, width: 1, depth: 1, direction: "east", lowLevel: 0 } as const;
+    expect(stairMaterialKeyFor(source, ramp)).toBe("montagne-raised");
+    expect(
+      stairMaterialKeyFor(
+        {
+          ...source,
+          environment: "interior",
+          interiorShell: { style: "castle" },
+          materials: source.materials.map((_material, index) => (index === 5 ? "sable" : "herbe")),
+        },
+        ramp,
+      ),
+    ).toBe("montagne-raised");
+  });
+
   it("keeps authored water and lava out of the ground mesh at their own tiers", () => {
     const source: MapData = {
       version: 1,

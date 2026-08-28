@@ -62,7 +62,7 @@ import {
   parseMapData,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
-import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
+import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   type EventKind,
@@ -141,6 +141,8 @@ export interface EditorMap {
   name: string;
   /** Exterior maps end in water; interior maps end in black void and use the room palette. */
   environment?: MapEnvironment;
+  /** World-space room/corridor envelope. Absent preserves legacy open interiors. */
+  interiorShell?: InteriorShell;
   /** The authored weather. Missing reads as a clear sky, which is every map written before it. */
   weather?: MapWeather;
   /** Per-channel map overrides. Missing values inherit the adventure defaults. */
@@ -1265,6 +1267,7 @@ export function toMapData(map: EditorMap): MapData {
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
     environment: map.environment ?? "exterior",
+    ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
     weather: map.weather ?? "none",
     cols,
     rows,
@@ -1287,6 +1290,7 @@ export function toSaveInput(
 ): {
   name: string;
   environment: MapEnvironment;
+  interiorShell?: InteriorShell;
   weather: MapWeather;
   tilesetId: string;
   cols: number;
@@ -1307,6 +1311,7 @@ export function toSaveInput(
   return {
     name: map.name,
     environment: map.environment ?? "exterior",
+    ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
     weather: map.weather ?? "none",
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),

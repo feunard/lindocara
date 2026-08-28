@@ -15,7 +15,7 @@ import type {
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
-import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
+import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { MapFixedLighting } from "@lindocara/engine/map-lighting.js";
@@ -167,6 +167,8 @@ export interface MapPayload {
   revision: number;
   /** Missing only on legacy/test payloads; the server always returns an explicit value. */
   environment?: MapEnvironment;
+  /** Optional world-space cutaway walls around an interior floor. */
+  interiorShell?: InteriorShell;
   /** The authored weather. Missing on a legacy or test payload, which reads as a clear sky. */
   weather?: MapWeather;
   tilesetId: string;

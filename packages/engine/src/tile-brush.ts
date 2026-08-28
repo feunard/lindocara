@@ -32,6 +32,7 @@ import {
   RAMP_LEVEL_3_FIXED_BASE,
   RAMP_ONE_CELL_DIRECTIONS,
   RAMP_ONE_CELL_LEVELS,
+  RAMP_SUNKEN_ONE_CELL_LEVELS,
   terrainDescriptorOfTileId,
   terrainFixedIndex,
   terrainSlot,
@@ -1083,7 +1084,7 @@ export function inferStairsPlacement(
 ): StairsPlacement | null {
   const fits: StairsPlacement[] = [];
   for (const direction of RAMP_DIRECTIONS) {
-    for (const lowLevel of RAMP_ONE_CELL_LEVELS) {
+    for (const lowLevel of [...RAMP_ONE_CELL_LEVELS, ...RAMP_SUNKEN_ONE_CELL_LEVELS]) {
       if (oneCellRampFits(ground, col, row, direction, lowLevel))
         fits.push({ direction, lowLevel });
     }
@@ -1096,6 +1097,7 @@ interface StairsRunCandidate {
   highCol: number;
   highRow: number;
   highLevel: number;
+  carve: boolean;
 }
 
 function terrainAt(ground: TileLayer, col: number, row: number) {
@@ -1117,7 +1119,8 @@ function stairsRunLane(
   const outwardCol = -highSide.col;
   const outwardRow = -highSide.row;
   const cells: StairsRunCell[] = [];
-  for (let lowLevel = candidate.highLevel - 1; lowLevel >= 0; lowLevel--) {
+  const terminalLevel = candidate.carve ? MIN_TERRAIN_LEVEL : 0;
+  for (let lowLevel = candidate.highLevel - 1; lowLevel >= terminalLevel; lowLevel--) {
     const distance = candidate.highLevel - lowLevel;
     const col = highCol + outwardCol * distance;
     const row = highRow + outwardRow * distance;
@@ -1125,18 +1128,23 @@ function stairsRunLane(
     const existing = terrainAt(ground, col, row);
     // Never tunnel through a second plateau. Lower terrain and water are the missing support the
     // staircase is explicitly allowed to build; a cell as high as the preceding step is a wall.
-    if (existing && existing.level >= lowLevel + 1) break;
+    if (
+      existing &&
+      (candidate.carve ? existing.level > candidate.highLevel : existing.level >= lowLevel + 1)
+    )
+      break;
     cells.push({ col, row, direction: candidate.direction, lowLevel, material: high.material });
   }
   return cells.length > 0 ? cells : null;
 }
 
 /**
- * Planifie un escalier complet depuis un rebord élevé jusqu'au niveau zéro.
+ * Planifie un escalier complet depuis un rebord jusqu'au niveau minimum accessible.
  *
  * Le clic peut viser la case haute, la première case basse ou directement l'eau. Chaque case
- * manquante devient un palier un niveau plus bas que la précédente. Une bande compatible de part
- * et d'autre élargit automatiquement le passage jusqu'à trois cases, sans envahir tout un rivage.
+ * manquante devient un palier un niveau plus bas que la précédente. Depuis le niveau zéro (ou un
+ * palier déjà négatif), l'outil creuse jusqu'à `MIN_TERRAIN_LEVEL`. Une bande compatible de part et
+ * d'autre élargit automatiquement le passage jusqu'à trois cases.
  */
 export function inferStairsRun(
   ground: TileLayer,
@@ -1152,26 +1160,30 @@ export function inferStairsRun(
   for (const direction of RAMP_DIRECTIONS) {
     const side = RAMP_HIGH_SIDE[direction];
     const high = terrainAt(ground, col + side.col, row + side.row);
-    if (!high || high.level <= 0 || (here && here.level >= high.level)) continue;
+    if (!high || high.level <= MIN_TERRAIN_LEVEL || (here && here.level >= high.level)) continue;
     candidates.push({
       direction,
       highCol: col + side.col,
       highRow: row + side.row,
       highLevel: high.level,
+      carve: high.level <= 0,
     });
   }
 
   // Le curseur désigne le rebord haut : l'escalier part vers le voisin plus bas ou vers le vide.
-  if (here && here.level > 0) {
+  if (here && here.level > MIN_TERRAIN_LEVEL) {
     for (const outward of RAMP_DIRECTIONS) {
       const delta = RAMP_HIGH_SIDE[outward];
       const neighbour = terrainAt(ground, col + delta.col, row + delta.row);
-      if (neighbour && neighbour.level >= here.level) continue;
+      // Raised flights still need an existing lower approach. At and below zero the explicit
+      // staircase tool may excavate flat ground in the camera-preferred direction.
+      if (here.level > 0 && neighbour && neighbour.level >= here.level) continue;
       candidates.push({
         direction: OPPOSITE_RAMP_DIRECTION[outward],
         highCol: col,
         highRow: row,
         highLevel: here.level,
+        carve: here.level <= 0,
       });
     }
   }

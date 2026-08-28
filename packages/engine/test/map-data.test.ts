@@ -159,6 +159,17 @@ describe("parsing a map off the wire", () => {
     expect(map?.layers[0]?.ids).toEqual(layersFromBlocks(["..", "##"]).layers[0]?.ids);
   });
 
+  it("accepts validated interior envelopes and rejects them on exterior maps", () => {
+    expect(
+      parseMapData(wire({ environment: "interior", interiorShell: { style: "volcano" } }))
+        ?.interiorShell,
+    ).toEqual({ style: "volcano" });
+    expect(parseMapData(wire({ interiorShell: { style: "castle" } }))).toBeNull();
+    expect(
+      parseMapData(wire({ environment: "interior", interiorShell: { style: "sand" } })),
+    ).toBeNull();
+  });
+
   it("parses explicit bridge dimensions and derives their resized footprint and collider", () => {
     const bridge = {
       col: 3,

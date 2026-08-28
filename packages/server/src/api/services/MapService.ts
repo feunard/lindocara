@@ -32,7 +32,7 @@ import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harv
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap, encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { EMPTY_MARKERS, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
-import type { MapEnvironment } from "@lindocara/engine/map-environment.js";
+import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   entryEvents,
   exitEvents,
@@ -152,6 +152,7 @@ export interface MapPayload {
   name: string;
   revision: number;
   environment: MapEnvironment;
+  interiorShell?: InteriorShell;
   /** The authored weather, read back out of the heightfield the same way `environment` is. */
   weather: MapWeather;
   tilesetId: string;
@@ -531,6 +532,7 @@ export class MapService {
       name: data.name,
       revision: updated.revision,
       environment: data.environment ?? "exterior",
+      ...(data.interiorShell ? { interiorShell: data.interiorShell } : {}),
       weather: data.weather ?? "none",
       tilesetId: data.tilesetId,
       cols: data.cols,
@@ -912,16 +914,20 @@ export class MapService {
     }
     try {
       const heightfield = heightfieldOfRow(row.heightfield);
+      const decodedHeightfield = heightfield ? decodeMap(heightfield) : null;
       return {
         id: row.id,
         accountId: row.userId,
         adventureId: row.adventureId,
         name: row.name,
         revision: row.revision,
-        environment: heightfield ? (decodeMap(heightfield)?.environment ?? "exterior") : "exterior",
+        environment: decodedHeightfield?.environment ?? "exterior",
+        ...(decodedHeightfield?.interiorShell
+          ? { interiorShell: decodedHeightfield.interiorShell }
+          : {}),
         // Weather rides in the heightfield beside `environment` and is read back the same way: it
         // is authored map-level presentation, so it needs no column of its own.
-        weather: heightfield ? (decodeMap(heightfield)?.weather ?? "none") : "none",
+        weather: decodedHeightfield?.weather ?? "none",
         tilesetId: row.tilesetId,
         cols: row.cols,
         rows: row.rows,

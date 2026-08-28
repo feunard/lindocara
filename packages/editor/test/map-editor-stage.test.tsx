@@ -453,7 +453,7 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
-  it("refuses stairs on flat ground and says so through the placement counter", async () => {
+  it("previews and excavates stairs on flat ground", async () => {
     const changes = vi.fn();
     const stage = await openMapEditorStage(blankMap("Map", 20, 15), changes);
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
@@ -466,11 +466,11 @@ describe("HD-2D map editor stage", () => {
     canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
 
-    expect(stage.current().layers[1]?.ids.every((id) => id === 0)).toBe(true);
-    // The ghost turns red on the way in; this is the click itself refusing out loud.
+    expect(stage.current().layers[1]?.ids.some((id) => id !== 0)).toBe(true);
     expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
-      expect.objectContaining({ stairsPreview: expect.objectContaining({ valid: false }) }),
+      expect.objectContaining({ stairsPreview: expect.objectContaining({ valid: true }) }),
     );
+    expect(changes).toHaveBeenCalled();
     stage.dispose();
   });
 

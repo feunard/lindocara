@@ -146,6 +146,7 @@ import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapAudioDialog } from "./MapAudioDialog.js";
 import { MapHeroSettingsDialog } from "./MapHeroSettingsDialog.js";
+import { MapInteriorShellDialog } from "./MapInteriorShellDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { ProceduralMapDialog } from "./ProceduralMapDialog.js";
@@ -223,6 +224,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     {
       name: map.name,
       environment: map.environment ?? "exterior",
+      ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
       weather: map.weather ?? "none",
       audio: map.audio ?? EMPTY_MAP_AUDIO,
       heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
@@ -606,6 +608,7 @@ function AdventureEditorInner({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mapAudioOpen, setMapAudioOpen] = useState(false);
   const [mapHeroSettingsOpen, setMapHeroSettingsOpen] = useState(false);
+  const [mapInteriorShellOpen, setMapInteriorShellOpen] = useState(false);
   const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1651,6 +1654,7 @@ function AdventureEditorInner({
       confirmDeleteId !== null ||
       settingsOpen ||
       mapHeroSettingsOpen ||
+      mapInteriorShellOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
       helpOpen ||
@@ -1776,6 +1780,7 @@ function AdventureEditorInner({
       confirmDeleteId !== null ||
       settingsOpen ||
       mapHeroSettingsOpen ||
+      mapInteriorShellOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
       helpOpen ||
@@ -1801,6 +1806,11 @@ function AdventureEditorInner({
   // reflects the latest positions.
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
+  const currentMapIsStart = map
+    ? session?.draft.startMapId
+      ? session.draft.startMapId === map.id
+      : (draftMembers?.[0]?.mapId ?? map.id) === map.id
+    : true;
   // `map?.id` is forwarded as `selfMapId` so a same-map teleport target that would extend the
   // saved rect is reflected in the live derived size too, not just in the eventual save.
   const currentRect = useMemo(
@@ -2109,6 +2119,7 @@ function AdventureEditorInner({
               onActiveDeleted={activeMapDeleted}
               onOpenMapAudio={() => setMapAudioOpen(true)}
               onOpenHeroSettings={() => setMapHeroSettingsOpen(true)}
+              onOpenInteriorShell={() => setMapInteriorShellOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
               startMapId={session?.draft.startMapId ?? null}
@@ -2153,6 +2164,24 @@ function AdventureEditorInner({
               // ambience and combat themes disappeared on reload unless the author happened to use
               // the editor-wide Save afterwards.
               handle.setAudio(audio);
+              return (await doSaveMap()) !== null;
+            }}
+          />
+        )}
+
+        {currentMap && (
+          <MapInteriorShellDialog
+            key={`${map?.id ?? "map"}-interior-shell`}
+            open={mapInteriorShellOpen}
+            mapName={currentMap.name}
+            environment={currentMap.environment ?? "exterior"}
+            initial={currentMap.interiorShell}
+            canMakeInterior={!currentMapIsStart}
+            onOpenChange={setMapInteriorShellOpen}
+            onSave={async (environment, shell) => {
+              const handle = handleRef.current;
+              if (!handle) return false;
+              handle.setInteriorShell(environment, shell);
               return (await doSaveMap()) !== null;
             }}
           />

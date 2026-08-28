@@ -1,5 +1,6 @@
 import { buildingArchetype } from "./buildings.js";
 import type { MapElement } from "./map-data.js";
+import type { InteriorShellStyle } from "./map-environment.js";
 import { defaultEventPage, type MapEvent } from "./map-events.js";
 import { layersFromBlocks } from "./map-migrate.js";
 import { defaultMapInput, type MapInput } from "./map-template.js";
@@ -63,6 +64,31 @@ function themedInteriorElements(buildingAssetId: string): MapElement[] {
   }
 }
 
+function interiorShellStyle(buildingAssetId: string): InteriorShellStyle {
+  const kind = buildingArchetype(buildingAssetId) ?? "house";
+  switch (kind) {
+    case "barracks":
+    case "castle":
+    case "command-a":
+    case "command-b":
+    case "monastery":
+    case "tower":
+    case "training-a":
+    case "training-b":
+      return "castle";
+    case "archery":
+    case "community-a":
+    case "community-b":
+    case "daily-life-a":
+    case "daily-life-b":
+    case "house":
+    case "housing-a":
+    case "housing-b":
+    case "windmill":
+      return "timber";
+  }
+}
+
 /**
  * An interior is an ordinary authored map with a useful starter layout. Authors can repaint every
  * tile, move/delete every prop and edit the return event with the existing tools.
@@ -115,6 +141,7 @@ export function createBuildingInteriorInput(options: BuildingInteriorOptions): M
   return {
     ...base,
     environment: "interior",
+    interiorShell: { style: interiorShellStyle(options.buildingAssetId) },
     layers,
     spawn: { col: centre, row: BUILDING_INTERIOR_ROWS - 4 },
     elements: themedInteriorElements(options.buildingAssetId),

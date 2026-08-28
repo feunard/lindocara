@@ -192,6 +192,20 @@ Irregular architecture also compiles as the solid pieces that are actually rende
 bounding slab: mills use their round cap, fortified halls use their narrower central body, and
 castles add four independent round tower roofs. Enlarging those buildings therefore leaves their
 intentional margins and the passages between castle towers free of invisible collision.
+
+Interior maps may additionally author an `interiorShell`. Its style is one of timber, castle,
+cave, mountain, volcano, ice or snow; each resolves to surfaces already shipped by the game, while
+sand, water and grass are deliberately unavailable as wall materials. Each style names one
+structural-floor brush: cave/mountain/volcano/ice/snow use their matching terrain, while timber and
+castle reuse Sand as a neutral authored marker rendered as boards or stone paving. Only that floor
+grows the envelope. Any other terrain or liquid may be painted inside; a flood fill keeps enclosed
+patches in the room without creating walls around them, while outside-connected cells do not extend
+the architecture. Contiguous exposed edges become one boundary run for collision and GPU instances
+for rendering. The camera-facing direction is a low cutaway sill over the black void and follows
+camera yaw; the other three directions remain full-height walls. The same runs compile into finite
+heightfield colliders, keeping the visible enclosure and both movement authorities on one geometry
+source. Omitting `interiorShell` preserves older open interiors.
+
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
 static visuals in place; event edits reuse the same path while their preview remains dynamic. The
@@ -203,14 +217,14 @@ Every tool has a keyboard shortcut, gated off while a dialog is open or the stag
 The elevation brushes are RELATIVE: ground, +1 and -1, resolved against whatever level the painted
 cell already stands at (`elevationStepTarget`, `tile-brush.ts`). Picking a material alone carries
 `keep`, so choosing ice does not flatten the plateau it lands on. A step with nowhere to go returns
-null and the stage flashes its refusal hint rather than repainting the same slot: there is nothing
-below the ground, and `MAX_TERRAIN_LEVEL` is the top: **ten plateaus above the ground**, eleven
-levels in all. That ceiling is the tile encoding rather than a preference. A cell's level IS its
+null and the stage flashes its refusal hint rather than repainting the same slot. The range runs
+from `MIN_TERRAIN_LEVEL` (-3) through `MAX_TERRAIN_LEVEL` (10): three excavated tiers and ten
+plateaus around level zero. Those limits are the tile encoding rather than a preference. A cell's level IS its
 index into `TERRAIN_MATERIAL_SLOTS`, whose entries are slots in the tileset's `autotiles` array, and
 the id space reserves 64 of those: eleven levels across four materials plus the cliff walls and the
-retired thin-ice band comes to 52. A twelfth level would not fit, and raising the reservation moves
-`FIXED_BASE`, which renumbers every stored fixed tile in every saved map. Ground BELOW zero is the
-same wall from the other side, which is why it is a separate piece of work rather than an extension.
+retired thin-ice band comes to 52, and the twelve remaining slots hold the four materials at depths
+1 through 3. Another level in either direction would not fit; raising the reservation moves
+`FIXED_BASE`, which renumbers every stored fixed tile in every saved map.
 
 What a taller range does not cost is art. `terrainAtlasKey` clamps to its four palettes and
 `wantedCliffDirection` clamps its faces at level 2, so everything above three repeats the level-3
@@ -223,19 +237,15 @@ tables, and every stored map, went on naming the old slots. Sand, snow and ice a
 undeclared slots from then until the band was restored; nothing failed loudly because the terrain is
 a mesh built from the heightfield rather than from tile art.
 
-The stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and
-column 3 climbs left; those are the only supported orientations, so a bank whose high side is north
-or south has no ramp at all. The author no longer declares which: `inferStairsPlacement` tries all
-six candidates (two directions, three transitions) at the hovered cell and takes the one that fits,
-with the camera's yaw breaking a genuine tie toward whichever direction currently reads as the
-screen's right. The ghost still draws where nothing fits, marked invalid so it paints red. Both
-halves run beside one 0â†”1, 1â†”2 or 2â†”3 boundary; the clicked cell is the low half and the preview
-shows both occupied cells. It never paints elevation itself: the author paints both levels first,
-and flat or mismatched ground is refused. Other adjacent elevation faces do not invalidate two matching endpoints. Painting water
-over either stair tile, or any later terrain edit that invalidates either endpoint, removes the whole
-pair and restores normal cliff upkeep. Baked ramp cells reduce hero movement to 86%; the renderer
-adds a smooth 7px hero lift and raises the camera target by 24px on level 1 and 56px on level 2,
-blending through the stair and reversing on descent. The elevation offset is applied after ordinary
+The stairs tool authors one-cell ramp geometry in all four directions and may widen a compatible
+flight to three cells. From a raised ledge it builds down to level zero; from level zero or an
+existing pit ledge it excavates a flight down to `MIN_TERRAIN_LEVEL`. Negative ramp ids live in a
+new fixed band appended after all historical terrain and water ids, so existing maps keep their
+meaning. Camera yaw breaks genuine direction ties. Each rendered flight samples the material of
+the high bank it attaches to, including the selected interior structural coating, rather than using
+a hard-coded grass atlas. Later terrain edits that invalidate a ramp remove it and restore normal
+cliff upkeep. Baked ramp cells reduce hero movement to 86%; the renderer adds a smooth 7px hero
+lift and raises the camera target, blending through the stair and reversing on descent. The elevation offset is applied after ordinary
 map-bound camera clamping, otherwise a stair near the north edge silently loses the whole effect.
 Client movement, server validation and local preview all read the same
 baked `ramp` kind. Fill has no fill-to-empty primitive; the UI disables it rather than let it

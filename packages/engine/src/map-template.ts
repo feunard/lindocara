@@ -12,7 +12,11 @@
  */
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "./audio-catalog.js";
 import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "./map-data.js";
-import { DEFAULT_MAP_ENVIRONMENT, type MapEnvironment } from "./map-environment.js";
+import {
+  DEFAULT_MAP_ENVIRONMENT,
+  type InteriorShell,
+  type MapEnvironment,
+} from "./map-environment.js";
 import type { MapEvent } from "./map-events.js";
 import { defaultMapHeroSettings, type MapHeroSettings } from "./map-hero-settings.js";
 import { DEFAULT_MAP_FIXED_LIGHTING, type MapFixedLighting } from "./map-lighting.js";
@@ -29,6 +33,8 @@ export interface MapInput {
   name: string;
   /** Missing keeps legacy maps on the exterior presentation. */
   environment?: MapEnvironment | undefined;
+  /** Optional world-space cutaway walls. Meaningful only for an interior environment. */
+  interiorShell?: InteriorShell | undefined;
   /** Missing keeps legacy maps under a clear sky. */
   weather?: MapWeather | undefined;
   tilesetId: string;

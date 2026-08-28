@@ -21,6 +21,11 @@ import {
 } from "../buildings.js";
 import { isNativeHarvestAsset } from "../harvest-presets.js";
 import {
+  interiorShellColliders,
+  interiorShellLevels,
+  interiorShellRuns,
+} from "../interior-shell.js";
+import {
   type MapData as AuthoredMapData,
   ELEMENT_OFFSET_PX,
   elementFootPixel,
@@ -695,6 +700,8 @@ function authoredContent(
   authored: AuthoredMapData,
   events: readonly MapEvent[],
   levels: readonly (number | null)[],
+  materials: readonly TerrainMaterial[],
+  liquidLevels: readonly (number | null)[],
   size: number,
 ): Pick<MapData, "colliders" | "elements" | "events" | "spawns"> {
   // Native resources are live world events: keeping a static copy here would draw the intact asset
@@ -703,9 +710,26 @@ function authoredContent(
     (element) => !isNativeHarvestAsset(element.assetId),
   );
   return {
-    colliders: staticElements.flatMap((element) =>
-      authoredElementColliders(authored, element, levels, size),
-    ),
+    colliders: [
+      ...staticElements.flatMap((element) =>
+        authoredElementColliders(authored, element, levels, size),
+      ),
+      ...(authored.environment === "interior" && authored.interiorShell
+        ? interiorShellColliders(
+            interiorShellRuns(
+              size,
+              interiorShellLevels(
+                size,
+                levels,
+                materials,
+                authored.interiorShell.style,
+                liquidLevels,
+              ),
+            ),
+            AUTHORED_LEVEL_HEIGHT,
+          )
+        : []),
+    ],
     spawns: [
       {
         name: "default",
@@ -760,6 +784,9 @@ export function compileAuthoredMap(
   return {
     version: 1,
     environment: authored.environment ?? "exterior",
+    ...(authored.environment === "interior" && authored.interiorShell
+      ? { interiorShell: authored.interiorShell }
+      : {}),
     weather: authored.weather ?? "none",
     size,
     levelHeight: AUTHORED_LEVEL_HEIGHT,
@@ -769,7 +796,7 @@ export function compileAuthoredMap(
     liquids,
     liquidLevels,
     ramps: authoredRamps(authored, size),
-    ...authoredContent(authored, events, levels, size),
+    ...authoredContent(authored, events, levels, materials, liquidLevels, size),
   };
 }
 
@@ -788,6 +815,13 @@ export function compileAuthoredMapContent(
   if (terrain.size !== size) return compileAuthoredMap(authored, events);
   return {
     ...terrain,
-    ...authoredContent(authored, events, terrain.levels, size),
+    ...authoredContent(
+      authored,
+      events,
+      terrain.levels,
+      terrain.materials,
+      terrain.liquidLevels ?? [],
+      size,
+    ),
   };
 }

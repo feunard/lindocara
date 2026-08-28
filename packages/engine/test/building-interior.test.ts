@@ -23,6 +23,7 @@ describe("building interior template", () => {
       cols: BUILDING_INTERIOR_COLS,
       rows: BUILDING_INTERIOR_ROWS,
       environment: "interior",
+      interiorShell: { style: "timber" },
       dayNightCycle: false,
     });
     expect(input.elements).toHaveLength(5);
@@ -38,6 +39,7 @@ describe("building interior template", () => {
     const compiled = compileAuthoredMap(
       {
         environment: input.environment ?? "exterior",
+        ...(input.interiorShell ? { interiorShell: input.interiorShell } : {}),
         tilesetId: input.tilesetId,
         cols: input.cols,
         rows: input.rows,
@@ -50,7 +52,8 @@ describe("building interior template", () => {
     );
     expect(compiled.spawns).toHaveLength(1);
     expect(compiled.environment).toBe("interior");
+    expect(compiled.interiorShell).toEqual({ style: "timber" });
     expect(compiled.levels[0]).toBeNull();
-    expect(compiled.colliders.length).toBeGreaterThan(0);
+    expect(compiled.colliders.length).toBeGreaterThanOrEqual(4);
   });
 });

@@ -23,7 +23,7 @@ export interface MeshStairsOptions {
    * vers lequel elle monte : c'est le plateau dont on descend, donc la teinte à laquelle l'œil
    * compare la pente.
    */
-  atlasFor(level: number): TerrainAtlas;
+  atlasFor(level: number, ramp: StairRampGeometry): TerrainAtlas;
   color?: THREE.ColorRepresentation;
   opacity?: number;
   lift?: number;
@@ -149,7 +149,7 @@ export function meshStairs(
   const materials: THREE.Material[] = [];
 
   for (const ramp of ramps) {
-    const atlas = options.atlasFor(ramp.lowLevel + 1);
+    const atlas = options.atlasFor(ramp.lowLevel + 1, ramp);
     const lowY = ramp.lowLevel * options.levelHeight + lift;
     const highY = (ramp.lowLevel + 1) * options.levelHeight + lift;
     // The slope runs along ONE axis and is flat across the other. `alongX` says which, so the

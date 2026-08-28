@@ -1456,7 +1456,7 @@ export const en = {
   "editor.shell.terrain.step.raise": "Raise +1",
   "editor.shell.terrain.step.lower": "Lower -1",
   "editor.shell.terrain.step.hint":
-    "Raise and lower step one level from whatever the cell already stands at. There is nothing below the ground yet, so lowering stops there.",
+    "Raise and lower step one level from the cell's current tier, from the deepest excavated floor (-3) to the highest plateau (+10).",
   "editor.shell.decor.heading": "Elements",
   "editor.mapBudget.scenery": "Scenery safety budget",
   "editor.mapBudget.sceneryReached":
@@ -1470,7 +1470,7 @@ export const en = {
   "editor.shell.fill.water_disabled": "Fill cannot paint water — pick another tool for water.",
   "editor.shell.tool.stairs": "Stairs",
   "editor.stairs.hint":
-    "Click a raised edge, its lower bank, or nearby water. Stairs choose any of four directions, build every missing level down to ground, and widen across compatible adjacent terrain.",
+    "Click a ledge, its lower bank, nearby water or flat ground. Stairs choose one of four directions; raised flights reach level zero, while flat or sunken ground is excavated down to level -3.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",
@@ -1487,6 +1487,32 @@ export const en = {
   "editor.shell.maps.create": "Create map",
   "editor.shell.maps.ocean_hint":
     "Paint anywhere — the map's size follows your tiles, and empty cells are ocean.",
+  "editor.interiorShell.button": "Interior envelope",
+  "editor.interiorShell.title": "Interior envelope — {name}",
+  "editor.interiorShell.hint":
+    "Choose the structural coating, then paint any terrain inside it. Only the matching structural floor grows the walls and ceiling rim.",
+  "editor.interiorShell.structuralFloor":
+    "Structural floor: {terrain}. This brush alone extends the envelope.",
+  "editor.interiorShell.floor.timber": "interior boards (Sand brush)",
+  "editor.interiorShell.floor.castle": "stone paving (Sand brush)",
+  "editor.interiorShell.floor.cave": "Cave",
+  "editor.interiorShell.floor.mountain": "Mountain",
+  "editor.interiorShell.floor.volcano": "Volcano",
+  "editor.interiorShell.floor.ice": "Ice",
+  "editor.interiorShell.floor.snow": "Snow",
+  "editor.interiorShell.exterior": "Exterior",
+  "editor.interiorShell.exteriorHint": "Sky, sea and no enclosing walls.",
+  "editor.interiorShell.none": "Interior without envelope",
+  "editor.interiorShell.noneHint": "Black void only, for legacy or custom-built interiors.",
+  "editor.interiorShell.startWarning":
+    "The adventure start map must remain exterior. Choose another map for an interior.",
+  "editor.interiorShell.style.timber": "House / timber",
+  "editor.interiorShell.style.castle": "Castle / stone",
+  "editor.interiorShell.style.cave": "Cave",
+  "editor.interiorShell.style.mountain": "Mountain",
+  "editor.interiorShell.style.volcano": "Volcano",
+  "editor.interiorShell.style.ice": "Ice cavern",
+  "editor.interiorShell.style.snow": "Snow cavern",
   "editor.picker.open": "Open",
   "editor.picker.maps": "{count} maps",
   "editor.picker.author": "by {author}",

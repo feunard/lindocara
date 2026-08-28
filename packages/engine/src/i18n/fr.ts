@@ -1470,7 +1470,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.terrain.step.raise": "Monter +1",
   "editor.shell.terrain.step.lower": "Descendre -1",
   "editor.shell.terrain.step.hint":
-    "Monter et descendre décalent d’un niveau depuis celui où la case se trouve déjà. Rien n’existe encore sous le sol : descendre s’y arrête.",
+    "Monter et descendre décalent d’un niveau depuis celui de la case, du sol creusé le plus profond (-3) au plateau le plus haut (+10).",
   "editor.shell.decor.heading": "Éléments",
   "editor.mapBudget.scenery": "Budget de sécurité des décors",
   "editor.mapBudget.sceneryReached":
@@ -1485,7 +1485,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
   "editor.stairs.hint":
-    "Cliquez sur un rebord haut, sa berge basse ou l’eau voisine. L’escalier choisit l’un des quatre sens, construit chaque niveau manquant jusqu’au sol et s’élargit sur le terrain adjacent compatible.",
+    "Cliquez sur un rebord, sa berge basse, l’eau voisine ou un sol plat. L’escalier choisit l’un des quatre sens : un escalier surélevé rejoint le niveau zéro, tandis qu’un sol plat ou creusé descend jusqu’au niveau -3.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
@@ -1502,6 +1502,33 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.create": "Créer la carte",
   "editor.shell.maps.ocean_hint":
     "Peignez où vous voulez — la taille de la carte suit vos tuiles, et les cases vides sont l'océan.",
+  "editor.interiorShell.button": "Enveloppe intérieure",
+  "editor.interiorShell.title": "Enveloppe intérieure — {name}",
+  "editor.interiorShell.hint":
+    "Choisissez le revêtement structurel, puis peignez librement tout autre terrain à l’intérieur. Seul le sol assorti agrandit les murs et la couronne de plafond.",
+  "editor.interiorShell.structuralFloor":
+    "Sol structurel : {terrain}. Ce pinceau seul étend l’enveloppe.",
+  "editor.interiorShell.floor.timber": "plancher intérieur (pinceau Sable)",
+  "editor.interiorShell.floor.castle": "dallage en pierre (pinceau Sable)",
+  "editor.interiorShell.floor.cave": "Grotte",
+  "editor.interiorShell.floor.mountain": "Montagne",
+  "editor.interiorShell.floor.volcano": "Volcan",
+  "editor.interiorShell.floor.ice": "Glace",
+  "editor.interiorShell.floor.snow": "Neige",
+  "editor.interiorShell.exterior": "Extérieur",
+  "editor.interiorShell.exteriorHint": "Ciel, mer et aucun mur d’enceinte.",
+  "editor.interiorShell.none": "Intérieur sans enveloppe",
+  "editor.interiorShell.noneHint":
+    "Vide noir seul, pour les anciens intérieurs ou les constructions sur mesure.",
+  "editor.interiorShell.startWarning":
+    "La carte de départ de l’aventure doit rester extérieure. Choisissez une autre carte pour créer un intérieur.",
+  "editor.interiorShell.style.timber": "Maison / bois",
+  "editor.interiorShell.style.castle": "Château / pierre",
+  "editor.interiorShell.style.cave": "Grotte",
+  "editor.interiorShell.style.mountain": "Montagne",
+  "editor.interiorShell.style.volcano": "Volcan",
+  "editor.interiorShell.style.ice": "Grotte de glace",
+  "editor.interiorShell.style.snow": "Grotte enneigée",
   "editor.picker.open": "Ouvrir",
   "editor.picker.maps": "{count} cartes",
   "editor.picker.author": "par {author}",

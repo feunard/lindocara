@@ -24,8 +24,12 @@
 
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
-import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import type { TerrainQuery, TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import {
+  interiorShellFloorMaterial,
+  interiorShellLevels,
+} from "@lindocara/engine/interior-shell.js";
 import {
   type MapWeather,
   stormFlashIntensity,
@@ -54,6 +58,7 @@ import type { TextureRegistry, TextureSpec } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 
 import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
+import { createInteriorShell, INTERIOR_SHELL_TEXTURES } from "./interior-shell.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
@@ -92,6 +97,7 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
+  ...INTERIOR_SHELL_TEXTURES,
 ];
 
 const HD2D_GROUND_PALETTES = ["color1", "color2", "color3", "color4", "color5"] as const;
@@ -224,9 +230,47 @@ export function terrainGroupFor(
   });
 }
 
-/** The serialized grid, read as the field the mesher consumes. `null` levels stay water: they are
- *  the water plane's business, never a ground quad laid flat at the sea's height. */
+/** The serialized grid, read as the field the mesher consumes. `null` levels stay water outdoors:
+ *  they are the water plane's business, never a ground quad laid flat at the sea's height. In an
+ *  interior ordinary water is the black architectural void; lava remains an authored liquid so a
+ *  volcanic chamber can still contain glowing pools. */
 export function heightFieldFor(map: MapData): HeightField {
+  const interior = (map.environment ?? "exterior") === "interior";
+  const structuralMaterial = map.interiorShell
+    ? interiorShellFloorMaterial(map.interiorShell.style)
+    : null;
+  const shellLevels = map.interiorShell
+    ? interiorShellLevels(
+        map.size,
+        map.levels,
+        map.materials,
+        map.interiorShell.style,
+        map.liquidLevels ?? [],
+      )
+    : null;
+  const interiorMaterialKey = (material: string, level: number): string => {
+    // Legacy interiors without an envelope retain their historical wood floor. Once a coating is
+    // selected, only its structural-floor marker adopts the coating; every other terrain keeps the
+    // material the author painted.
+    if (!map.interiorShell) return "interior";
+    if (material !== structuralMaterial) return terrainAtlasKey(material, level);
+    switch (map.interiorShell?.style) {
+      case "castle":
+      case "mountain":
+        return terrainAtlasKey("montagne", level);
+      case "cave":
+        return terrainAtlasKey("grotte", level);
+      case "volcano":
+        return terrainAtlasKey("volcan", level);
+      case "ice":
+        return terrainAtlasKey("glace", level);
+      case "snow":
+        return terrainAtlasKey("neige", level);
+      case "timber":
+      case undefined:
+        return "interior";
+    }
+  };
   const field = heightFieldFromGrid({
     size: map.size,
     levels: map.levels,
@@ -234,11 +278,23 @@ export function heightFieldFor(map: MapData): HeightField {
     ...(map.liquids && map.liquidLevels
       ? { liquids: map.liquids, liquidLevels: map.liquidLevels }
       : {}),
-    materialKey:
-      (map.environment ?? "exterior") === "interior" ? () => "interior" : terrainAtlasKey,
+    materialKey: interior ? interiorMaterialKey : terrainAtlasKey,
   });
   return {
     ...field,
+    liquidAt(i, j) {
+      const liquid = field.liquidAt?.(i, j) ?? null;
+      if (!interior) return liquid;
+      if (shellLevels) return shellLevels[j * map.size + i] === null ? null : liquid;
+      return liquid === "water" ? null : liquid;
+    },
+    liquidLevelAt(i, j) {
+      const liquid = field.liquidAt?.(i, j) ?? null;
+      if (interior && shellLevels && shellLevels[j * map.size + i] === null) return null;
+      return interior && !shellLevels && liquid === "water"
+        ? null
+        : (field.liquidLevelAt?.(i, j) ?? null);
+    },
     materialAt(i, j) {
       const material = field.materialAt(i, j);
       const level = field.levelAt(i, j);
@@ -260,6 +316,39 @@ export function heightFieldFor(map: MapData): HeightField {
       return material;
     },
   };
+}
+
+/** Atlas key of the bank a stair flight is attached to, including an interior coating override. */
+export function stairMaterialKeyFor(
+  map: MapData,
+  ramp: TerrainRamp,
+  field: HeightField = heightFieldFor(map),
+): string {
+  const half = map.size / 2;
+  const middleX = ramp.x + ramp.width / 2;
+  const middleZ = ramp.z + ramp.depth / 2;
+  const landingX =
+    ramp.direction === "east"
+      ? ramp.x + ramp.width + 1e-4
+      : ramp.direction === "west"
+        ? ramp.x - 1e-4
+        : middleX;
+  const landingZ =
+    ramp.direction === "south"
+      ? ramp.z + ramp.depth + 1e-4
+      : ramp.direction === "north"
+        ? ramp.z - 1e-4
+        : middleZ;
+  const landingCol = Math.floor(landingX + half);
+  const landingRow = Math.floor(landingZ + half);
+  const attached = field.materialAt(landingCol, landingRow);
+  if (attached) return attached;
+
+  // A malformed or edge-clipped ramp can have no high landing cell. Keep it legible with the
+  // supporting low cell before falling back to grass, rather than throwing during scene creation.
+  const supportCol = Math.floor(middleX + half);
+  const supportRow = Math.floor(middleZ + half);
+  return field.materialAt(supportCol, supportRow) ?? terrainAtlasKey("herbe", ramp.lowLevel + 1);
 }
 
 // --- settings -----------------------------------------------------------------------------------
@@ -571,15 +660,22 @@ export function createHd2dScene(
   // A ramp draws in the hue of the bank it climbs to, the same way `terrainAtlasKey` gives each
   // altitude its own sheet. Handing every ramp the level-0 atlas — as this did — painted a ramp
   // climbing 1 to 2 in level 0's green.
-  const stairsFor = (source: MapData): ReturnType<typeof meshStairs> =>
-    meshStairs(source.ramps ?? [], {
+  const stairsFor = (source: MapData): ReturnType<typeof meshStairs> => {
+    const sourceField = heightFieldFor(source);
+    return meshStairs(source.ramps ?? [], {
       levelHeight: source.levelHeight,
-      atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallbackAtlas,
+      atlasFor: (level, ramp) =>
+        atlases[stairMaterialKeyFor(source, ramp, sourceField)] ??
+        atlases[terrainAtlasKey("herbe", level)] ??
+        fallbackAtlas,
     });
+  };
   let terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
   let stairs = stairsFor(map);
   scene.add(stairs.group);
+  let interiorShell = createInteriorShell(map, textures);
+  scene.add(interiorShell.group);
 
   const liquidsFor = (source: MapData, sourceField: HeightField) =>
     createLiquidTerrain(ctx, sourceField, {
@@ -858,6 +954,10 @@ export function createHd2dScene(
       stairs.group.removeFromParent();
       stairs = stairsFor(next);
       scene.add(stairs.group);
+      interiorShell.dispose();
+      interiorShell = createInteriorShell(next, textures);
+      interiorShell.setCameraYaw(cameraYaw);
+      scene.add(interiorShell.group);
       liquids.dispose();
       liquids.group.removeFromParent();
       liquids = liquidsFor(next, field);
@@ -930,6 +1030,7 @@ export function createHd2dScene(
       if (!Number.isFinite(radians)) return;
       cameraYaw = Math.atan2(Math.sin(radians), Math.cos(radians));
       ctx.setYaw(cameraYaw);
+      interiorShell.setCameraYaw(cameraYaw);
       frameCamera();
     },
     setPitch(radians: number): void {
@@ -1036,6 +1137,7 @@ export function createHd2dScene(
     dispose(): void {
       terrain.dispose();
       stairs.dispose();
+      interiorShell.dispose();
       liquids.dispose();
       // The sea is NOT disposed here — it belongs to the caller and routinely outlives this scene
       // (see this function's docblock). Putting `water.dispose()` back would free a plane the next

@@ -22,7 +22,9 @@ import { decodeTileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
   isRampFixedIndex,
+  oneCellRampDescriptor,
   oneCellRampFixedIndex,
+  RAMP_SUNKEN_ONE_CELL_FIXED_BASE,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -467,6 +469,50 @@ describe("a one-cell ramp", () => {
 });
 
 describe("automatic stair runs", () => {
+  it("excavates a material-preserving flight from level zero down to level -3", () => {
+    let layers = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        layers = paintElevation(layers, set, 0, col, row);
+      }
+    }
+    const plan = inferStairsRun(layerAt(layers, 0), anchor.col, anchor.row, "west");
+    expect(plan).toMatchObject({ direction: "west", highLevel: 0 });
+    expect(plan?.cells).toHaveLength(9);
+    if (!plan) throw new Error("expected an excavated stair run");
+    expect(new Set(plan.cells.map((cell) => cell.lowLevel))).toEqual(new Set([-3, -2, -1]));
+
+    const painted = paintStairsRun(layers, set, plan);
+    expect(groundElevationAt(layerAt(painted, 0), anchor.col + 1, anchor.row)).toBe(-1);
+    expect(groundElevationAt(layerAt(painted, 0), anchor.col + 3, anchor.row)).toBe(-3);
+    for (const lowLevel of [-3, -2, -1]) {
+      const index = oneCellRampFixedIndex("west", lowLevel);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(isRampFixedIndex(index)).toBe(true);
+      expect(oneCellRampDescriptor(index)).toEqual({ direction: "west", lowLevel });
+    }
+    expect(oneCellRampFixedIndex("east", 0)).toBe(20);
+    expect(oneCellRampFixedIndex("east", -3)).toBe(RAMP_SUNKEN_ONE_CELL_FIXED_BASE);
+
+    const compiled = compileAuthoredMap({
+      environment: "exterior",
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: COLS,
+      rows: ROWS,
+      layers: painted,
+      elements: [],
+      spawn: { col: 0, row: 0 },
+      markers: EMPTY_MARKERS,
+    });
+    expect(compiled.ramps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ direction: "west", lowLevel: -3 }),
+        expect.objectContaining({ direction: "west", lowLevel: -2 }),
+        expect.objectContaining({ direction: "west", lowLevel: -1 }),
+      ]),
+    );
+  });
+
   it("infers front, back, left, and right approaches", () => {
     const sides = {
       east: { col: 1, row: 0 },

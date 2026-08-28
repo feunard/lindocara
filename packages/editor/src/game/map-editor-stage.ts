@@ -46,6 +46,7 @@ import {
   type MapElement,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
+import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   MAX_EVENTS_PER_MAP,
   MAX_RUNTIME_EVENTS_PER_MAP,
@@ -133,6 +134,8 @@ export interface MapEditorStageHandle {
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
+  /** Configure the world-space cutaway envelope around this map. */
+  setInteriorShell(environment: MapEnvironment, shell?: InteriorShell): void;
   setLighting(dayNightCycle: boolean, fixedLighting: MapFixedLighting): void;
   /** The map's authored weather. An edit like any other: it joins the undo history and pushes
    *  itself into the live scene, so the author sees the rain they just chose. */
@@ -1032,6 +1035,7 @@ export function openMapEditorStage(
       const contentOnly =
         previous.layers === map.layers &&
         previous.environment === map.environment &&
+        previous.interiorShell?.style === map.interiorShell?.style &&
         previousSize.cols === nextSize.cols &&
         previousSize.rows === nextSize.rows;
       if (contentOnly && compiledCache?.map === previous) {
@@ -1804,6 +1808,27 @@ export function openMapEditorStage(
         const next = { ...map, heroSettings };
         history = commitEditorHistory({ ...history, present: map }, next);
         map = next;
+        notify();
+      },
+      setInteriorShell(environment, shell) {
+        const interiorShell = environment === "interior" ? shell : undefined;
+        if (
+          environment === map.environment &&
+          interiorShell?.style === map.interiorShell?.style &&
+          (interiorShell !== undefined) === (map.interiorShell !== undefined)
+        ) {
+          return;
+        }
+        const previous = map;
+        const next: EditorMap = {
+          ...map,
+          environment,
+          ...(interiorShell ? { interiorShell } : {}),
+        };
+        if (!interiorShell) delete next.interiorShell;
+        history = commitEditorHistory({ ...history, present: map }, next);
+        map = next;
+        redrawMapChange(previous);
         notify();
       },
       setLighting(dayNightCycle, fixedLighting) {

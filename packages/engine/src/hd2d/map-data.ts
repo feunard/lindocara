@@ -23,7 +23,9 @@ import {
 } from "../element-orientation.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
+  type InteriorShell,
   type MapEnvironment,
+  parseInteriorShell,
   parseMapEnvironment,
 } from "../map-environment.js";
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
@@ -96,6 +98,8 @@ export interface MapData {
   version: 1;
   /** Exterior maps expose water around land; interior maps expose an unlit void. */
   environment?: MapEnvironment;
+  /** Optional world-space cutaway shell, rendered from the same boundary as its colliders. */
+  interiorShell?: InteriorShell;
   /**
    * The authored weather. Optional for every heightfield written before it existed, which read as
    * `none` and still do.
@@ -296,8 +300,7 @@ function toRamp(value: unknown): TerrainRamp | null {
     !isFiniteNumber(value.depth) ||
     value.depth <= 0 ||
     !isRampDirection(value.direction) ||
-    !Number.isSafeInteger(value.lowLevel) ||
-    (value.lowLevel as number) < 0
+    !Number.isSafeInteger(value.lowLevel)
   ) {
     return null;
   }
@@ -330,6 +333,11 @@ export function decodeMap(s: string): MapData | null {
 
   const environment = parseMapEnvironment(value.environment ?? DEFAULT_MAP_ENVIRONMENT);
   if (!environment) return null;
+
+  const interiorShell =
+    value.interiorShell === undefined ? undefined : parseInteriorShell(value.interiorShell);
+  if (value.interiorShell !== undefined && !interiorShell) return null;
+  if (interiorShell && environment !== "interior") return null;
 
   const weather = parseMapWeather(value.weather ?? DEFAULT_MAP_WEATHER);
   if (!weather) return null;
@@ -401,6 +409,7 @@ export function decodeMap(s: string): MapData | null {
   return {
     version: 1,
     environment,
+    ...(interiorShell ? { interiorShell } : {}),
     // Present only when the source declared one, exactly like `ramps` below and unlike
     // `environment`: a heightfield written before weather existed must decode to the same object it
     // encoded from, or every round-trip fixture in the suite gains a key it never had.

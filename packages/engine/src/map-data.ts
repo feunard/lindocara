@@ -36,7 +36,9 @@ import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
+  type InteriorShell,
   type MapEnvironment,
+  parseInteriorShell,
   parseMapEnvironment,
 } from "./map-environment.js";
 import type { MapWeather } from "./map-weather.js";
@@ -151,6 +153,8 @@ export function element3dRotationDegrees(
 export interface MapData {
   /** Exterior maps end in water; interior maps end in an unlit void. */
   environment?: MapEnvironment;
+  /** Optional world-space cutaway generated around the authored floor boundary. */
+  interiorShell?: InteriorShell;
   /** The authored weather. Absent on every map written before it existed, which reads as `none`.
    *  Appearance only, like `environment`: nothing here may reach collision. */
   weather?: MapWeather;
@@ -789,6 +793,10 @@ export function parseMapData(value: unknown): MapData | null {
   const { tilesetId, cols, rows, layers, elements, spawn } = record;
   const environment = parseMapEnvironment(record.environment ?? DEFAULT_MAP_ENVIRONMENT);
   if (!environment) return null;
+  const interiorShell =
+    record.interiorShell === undefined ? undefined : parseInteriorShell(record.interiorShell);
+  if (record.interiorShell !== undefined && !interiorShell) return null;
+  if (interiorShell && environment !== "interior") return null;
 
   if (typeof tilesetId !== "string") return null;
   const tileset = tilesetById(tilesetId);
@@ -825,6 +833,7 @@ export function parseMapData(value: unknown): MapData | null {
 
   return {
     environment,
+    ...(interiorShell ? { interiorShell } : {}),
     tilesetId,
     cols: width,
     rows: height,

@@ -143,10 +143,14 @@ export function validateMapInput(input: MapInput): MapData & {
   }
   const environment = parseMapEnvironment(input.environment ?? DEFAULT_MAP_ENVIRONMENT);
   if (!environment) throw new Error("environment: must be exterior or interior");
+  if (input.interiorShell && environment !== "interior") {
+    throw new Error("interior_shell: requires an interior map");
+  }
   const weather = parseMapWeather(input.weather ?? DEFAULT_MAP_WEATHER);
   if (!weather) throw new Error(`weather: must be one of ${MAP_WEATHERS.join(", ")}`);
   const data: MapData = {
     environment,
+    ...(input.interiorShell ? { interiorShell: input.interiorShell } : {}),
     weather,
     tilesetId: input.tilesetId,
     cols,
@@ -246,6 +250,7 @@ export function parseMapBody(body: unknown): MapInput | null {
   return {
     name,
     environment,
+    ...(data.interiorShell ? { interiorShell: data.interiorShell } : {}),
     weather,
     tilesetId: data.tilesetId,
     cols: data.cols,
