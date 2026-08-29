@@ -60,6 +60,7 @@ import {
 } from "@lindocara/engine/buildings.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { derivedMapRect } from "@lindocara/engine/map-canvas.js";
 import {
   EMPTY_MARKERS,
@@ -69,6 +70,7 @@ import {
   type MapElement,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
+import type { InteriorShellStyle } from "@lindocara/engine/map-environment.js";
 import {
   type EventKind,
   entryEvents,
@@ -87,6 +89,7 @@ import {
   proportionalNativeSceneryDimensions,
 } from "@lindocara/engine/native-scenery.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
+import type { RampDirection } from "@lindocara/engine/tile-brush.js";
 import {
   DEFAULT_GUARD_APPEARANCE_ASSET_ID,
   DEFAULT_MONSTER_APPEARANCE_ASSET_ID,
@@ -168,7 +171,8 @@ type ToolKey =
   | "event"
   | "link"
   | "wall-opening"
-  | "wall-closing";
+  | "wall-closing"
+  | "underground";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -227,11 +231,13 @@ function eventToolFor(
 }
 
 function toEditorMap(map: MapPayload): EditorMap {
+  const underground = map.heightfield ? decodeMap(map.heightfield)?.underground : undefined;
   return canvasEditorMap(
     {
       name: map.name,
       environment: map.environment ?? "exterior",
       ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
+      ...(underground ? { underground } : {}),
       weather: map.weather ?? "none",
       audio: map.audio ?? EMPTY_MAP_AUDIO,
       heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
@@ -572,6 +578,14 @@ function AdventureEditorInner({
   const [dirty, setDirty] = useState(false);
   const [linkPending, setLinkPending] = useState(false);
   const [wallOpeningPending, setWallOpeningPending] = useState(false);
+  const [undergroundDepth, setUndergroundDepth] = useState(1);
+  const [undergroundStyle, setUndergroundStyle] = useState<InteriorShellStyle>("cave");
+  const [undergroundWidth, setUndergroundWidth] = useState(3);
+  const [undergroundLength, setUndergroundLength] = useState(6);
+  const [undergroundDirection, setUndergroundDirection] = useState<RampDirection>("east");
+  const [undergroundOperation, setUndergroundOperation] = useState<
+    "dig" | "tunnel" | "fill" | "shaft" | "stairs"
+  >("dig");
   const [savingMap, setSavingMap] = useState(false);
   const [buildingInteriorBusy, setBuildingInteriorBusy] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -972,6 +986,43 @@ function AdventureEditorInner({
     setToolKey(operation === "open" ? "wall-opening" : "wall-closing");
     setSelectedAsset(null);
     pushTool({ kind: "wall-opening", operation });
+  }
+
+  function undergroundTool(
+    operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs" = undergroundOperation,
+    overrides: Partial<{
+      depth: number;
+      style: InteriorShellStyle;
+      width: number;
+      length: number;
+      direction: RampDirection;
+    }> = {},
+  ): EditorTool {
+    return {
+      kind: "underground",
+      operation: operation === "tunnel" ? "dig" : operation,
+      depth: overrides.depth ?? undergroundDepth,
+      style: overrides.style ?? undergroundStyle,
+      width: overrides.width ?? undergroundWidth,
+      length: overrides.length ?? undergroundLength,
+      direction: overrides.direction ?? undergroundDirection,
+    };
+  }
+
+  function selectUnderground(operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs"): void {
+    setToolKey("underground");
+    setUndergroundOperation(operation);
+    setSelectedAsset(null);
+    if (operation === "tunnel") {
+      setUndergroundWidth(2);
+      pushTool(undergroundTool(operation, { width: 2 }));
+    } else {
+      pushTool(undergroundTool(operation));
+    }
+  }
+
+  function updateUndergroundTool(overrides: Parameters<typeof undergroundTool>[1]): void {
+    if (toolKey === "underground") pushTool(undergroundTool(undergroundOperation, overrides));
   }
 
   function selectAsset(assetId: EditorAssetId): void {
@@ -1818,9 +1869,11 @@ function AdventureEditorInner({
         ? t("editor.wallOpening.open")
         : toolKey === "wall-closing"
           ? t("editor.wallOpening.close")
-          : isPaintToolKey(toolKey) || toolKey === "stairs"
-            ? toolLabelText(toolKey)
-            : t(`editor.tool.${toolKey}`);
+          : toolKey === "underground"
+            ? t("editor.underground.heading")
+            : isPaintToolKey(toolKey) || toolKey === "stairs"
+              ? toolLabelText(toolKey)
+              : t(`editor.tool.${toolKey}`);
 
   // The live map the inspector reads its selected marker's fields off — the handle's current edits
   // while a stage is mounted, else whatever payload is loaded. Read in render so a new selection
@@ -1968,10 +2021,37 @@ function AdventureEditorInner({
                 wallOpeningOperation:
                   toolKey === "wall-opening" ? "open" : toolKey === "wall-closing" ? "close" : null,
                 wallOpeningPending,
+                undergroundOperation: toolKey === "underground" ? undergroundOperation : null,
+                undergroundDepth,
+                undergroundStyle,
+                undergroundWidth,
+                undergroundLength,
+                undergroundDirection,
                 onPickContent: pickContent,
                 onSelectStairs: () => selectTool("stairs"),
                 onSelectSpawn: selectSpawn,
                 onSelectWallOpening: selectWallOpening,
+                onSelectUnderground: selectUnderground,
+                onUndergroundDepthChange: (depth) => {
+                  const next = Math.max(1, Math.min(16, Math.trunc(depth) || 1));
+                  setUndergroundDepth(next);
+                  updateUndergroundTool({ depth: next });
+                },
+                onUndergroundStyleChange: (style) => {
+                  setUndergroundStyle(style);
+                  updateUndergroundTool({ style });
+                },
+                onUndergroundSizeChange: (width, length) => {
+                  const nextWidth = Math.max(1, Math.min(32, Math.trunc(width) || 1));
+                  const nextLength = Math.max(1, Math.min(64, Math.trunc(length) || 1));
+                  setUndergroundWidth(nextWidth);
+                  setUndergroundLength(nextLength);
+                  updateUndergroundTool({ width: nextWidth, length: nextLength });
+                },
+                onUndergroundDirectionChange: (direction) => {
+                  setUndergroundDirection(direction);
+                  updateUndergroundTool({ direction });
+                },
               }}
               element={{
                 selectedAsset,

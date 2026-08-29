@@ -37,6 +37,10 @@ import {
   weatherRains,
   weatherStorms,
 } from "@lindocara/engine/map-weather.js";
+import {
+  undergroundStyleMaterial,
+  UNDERGROUND_STOREY_HEIGHT,
+} from "@lindocara/engine/underground.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
@@ -59,6 +63,7 @@ import * as THREE from "three";
 
 import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
 import { createInteriorShell, INTERIOR_SHELL_TEXTURES } from "./interior-shell.js";
+import { createUnderground } from "./underground.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
@@ -333,6 +338,15 @@ export function stairMaterialKeyFor(
   ramp: TerrainRamp,
   field: HeightField = heightFieldFor(map),
 ): string {
+  if (ramp.lowHeight !== undefined && map.underground) {
+    const lowerDepth = Math.max(1, Math.round(-ramp.lowHeight / UNDERGROUND_STOREY_HEIGHT));
+    if (lowerDepth > 1) {
+      const attachedLevel =
+        map.underground.levels.find((level) => level.depth === lowerDepth - 1) ??
+        map.underground.levels.find((level) => level.depth === lowerDepth);
+      if (attachedLevel) return terrainAtlasKey(undergroundStyleMaterial(attachedLevel.style), 0);
+    }
+  }
   const half = map.size / 2;
   const middleX = ramp.x + ramp.width / 2;
   const middleZ = ramp.z + ramp.depth / 2;
@@ -560,6 +574,8 @@ export interface Hd2dScene {
   setYaw(radians: number): void;
   /** Sets the vertical viewing angle while keeping the same target, yaw and distance. */
   setPitch(radians: number): void;
+  /** Surface (`null`) or one authored underground storey. */
+  setUndergroundDepth(depth: number | null): void;
   /** Presentation-only screen-space camera impulse. It never changes the followed world point. */
   setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
@@ -685,6 +701,8 @@ export function createHd2dScene(
   scene.add(stairs.group);
   let interiorShell = createInteriorShell(map, textures);
   scene.add(interiorShell.group);
+  let underground = createUnderground(map, textures);
+  scene.add(underground.group);
 
   const liquidsFor = (source: MapData, sourceField: HeightField) =>
     createLiquidTerrain(ctx, sourceField, {
@@ -728,6 +746,17 @@ export function createHd2dScene(
   let foam = foamFor(map, field);
   foam.group.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(foam.group);
+  let viewedUndergroundDepth: number | null = null;
+  const applyUndergroundVisibility = (): void => {
+    const surface = viewedUndergroundDepth === null;
+    terrain.group.visible = surface;
+    liquids.group.visible = surface;
+    foam.group.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
+    water.mesh.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
+    interiorShell.group.visible = surface;
+    underground.setDepth(viewedUndergroundDepth);
+  };
+  applyUndergroundVisibility();
 
   // Weather. The curtain exists whatever the map declares and is simply silent under a clear sky:
   // building it lazily would mean building it mid-frame the first time an author flips the control
@@ -967,6 +996,10 @@ export function createHd2dScene(
       interiorShell = createInteriorShell(next, textures);
       interiorShell.setCameraYaw(cameraYaw);
       scene.add(interiorShell.group);
+      underground.dispose();
+      underground = createUnderground(next, textures);
+      underground.setCameraYaw(cameraYaw);
+      scene.add(underground.group);
       liquids.dispose();
       liquids.group.removeFromParent();
       liquids = liquidsFor(next, field);
@@ -976,6 +1009,7 @@ export function createHd2dScene(
       foam = foamFor(next, field);
       scene.add(foam.group);
       water.setField(field);
+      applyUndergroundVisibility();
       clampCameraTo(next.size);
       // The camera is deliberately NOT re-parked: `focusReached` stays true, so an author's pan
       // survives the edit. That parking is what `focusOn`'s comment below had to work around when
@@ -1002,6 +1036,13 @@ export function createHd2dScene(
     // units — there is nothing to convert here any more.
     //
     focusOn(x: number, z: number, elevation?: number, airborne = false): void {
+      if (elevation !== undefined && currentMap.underground) {
+        viewedUndergroundDepth =
+          elevation < -0.6
+            ? THREE.MathUtils.clamp(Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT), 1, 16)
+            : null;
+        applyUndergroundVisibility();
+      }
       focus = {
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
         z: THREE.MathUtils.clamp(z, cameraMin, cameraMax),
@@ -1040,6 +1081,7 @@ export function createHd2dScene(
       cameraYaw = Math.atan2(Math.sin(radians), Math.cos(radians));
       ctx.setYaw(cameraYaw);
       interiorShell.setCameraYaw(cameraYaw);
+      underground.setCameraYaw(cameraYaw);
       frameCamera();
     },
     setPitch(radians: number): void {
@@ -1047,6 +1089,11 @@ export function createHd2dScene(
       cameraPitch = THREE.MathUtils.clamp(radians, Math.PI / 36, (17 * Math.PI) / 36);
       ctx.setPitch(cameraPitch);
       frameCamera();
+    },
+    setUndergroundDepth(depth: number | null): void {
+      viewedUndergroundDepth =
+        depth === null ? null : THREE.MathUtils.clamp(Math.round(depth), 1, 16);
+      applyUndergroundVisibility();
     },
     setCameraShake: applyCameraShake,
     setFogEnabled(enabled: boolean): void {
@@ -1061,7 +1108,14 @@ export function createHd2dScene(
         (child) => child.userData[AUTHORED_PICK_SURFACE] === "building",
       );
       for (const hit of raycaster.intersectObjects(
-        [terrain.group, stairs.group, ...liquids.surfaces, water.mesh, ...authoredSurfaces],
+        [
+          terrain.group,
+          underground.group,
+          stairs.group,
+          ...liquids.surfaces,
+          water.mesh,
+          ...authoredSurfaces,
+        ],
         true,
       )) {
         const normal = hit.face?.normal.clone().transformDirection(hit.object.matrixWorld);
@@ -1147,6 +1201,7 @@ export function createHd2dScene(
       terrain.dispose();
       stairs.dispose();
       interiorShell.dispose();
+      underground.dispose();
       liquids.dispose();
       // The sea is NOT disposed here — it belongs to the caller and routinely outlives this scene
       // (see this function's docblock). Putting `water.dispose()` back would free a plane the next

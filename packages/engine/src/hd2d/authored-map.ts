@@ -45,6 +45,7 @@ import {
   waterLevelOfTileId,
 } from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
+import { undergroundColliders, undergroundRamp } from "../underground.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
 import type { TerrainLiquid, TerrainMaterial, TerrainRamp } from "./terrain-query.js";
@@ -722,6 +723,7 @@ function authoredContent(
             AUTHORED_LEVEL_HEIGHT,
           )
         : []),
+      ...(authored.underground ? undergroundColliders(authored.underground, size) : []),
     ],
     spawns: [
       {
@@ -780,6 +782,7 @@ export function compileAuthoredMap(
     ...(authored.environment === "interior" && authored.interiorShell
       ? { interiorShell: authored.interiorShell }
       : {}),
+    ...(authored.underground ? { underground: authored.underground } : {}),
     weather: authored.weather ?? "none",
     size,
     levelHeight: AUTHORED_LEVEL_HEIGHT,
@@ -788,7 +791,10 @@ export function compileAuthoredMap(
     materials,
     liquids,
     liquidLevels,
-    ramps: authoredRamps(authored, size),
+    ramps: [
+      ...authoredRamps(authored, size),
+      ...(authored.underground?.stairs.map((stair) => undergroundRamp(stair, size)) ?? []),
+    ],
     ...authoredContent(authored, events, levels, materials, liquidLevels, size),
   };
 }

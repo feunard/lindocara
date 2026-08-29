@@ -12,6 +12,8 @@ export interface StairRampGeometry {
   depth: number;
   direction: "east" | "west" | "north" | "south";
   lowLevel: number;
+  lowHeight?: number;
+  highHeight?: number;
 }
 
 export interface MeshStairsOptions {
@@ -150,8 +152,8 @@ export function meshStairs(
 
   for (const ramp of ramps) {
     const atlas = options.atlasFor(ramp.lowLevel + 1, ramp);
-    const lowY = ramp.lowLevel * options.levelHeight + lift;
-    const highY = (ramp.lowLevel + 1) * options.levelHeight + lift;
+    const lowY = (ramp.lowHeight ?? ramp.lowLevel * options.levelHeight) + lift;
+    const highY = (ramp.highHeight ?? (ramp.lowLevel + 1) * options.levelHeight) + lift;
     // The slope runs along ONE axis and is flat across the other. `alongX` says which, so the
     // geometry below is written once in "along/across" terms instead of twice in x and z. The foot
     // of the slope is at the axis's negative end when the ramp climbs positive, and the reverse

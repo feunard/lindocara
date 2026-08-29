@@ -1064,6 +1064,7 @@ export function openMapEditorStage(
         previous.layers === map.layers &&
         previous.environment === map.environment &&
         previous.interiorShell === map.interiorShell &&
+        previous.underground === map.underground &&
         previousSize.cols === nextSize.cols &&
         previousSize.rows === nextSize.rows;
       if (contentOnly && compiledCache?.map === previous) {
@@ -1811,6 +1812,7 @@ export function openMapEditorStage(
         // would silently pair the author's next link with a door they picked minutes ago.
         if (next.kind !== "link") linkFrom = null;
         wallOpeningFrom = null;
+        renderer.setUndergroundDepth?.(next.kind === "underground" ? next.depth : null);
         renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
         refreshCursor();
         drawOverlay();

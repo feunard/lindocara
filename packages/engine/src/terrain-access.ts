@@ -737,11 +737,11 @@ export function restoreStandablePosition(
     // is and fall back to the spawn otherwise; there is nothing here to validate it with.
     return finite ? { x: position.x, y: position.y, z: position.z } : { ...spawn, y: 0 };
   }
-  if (
-    finite &&
-    canStand(terrain, position.x, position.z, radius, groundUnder(terrain, position.x, position.z))
-  ) {
-    return { x: position.x, y: groundUnder(terrain, position.x, position.z), z: position.z };
+  if (finite) {
+    const restoredGround = groundUnderBody(terrain, position.x, position.z, position.y);
+    if (canStand(terrain, position.x, position.z, radius, restoredGround)) {
+      return { x: position.x, y: restoredGround, z: position.z };
+    }
   }
   return { x: spawn.x, y: groundUnder(terrain, spawn.x, spawn.z), z: spawn.z };
 }

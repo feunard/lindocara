@@ -61,6 +61,7 @@ import {
   LINDOCARA_RUNNER_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { Water } from "@lindocara/hd2d/terrain/water.js";
@@ -1121,6 +1122,7 @@ export class Hd2dRenderer implements RendererLike {
   #cameraZoom = 100;
   #cameraYaw = 0;
   #cameraPitch = HD2D_CAMERA.pitch;
+  #undergroundDepth: number | null = null;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -1222,6 +1224,7 @@ export class Hd2dRenderer implements RendererLike {
       this.#disposeSceneContents();
       scene = this.#scene;
       scene.updateTerrain(heightfield);
+      scene.setUndergroundDepth(this.#undergroundDepth);
     } else {
       this.#disposeScene();
       if (this.#water && this.#waterKey !== waterKey) {
@@ -1244,7 +1247,15 @@ export class Hd2dRenderer implements RendererLike {
       scene.setPitch(this.#cameraPitch);
       scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
       scene.setFogEnabled(this.#fogEnabled);
-      if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
+      scene.setUndergroundDepth(this.#undergroundDepth);
+      if (this.#manualFocus)
+        scene.focusOn(
+          this.#manualFocus.x,
+          this.#manualFocus.z,
+          this.#undergroundDepth === null
+            ? undefined
+            : undergroundFloorHeight(this.#undergroundDepth),
+        );
     }
     this.#scene = scene;
     this.#map = heightfield;
@@ -2471,7 +2482,18 @@ export class Hd2dRenderer implements RendererLike {
   /** Moves the editor/preview camera without impersonating a local player. */
   setCameraFocus(x: number, z: number): void {
     this.#manualFocus = { x, z };
-    this.#scene?.focusOn(x, z);
+    this.#scene?.focusOn(
+      x,
+      z,
+      this.#undergroundDepth === null ? undefined : undergroundFloorHeight(this.#undergroundDepth),
+    );
+  }
+
+  /** Selects the surface or a specific underground storey in creator tools. */
+  setUndergroundDepth(depth: number | null): void {
+    this.#undergroundDepth = depth;
+    this.#scene?.setUndergroundDepth(depth);
+    if (this.#manualFocus) this.setCameraFocus(this.#manualFocus.x, this.#manualFocus.z);
   }
 
   /** Changes the editor/preview camera while preserving gameplay's 100% default. */

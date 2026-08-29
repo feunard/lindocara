@@ -226,6 +226,26 @@ round-trip through both stored map formats. Unlike camera cutaways, they filter 
 runs before rendering and collider compilation, so the visible gap is genuinely traversable for
 both movement authorities.
 
+True underground space is authored separately from the surface heightfield. A map may contain
+sixteen storeys (`-1` through `-16`), each 2.4 world units below the previous one. Excavated cells
+are stored as compact row runs with one of the existing interior styles; sand, water and grass are
+not underground coatings. The Field palette can excavate a rectangular room/block or long narrow
+tunnel, apply the same footprint through every storey as a deep bulk excavation, refill a volume,
+and place a multi-cell stair flight between the selected storey and the one above. These operations
+are single undo entries and the depth selector also selects the storey rendered by the editor.
+
+Compilation turns each run into finite floor and ceiling slabs plus merged perimeter-wall segments.
+The original level-zero terrain remains above those volumes and is still a walkable surface. Floor
+and ceiling spans are opened only under connecting stairs, whose absolute endpoints span the full
+2.4-unit storey rather than one 0.9-unit terrain tier. Shared terrain queries filter the surface
+terrain by the moving body's vertical ceiling before considering underground platforms, so a hero
+below the map cannot be snapped back onto the ground above. Saved hero positions use the same
+body-bounded lookup on restore. Renderer and collision both consume the compiled underground
+document; gameplay selects the visible storey from the local hero's reported `y`, while the camera
+continues following the sampled stair/floor elevation and therefore descends continuously instead
+of teleporting between views. The editor can address a storey directly without altering gameplay
+state. Canvas padding/cropping shifts underground runs and stairs with every other authored cell.
+
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
 static visuals in place; event edits reuse the same path while their preview remains dynamic. The

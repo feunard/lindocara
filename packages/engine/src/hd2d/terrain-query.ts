@@ -67,6 +67,9 @@ export interface TerrainRamp {
   depth: number;
   direction: RampDirection;
   lowLevel: number;
+  /** Absolute endpoints for multi-storey ramps. Legacy terrain stairs derive them from lowLevel. */
+  lowHeight?: number;
+  highHeight?: number;
 }
 
 export interface TerrainRampSample extends TerrainRamp {
@@ -178,14 +181,14 @@ function rampSampleAt(
       ? THREELESS_CLAMP((wx - ramp.x) / ramp.width)
       : THREELESS_CLAMP((wz - ramp.z) / ramp.depth);
     const progress = ramp.direction === "east" || ramp.direction === "south" ? along : 1 - along;
-    const lowHeight = ramp.lowLevel * levelHeight;
-    const highHeight = (ramp.lowLevel + 1) * levelHeight;
+    const lowHeight = ramp.lowHeight ?? ramp.lowLevel * levelHeight;
+    const highHeight = ramp.highHeight ?? (ramp.lowLevel + 1) * levelHeight;
     return {
       ...ramp,
       progress,
       lowHeight,
       highHeight,
-      height: lowHeight + progress * levelHeight,
+      height: lowHeight + progress * (highHeight - lowHeight),
     };
   }
   return null;
@@ -248,8 +251,9 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     surfaceAt(wx, wz, ceilingY) {
       const ground = groundHeightAt(wx, wz);
       const platform = platformAt(wx, wz, ceilingY);
-      if (platform === null) return ground;
-      return ground === null ? platform : Math.max(ground, platform);
+      const reachableGround = ground !== null && ground <= ceilingY + 1e-3 ? ground : null;
+      if (platform === null) return reachableGround;
+      return reachableGround === null ? platform : Math.max(reachableGround, platform);
     },
     platformSurfaceAround(wx, wz, radius, ceilingY) {
       let surface: number | null = null;
@@ -264,6 +268,12 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     },
     maxHeightAround(wx, wz, r, ceilingY) {
       let max = Number.NEGATIVE_INFINITY;
+      const centreGround = ceilingY === undefined ? null : groundHeightAt(wx, wz);
+      const beneathSurface =
+        ceilingY !== undefined &&
+        platformAt(wx, wz, ceilingY) !== null &&
+        centreGround !== null &&
+        centreGround > ceilingY + 1e-3;
       for (let j = toCell(wz - r); j <= toCell(wz + r); j++) {
         for (let i = toCell(wx - r); i <= toCell(wx + r); i++) {
           // Point of the cell closest to the center: a cell only grazed by the corner of the
@@ -278,14 +288,14 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
           if ((nx - wx) ** 2 + (nz - wz) ** 2 > r * r) continue;
           const h = at(i, j);
           const liquidLevel = liquidLevelAt?.(i, j);
-          max = Math.max(
-            max,
+          const candidate =
             h === null
               ? liquidLevel === null || liquidLevel === undefined
                 ? waterLevel
                 : liquidLevel * levelHeight
-              : h * levelHeight,
-          );
+              : h * levelHeight;
+          if (!beneathSurface || candidate <= (ceilingY ?? Number.POSITIVE_INFINITY) + 1e-3)
+            max = Math.max(max, candidate);
         }
       }
       if (ceilingY !== undefined) {

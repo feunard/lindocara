@@ -1,6 +1,11 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
-import type { ElevationStep, StairsDirection } from "@lindocara/engine/tile-brush.js";
+import type { InteriorShellStyle } from "@lindocara/engine/map-environment.js";
+import type {
+  ElevationStep,
+  RampDirection,
+  StairsDirection,
+} from "@lindocara/engine/tile-brush.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 
@@ -66,10 +71,21 @@ interface TerrainPaletteProps {
   interior: boolean;
   wallOpeningOperation: "open" | "close" | null;
   wallOpeningPending: boolean;
+  undergroundOperation: "dig" | "tunnel" | "fill" | "shaft" | "stairs" | null;
+  undergroundDepth: number;
+  undergroundStyle: InteriorShellStyle;
+  undergroundWidth: number;
+  undergroundLength: number;
+  undergroundDirection: RampDirection;
   onPickContent(content: RectFillContent): void;
   onSelectStairs(): void;
   onSelectSpawn(): void;
   onSelectWallOpening(operation: "open" | "close"): void;
+  onSelectUnderground(operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs"): void;
+  onUndergroundDepthChange(depth: number): void;
+  onUndergroundStyleChange(style: InteriorShellStyle): void;
+  onUndergroundSizeChange(width: number, length: number): void;
+  onUndergroundDirectionChange(direction: RampDirection): void;
 }
 
 /**
@@ -91,10 +107,21 @@ export function TerrainPalette({
   interior,
   wallOpeningOperation,
   wallOpeningPending,
+  undergroundOperation,
+  undergroundDepth,
+  undergroundStyle,
+  undergroundWidth,
+  undergroundLength,
+  undergroundDirection,
   onPickContent,
   onSelectStairs,
   onSelectSpawn,
   onSelectWallOpening,
+  onSelectUnderground,
+  onUndergroundDepthChange,
+  onUndergroundStyleChange,
+  onUndergroundSizeChange,
+  onUndergroundDirectionChange,
 }: TerrainPaletteProps) {
   useLocale();
 
@@ -231,6 +258,117 @@ export function TerrainPalette({
               : interior
                 ? t("editor.wallOpening.hint")
                 : t("editor.wallOpening.exterior")}
+          </p>
+        </div>
+        <div
+          data-testid="terrain-underground"
+          className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"
+        >
+          <span className="px-1 text-[11.5px] font-medium text-zinc-600">
+            {t("editor.underground.heading")}
+          </span>
+          <div className="grid grid-cols-2 gap-1">
+            <SwatchButton
+              label={t("editor.underground.dig")}
+              active={undergroundOperation === "dig"}
+              onClick={() => onSelectUnderground("dig")}
+            />
+            <SwatchButton
+              label={t("editor.underground.tunnel")}
+              active={undergroundOperation === "tunnel"}
+              onClick={() => onSelectUnderground("tunnel")}
+            />
+            <SwatchButton
+              label={t("editor.underground.shaft")}
+              active={undergroundOperation === "shaft"}
+              onClick={() => onSelectUnderground("shaft")}
+            />
+            <SwatchButton
+              label={t("editor.underground.stairs")}
+              active={undergroundOperation === "stairs"}
+              onClick={() => onSelectUnderground("stairs")}
+            />
+            <SwatchButton
+              label={t("editor.underground.fill")}
+              active={undergroundOperation === "fill"}
+              onClick={() => onSelectUnderground("fill")}
+            />
+          </div>
+          <label className="grid grid-cols-[1fr_4.5rem] items-center gap-2 text-[10.5px] text-zinc-500">
+            <span>{t("editor.underground.depth")}</span>
+            <input
+              className="h-7 rounded border border-zinc-200 px-2"
+              type="number"
+              min={1}
+              max={16}
+              value={undergroundDepth}
+              onChange={(event) => onUndergroundDepthChange(Number(event.currentTarget.value))}
+            />
+          </label>
+          <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
+            <span>{t("editor.underground.style")}</span>
+            <select
+              className="h-7 rounded border border-zinc-200 bg-white px-1"
+              value={undergroundStyle}
+              onChange={(event) =>
+                onUndergroundStyleChange(event.currentTarget.value as InteriorShellStyle)
+              }
+            >
+              {(["cave", "castle", "timber", "volcano", "mountain", "ice", "snow"] as const).map(
+                (style) => (
+                  <option key={style} value={style}>
+                    {t(`editor.interiorShell.style.${style}`)}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-1">
+            <label className="text-[10px] text-zinc-500">
+              {t("editor.underground.width")}
+              <input
+                className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
+                type="number"
+                min={1}
+                max={32}
+                value={undergroundWidth}
+                onChange={(event) =>
+                  onUndergroundSizeChange(Number(event.currentTarget.value), undergroundLength)
+                }
+              />
+            </label>
+            <label className="text-[10px] text-zinc-500">
+              {t("editor.underground.length")}
+              <input
+                className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
+                type="number"
+                min={1}
+                max={64}
+                value={undergroundLength}
+                onChange={(event) =>
+                  onUndergroundSizeChange(undergroundWidth, Number(event.currentTarget.value))
+                }
+              />
+            </label>
+          </div>
+          <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
+            <span>{t("editor.underground.direction")}</span>
+            <select
+              className="h-7 rounded border border-zinc-200 bg-white px-1"
+              value={undergroundDirection}
+              onChange={(event) =>
+                onUndergroundDirectionChange(event.currentTarget.value as RampDirection)
+              }
+            >
+              {(["north", "east", "south", "west"] as const).map((direction) => (
+                <option key={direction} value={direction}>
+                  {t(`editor.underground.direction.${direction}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="px-1 text-[10.5px] leading-snug text-zinc-500">
+            {t("editor.underground.hint")}
           </p>
         </div>
         <SwatchButton

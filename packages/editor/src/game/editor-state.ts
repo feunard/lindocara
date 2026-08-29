@@ -65,6 +65,7 @@ import {
   type MapData,
   type MapElement,
   type MapMarkers,
+  type UndergroundMap,
   MIN_PATROL_RADIUS,
   parseMapData,
   sameElementSlot,
@@ -143,6 +144,13 @@ import {
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
   LINDOCARA_CHEST_OPEN_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  compactUndergroundCells,
+  DEFAULT_UNDERGROUND_STAIR_LENGTH,
+  DEFAULT_UNDERGROUND_STAIR_WIDTH,
+  MAX_UNDERGROUND_DEPTH,
+  undergroundCells,
+} from "@lindocara/engine/underground.js";
 
 /**
  * A map open in the editor: the three tile layers themselves, exactly as they will be saved.
@@ -158,6 +166,8 @@ export interface EditorMap {
   environment?: MapEnvironment;
   /** World-space room/corridor envelope. Absent preserves legacy open interiors. */
   interiorShell?: InteriorShell;
+  /** True multi-storey volumes below the surface. */
+  underground?: UndergroundMap;
   /** The authored weather. Missing reads as a clear sky, which is every map written before it. */
   weather?: MapWeather;
   /** Per-channel map overrides. Missing values inherit the adventure defaults. */
@@ -284,6 +294,16 @@ export type EditorTool =
    * yaw so a cell where two ramps genuinely fit climbs the way the author is looking.
    */
   | { kind: "stairs"; prefer?: RampDirection }
+  | {
+      kind: "underground";
+      operation: "dig" | "fill" | "shaft" | "stairs";
+      depth: number;
+      style: InteriorShell["style"];
+      /** Rectangle dimensions; a tunnel is simply a long, narrow rectangle. */
+      width: number;
+      length: number;
+      direction: RampDirection;
+    }
   | { kind: "wall-opening"; operation: "open" | "close" }
   /**
    * Two clicks, one round trip: pick a door, pick another door on the same map, and both get a
@@ -344,6 +364,7 @@ const MODE_TOOLS: Record<EditorMode, readonly EditorTool["kind"][]> = {
     "rect",
     "fill",
     "stairs",
+    "underground",
     "wall-opening",
     "spawn",
     "eraser",
@@ -1300,6 +1321,7 @@ export function toMapData(map: EditorMap): MapData {
     tilesetId: TINY_SWORDS_TILESET_ID,
     environment: map.environment ?? "exterior",
     ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
+    ...(map.underground ? { underground: map.underground } : {}),
     weather: map.weather ?? "none",
     cols,
     rows,
@@ -2086,6 +2108,90 @@ export function placedAssetId(
   );
 }
 
+function applyUndergroundTool(
+  map: EditorMap,
+  tool: Extract<EditorTool, { kind: "underground" }>,
+  col: number,
+  row: number,
+): EditorMap | null {
+  const { cols, rows } = editorMapSize(map);
+  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  const alongX = tool.direction === "east" || tool.direction === "west";
+  const footprintCols =
+    tool.operation === "stairs" ? (alongX ? tool.length : tool.width) : tool.width;
+  const footprintRows =
+    tool.operation === "stairs" ? (alongX ? tool.width : tool.length) : tool.length;
+  const c0 = Math.max(0, Math.min(cols - 1, col));
+  const r0 = Math.max(0, Math.min(rows - 1, row));
+  const c1 = Math.min(cols, c0 + Math.max(1, Math.trunc(footprintCols)));
+  const r1 = Math.min(rows, r0 + Math.max(1, Math.trunc(footprintRows)));
+  if (c1 <= c0 || r1 <= r0) return null;
+
+  const source = map.underground ?? { levels: [], stairs: [] };
+  const byDepth = new Map(source.levels.map((level) => [level.depth, level]));
+  const touchedDepths =
+    tool.operation === "shaft"
+      ? Array.from({ length: depth }, (_unused, index) => index + 1)
+      : tool.operation === "stairs" && depth > 1
+        ? [depth - 1, depth]
+        : [depth];
+  for (const touchedDepth of touchedDepths) {
+    const previous = byDepth.get(touchedDepth);
+    const cells = undergroundCells(previous, Math.max(cols, rows));
+    for (let cellRow = r0; cellRow < r1; cellRow += 1) {
+      for (let cellCol = c0; cellCol < c1; cellCol += 1) {
+        cells[cellRow * Math.max(cols, rows) + cellCol] = tool.operation === "fill" ? 0 : 1;
+      }
+    }
+    const compact = compactUndergroundCells(cells, Math.max(cols, rows));
+    if (compact.length === 0) byDepth.delete(touchedDepth);
+    else
+      byDepth.set(touchedDepth, {
+        depth: touchedDepth,
+        style: tool.operation === "fill" ? (previous?.style ?? tool.style) : tool.style,
+        cells: compact,
+      });
+  }
+  let stairs = source.stairs.filter((stair) => {
+    if (tool.operation !== "fill" || stair.depth !== depth) return true;
+    const stairAlongX = stair.direction === "east" || stair.direction === "west";
+    const stairCols = stairAlongX ? stair.length : stair.width;
+    const stairRows = stairAlongX ? stair.width : stair.length;
+    return (
+      stair.col + stairCols <= c0 ||
+      stair.col >= c1 ||
+      stair.row + stairRows <= r0 ||
+      stair.row >= r1
+    );
+  });
+  if (tool.operation === "stairs") {
+    const requestedLength = Math.max(
+      2,
+      Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH),
+    );
+    const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
+    const stairLength = Math.min(requestedLength, alongX ? c1 - c0 : r1 - r0);
+    const stairWidth = Math.min(requestedWidth, alongX ? r1 - r0 : c1 - c0);
+    if (stairLength < 2 || stairWidth < 1) return null;
+    stairs = [
+      ...stairs.filter((stair) => stair.depth !== depth || stair.col !== c0 || stair.row !== r0),
+      {
+        depth,
+        col: c0,
+        row: r0,
+        direction: tool.direction,
+        length: stairLength,
+        width: stairWidth,
+      },
+    ];
+  }
+  const underground: UndergroundMap = {
+    levels: [...byDepth.values()].sort((left, right) => left.depth - right.depth),
+    stairs,
+  };
+  return { ...map, underground };
+}
+
 export function applyTool(
   map: EditorMap,
   tool: EditorTool,
@@ -2106,6 +2212,8 @@ export function applyTool(
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
 
   switch (tool.kind) {
+    case "underground":
+      return applyUndergroundTool(map, tool, col, row);
     case "block": {
       // Grass goes through `paintElevation` at level 0 rather than a bare `paintAutotile`: painting
       // flat ground under a raised cell must also take away the cliff face that cell was casting.

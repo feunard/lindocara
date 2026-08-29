@@ -37,6 +37,7 @@ import { isUuid } from "./identifiers.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
   type InteriorShell,
+  type InteriorShellStyle,
   type MapEnvironment,
   parseInteriorShell,
   parseMapEnvironment,
@@ -48,6 +49,7 @@ import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
 import { isRampFixedIndex, tilesetById, waterLevelOfTileId } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
+import { parseUnderground } from "./underground.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
@@ -155,6 +157,8 @@ export interface MapData {
   environment?: MapEnvironment;
   /** Optional world-space cutaway generated around the authored floor boundary. */
   interiorShell?: InteriorShell;
+  /** Authored rooms and passages below the surface, kept compact as row runs. */
+  underground?: UndergroundMap;
   /** The authored weather. Absent on every map written before it existed, which reads as `none`.
    *  Appearance only, like `environment`: nothing here may reach collision. */
   weather?: MapWeather;
@@ -167,6 +171,40 @@ export interface MapData {
   spawn: { col: number; row: number };
   /** Absent on legacy payloads; parseMapData always fills it (EMPTY_MARKERS when omitted). */
   markers?: MapMarkers;
+}
+
+/** One contiguous excavated span. Runs keep a sixteen-storey map small even for large rooms. */
+export interface UndergroundCellRun {
+  col: number;
+  row: number;
+  length: number;
+}
+
+export interface UndergroundLevel {
+  /** 1 is immediately below the surface; 16 is the deepest supported storey. */
+  depth: number;
+  /** Reuses the established interior coating language and its existing assets. */
+  style: InteriorShellStyle;
+  cells: readonly UndergroundCellRun[];
+}
+
+export interface UndergroundStair {
+  /** Lower storey reached by this flight. A depth-1 flight opens onto the surface. */
+  depth: number;
+  /** Minimum cell of the rectangular flight footprint. */
+  col: number;
+  row: number;
+  /** Direction in which the flight climbs toward the upper storey. */
+  direction: "east" | "west" | "north" | "south";
+  /** Length along the slope. Three cells gives comfortable headroom at 2.4 world units. */
+  length: number;
+  /** Width across the slope. */
+  width: number;
+}
+
+export interface UndergroundMap {
+  levels: readonly UndergroundLevel[];
+  stairs: readonly UndergroundStair[];
 }
 
 /**
@@ -808,6 +846,23 @@ export function parseMapData(value: unknown): MapData | null {
   const width = cols as number;
   const height = rows as number;
   if (width <= 0 || height <= 0) return null;
+  const underground =
+    record.underground === undefined
+      ? undefined
+      : parseUnderground(record.underground, Math.max(width, height));
+  if (record.underground !== undefined && !underground) return null;
+  if (
+    underground?.levels.some((level) =>
+      level.cells.some((run) => run.row >= height || run.col + run.length > width),
+    ) ||
+    underground?.stairs.some((stair) => {
+      const alongX = stair.direction === "east" || stair.direction === "west";
+      const cols = alongX ? stair.length : stair.width;
+      const rows = alongX ? stair.width : stair.length;
+      return stair.col + cols > width || stair.row + rows > height;
+    })
+  )
+    return null;
   if (interiorShell?.innerWalls?.some((run) => run.row >= height || run.col + run.length > width))
     return null;
   if (
@@ -847,6 +902,7 @@ export function parseMapData(value: unknown): MapData | null {
   return {
     environment,
     ...(interiorShell ? { interiorShell } : {}),
+    ...(underground ? { underground } : {}),
     tilesetId,
     cols: width,
     rows: height,

@@ -20,12 +20,23 @@ function fieldBody() {
     interior: true,
     wallOpeningOperation: null,
     wallOpeningPending: false,
+    undergroundOperation: null,
+    undergroundDepth: 1,
+    undergroundStyle: "cave" as const,
+    undergroundWidth: 3,
+    undergroundLength: 6,
+    undergroundDirection: "east" as const,
     onPickContent: () => {},
     onSelectStairs: () => {},
     onStairsDirectionChange: () => {},
     onStairsLowLevelChange: () => {},
     onSelectSpawn: () => {},
     onSelectWallOpening: () => {},
+    onSelectUnderground: () => {},
+    onUndergroundDepthChange: () => {},
+    onUndergroundStyleChange: () => {},
+    onUndergroundSizeChange: () => {},
+    onUndergroundDirectionChange: () => {},
   };
 }
 

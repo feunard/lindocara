@@ -16,7 +16,7 @@
  * map's own entry instead, so shifting it would be both wrong and pointless.
  */
 import type { EventCommand } from "./event-commands.js";
-import type { MapElement, MapMarkers } from "./map-data.js";
+import type { MapElement, MapMarkers, UndergroundMap } from "./map-data.js";
 import { EMPTY_MARKERS, MAP_LAYERS } from "./map-data.js";
 import type {
   InteriorShell,
@@ -48,6 +48,7 @@ export interface MapCanvasContent {
   readonly elements: readonly MapElement[];
   readonly spawn: { readonly col: number; readonly row: number };
   readonly interiorShell?: InteriorShell | undefined;
+  readonly underground?: UndergroundMap | undefined;
   readonly markers?: MapMarkers | undefined;
   readonly events?: readonly MapEvent[] | undefined;
 }
@@ -60,6 +61,7 @@ export interface CanvasMapPatch {
   markers: MapMarkers;
   events: MapEvent[];
   interiorShell?: InteriorShell;
+  underground?: UndergroundMap;
 }
 
 function layerDims(map: MapCanvasContent): { cols: number; rows: number } {
@@ -279,6 +281,33 @@ function shiftMapContent(
         ...(innerWalls && innerWalls.length > 0 ? { innerWalls } : {}),
       }
     : undefined;
+  const underground: UndergroundMap | undefined = map.underground
+    ? {
+        levels: map.underground.levels.flatMap((level) => {
+          const cells = level.cells.flatMap((run) => {
+            const row = run.row + dRow;
+            if (row < 0 || row >= rows) return [];
+            const start = Math.max(0, run.col + dCol);
+            const end = Math.min(cols, run.col + run.length + dCol);
+            return end <= start ? [] : [{ col: start, row, length: end - start }];
+          });
+          return cells.length === 0 ? [] : [{ ...level, cells }];
+        }),
+        stairs: map.underground.stairs
+          .map((stair) => ({ ...stair, col: stair.col + dCol, row: stair.row + dRow }))
+          .filter((stair) => {
+            const alongX = stair.direction === "east" || stair.direction === "west";
+            const stairCols = alongX ? stair.length : stair.width;
+            const stairRows = alongX ? stair.width : stair.length;
+            return (
+              stair.col >= 0 &&
+              stair.row >= 0 &&
+              stair.col + stairCols <= cols &&
+              stair.row + stairRows <= rows
+            );
+          }),
+      }
+    : undefined;
   return {
     layers: Array.from({ length: MAP_LAYERS }, (_unused, index) =>
       shiftLayer(map.layers[index], dCol, dRow, cols, rows),
@@ -295,6 +324,7 @@ function shiftMapContent(
       pages: shiftEventPages(event.pages, selfMapId, dCol, dRow),
     })),
     ...(interiorShell ? { interiorShell } : {}),
+    ...(underground ? { underground } : {}),
   };
 }
 
@@ -341,6 +371,20 @@ export function contentBounds(map: MapCanvasContent, selfMapId?: string): MapRec
     include(
       run.col + (run.side === "north" || run.side === "south" ? run.length - 1 : 0),
       run.row + (run.side === "east" || run.side === "west" ? run.length - 1 : 0),
+    );
+  }
+  for (const level of map.underground?.levels ?? []) {
+    for (const run of level.cells) {
+      include(run.col, run.row);
+      include(run.col + run.length - 1, run.row);
+    }
+  }
+  for (const stair of map.underground?.stairs ?? []) {
+    const alongX = stair.direction === "east" || stair.direction === "west";
+    include(stair.col, stair.row);
+    include(
+      stair.col + (alongX ? stair.length : stair.width) - 1,
+      stair.row + (alongX ? stair.width : stair.length) - 1,
     );
   }
   for (const element of map.elements) include(element.col, element.row);

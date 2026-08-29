@@ -21,6 +21,7 @@ import {
   parseElementOrientation,
   parseElementRotation,
 } from "../element-orientation.js";
+import type { UndergroundMap } from "../map-data.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
   type InteriorShell,
@@ -30,6 +31,7 @@ import {
 } from "../map-environment.js";
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
 import { isNativeSceneryAsset } from "../native-scenery.js";
+import { parseUnderground } from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
@@ -100,6 +102,8 @@ export interface MapData {
   environment?: MapEnvironment;
   /** Optional world-space cutaway shell, rendered from the same boundary as its colliders. */
   interiorShell?: InteriorShell;
+  /** Compact authored volumes below the surface; colliders remain the movement authority. */
+  underground?: UndergroundMap;
   /**
    * The authored weather. Optional for every heightfield written before it existed, which read as
    * `none` and still do.
@@ -304,6 +308,16 @@ function toRamp(value: unknown): TerrainRamp | null {
   ) {
     return null;
   }
+  const lowHeight = value.lowHeight;
+  const highHeight = value.highHeight;
+  if (
+    (lowHeight !== undefined && !isFiniteNumber(lowHeight)) ||
+    (highHeight !== undefined && !isFiniteNumber(highHeight)) ||
+    (lowHeight === undefined) !== (highHeight === undefined) ||
+    (isFiniteNumber(lowHeight) && isFiniteNumber(highHeight) && lowHeight >= highHeight)
+  ) {
+    return null;
+  }
   return {
     x: value.x,
     z: value.z,
@@ -311,6 +325,7 @@ function toRamp(value: unknown): TerrainRamp | null {
     depth: value.depth,
     direction: value.direction,
     lowLevel: value.lowLevel as number,
+    ...(isFiniteNumber(lowHeight) && isFiniteNumber(highHeight) ? { lowHeight, highHeight } : {}),
   };
 }
 
@@ -360,6 +375,12 @@ export function decodeMap(s: string): MapData | null {
   )
     return null;
   if (!isFiniteNumber(levelHeight) || !isFiniteNumber(waterLevel)) return null;
+
+  const underground =
+    value.underground === undefined
+      ? undefined
+      : parseUnderground(value.underground, size as number);
+  if (value.underground !== undefined && !underground) return null;
 
   const cells = (size as number) * (size as number);
   if (!Array.isArray(levels) || levels.length !== cells) return null;
@@ -424,6 +445,7 @@ export function decodeMap(s: string): MapData | null {
     version: 1,
     environment,
     ...(interiorShell ? { interiorShell } : {}),
+    ...(underground ? { underground } : {}),
     // Present only when the source declared one, exactly like `ramps` below and unlike
     // `environment`: a heightfield written before weather existed must decode to the same object it
     // encoded from, or every round-trip fixture in the suite gains a key it never had.
