@@ -154,7 +154,20 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     // footprint is over LAND, which has no water, so the lookup answers the distant sea and the
     // swimmer cannot climb out. Both were live bugs; with one global water level neither could
     // happen, because every lookup returned the same number.
-    if (state.swimming) return h - state.y <= climb;
+    if (state.swimming) {
+      // A higher lava surface is not a shore the body can mantle onto. Treating every swimmer as
+      // water-capable let a hero rise straight through a vertical lava step (and snap upward to
+      // its surface) whenever the height happened to fit the ordinary bank-climb allowance.
+      const destinationLiquid = liquidAtElevation(query, xx, foot, state.y);
+      if (
+        state.liquid === "lava" &&
+        destinationLiquid === "lava" &&
+        liquidSurfaceAtElevation(query, xx, foot, state.y) > state.y + 1e-3
+      ) {
+        return false;
+      }
+      return h - state.y <= climb;
+    }
     if (state.airborne) return h <= state.y + 0.02;
     if (platformHeight !== null) return true;
     if (rampCeiling !== null && h <= rampCeiling) return true;

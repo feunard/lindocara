@@ -25,6 +25,26 @@ describe("stepHero - lava", () => {
     expect(events).toContain("entree-eau");
     expect(events).not.toContain("noyade");
   });
+
+  it("does not climb directly from lava into an adjacent raised lava shelf", () => {
+    const deps = depsPlates({
+      hauteur: () => null,
+      liquide: () => "lava",
+      eau: (x) => (x < 0 ? 0 : 0.9),
+      maxAutour: (x) => (x < 0 ? 0 : 0.9),
+    });
+    const state = createHeroState(-0.4, 0, 0, 12, 2.2);
+    state.swimming = true;
+    state.liquid = "lava";
+
+    for (let index = 0; index < 120; index += 1) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    }
+
+    expect(state.x).toBeLessThan(0);
+    expect(state.y).toBeCloseTo(0);
+    expect(state.swimming).toBe(true);
+  });
 });
 
 describe("stepHero — swimming", () => {
