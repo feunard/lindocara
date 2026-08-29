@@ -78,7 +78,11 @@ import {
   editorAsset,
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
-import { undergroundFloorHeight } from "@lindocara/engine/underground.js";
+import {
+  undergroundFloorHeight,
+  undergroundRamp,
+  undergroundStyleMaterial,
+} from "@lindocara/engine/underground.js";
 import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
@@ -123,6 +127,7 @@ import {
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
   updateSelectedNativeSceneryDimensions,
+  undergroundStairPlacement,
 } from "./editor-state.js";
 import {
   authoredEventPreviewSnapshots,
@@ -946,12 +951,16 @@ export function openMapEditorStage(
         hover && tool.kind === "stairs" && groundLayer
           ? inferStairsRun(groundLayer, hover.col, hover.row, stairsPreference())
           : null;
+      const hoveredUndergroundStair =
+        hover && tool.kind === "underground" && tool.operation === "stairs"
+          ? undergroundStairPlacement(map, tool, hover.col, hover.row)
+          : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
       const rotation = selectedRotationGuide();
       const rect = derivedRect();
       const undergroundStamp =
-        hover && tool.kind === "underground"
+        hover && tool.kind === "underground" && tool.operation !== "stairs"
           ? (() => {
               const shaftRect =
                 tool.operation === "shaft" && tool.shape === "rect" && map.strokeAnchor
@@ -963,7 +972,7 @@ export function openMapEditorStage(
                     }
                   : null;
               const alongX = tool.direction === "east" || tool.direction === "west";
-              const followsDirection = tool.operation === "stairs" || tool.operation === "tunnel";
+              const followsDirection = tool.operation === "tunnel";
               const requestedCols = followsDirection
                 ? alongX
                   ? tool.length
@@ -1053,7 +1062,26 @@ export function openMapEditorStage(
                 valid: hoveredStairs !== null,
                 levelHeight: heightfield.levelHeight,
               }
-            : null,
+            : hover && tool.kind === "underground" && tool.operation === "stairs"
+              ? {
+                  ramps: [
+                    undergroundRamp(
+                      hoveredUndergroundStair ?? {
+                        depth: Math.max(1, Math.min(16, Math.trunc(tool.depth))),
+                        col: hover.col,
+                        row: hover.row,
+                        direction: tool.direction,
+                        length: Math.max(2, Math.trunc(tool.length)),
+                        width: Math.max(1, Math.trunc(tool.width)),
+                      },
+                      size,
+                    ),
+                  ],
+                  valid: hoveredUndergroundStair !== null,
+                  levelHeight: heightfield.levelHeight,
+                  material: undergroundStyleMaterial(tool.style),
+                }
+              : null,
         // Two shapes through one channel. With an asset it is the scenery ghost and its footprint;
         // WITHOUT one it is a bare validity cell, which is what a tool that places no art still owes
         // the author. The hero start point is the case that asked for it: its two guards (covered by

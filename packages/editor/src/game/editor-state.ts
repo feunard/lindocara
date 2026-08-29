@@ -66,6 +66,7 @@ import {
   type MapElement,
   type MapMarkers,
   type UndergroundMap,
+  type UndergroundStair,
   MIN_PATROL_RADIUS,
   parseMapData,
   sameElementSlot,
@@ -2283,6 +2284,29 @@ function applyUndergroundShaftCells(
   };
 }
 
+/** Exact stair record a click would write, including edge clipping; null is a visible refusal. */
+export function undergroundStairPlacement(
+  map: EditorMap,
+  tool: Extract<EditorTool, { kind: "underground" }>,
+  col: number,
+  row: number,
+): UndergroundStair | null {
+  if (tool.operation !== "stairs") return null;
+  const { cols, rows } = editorMapSize(map);
+  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  const alongX = tool.direction === "east" || tool.direction === "west";
+  const c0 = Math.max(0, Math.min(cols - 1, col));
+  const r0 = Math.max(0, Math.min(rows - 1, row));
+  const requestedLength = Math.max(2, Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH));
+  const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
+  const availableLength = alongX ? cols - c0 : rows - r0;
+  const availableWidth = alongX ? rows - r0 : cols - c0;
+  const length = Math.min(requestedLength, availableLength);
+  const width = Math.min(requestedWidth, availableWidth);
+  if (length < 2 || width < 1) return null;
+  return { depth, col: c0, row: r0, direction: tool.direction, length, width };
+}
+
 function applyUndergroundTool(
   map: EditorMap,
   tool: Extract<EditorTool, { kind: "underground" }>,
@@ -2300,6 +2324,9 @@ function applyUndergroundTool(
   const c1 = Math.min(cols, c0 + Math.max(1, Math.trunc(footprintCols)));
   const r1 = Math.min(rows, r0 + Math.max(1, Math.trunc(footprintRows)));
   if (c1 <= c0 || r1 <= r0) return null;
+  const stairPlacement =
+    tool.operation === "stairs" ? undergroundStairPlacement(map, tool, col, row) : null;
+  if (tool.operation === "stairs" && !stairPlacement) return null;
 
   if (tool.operation === "shaft") {
     const selectedCells: Array<{ col: number; row: number }> = [];
@@ -2392,24 +2419,10 @@ function applyUndergroundTool(
     );
   });
   if (tool.operation === "stairs") {
-    const requestedLength = Math.max(
-      2,
-      Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH),
-    );
-    const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
-    const stairLength = Math.min(requestedLength, alongX ? c1 - c0 : r1 - r0);
-    const stairWidth = Math.min(requestedWidth, alongX ? r1 - r0 : c1 - c0);
-    if (stairLength < 2 || stairWidth < 1) return null;
+    if (!stairPlacement) return null;
     stairs = [
       ...stairs.filter((stair) => stair.depth !== depth || stair.col !== c0 || stair.row !== r0),
-      {
-        depth,
-        col: c0,
-        row: r0,
-        direction: tool.direction,
-        length: stairLength,
-        width: stairWidth,
-      },
+      stairPlacement,
     ];
   }
   const underground: UndergroundMap = {

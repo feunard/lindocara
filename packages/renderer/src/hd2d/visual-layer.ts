@@ -2,7 +2,7 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { HeroEvent } from "@lindocara/engine/hd2d/hero-state.js";
-import type { TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
+import type { TerrainMaterial, TerrainRamp } from "@lindocara/engine/hd2d/terrain-query.js";
 import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import { PEASANT_RATION_ARC_HEIGHT } from "@lindocara/engine/peasant-support.js";
 import type {
@@ -184,7 +184,12 @@ export interface Hd2dEditorOverlay {
     elevation: number;
     operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs";
   } | null;
-  stairsPreview?: { ramps: readonly TerrainRamp[]; valid: boolean; levelHeight: number } | null;
+  stairsPreview?: {
+    ramps: readonly TerrainRamp[];
+    valid: boolean;
+    levelHeight: number;
+    material?: TerrainMaterial;
+  } | null;
   assetPreview?: {
     point: GroundVector;
     footprint: readonly GroundVector[];
@@ -2086,7 +2091,8 @@ export class Hd2dVisualLayer {
           levelHeight: overlay.stairsPreview.levelHeight,
           // The preview is tinted a flat highlight colour anyway, but it still asks for the right
           // bank's atlas: the ghost's geometry must be the geometry the real ramp will have.
-          atlasFor: (level) => atlases[terrainAtlasKey("herbe", level)] ?? fallback,
+          atlasFor: (level) =>
+            atlases[terrainAtlasKey(overlay.stairsPreview?.material ?? "herbe", level)] ?? fallback,
           color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
           opacity: 0.58,
           lift: 0.03,

@@ -475,6 +475,51 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("previews the complete underground stair flight and its refusal before placement", async () => {
+    const stage = await openMapEditorStage(blankMap("Map", 20, 15), vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -4.5, z: -4.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    stage.setTool({
+      kind: "underground",
+      operation: "stairs",
+      depth: 2,
+      style: "cave",
+      width: 1,
+      length: 4,
+      direction: "east",
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        undergroundStamp: null,
+        stairsPreview: expect.objectContaining({
+          valid: true,
+          material: "grotte",
+          ramps: [
+            expect.objectContaining({
+              direction: "east",
+              width: 4,
+              depth: 1,
+              lowHeight: -4.8,
+              highHeight: -2.4,
+            }),
+          ],
+        }),
+      }),
+    );
+
+    // At the east edge only one cell remains: the same ghost stays visible, but turns invalid.
+    point.x = 9.5;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 11, clientY: 10 }));
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stairsPreview: expect.objectContaining({ valid: false }) }),
+    );
+    stage.dispose();
+  });
+
   it("shows the hero start point where it may go, and refuses out loud where it may not", async () => {
     const withTree = applyTool(
       blankMap("Map", 20, 15),
