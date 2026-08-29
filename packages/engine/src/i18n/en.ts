@@ -1487,7 +1487,7 @@ export const en = {
   "editor.underground.shaft": "Direct hole",
   "editor.underground.stairs": "Down stairs",
   "editor.underground.fill": "Fill in",
-  "editor.underground.depth": "Storey (−1 to −16)",
+  "editor.underground.depth": "Target depth (−1 to −16)",
   "editor.level.label": "Level",
   "editor.level.surface": "Surface",
   "editor.level.hint": "Terrain, Scenery and Event tools act on this level.",
@@ -1500,14 +1500,15 @@ export const en = {
   "editor.underground.direction.south": "South",
   "editor.underground.direction.west": "West",
   "editor.underground.hint":
-    "The translucent surface remains as a guide. Stairs connect two storeys; a shaft truly opens the ground down to the selected depth.",
+    "The selected level is isolated for precise editing; accesses continuing below remain visible. A shaft truly opens the ground down to the chosen depth.",
   "editor.underground.hint.dig": "Excavates a rectangular room only on the selected storey.",
   "editor.underground.hint.tunnel": "Excavates a narrow gallery in the selected direction.",
   "editor.underground.hint.shaft":
     "Opens one cell to the selected depth. Use Pencil, Rectangle or Fill in the toolbar to choose its shape; the fall is physical and the bottom remains visible.",
   "editor.underground.hint.stairs":
-    "Connects two levels progressively and creates the required landings automatically.",
-  "editor.underground.hint.fill": "Fills the selected volume and removes its underground content.",
+    "Progressively connects the displayed level to the target depth using 3 cells per crossed storey. The preview turns red when the full slope cannot fit.",
+  "editor.underground.hint.fill":
+    "Fills and clears the chosen area. Use Pencil, Rectangle or Fill in the toolbar.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",

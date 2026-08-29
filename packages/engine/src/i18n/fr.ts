@@ -1503,7 +1503,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.shaft": "Trou direct",
   "editor.underground.stairs": "Escalier descendant",
   "editor.underground.fill": "Reboucher",
-  "editor.underground.depth": "Étage (−1 à −16)",
+  "editor.underground.depth": "Profondeur cible (−1 à −16)",
   "editor.level.label": "Niveau",
   "editor.level.surface": "Surface",
   "editor.level.hint": "Terrain, Décors et Événements agissent sur ce niveau.",
@@ -1516,14 +1516,15 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.direction.south": "Sud",
   "editor.underground.direction.west": "Ouest",
   "editor.underground.hint":
-    "La surface translucide reste visible comme repère. Un escalier relie deux étages ; un puits ouvre réellement le sol jusqu’à la profondeur choisie.",
+    "Le niveau sélectionné est isolé pour une édition précise ; les accès qui continuent plus bas restent visibles. Un puits ouvre réellement le sol jusqu’à la profondeur choisie.",
   "editor.underground.hint.dig": "Creuse une salle rectangulaire uniquement au niveau choisi.",
   "editor.underground.hint.tunnel": "Creuse une galerie étroite dans le sens choisi.",
   "editor.underground.hint.shaft":
     "Ouvre une case jusqu’à la profondeur choisie. Utilisez Crayon, Rectangle ou Remplissage dans la barre d’outils pour choisir la forme ; la chute est réelle et le fond reste visible.",
   "editor.underground.hint.stairs":
-    "Relie progressivement deux niveaux et crée automatiquement les paliers nécessaires.",
-  "editor.underground.hint.fill": "Rebouche le volume choisi et retire son contenu souterrain.",
+    "Relie progressivement le niveau actuellement affiché à la profondeur cible, à raison de 3 cases par étage traversé. L’aperçu devient rouge si toute la pente ne tient pas.",
+  "editor.underground.hint.fill":
+    "Rebouche et nettoie la zone choisie. Utilisez Crayon, Rectangle ou Remplissage dans la barre d’outils.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

@@ -38,6 +38,7 @@ import {
   weatherStorms,
 } from "@lindocara/engine/map-weather.js";
 import {
+  undergroundAccessVisibleDepths,
   undergroundDepthAtElevation,
   undergroundFloorHeight,
   undergroundSurfaceOpenings,
@@ -397,6 +398,20 @@ export function stairMaterialKeyFor(
   return field.materialAt(supportCol, supportRow) ?? terrainAtlasKey("herbe", ramp.lowLevel + 1);
 }
 
+/** A multi-storey flight belongs to every view it physically crosses, including its surface mouth. */
+export function undergroundStairVisible(
+  lowDepth: number | null,
+  upperDepth: number | null,
+  visibleDepths: readonly (number | null)[],
+): boolean {
+  if (lowDepth === null) return visibleDepths.includes(null);
+  if (upperDepth === 0 && visibleDepths.includes(null)) return true;
+  const upper = upperDepth ?? lowDepth - 1;
+  return visibleDepths.some(
+    (visibleDepth) => visibleDepth !== null && visibleDepth >= upper && visibleDepth <= lowDepth,
+  );
+}
+
 // --- settings -----------------------------------------------------------------------------------
 // Transcribed from `apps/lab/src/settings.ts`. Copied rather than imported: `apps/lab` sits outside
 // the package dependency graph on purpose (root `AGENTS.md`), and no package source may reach into
@@ -598,7 +613,7 @@ export interface Hd2dScene {
   /** Sets the vertical viewing angle while keeping the same target, yaw and distance. */
   setPitch(radians: number): void;
   /** Surface (`null`) or one authored underground storey. */
-  setUndergroundDepth(depth: number | null, showSurfaceReference?: boolean): void;
+  setUndergroundDepth(depth: number | null, authoringView?: boolean): void;
   /** Presentation-only screen-space camera impulse. It never changes the followed world point. */
   setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
@@ -760,8 +775,14 @@ export function createHd2dScene(
     });
     built.group.children.forEach((child, index) => {
       const ramp = ramps[index];
-      child.userData.undergroundDepth =
+      const lowDepth =
         ramp?.lowHeight === undefined ? null : undergroundDepthAtElevation(ramp.lowHeight);
+      const highDepth =
+        ramp?.highHeight === undefined
+          ? null
+          : (undergroundDepthAtElevation(ramp.highHeight) ?? 0);
+      child.userData.undergroundDepth = lowDepth;
+      child.userData.undergroundUpperDepth = highDepth;
     });
     return built;
   };
@@ -818,7 +839,7 @@ export function createHd2dScene(
   scene.add(foam.group);
   let viewedUndergroundDepth: number | null = null;
   let undergroundElevation: number | null = null;
-  let showSurfaceReference = false;
+  let authoringUndergroundView = false;
   let terrainOpacity = 1;
   const setTerrainOpacity = (opacity: number): void => {
     if (Math.abs(opacity - terrainOpacity) < 0.005) return;
@@ -851,14 +872,18 @@ export function createHd2dScene(
         : undergroundVisibleDepthsAtElevation(undergroundElevation)),
     ];
     const seesSurface = visibleDepths.includes(null);
-    if (seesSurface) {
-      const shaftDepth = Math.max(0, ...(currentMap.underground?.shafts ?? []).map((s) => s.depth));
-      for (let depth = 1; depth <= shaftDepth; depth += 1) visibleDepths.push(depth);
+    if (seesSurface || authoringUndergroundView) {
+      for (const depth of undergroundAccessVisibleDepths(
+        currentMap.underground,
+        viewedUndergroundDepth,
+      )) {
+        if (!visibleDepths.includes(depth)) visibleDepths.push(depth);
+      }
     }
-    const surfaceBlend = showSurfaceReference
+    const surfaceBlend = authoringUndergroundView
       ? viewedUndergroundDepth === null
         ? 1
-        : 0.16
+        : 0
       : undergroundElevation !== null && undergroundElevation < 0
         ? Math.max(
             0,
@@ -891,12 +916,10 @@ export function createHd2dScene(
         : undergroundBackground;
     for (const stair of stairs.group.children) {
       const depth = stair.userData.undergroundDepth;
-      stair.visible =
-        depth === null
-          ? seesSurface
-          : visibleDepths.includes(depth) || (seesSurface && depth === 1);
+      const upperDepth = stair.userData.undergroundUpperDepth;
+      stair.visible = undergroundStairVisible(depth, upperDepth, visibleDepths);
     }
-    if (showSurfaceReference) underground.setDepth(viewedUndergroundDepth);
+    if (authoringUndergroundView) underground.setDepth(viewedUndergroundDepth);
     else underground.setElevation(undergroundElevation);
   };
 
@@ -1197,7 +1220,7 @@ export function createHd2dScene(
     // units — there is nothing to convert here any more.
     //
     focusOn(x: number, z: number, elevation?: number, airborne = false): void {
-      if (elevation !== undefined && currentMap.underground && !showSurfaceReference) {
+      if (elevation !== undefined && currentMap.underground && !authoringUndergroundView) {
         const transitioning = undergroundTransitionAt(
           currentMap.underground,
           currentMap.size,
@@ -1268,7 +1291,7 @@ export function createHd2dScene(
       viewedUndergroundDepth =
         depth === null ? null : THREE.MathUtils.clamp(Math.round(depth), 1, 16);
       undergroundElevation = null;
-      showSurfaceReference = reference && viewedUndergroundDepth !== null;
+      authoringUndergroundView = reference && viewedUndergroundDepth !== null;
       applyUndergroundVisibility();
     },
     setCameraShake: applyCameraShake,

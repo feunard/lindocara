@@ -15,8 +15,26 @@ import {
   stairMaterialKeyFor,
   terrainAtlasKey,
   terrainGroupFor,
+  undergroundStairVisible,
   waterPlaneKey,
 } from "../src/hd2d/scene.js";
+
+describe("underground stair visibility", () => {
+  it("keeps a surface-to-depth-16 flight visible from every crossed level", () => {
+    expect(undergroundStairVisible(16, 0, [null])).toBe(true);
+    for (let depth = 1; depth <= 16; depth += 1) {
+      expect(undergroundStairVisible(16, 0, [depth])).toBe(true);
+    }
+    expect(undergroundStairVisible(16, 0, [])).toBe(false);
+  });
+
+  it("does not leak a deep flight into unrelated storeys", () => {
+    expect(undergroundStairVisible(8, 3, [2])).toBe(false);
+    expect(undergroundStairVisible(8, 3, [3])).toBe(true);
+    expect(undergroundStairVisible(8, 3, [6])).toBe(true);
+    expect(undergroundStairVisible(8, 3, [9])).toBe(false);
+  });
+});
 
 describe("heightFieldFor liquids", () => {
   it("turns implicit interior water into black void while preserving volcanic lava", () => {

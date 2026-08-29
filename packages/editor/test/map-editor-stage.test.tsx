@@ -501,10 +501,10 @@ describe("HD-2D map editor stage", () => {
           ramps: [
             expect.objectContaining({
               direction: "east",
-              width: 4,
+              width: 6,
               depth: 1,
               lowHeight: -4.8,
-              highHeight: -2.4,
+              highHeight: 0,
             }),
           ],
         }),

@@ -5,6 +5,7 @@ import { canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
 import {
   MAX_UNDERGROUND_DEPTH,
   parseUnderground,
+  undergroundAccessVisibleDepths,
   undergroundColliders,
   undergroundDepthAtElevation,
   undergroundFloorHeight,
@@ -41,6 +42,47 @@ describe("multi-storey underground", () => {
     expect(
       parseUnderground({ ...underground, stairs: [{ ...underground.stairs[0], col: 7 }] }, 8),
     ).toBeNull();
+    expect(
+      parseUnderground(
+        { ...underground, stairs: [{ ...underground.stairs[0], fromDepth: 2, depth: 2 }] },
+        8,
+      ),
+    ).toBeNull();
+  });
+
+  it("connects an explicit surface departure to any authored destination depth", () => {
+    const stair = {
+      depth: 16,
+      fromDepth: 0,
+      col: 2,
+      row: 2,
+      direction: "east" as const,
+      length: 4,
+      width: 1,
+    };
+    const parsed = parseUnderground(
+      {
+        levels: Array.from({ length: 16 }, (_unused, index) => ({
+          depth: index + 1,
+          style: "cave" as const,
+          cells: [{ col: 2, row: 2, length: 4 }],
+        })),
+        stairs: [stair],
+        shafts: [],
+      },
+      8,
+    );
+    expect(parsed?.stairs).toEqual([stair]);
+    expect(undergroundRamp(stair, 8)).toMatchObject({
+      lowHeight: undergroundFloorHeight(16),
+      highHeight: 0,
+    });
+    expect(undergroundAccessVisibleDepths(parsed ?? undefined, null)).toEqual(
+      Array.from({ length: 16 }, (_unused, index) => index + 1),
+    );
+    expect(undergroundAccessVisibleDepths(parsed ?? undefined, 8)).toEqual(
+      Array.from({ length: 9 }, (_unused, index) => index + 8),
+    );
   });
 
   it("keeps surface terrain above a reachable underground floor", () => {

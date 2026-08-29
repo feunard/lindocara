@@ -301,7 +301,7 @@ export type EditorTool =
   | {
       kind: "underground";
       operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs";
-      /** Direct holes reuse the toolbar's pencil/rectangle/fill shape without becoming terrain. */
+      /** Direct holes and backfill reuse the toolbar's pencil/rectangle/fill geometry. */
       shape?: "pencil" | "rect" | "fill";
       depth: number;
       style: InteriorShell["style"];
@@ -2284,27 +2284,53 @@ function applyUndergroundShaftCells(
   };
 }
 
-/** Exact stair record a click would write, including edge clipping; null is a visible refusal. */
+/** A flight keeps the normal three-cell slope for every storey it crosses. */
+export function undergroundStairRequiredLength(
+  tool: Extract<EditorTool, { kind: "underground" }>,
+  startDepth: number | null = null,
+): number {
+  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  const fromDepth =
+    startDepth === null ? 0 : Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(startDepth)));
+  const storeys = Math.max(1, depth - fromDepth);
+  return Math.max(
+    2,
+    Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH),
+    DEFAULT_UNDERGROUND_STAIR_LENGTH * storeys,
+  );
+}
+
+/** Exact stair record a click would write; null is a visible refusal when the full slope cannot fit. */
 export function undergroundStairPlacement(
   map: EditorMap,
   tool: Extract<EditorTool, { kind: "underground" }>,
   col: number,
   row: number,
+  startDepth: number | null = null,
 ): UndergroundStair | null {
   if (tool.operation !== "stairs") return null;
   const { cols, rows } = editorMapSize(map);
   const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  const fromDepth =
+    startDepth === null ? 0 : Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(startDepth)));
+  if (fromDepth >= depth) return null;
   const alongX = tool.direction === "east" || tool.direction === "west";
   const c0 = Math.max(0, Math.min(cols - 1, col));
   const r0 = Math.max(0, Math.min(rows - 1, row));
-  const requestedLength = Math.max(2, Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH));
+  const requestedLength = undergroundStairRequiredLength(tool, startDepth);
   const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
   const availableLength = alongX ? cols - c0 : rows - r0;
   const availableWidth = alongX ? rows - r0 : cols - c0;
-  const length = Math.min(requestedLength, availableLength);
-  const width = Math.min(requestedWidth, availableWidth);
-  if (length < 2 || width < 1) return null;
-  return { depth, col: c0, row: r0, direction: tool.direction, length, width };
+  if (requestedLength > availableLength || requestedWidth > availableWidth) return null;
+  return {
+    depth,
+    fromDepth,
+    col: c0,
+    row: r0,
+    direction: tool.direction,
+    length: requestedLength,
+    width: requestedWidth,
+  };
 }
 
 function applyUndergroundTool(
@@ -2312,22 +2338,32 @@ function applyUndergroundTool(
   tool: Extract<EditorTool, { kind: "underground" }>,
   col: number,
   row: number,
+  startDepth: number | null = null,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
   const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
   const alongX = tool.direction === "east" || tool.direction === "west";
+  const stairPlacement =
+    tool.operation === "stairs" ? undergroundStairPlacement(map, tool, col, row, startDepth) : null;
+  if (tool.operation === "stairs" && !stairPlacement) return null;
   const followsDirection = tool.operation === "stairs" || tool.operation === "tunnel";
-  const footprintCols = followsDirection ? (alongX ? tool.length : tool.width) : tool.width;
-  const footprintRows = followsDirection ? (alongX ? tool.width : tool.length) : tool.length;
+  const footprintLength = stairPlacement?.length ?? tool.length;
+  const footprintWidth = stairPlacement?.width ?? tool.width;
+  const footprintCols = followsDirection
+    ? alongX
+      ? footprintLength
+      : footprintWidth
+    : footprintWidth;
+  const footprintRows = followsDirection
+    ? alongX
+      ? footprintWidth
+      : footprintLength
+    : footprintLength;
   const c0 = Math.max(0, Math.min(cols - 1, col));
   const r0 = Math.max(0, Math.min(rows - 1, row));
   const c1 = Math.min(cols, c0 + Math.max(1, Math.trunc(footprintCols)));
   const r1 = Math.min(rows, r0 + Math.max(1, Math.trunc(footprintRows)));
   if (c1 <= c0 || r1 <= r0) return null;
-  const stairPlacement =
-    tool.operation === "stairs" ? undergroundStairPlacement(map, tool, col, row) : null;
-  if (tool.operation === "stairs" && !stairPlacement) return null;
-
   if (tool.operation === "shaft") {
     const selectedCells: Array<{ col: number; row: number }> = [];
     for (let cellRow = r0; cellRow < r1; cellRow += 1) {
@@ -2340,7 +2376,14 @@ function applyUndergroundTool(
 
   const source: UndergroundMap = map.underground ?? { levels: [], stairs: [] };
   const byDepth = new Map(source.levels.map((level) => [level.depth, level]));
-  const touchedDepths = tool.operation === "stairs" && depth > 1 ? [depth - 1, depth] : [depth];
+  const stairUpperDepth = stairPlacement?.fromDepth ?? depth - 1;
+  const touchedDepths =
+    tool.operation === "stairs"
+      ? Array.from(
+          { length: depth - Math.max(1, stairUpperDepth) + 1 },
+          (_unused, index) => Math.max(1, stairUpperDepth) + index,
+        )
+      : [depth];
   for (const touchedDepth of touchedDepths) {
     const previous = byDepth.get(touchedDepth);
     const cells = undergroundCells(previous, Math.max(cols, rows));
@@ -2351,7 +2394,7 @@ function applyUndergroundTool(
     }
     if (tool.operation === "stairs") {
       const lowLanding = touchedDepth === depth;
-      const highLanding = touchedDepth === depth - 1;
+      const highLanding = touchedDepth === stairUpperDepth;
       const landing = lowLanding
         ? tool.direction === "east"
           ? { c0: c0 - 1, c1: c0, r0, r1 }
@@ -2398,7 +2441,8 @@ function applyUndergroundTool(
     }
   }
   let stairs = source.stairs.filter((stair) => {
-    if (tool.operation !== "fill" || stair.depth !== depth) return true;
+    const stairFrom = stair.fromDepth ?? stair.depth - 1;
+    if (tool.operation !== "fill" || depth < stairFrom || depth > stair.depth) return true;
     const stairAlongX = stair.direction === "east" || stair.direction === "west";
     const stairCols = stairAlongX ? stair.length : stair.width;
     const stairRows = stairAlongX ? stair.width : stair.length;
@@ -2562,7 +2606,7 @@ export function applyTool(
 
   switch (tool.kind) {
     case "underground": {
-      if (tool.operation === "shaft" && tool.shape === "rect") {
+      if ((tool.operation === "shaft" || tool.operation === "fill") && tool.shape === "rect") {
         if (isStrokeStart) {
           return {
             ...map,
@@ -2588,7 +2632,19 @@ export function applyTool(
             cells.push({ col: cellCol, row: cellRow });
           }
         }
-        return applyUndergroundShaftCells(anchoredMap, tool, cells);
+        if (tool.operation === "shaft") return applyUndergroundShaftCells(anchoredMap, tool, cells);
+        return applyUndergroundTool(
+          anchoredMap,
+          {
+            ...tool,
+            depth: undergroundDepth ?? tool.depth,
+            width: bounds.c1 - bounds.c0 + 1,
+            length: bounds.r1 - bounds.r0 + 1,
+          },
+          bounds.c0,
+          bounds.r0,
+          undergroundDepth,
+        );
       }
       if (tool.operation === "shaft" && tool.shape === "fill") {
         if (!isStrokeStart) return null;
@@ -2596,7 +2652,33 @@ export function applyTool(
         if (!ground) return null;
         return applyUndergroundShaftCells(map, tool, terrainFloodRegion(ground, col, row));
       }
-      return applyUndergroundTool(map, tool, col, row);
+      if (tool.operation === "fill" && tool.shape === "fill") {
+        if (!isStrokeStart) return null;
+        const depth = undergroundDepth ?? tool.depth;
+        const region = undergroundFloodRegion(map, depth, col, row);
+        let next: EditorMap | null = map;
+        for (const cell of region) {
+          next = applyUndergroundTool(
+            next,
+            { ...tool, depth, width: 1, length: 1 },
+            cell.col,
+            cell.row,
+            depth,
+          );
+          if (!next) return null;
+        }
+        return next;
+      }
+      if (tool.operation === "fill" && tool.shape === "pencil") {
+        return applyUndergroundTool(
+          map,
+          { ...tool, depth: undergroundDepth ?? tool.depth, width: 1, length: 1 },
+          col,
+          row,
+          undergroundDepth,
+        );
+      }
+      return applyUndergroundTool(map, tool, col, row, undergroundDepth);
     }
     case "block": {
       if (undergroundDepth !== null) {
@@ -2771,6 +2853,7 @@ export function applyTool(
           },
           col,
           row,
+          Math.max(0, undergroundDepth - 1) || null,
         );
       }
       const ground = map.layers[GROUND_LAYER];

@@ -91,7 +91,7 @@ describe("underground editor tools", () => {
     expect(south?.underground?.levels[0]?.cells[0]?.length).toBe(2);
   });
 
-  it("authors a three-cell flight and round-trips it through the compiled heightfield", () => {
+  it("extends a surface flight by three cells for every crossed storey", () => {
     const map = blankMap("Stairs", 12, 12);
     const edited = applyTool(
       map,
@@ -109,14 +109,81 @@ describe("underground editor tools", () => {
     );
     expect(edited).not.toBeNull();
     expect(edited?.underground?.levels.map((level) => level.depth)).toEqual([1, 2]);
-    expect(edited?.underground?.levels[0]?.cells).toContainEqual({ col: 4, row: 7, length: 1 });
+    expect(edited?.underground?.levels[0]?.cells).toContainEqual({ col: 4, row: 4, length: 1 });
     expect(edited?.underground?.levels[1]?.cells).toContainEqual({ col: 4, row: 3, length: 1 });
     const heightfield = edited ? decodeMap(toSaveInput(edited).heightfield) : null;
     expect(heightfield?.underground?.stairs).toEqual([
-      { depth: 2, col: 4, row: 4, direction: "south", length: 3, width: 1 },
+      { depth: 2, fromDepth: 0, col: 4, row: 4, direction: "south", length: 6, width: 1 },
     ]);
-    expect(heightfield?.ramps?.at(-1)).toMatchObject({ lowHeight: -4.8, highHeight: -2.4 });
+    expect(heightfield?.ramps?.at(-1)).toMatchObject({ lowHeight: -4.8, highHeight: 0 });
     expect(toMapData(edited ?? map).underground).toEqual(edited?.underground);
+  });
+
+  it("connects the selected underground storey to a deeper target without collision gaps", () => {
+    const map = blankMap("Deep stairs", 32, 32);
+    const edited = applyTool(
+      map,
+      {
+        kind: "underground",
+        operation: "stairs",
+        depth: 8,
+        style: "cave",
+        width: 2,
+        length: 5,
+        direction: "west",
+      },
+      3,
+      3,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+
+    expect(edited?.underground?.stairs).toEqual([
+      {
+        depth: 8,
+        fromDepth: 3,
+        col: 3,
+        row: 3,
+        direction: "west",
+        length: 15,
+        width: 2,
+      },
+    ]);
+    expect(edited?.underground?.levels.map((level) => level.depth)).toEqual([3, 4, 5, 6, 7, 8]);
+    const heightfield = edited ? decodeMap(toSaveInput(edited).heightfield) : null;
+    expect(heightfield?.ramps?.at(-1)?.lowHeight).toBeCloseTo(-19.2);
+    expect(heightfield?.ramps?.at(-1)?.highHeight).toBeCloseTo(-7.2);
+  });
+
+  it("creates a long, traversable 0 to -16 flight instead of a near-vertical drop", () => {
+    const map = blankMap("Maximum stairs", 56, 56);
+    const edited = applyTool(
+      map,
+      {
+        kind: "underground",
+        operation: "stairs",
+        depth: 16,
+        style: "cave",
+        width: 2,
+        length: 3,
+        direction: "east",
+      },
+      3,
+      3,
+    );
+
+    expect(edited?.underground?.stairs[0]).toMatchObject({
+      depth: 16,
+      fromDepth: 0,
+      length: 48,
+      width: 2,
+    });
+    expect(edited?.underground?.levels.map((level) => level.depth)).toEqual(
+      Array.from({ length: 16 }, (_unused, index) => index + 1),
+    );
   });
 
   it("authors a true surface shaft through every storey and removes it when filled", () => {
@@ -191,6 +258,47 @@ describe("underground editor tools", () => {
     expect(filled?.underground?.shafts).toEqual([
       { col: 0, row: 0, width: 12, length: 12, depth: 2 },
     ]);
+  });
+
+  it("reuses pencil, rectangle and flood-fill shapes when filling underground rooms", () => {
+    const dug = applyTool(
+      blankMap("Fill shapes", 12, 12),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 3,
+        style: "cave",
+        width: 4,
+        length: 4,
+        direction: "east",
+      },
+      3,
+      3,
+    );
+    const fillTool = {
+      kind: "underground" as const,
+      operation: "fill" as const,
+      depth: 3,
+      style: "cave" as const,
+      width: 1,
+      length: 1,
+      direction: "east" as const,
+      shape: "rect" as const,
+    };
+    const anchored = dug ? applyTool(dug, fillTool, 3, 3, true, "field", 0, 0, 3) : null;
+    const rectangle = anchored
+      ? applyTool(anchored, fillTool, 4, 4, false, "field", 0, 0, 3)
+      : null;
+    expect(rectangle?.underground?.levels[0]?.cells).not.toContainEqual({
+      col: 3,
+      row: 3,
+      length: 4,
+    });
+
+    const flooded = rectangle
+      ? applyTool(rectangle, { ...fillTool, shape: "fill" }, 5, 3, true, "field", 0, 0, 3)
+      : null;
+    expect(flooded?.underground?.levels).toEqual([]);
   });
 
   it("reuses terrain, scenery and event tools per storey without mixing their content", () => {

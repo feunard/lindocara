@@ -1,11 +1,14 @@
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import type { InteriorShellStyle } from "@lindocara/engine/map-environment.js";
 import {
+  undergroundAccessVisibleDepths,
   undergroundCells,
   undergroundFloorHeight,
   undergroundShaftCell,
+  undergroundStairCrossesBoundary,
   undergroundStairFootprint,
   undergroundStairMouth,
+  undergroundStairUpperDepth,
   undergroundSurfaceOpenings,
   undergroundTerrainCells,
   undergroundVisibleDepthsAtElevation,
@@ -122,7 +125,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     );
     const floorOpening = (col: number, row: number): boolean =>
       (map.underground?.stairs ?? []).some((stair) => {
-        if (stair.depth !== level.depth + 1) return false;
+        if (!undergroundStairCrossesBoundary(stair, level.depth + 1)) return false;
         const footprint = undergroundStairFootprint(stair);
         return (
           col >= stair.col &&
@@ -294,7 +297,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
         const z = row + 0.5 - map.size / 2;
         const shaft = undergroundShaftCell(map.underground?.shafts, col, row);
         const stair = (map.underground?.stairs ?? []).find((candidate) => {
-          if (candidate.depth !== 1) return false;
+          if (undergroundStairUpperDepth(candidate) !== 0) return false;
           const footprint = undergroundStairFootprint(candidate);
           return (
             col >= candidate.col &&
@@ -311,7 +314,9 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
                 : (row + 0.5 - stair.row) / stair.length;
               const progress =
                 stair.direction === "east" || stair.direction === "south" ? along : 1 - along;
-              return undergroundFloorHeight(1) + progress * -undergroundFloorHeight(1);
+              const low = undergroundFloorHeight(stair.depth);
+              const high = undergroundFloorHeight(undergroundStairUpperDepth(stair));
+              return low + progress * (high - low);
             })()
           : undergroundFloorHeight(1);
         const material = map.materials[index] ?? levelOneStyle;
@@ -395,16 +400,12 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     const near =
       Math.abs(x) > Math.abs(z) ? (x >= 0 ? "east" : "west") : z >= 0 ? "south" : "north";
     for (const wall of accessWalls) wall.mesh.visible = wall.side !== near;
-    const previewFirstStorey = surfaceAccess.visible && surfaceAccess.children.length > 0;
-    const previewDepth = Math.max(
-      1,
-      ...(map.underground?.shafts ?? []).map((shaft) => shaft.depth),
-    );
+    const previewDepths = new Set(undergroundAccessVisibleDepths(map.underground, activeDepth));
     for (const [depth, level] of levels) {
       // At surface level the terrain itself occludes these groups everywhere except through a real
       // opening. Keeping the connected shaft depth rendered therefore reveals the actual landing
       // below without exposing the rest of the basement through intact ground.
-      const previewing = depth <= previewDepth && previewFirstStorey && !visibleDepths.has(depth);
+      const previewing = previewDepths.has(depth) && !visibleDepths.has(depth);
       level.group.visible = visibleDepths.has(depth) || previewing;
       for (const tinted of level.tintedMaterials) {
         tinted.material.color.copy(tinted.color);

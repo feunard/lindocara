@@ -27,7 +27,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function undergroundFloorHeight(depth: number): number {
-  return -depth * UNDERGROUND_STOREY_HEIGHT;
+  return depth === 0 ? 0 : -depth * UNDERGROUND_STOREY_HEIGHT;
 }
 
 export function undergroundStyleMaterial(style: InteriorShellStyle): TerrainMaterial {
@@ -139,11 +139,15 @@ export function undergroundStairFootprint(stair: UndergroundStair): { cols: numb
 
 function parseStair(value: unknown, size: number): UndergroundStair | null {
   if (!isRecord(value)) return null;
-  const { depth, col, row, direction, length, width } = value;
+  const { depth, fromDepth, col, row, direction, length, width } = value;
   if (
     !Number.isSafeInteger(depth) ||
     (depth as number) < 1 ||
     (depth as number) > MAX_UNDERGROUND_DEPTH ||
+    (fromDepth !== undefined &&
+      (!Number.isSafeInteger(fromDepth) ||
+        (fromDepth as number) < 0 ||
+        (fromDepth as number) >= (depth as number))) ||
     !Number.isSafeInteger(col) ||
     !Number.isSafeInteger(row) ||
     (col as number) < 0 ||
@@ -158,6 +162,7 @@ function parseStair(value: unknown, size: number): UndergroundStair | null {
   }
   const stair: UndergroundStair = {
     depth: depth as number,
+    ...(fromDepth === undefined ? {} : { fromDepth: fromDepth as number }),
     col: col as number,
     row: row as number,
     direction,
@@ -302,8 +307,21 @@ export function undergroundRamp(stair: UndergroundStair, size: number): TerrainR
     direction: stair.direction,
     lowLevel: -stair.depth,
     lowHeight: undergroundFloorHeight(stair.depth),
-    highHeight: undergroundFloorHeight(stair.depth - 1),
+    highHeight: undergroundFloorHeight(undergroundStairUpperDepth(stair)),
   };
+}
+
+/** Legacy stairs always joined the immediately shallower storey. */
+export function undergroundStairUpperDepth(stair: UndergroundStair): number {
+  return stair.fromDepth ?? stair.depth - 1;
+}
+
+/** Whether this flight pierces the slab between `boundaryDepth - 1` and `boundaryDepth`. */
+export function undergroundStairCrossesBoundary(
+  stair: UndergroundStair,
+  boundaryDepth: number,
+): boolean {
+  return undergroundStairUpperDepth(stair) < boundaryDepth && boundaryDepth <= stair.depth;
 }
 
 function stairCell(
@@ -313,7 +331,7 @@ function stairCell(
   row: number,
 ): boolean {
   return stairs.some((stair) => {
-    if (stair.depth !== depth) return false;
+    if (!undergroundStairCrossesBoundary(stair, depth)) return false;
     const footprint = undergroundStairFootprint(stair);
     return (
       col >= stair.col &&
@@ -333,7 +351,6 @@ export function undergroundStairMouth(
   dz: number,
 ): boolean {
   return stairs.some((stair) => {
-    if (stair.depth !== depth && stair.depth !== depth + 1) return false;
     const footprint = undergroundStairFootprint(stair);
     if (
       col < stair.col ||
@@ -342,12 +359,20 @@ export function undergroundStairMouth(
       row >= stair.row + footprint.rows
     )
       return false;
+    const upperVolumeDepth = undergroundStairUpperDepth(stair) + 1;
+    const lowDepth = stair.depth;
     if (rampAlongX(stair.direction)) {
-      return (
-        (col === stair.col && dx === -1) || (col === stair.col + footprint.cols - 1 && dx === 1)
-      );
+      const west = col === stair.col && dx === -1;
+      const east = col === stair.col + footprint.cols - 1 && dx === 1;
+      if (!west && !east) return false;
+      const high = stair.direction === "east" ? east : west;
+      return depth === (high ? upperVolumeDepth : lowDepth);
     }
-    return (row === stair.row && dz === -1) || (row === stair.row + footprint.rows - 1 && dz === 1);
+    const north = row === stair.row && dz === -1;
+    const south = row === stair.row + footprint.rows - 1 && dz === 1;
+    if (!north && !south) return false;
+    const high = stair.direction === "south" ? south : north;
+    return depth === (high ? upperVolumeDepth : lowDepth);
   });
 }
 
@@ -374,7 +399,7 @@ export function undergroundSurfaceOpenings(
 ): Uint8Array {
   const cells = new Uint8Array(size * size);
   for (const stair of underground?.stairs ?? []) {
-    if (stair.depth !== 1) continue;
+    if (undergroundStairUpperDepth(stair) !== 0) continue;
     const footprint = undergroundStairFootprint(stair);
     for (let row = stair.row; row < stair.row + footprint.rows; row += 1) {
       for (let col = stair.col; col < stair.col + footprint.cols; col += 1) {
@@ -414,6 +439,40 @@ export function undergroundVisibleDepthsAtElevation(elevation: number): readonly
   const shallow = Math.floor(storey);
   const deep = Math.min(MAX_UNDERGROUND_DEPTH, Math.ceil(storey));
   return shallow <= 0 ? [null, deep] : shallow === deep ? [deep] : [shallow, deep];
+}
+
+/** Storeys visible through every stair or shaft that continues below the currently viewed floor. */
+export function undergroundAccessVisibleDepths(
+  underground: UndergroundMap | undefined,
+  depth: number | null,
+): readonly number[] {
+  if (!underground) return depth === null ? [] : [depth];
+  const visible = new Set<number>(depth === null ? [] : [depth]);
+  const reached = new Set<number>([depth ?? 0]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const current of [...reached]) {
+      for (const shaft of underground.shafts ?? []) {
+        if (current < 0 || current >= shaft.depth) continue;
+        for (let next = Math.max(1, current + 1); next <= shaft.depth; next += 1) {
+          if (!visible.has(next)) changed = true;
+          visible.add(next);
+          reached.add(next);
+        }
+      }
+      for (const stair of underground.stairs) {
+        const upper = undergroundStairUpperDepth(stair);
+        if (current < upper || current >= stair.depth) continue;
+        for (let next = Math.max(1, current + 1); next <= stair.depth; next += 1) {
+          if (!visible.has(next)) changed = true;
+          visible.add(next);
+          reached.add(next);
+        }
+      }
+    }
+  }
+  return [...visible].sort((left, right) => left - right);
 }
 
 /** Whether a world X/Z point lies inside an authored vertical connection. Height alone cannot tell

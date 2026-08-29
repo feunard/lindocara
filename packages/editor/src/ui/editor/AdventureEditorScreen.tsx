@@ -994,7 +994,7 @@ function AdventureEditorInner({
   function selectTool(key: EditorPaintTool | "stairs"): void {
     if (
       toolKey === "underground" &&
-      undergroundOperation === "shaft" &&
+      (undergroundOperation === "shaft" || undergroundOperation === "fill") &&
       (key === "pencil" || key === "rect" || key === "fill")
     ) {
       setUndergroundShape(key);
@@ -1039,7 +1039,9 @@ function AdventureEditorInner({
       width: overrides.width ?? undergroundWidth,
       length: overrides.length ?? undergroundLength,
       direction: overrides.direction ?? undergroundDirection,
-      ...(operation === "shaft" ? { shape: overrides.shape ?? undergroundShape } : {}),
+      ...(operation === "shaft" || operation === "fill"
+        ? { shape: overrides.shape ?? undergroundShape }
+        : {}),
     };
   }
 
@@ -1049,8 +1051,9 @@ function AdventureEditorInner({
     setSelectedAsset(null);
     // A shaft is authored FROM the surface: keeping that view makes its open aperture immediately
     // distinct from a room excavated on one selected storey.
-    chooseEditingDepth(operation === "shaft" ? null : undergroundDepth);
-    if (operation === "shaft") {
+    if (operation === "shaft") chooseEditingDepth(null);
+    else if (operation !== "stairs") chooseEditingDepth(undergroundDepth);
+    if (operation === "shaft" || operation === "fill") {
       setUndergroundShape("pencil");
       setUndergroundWidth(1);
       setUndergroundLength(1);
@@ -2021,7 +2024,8 @@ function AdventureEditorInner({
 
         <EditorToolbar
           activeTool={
-            toolKey === "underground" && undergroundOperation === "shaft"
+            toolKey === "underground" &&
+            (undergroundOperation === "shaft" || undergroundOperation === "fill")
               ? undergroundShape
               : isPaintToolKey(toolKey)
                 ? toolKey
@@ -2115,7 +2119,11 @@ function AdventureEditorInner({
                 onUndergroundDepthChange: (depth) => {
                   const next = Math.max(1, Math.min(16, Math.trunc(depth) || 1));
                   setUndergroundDepth(next);
-                  if (editingDepth !== null) chooseEditingDepth(next);
+                  if (
+                    editingDepth !== null &&
+                    !(toolKey === "underground" && undergroundOperation === "stairs")
+                  )
+                    chooseEditingDepth(next);
                   updateUndergroundTool({ depth: next });
                 },
                 onUndergroundStyleChange: (style) => {

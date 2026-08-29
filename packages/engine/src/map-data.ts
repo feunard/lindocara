@@ -203,8 +203,10 @@ export interface UndergroundContentDepth {
 }
 
 export interface UndergroundStair {
-  /** Lower storey reached by this flight. A depth-1 flight opens onto the surface. */
+  /** Lower destination storey reached by this flight. */
   depth: number;
+  /** Upper departure storey. Zero is the surface; absent keeps legacy one-storey flights. */
+  fromDepth?: number;
   /** Minimum cell of the rectangular flight footprint. */
   col: number;
   row: number;

@@ -127,6 +127,7 @@ import {
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
   updateSelectedNativeSceneryDimensions,
+  undergroundStairRequiredLength,
   undergroundStairPlacement,
 } from "./editor-state.js";
 import {
@@ -953,7 +954,7 @@ export function openMapEditorStage(
           : null;
       const hoveredUndergroundStair =
         hover && tool.kind === "underground" && tool.operation === "stairs"
-          ? undergroundStairPlacement(map, tool, hover.col, hover.row)
+          ? undergroundStairPlacement(map, tool, hover.col, hover.row, editingDepth)
           : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
@@ -963,7 +964,9 @@ export function openMapEditorStage(
         hover && tool.kind === "underground" && tool.operation !== "stairs"
           ? (() => {
               const shaftRect =
-                tool.operation === "shaft" && tool.shape === "rect" && map.strokeAnchor
+                (tool.operation === "shaft" || tool.operation === "fill") &&
+                tool.shape === "rect" &&
+                map.strokeAnchor
                   ? {
                       c0: Math.min(map.strokeAnchor.col, hover.col),
                       r0: Math.min(map.strokeAnchor.row, hover.row),
@@ -1068,10 +1071,11 @@ export function openMapEditorStage(
                     undergroundRamp(
                       hoveredUndergroundStair ?? {
                         depth: Math.max(1, Math.min(16, Math.trunc(tool.depth))),
+                        fromDepth: editingDepth ?? 0,
                         col: hover.col,
                         row: hover.row,
                         direction: tool.direction,
-                        length: Math.max(2, Math.trunc(tool.length)),
+                        length: undergroundStairRequiredLength(tool, editingDepth),
                         width: Math.max(1, Math.trunc(tool.width)),
                       },
                       size,
