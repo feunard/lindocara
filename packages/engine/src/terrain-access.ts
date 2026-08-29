@@ -57,6 +57,7 @@ import {
 import type { WorldEventCollider } from "./protocol.js";
 import { PLAYER_SIZE } from "./simulation.js";
 import { TILE_SIZE } from "./tilemap.js";
+import { undergroundFloorHeight } from "./underground.js";
 import type { ZoneTerrain } from "./zones.js";
 
 export type { ZoneTerrain };
@@ -113,6 +114,14 @@ export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
     size: map.size,
     levelHeight: map.levelHeight,
     waterLevel: map.waterLevel,
+    minimumElevation: Math.min(
+      map.waterLevel,
+      ...map.levels.flatMap((level) => (level === null ? [] : [level * map.levelHeight])),
+      ...(map.liquidLevels ?? []).flatMap((level) =>
+        level === null ? [] : [level * map.levelHeight],
+      ),
+      ...(map.underground?.levels ?? []).map((level) => undergroundFloorHeight(level.depth)),
+    ),
   };
 }
 

@@ -170,6 +170,41 @@ describe("multi-storey underground", () => {
     expect(state.y).toBeCloseTo(2.7);
   });
 
+  it("enters elevated water from its bank without falling toward the sea below", () => {
+    const platforms = undergroundColliders(
+      {
+        levels: [{ depth: 1, style: "cave" as const, cells: [{ col: 2, row: 3, length: 4 }] }],
+        stairs: [],
+        shafts: [],
+      },
+      8,
+    );
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: (_col, row) => (row === 3 ? null : 3),
+      kindAt: (_col, row) => (row === 3 ? null : "herbe"),
+      liquidAt: (_col, row) => (row === 3 ? "water" : null),
+      liquidLevelAt: (_col, row) => (row === 3 ? 3 : null),
+      liquidAtElevation: (_col, row, elevation) =>
+        elevation >= -0.6 && row === 3 ? "water" : null,
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+
+    // The collision footprint has crossed into row 3 while the sprite centre is still over the
+    // dry bank in row 4. Both liquid detection and surface lookup must sample that same point.
+    const state = createHeroState(0.5, 0.2, 2.7, 10, 2.2);
+    const minimumY = state.y;
+    stepHero(state, immobile, 1 / 60, { ...depsPlates(), query, colliders });
+
+    expect(state.swimming).toBe(true);
+    expect(state.y).toBeCloseTo(2.7);
+    expect(state.y).toBeGreaterThanOrEqual(minimumY);
+  });
+
   it("ignores elevated surface terrain and lava while walking on the storey below", () => {
     const platforms = undergroundColliders(underground, 8);
     const query = createTerrainQuery({

@@ -71,9 +71,10 @@ export function withinRoomBounds(terrain: ZoneDefinition["terrain"], move: MoveM
   // The tallest relief a grid of this side could carry, plus the slack above. Derived from the map
   // rather than restated as a constant: a bigger map is allowed to be taller.
   if (move.y > half * terrain.levelHeight + REPORTED_ELEVATION_SLACK) return false;
-  // Nothing goes below the water plane: entering the water pins the hero to it (`enterWater`,
-  // `hero-step.ts`), and swimming holds it there.
-  return move.y >= terrain.waterLevel - REPORTED_ELEVATION_SLACK;
+  // Authored basements and sunken terrain legitimately extend below the legacy sea plane. The
+  // compiled terrain carries its own lower bound; old catalogue zones retain the former water-line
+  // fallback because they have no underground volume.
+  return move.y >= (terrain.minimumElevation ?? terrain.waterLevel) - REPORTED_ELEVATION_SLACK;
 }
 
 /**

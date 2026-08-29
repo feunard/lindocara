@@ -61,6 +61,8 @@ export interface ZoneTerrain {
   levelHeight: number;
   /** World height of the water plane. */
   waterLevel: number;
+  /** Lowest authored support/liquid floor accepted on the movement wire. Legacy zones omit it. */
+  minimumElevation?: number;
 }
 
 export interface ZoneDefinition {

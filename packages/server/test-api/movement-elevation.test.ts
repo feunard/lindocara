@@ -19,6 +19,7 @@ import { GHOST_SPEED, speedForLife } from "@lindocara/engine/death.js";
 import { CLASS_STATS } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import type { MoveMessage } from "@lindocara/engine/protocol.js";
 import { TICK_DT, TICK_MS } from "@lindocara/engine/simulation.js";
 import {
   BODY_RADIUS,
@@ -34,6 +35,7 @@ import {
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { withinRoomBounds } from "../src/api/realtime/world-move-life.js";
 import { collectLoot } from "../src/world/loot-system.js";
 import {
   advanceMonsters,
@@ -102,6 +104,46 @@ function zoneWith(built: ZoneTerrain): ZoneDefinition {
     navigation: DEFAULT_ZONE_NAVIGATION,
   };
 }
+
+const reportedMove = (y: number): MoveMessage => ({
+  t: "move",
+  x: 0,
+  y,
+  z: 0,
+  vy: 0,
+  facing: { x: 0, z: 1 },
+  airborne: false,
+  swimming: false,
+  gliding: false,
+  displacement: 0,
+});
+
+describe("reported underground elevation", () => {
+  it("accepts authored basement floors below the global water plane", () => {
+    const levels = new Array<number | null>(SIZE * SIZE).fill(0);
+    const built = zoneTerrainFromHeightfield({
+      version: 1,
+      size: SIZE,
+      levelHeight: LEVEL_HEIGHT,
+      waterLevel: -0.25,
+      levels,
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [],
+      spawns: [],
+      elements: [],
+      events: [],
+      underground: {
+        levels: [{ depth: 3, style: "cave", cells: [{ col: 7, row: 7, length: 2 }] }],
+        stairs: [],
+        shafts: [],
+      },
+    });
+
+    expect(built.minimumElevation).toBeCloseTo(-7.2);
+    expect(withinRoomBounds(built, reportedMove(-7.2))).toBe(true);
+    expect(withinRoomBounds(built, reportedMove(-11.3))).toBe(false);
+  });
+});
 
 function hero(x: number, z: number, id = "hero-1"): PlayerRuntime {
   return newPlayer(

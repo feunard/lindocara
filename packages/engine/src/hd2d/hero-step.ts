@@ -231,7 +231,8 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
  */
 function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "entree-eau" }> {
   const { hero } = deps;
-  const liquid = liquidAtElevation(deps.query, state.x, state.z, state.y) ?? "water";
+  const footprintZ = empreinte(state.z, hero);
+  const liquid = liquidAtElevation(deps.query, state.x, footprintZ, state.y) ?? "water";
   state.swimming = true;
   state.liquid = liquid;
   state.airborne = false;
@@ -239,7 +240,7 @@ function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
-  const surface = liquidSurfaceAtElevation(deps.query, state.x, state.z, state.y);
+  const surface = liquidSurfaceAtElevation(deps.query, state.x, footprintZ, state.y);
   state.y = surface;
   state.groundY = surface;
   return { t: "entree-eau", liquid, x: state.x, y: surface, z: state.z };
@@ -445,7 +446,7 @@ export function stepHero(
         ? supportedPlatform
         : Math.max(centreSurface, supportedPlatform);
   const liquidSurface =
-    liquid === null ? null : liquidSurfaceAtElevation(query, state.x, state.z, state.y);
+    liquid === null ? null : liquidSurfaceAtElevation(query, state.x, footprintZ, state.y);
   const sol =
     liquid !== null &&
     (supportedPlatform === null ||
@@ -457,7 +458,7 @@ export function stepHero(
   // guarded by `!state.room` so none of these mechanics run indoors.
   if (!state.room) {
     if (!state.swimming) {
-      const ground = sol ?? liquidSurfaceAtElevation(query, state.x, state.z, state.y);
+      const ground = sol ?? liquidSurfaceAtElevation(query, state.x, footprintZ, state.y);
       if (state.airborne) {
         state.coyote -= dt;
       } else if (ground < state.y - 1e-3 && !suitSurface) {
@@ -553,7 +554,7 @@ export function stepHero(
         events.push(leaveWater(state, deps, sol));
       } else {
         state.liquid = liquid ?? state.liquid ?? "water";
-        const surface = liquidSurfaceAtElevation(query, state.x, state.z, state.y);
+        const surface = liquidSurfaceAtElevation(query, state.x, footprintZ, state.y);
         if (surface < state.y - WATER_SPILL_DROP) {
           // The water has fallen away beneath: carried over a lip, which is what the top of a
           // waterfall IS. Without this the swimmer's Y snaps to the new surface and he TELEPORTS
