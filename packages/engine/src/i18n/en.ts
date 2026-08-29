@@ -1504,7 +1504,7 @@ export const en = {
   "editor.underground.hint.dig": "Excavates a rectangular room only on the selected storey.",
   "editor.underground.hint.tunnel": "Excavates a narrow gallery in the selected direction.",
   "editor.underground.hint.shaft":
-    "Opens the ground from the surface to the selected depth: the fall is physical and there is no automatic way back up.",
+    "Opens one cell to the selected depth. Use Pencil, Rectangle or Fill in the toolbar to choose its shape; the fall is physical and the bottom remains visible.",
   "editor.underground.hint.stairs":
     "Connects two levels progressively and creates the required landings automatically.",
   "editor.underground.hint.fill": "Fills the selected volume and removes its underground content.",

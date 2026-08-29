@@ -264,7 +264,10 @@ The original level-zero terrain remains above ordinary excavated volumes and is 
 surface. A surface stair or shaft is different: its footprint cuts the terrain top visibly, while a
 shaft also removes surface support without being misread as water. Floor and ceiling spans open
 under connecting stairs and through every intermediate shaft storey, retaining only the shaft's
-bottom floor. Stair endpoints span the full 2.4-unit storey rather than one 0.9-unit terrain tier.
+bottom floor. A direct shaft starts as one cell and reuses the toolbar's pencil, rectangle and flood
+shapes; its surface view renders the connected storeys and their content through the aperture rather
+than covering it with a black proxy plane. Stair endpoints span the full 2.4-unit storey rather than
+one 0.9-unit terrain tier.
 Shared terrain queries filter the surface terrain by the moving body's vertical ceiling before
 considering underground platforms, so a hero below the map cannot be snapped back onto the ground
 above. Saved hero positions use the same body-bounded lookup on restore. Renderer and collision both

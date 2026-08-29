@@ -160,6 +160,39 @@ describe("underground editor tools", () => {
     expect(filled?.underground?.shafts).toBeUndefined();
   });
 
+  it("uses one cell by default and supports rectangle and fill shapes for direct holes", () => {
+    const tool = {
+      kind: "underground" as const,
+      operation: "shaft" as const,
+      depth: 2,
+      style: "cave" as const,
+      width: 1,
+      length: 1,
+      direction: "east" as const,
+    };
+    const unit = applyTool(blankMap("Unit hole", 12, 12), { ...tool, shape: "pencil" }, 5, 4);
+    expect(unit?.underground?.shafts).toEqual([{ col: 5, row: 4, width: 1, length: 1, depth: 2 }]);
+
+    const rectangleStart = applyTool(
+      blankMap("Rectangle hole", 12, 12),
+      { ...tool, shape: "rect" },
+      2,
+      3,
+      true,
+    );
+    const rectangle = rectangleStart
+      ? applyTool(rectangleStart, { ...tool, shape: "rect" }, 5, 4, false)
+      : null;
+    expect(rectangle?.underground?.shafts).toEqual([
+      { col: 2, row: 3, width: 4, length: 2, depth: 2 },
+    ]);
+
+    const filled = applyTool(blankMap("Filled hole", 12, 12), { ...tool, shape: "fill" }, 6, 6);
+    expect(filled?.underground?.shafts).toEqual([
+      { col: 0, row: 0, width: 12, length: 12, depth: 2 },
+    ]);
+  });
+
   it("reuses terrain, scenery and event tools per storey without mixing their content", () => {
     const tree = "decoration.terrain-decorations-bushes.bushe1";
     let map = blankMap("Layered content", 12, 12);

@@ -810,11 +810,16 @@ export function createHd2dScene(
     });
   };
   const applyUndergroundVisibility = (): void => {
-    const visibleDepths =
-      undergroundElevation === null
+    const visibleDepths = [
+      ...(undergroundElevation === null
         ? [viewedUndergroundDepth]
-        : undergroundVisibleDepthsAtElevation(undergroundElevation);
+        : undergroundVisibleDepthsAtElevation(undergroundElevation)),
+    ];
     const seesSurface = visibleDepths.includes(null);
+    if (seesSurface) {
+      const shaftDepth = Math.max(0, ...(currentMap.underground?.shafts ?? []).map((s) => s.depth));
+      for (let depth = 1; depth <= shaftDepth; depth += 1) visibleDepths.push(depth);
+    }
     const surfaceBlend = showSurfaceReference
       ? viewedUndergroundDepth === null
         ? 1

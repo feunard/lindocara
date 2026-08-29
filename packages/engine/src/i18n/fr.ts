@@ -1520,7 +1520,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.hint.dig": "Creuse une salle rectangulaire uniquement au niveau choisi.",
   "editor.underground.hint.tunnel": "Creuse une galerie étroite dans le sens choisi.",
   "editor.underground.hint.shaft":
-    "Ouvre le sol depuis la surface jusqu’à la profondeur choisie : la chute est réelle et aucune remontée n’est automatique.",
+    "Ouvre une case jusqu’à la profondeur choisie. Utilisez Crayon, Rectangle ou Remplissage dans la barre d’outils pour choisir la forme ; la chute est réelle et le fond reste visible.",
   "editor.underground.hint.stairs":
     "Relie progressivement deux niveaux et crée automatiquement les paliers nécessaires.",
   "editor.underground.hint.fill": "Rebouche le volume choisi et retire son contenu souterrain.",

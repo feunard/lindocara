@@ -1960,9 +1960,16 @@ export class Hd2dRenderer implements RendererLike {
       if (!self.airborne || transitioning) {
         this.#gameplayVisibilityDepth = undergroundDepthAtElevation(self.y);
       }
-      const visibleDepths = transitioning
-        ? undergroundVisibleDepthsAtElevation(self.y)
+      const visibleDepths: Array<number | null> = transitioning
+        ? [...undergroundVisibleDepthsAtElevation(self.y)]
         : [this.#gameplayVisibilityDepth];
+      if (visibleDepths.includes(null)) {
+        const shaftDepth = Math.max(
+          0,
+          ...(this.#map.underground.shafts ?? []).map((shaft) => shaft.depth),
+        );
+        for (let depth = 1; depth <= shaftDepth; depth += 1) visibleDepths.push(depth);
+      }
       let write = 0;
       for (const view of views) {
         if (!visibleDepths.includes(undergroundDepthAtElevation(view.y))) continue;

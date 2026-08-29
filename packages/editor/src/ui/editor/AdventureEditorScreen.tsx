@@ -596,6 +596,7 @@ function AdventureEditorInner({
   const [undergroundWidth, setUndergroundWidth] = useState(3);
   const [undergroundLength, setUndergroundLength] = useState(6);
   const [undergroundDirection, setUndergroundDirection] = useState<RampDirection>("east");
+  const [undergroundShape, setUndergroundShape] = useState<"pencil" | "rect" | "fill">("pencil");
   const [undergroundOperation, setUndergroundOperation] = useState<
     "dig" | "tunnel" | "fill" | "shaft" | "stairs"
   >("dig");
@@ -991,6 +992,15 @@ function AdventureEditorInner({
   }
 
   function selectTool(key: EditorPaintTool | "stairs"): void {
+    if (
+      toolKey === "underground" &&
+      undergroundOperation === "shaft" &&
+      (key === "pencil" || key === "rect" || key === "fill")
+    ) {
+      setUndergroundShape(key);
+      pushTool(undergroundTool("shaft", { shape: key, width: 1, length: 1 }));
+      return;
+    }
     setToolKey(key);
     setSelectedAsset(null);
     // Every terrain content, including raised water, is valid with pencil, rectangle and fill.
@@ -1018,6 +1028,7 @@ function AdventureEditorInner({
       width: number;
       length: number;
       direction: RampDirection;
+      shape: "pencil" | "rect" | "fill";
     }> = {},
   ): EditorTool {
     return {
@@ -1028,6 +1039,7 @@ function AdventureEditorInner({
       width: overrides.width ?? undergroundWidth,
       length: overrides.length ?? undergroundLength,
       direction: overrides.direction ?? undergroundDirection,
+      ...(operation === "shaft" ? { shape: overrides.shape ?? undergroundShape } : {}),
     };
   }
 
@@ -1038,7 +1050,12 @@ function AdventureEditorInner({
     // A shaft is authored FROM the surface: keeping that view makes its open aperture immediately
     // distinct from a room excavated on one selected storey.
     chooseEditingDepth(operation === "shaft" ? null : undergroundDepth);
-    if (operation === "tunnel") {
+    if (operation === "shaft") {
+      setUndergroundShape("pencil");
+      setUndergroundWidth(1);
+      setUndergroundLength(1);
+      pushTool(undergroundTool(operation, { shape: "pencil", width: 1, length: 1 }));
+    } else if (operation === "tunnel") {
       setUndergroundWidth(2);
       pushTool(undergroundTool(operation, { width: 2 }));
     } else {
@@ -2003,7 +2020,13 @@ function AdventureEditorInner({
         />
 
         <EditorToolbar
-          activeTool={isPaintToolKey(toolKey) ? toolKey : null}
+          activeTool={
+            toolKey === "underground" && undergroundOperation === "shaft"
+              ? undergroundShape
+              : isPaintToolKey(toolKey)
+                ? toolKey
+                : null
+          }
           mode={mode}
           showGrid={showGrid}
           showDim={showDim}

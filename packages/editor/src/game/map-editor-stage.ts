@@ -953,6 +953,15 @@ export function openMapEditorStage(
       const undergroundStamp =
         hover && tool.kind === "underground"
           ? (() => {
+              const shaftRect =
+                tool.operation === "shaft" && tool.shape === "rect" && map.strokeAnchor
+                  ? {
+                      c0: Math.min(map.strokeAnchor.col, hover.col),
+                      r0: Math.min(map.strokeAnchor.row, hover.row),
+                      c1: Math.max(map.strokeAnchor.col, hover.col),
+                      r1: Math.max(map.strokeAnchor.row, hover.row),
+                    }
+                  : null;
               const alongX = tool.direction === "east" || tool.direction === "west";
               const followsDirection = tool.operation === "stairs" || tool.operation === "tunnel";
               const requestedCols = followsDirection
@@ -966,10 +975,14 @@ export function openMapEditorStage(
                   : tool.length
                 : tool.length;
               return {
-                x: hover.col - size / 2,
-                z: hover.row - size / 2,
-                cols: Math.min(cols - hover.col, Math.max(1, Math.trunc(requestedCols))),
-                rows: Math.min(rows - hover.row, Math.max(1, Math.trunc(requestedRows))),
+                x: (shaftRect?.c0 ?? hover.col) - size / 2,
+                z: (shaftRect?.r0 ?? hover.row) - size / 2,
+                cols: shaftRect
+                  ? shaftRect.c1 - shaftRect.c0 + 1
+                  : Math.min(cols - hover.col, Math.max(1, Math.trunc(requestedCols))),
+                rows: shaftRect
+                  ? shaftRect.r1 - shaftRect.r0 + 1
+                  : Math.min(rows - hover.row, Math.max(1, Math.trunc(requestedRows))),
                 elevation: undergroundFloorHeight(tool.depth),
                 operation: tool.operation,
               };

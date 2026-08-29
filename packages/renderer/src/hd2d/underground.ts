@@ -265,8 +265,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     const texture = textureFor(levelOneStyle, textures);
     ownedTextures.push(texture);
     const rimMaterial = new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff });
-    const shaftMaterial = new THREE.MeshBasicMaterial({ color: 0x010203 });
-    materials.push(rimMaterial, shaftMaterial);
+    materials.push(rimMaterial);
     const rims: Array<{ x: number; y: number; z: number; w: number; d: number }> = [];
     const trenchWalls = new Map<
       string,
@@ -276,7 +275,6 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
         entries: Array<{ x: number; top: number; bottom: number; z: number; w: number; d: number }>;
       }
     >();
-    const shaftCells: Array<{ col: number; row: number; y: number }> = [];
     const addTrenchWall = (
       material: string,
       side: "west" | "east" | "north" | "south",
@@ -295,7 +293,6 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
         const x = col + 0.5 - map.size / 2;
         const z = row + 0.5 - map.size / 2;
         const shaft = undergroundShaftCell(map.underground?.shafts, col, row);
-        if (shaft) shaftCells.push({ col, row, y });
         const stair = (map.underground?.stairs ?? []).find((candidate) => {
           if (candidate.depth !== 1) return false;
           const footprint = undergroundStairFootprint(candidate);
@@ -328,7 +325,10 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
               ? side === "north" || side === "south"
               : side === "west" || side === "east"
             : true;
-          if (shaft || lateral)
+          // A shaft's real perimeter walls already belong to each underground storey and remain
+          // visible throughout the fall. Duplicating them here as temporary surface trench walls
+          // invented a box that vanished as soon as the camera crossed into the basement.
+          if (!shaft && lateral)
             addTrenchWall(material, side, {
               ...entry,
               top: y,
@@ -380,22 +380,6 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       surfaceAccess.add(wall);
       accessWalls.push({ side, mesh: wall });
     }
-    const aperture = new THREE.InstancedMesh(box, shaftMaterial, shaftCells.length);
-    aperture.name = "underground-shaft-aperture";
-    shaftCells.forEach((entry, index) => {
-      matrix.compose(
-        new THREE.Vector3(
-          entry.col + 0.5 - map.size / 2,
-          entry.y - 0.035,
-          entry.row + 0.5 - map.size / 2,
-        ),
-        new THREE.Quaternion(),
-        new THREE.Vector3(0.92, 0.03, 0.92),
-      );
-      aperture.setMatrixAt(index, matrix);
-    });
-    aperture.instanceMatrix.needsUpdate = true;
-    surfaceAccess.add(aperture);
   }
 
   let activeDepth: number | null = null;
@@ -412,15 +396,19 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       Math.abs(x) > Math.abs(z) ? (x >= 0 ? "east" : "west") : z >= 0 ? "south" : "north";
     for (const wall of accessWalls) wall.mesh.visible = wall.side !== near;
     const previewFirstStorey = surfaceAccess.visible && surfaceAccess.children.length > 0;
+    const previewDepth = Math.max(
+      1,
+      ...(map.underground?.shafts ?? []).map((shaft) => shaft.depth),
+    );
     for (const [depth, level] of levels) {
-      // At surface level the terrain itself occludes this group everywhere except through a real
-      // opening. Keeping the first storey rendered therefore reveals the actual landing through
-      // stairs/shafts without exposing the rest of the basement through intact ground.
-      const previewing = depth === 1 && previewFirstStorey && !visibleDepths.has(depth);
+      // At surface level the terrain itself occludes these groups everywhere except through a real
+      // opening. Keeping the connected shaft depth rendered therefore reveals the actual landing
+      // below without exposing the rest of the basement through intact ground.
+      const previewing = depth <= previewDepth && previewFirstStorey && !visibleDepths.has(depth);
       level.group.visible = visibleDepths.has(depth) || previewing;
       for (const tinted of level.tintedMaterials) {
         tinted.material.color.copy(tinted.color);
-        if (previewing) tinted.material.color.multiplyScalar(0.38);
+        if (previewing) tinted.material.color.multiplyScalar(0.38 / Math.sqrt(depth));
       }
       for (const [side, wall] of level.walls) wall.visible = side !== near;
     }

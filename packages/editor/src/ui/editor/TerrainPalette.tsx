@@ -323,34 +323,36 @@ export function TerrainPalette({
               )}
             </select>
           </label>
-          <div className="grid grid-cols-2 gap-1">
-            <label className="text-[10px] text-zinc-500">
-              {t("editor.underground.width")}
-              <input
-                className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
-                type="number"
-                min={1}
-                max={32}
-                value={undergroundWidth}
-                onChange={(event) =>
-                  onUndergroundSizeChange(Number(event.currentTarget.value), undergroundLength)
-                }
-              />
-            </label>
-            <label className="text-[10px] text-zinc-500">
-              {t("editor.underground.length")}
-              <input
-                className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
-                type="number"
-                min={1}
-                max={64}
-                value={undergroundLength}
-                onChange={(event) =>
-                  onUndergroundSizeChange(undergroundWidth, Number(event.currentTarget.value))
-                }
-              />
-            </label>
-          </div>
+          {undergroundOperation === "shaft" ? null : (
+            <div className="grid grid-cols-2 gap-1">
+              <label className="text-[10px] text-zinc-500">
+                {t("editor.underground.width")}
+                <input
+                  className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={undergroundWidth}
+                  onChange={(event) =>
+                    onUndergroundSizeChange(Number(event.currentTarget.value), undergroundLength)
+                  }
+                />
+              </label>
+              <label className="text-[10px] text-zinc-500">
+                {t("editor.underground.length")}
+                <input
+                  className="mt-0.5 h-7 w-full rounded border border-zinc-200 px-2"
+                  type="number"
+                  min={1}
+                  max={64}
+                  value={undergroundLength}
+                  onChange={(event) =>
+                    onUndergroundSizeChange(undergroundWidth, Number(event.currentTarget.value))
+                  }
+                />
+              </label>
+            </div>
+          )}
           {undergroundOperation === "tunnel" || undergroundOperation === "stairs" ? (
             <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
               <span>{t("editor.underground.direction")}</span>
