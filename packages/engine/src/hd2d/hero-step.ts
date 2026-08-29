@@ -26,6 +26,7 @@ import {
   sePropulse,
   vitesseMaxPour,
 } from "./locomotion.js";
+import type { TerrainLiquid, TerrainQuery } from "./terrain-query.js";
 
 /** Center of the collision footprint, offset under the sprite's body — MOVED from the lab's
  *  `hero.ts`, where an identical local helper used to live before this rule was extracted;
@@ -35,6 +36,30 @@ import {
  *  it along at the move into `engine`. */
 function empreinte(z: number, hero: HeroSettings): number {
   return z - hero.offset;
+}
+
+/** Storey-aware liquid lookup. A `null` answer means this exact elevation is dry; falling back to
+ * the liquid in the same surface column would make a basement hero swim in the lake overhead. */
+function liquidAtElevation(
+  query: TerrainQuery,
+  x: number,
+  z: number,
+  elevation: number,
+): TerrainLiquid | null {
+  return query.liquidAtElevation ? query.liquidAtElevation(x, z, elevation) : query.liquidAt(x, z);
+}
+
+/** Same compatibility rule for a liquid surface: only use the legacy lookup when the query has no
+ * elevation-aware implementation, not when a storey-aware source deliberately returns its own. */
+function liquidSurfaceAtElevation(
+  query: TerrainQuery,
+  x: number,
+  z: number,
+  elevation: number,
+): number {
+  return query.waterLevelAtElevation
+    ? query.waterLevelAtElevation(x, z, elevation)
+    : query.waterLevelAt(x, z);
 }
 
 /**
@@ -62,10 +87,6 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   const { query, colliders, hero, world } = deps;
   const climb = world.levelHeight * hero.swim.climb;
   const maxStep = world.maxStep * world.levelHeight + 1e-3;
-  const surfaceAt = (xx: number, zz: number) =>
-    query.surfaceAt?.(xx, zz, state.y + 0.02) ??
-    query.heightAt(xx, zz) ??
-    query.waterLevelAt(xx, zz);
   const footprintZ = empreinte(z, hero);
   const currentFootprintZ = empreinte(state.z, hero);
   const traversingRamp = query.canTraverseRamp(
@@ -98,6 +119,13 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     ? (query.rampAt(x, footprintZ) ?? query.rampAt(state.x, currentFootprintZ))
     : null;
   const rampCeiling = rampSample === null ? null : rampSample.highHeight + 1e-3;
+  const reachableSurfaceAt = (xx: number, zz: number): number => {
+    const ceiling = rampSample?.height ?? state.y + 0.02;
+    const surface = query.surfaceAt
+      ? query.surfaceAt(xx, zz, ceiling + 0.02)
+      : query.heightAt(xx, zz);
+    return surface ?? liquidSurfaceAtElevation(query, xx, zz, state.y);
+  };
 
   // Indoors, terrain relief and props no longer apply: the room is a plain rectangle, sitting
   // outside the terrain grid.
@@ -115,7 +143,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // hero would climb a cliff by leaning into it.
   const centreOk = (xx: number, zz: number): boolean => {
     const foot = empreinte(zz, hero);
-    const h = platformHeight ?? surfaceAt(xx, foot);
+    const h = platformHeight ?? reachableSurfaceAt(xx, foot);
     // Measured against the surface the swimmer is FLOATING ON — `state.y` — not against a water
     // level sampled somewhere else. "How far must I climb to get out" is a question about the
     // water under the hero, and the only place that is reliably known is the hero.
@@ -190,7 +218,7 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
  */
 function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "entree-eau" }> {
   const { hero } = deps;
-  const liquid = deps.query.liquidAt(state.x, state.z) ?? "water";
+  const liquid = liquidAtElevation(deps.query, state.x, state.z, state.y) ?? "water";
   state.swimming = true;
   state.liquid = liquid;
   state.airborne = false;
@@ -198,7 +226,7 @@ function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
-  const surface = deps.query.waterLevelAt(state.x, state.z);
+  const surface = liquidSurfaceAtElevation(deps.query, state.x, state.z, state.y);
   state.y = surface;
   state.groundY = surface;
   return { t: "entree-eau", liquid, x: state.x, y: surface, z: state.z };
@@ -220,7 +248,7 @@ function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
     t: "sortie-eau",
     liquid,
     x: state.x,
-    y: deps.query.waterLevelAt(state.x, state.z),
+    y: liquidSurfaceAtElevation(deps.query, state.x, state.z, state.y),
     z: state.z,
   };
 }
@@ -249,7 +277,12 @@ function drown(state: HeroState, deps: StepDeps): HeroEvent {
   state.vx = 0;
   state.vz = 0;
   state.breath = hero.swim.breath;
-  return { t: "noyade", x, y: deps.query.waterLevelAt(x, z), z };
+  return {
+    t: "noyade",
+    x,
+    y: liquidSurfaceAtElevation(deps.query, x, z, state.y),
+    z,
+  };
 }
 
 export function stepHero(
@@ -276,7 +309,11 @@ export function stepHero(
   // The material UNDER THE FEET, before moving, picks the friction and speed cap. Swimming or
   // indoors, the real seabed / virtual-coordinate material has no physical meaning: fall back to
   // `null` (= grass).
-  const matiere = state.swimming || state.room ? null : query.kindAt(state.x, empreinteZ(state.z));
+  const matiere =
+    state.swimming || state.room
+      ? null
+      : (query.kindAtElevation?.(state.x, empreinteZ(state.z), state.y) ??
+        query.kindAt(state.x, empreinteZ(state.z)));
   const friction = frictionPour(matiere, hero);
   const vmax = state.swimming ? hero.speed * hero.swim.speed : vitesseMaxPour(matiere, hero);
   const accel = vmax * friction;
@@ -366,14 +403,15 @@ export function stepHero(
     : state.airborne
       ? state.y + 0.02
       : rampSurface
-        ? rampSurface.highHeight + 1e-3
+        ? rampSurface.height + 0.02
         : platformSurface !== null
-          ? Number.POSITIVE_INFINITY
+          ? platformSurface + 0.02
           : state.groundY + world.maxStep * world.levelHeight + 1e-3;
   const centreSurface = state.room
     ? state.room.y
-    : (query.surfaceAt?.(state.x, footprintZ, surfaceCeiling) ??
-      query.heightAt(state.x, footprintZ));
+    : query.surfaceAt
+      ? query.surfaceAt(state.x, footprintZ, surfaceCeiling)
+      : query.heightAt(state.x, footprintZ);
   const nearbyPlatform = state.room
     ? null
     : (query.platformSurfaceAround?.(state.x, footprintZ, hero.radius, surfaceCeiling) ?? null);
@@ -386,20 +424,27 @@ export function stepHero(
     nearbyPlatform !== null && (state.airborne || Math.abs(nearbyPlatform - state.groundY) <= 0.08)
       ? nearbyPlatform
       : null;
-  const liquid = state.room ? null : query.liquidAt(state.x, footprintZ);
+  const liquid = state.room ? null : liquidAtElevation(query, state.x, footprintZ, state.y);
   const support =
     supportedPlatform === null
       ? centreSurface
       : centreSurface === null
         ? supportedPlatform
         : Math.max(centreSurface, supportedPlatform);
-  const sol = liquid !== null && supportedPlatform === null ? null : support;
+  const liquidSurface =
+    liquid === null ? null : liquidSurfaceAtElevation(query, state.x, state.z, state.y);
+  const sol =
+    liquid !== null &&
+    (supportedPlatform === null ||
+      (liquidSurface !== null && supportedPlatform <= liquidSurface + 1e-3))
+      ? null
+      : support;
 
   // Indoors, the floor is flat: no gravity, no swimming, no jumping. The whole vertical block is
   // guarded by `!state.room` so none of these mechanics run indoors.
   if (!state.room) {
     if (!state.swimming) {
-      const ground = sol ?? query.waterLevelAt(state.x, state.z);
+      const ground = sol ?? liquidSurfaceAtElevation(query, state.x, state.z, state.y);
       if (state.airborne) {
         state.coyote -= dt;
       } else if (ground < state.y - 1e-3 && !suitSurface) {
@@ -495,7 +540,7 @@ export function stepHero(
         events.push(leaveWater(state, deps, sol));
       } else {
         state.liquid = liquid ?? state.liquid ?? "water";
-        const surface = query.waterLevelAt(state.x, state.z);
+        const surface = liquidSurfaceAtElevation(query, state.x, state.z, state.y);
         if (surface < state.y - WATER_SPILL_DROP) {
           // The water has fallen away beneath: carried over a lip, which is what the top of a
           // waterfall IS. Without this the swimmer's Y snaps to the new surface and he TELEPORTS
@@ -559,7 +604,10 @@ export function stepHero(
     state.distanceDepuisLePas += avance;
     if (state.distanceDepuisLePas >= hero.pasTousLes) {
       state.distanceDepuisLePas = 0;
-      const matiere = query.kindAt(state.x, empreinteZ(state.z)) ?? "herbe";
+      const matiere =
+        query.kindAtElevation?.(state.x, empreinteZ(state.z), state.y) ??
+        query.kindAt(state.x, empreinteZ(state.z)) ??
+        "herbe";
       events.push({ t: "pas", matiere });
 
       // Breath and footprints: MOVED from the lab's `hero.ts` (the old `e.t === "pas"` block of

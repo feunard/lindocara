@@ -39,8 +39,11 @@ import {
 } from "@lindocara/engine/map-weather.js";
 import {
   undergroundDepthAtElevation,
+  undergroundFloorHeight,
   undergroundSurfaceOpenings,
   undergroundStyleMaterial,
+  undergroundTransitionAt,
+  undergroundVisibleDepthsAtElevation,
   UNDERGROUND_STOREY_HEIGHT,
 } from "@lindocara/engine/underground.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
@@ -781,7 +784,10 @@ export function createHd2dScene(
   let viewedUndergroundDepth: number | null = null;
   let undergroundElevation: number | null = null;
   let showSurfaceReference = false;
-  const setTerrainReference = (enabled: boolean): void => {
+  let terrainOpacity = 1;
+  const setTerrainOpacity = (opacity: number): void => {
+    if (Math.abs(opacity - terrainOpacity) < 0.005) return;
+    terrainOpacity = opacity;
     terrain.group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const source = Array.isArray(object.material) ? object.material : [object.material];
@@ -789,37 +795,66 @@ export function createHd2dScene(
         if (material.userData.surfaceReferenceAlphaTest === undefined) {
           material.userData.surfaceReferenceAlphaTest = material.alphaTest;
         }
-        material.transparent = enabled;
-        material.opacity = enabled ? 0.16 : 1;
-        material.depthWrite = !enabled;
-        material.alphaTest = enabled ? 0 : (material.userData.surfaceReferenceAlphaTest as number);
-        material.needsUpdate = true;
+        const transparent = opacity < 0.995;
+        if (material.transparent !== transparent || material.depthWrite === transparent) {
+          material.transparent = transparent;
+          material.depthWrite = !transparent;
+          material.alphaTest = transparent
+            ? 0
+            : (material.userData.surfaceReferenceAlphaTest as number);
+          material.needsUpdate = true;
+        }
+        material.opacity = opacity;
       }
-      object.castShadow = !enabled;
+      object.castShadow = opacity >= 0.995;
     });
   };
   const applyUndergroundVisibility = (): void => {
-    const surface = viewedUndergroundDepth === null;
-    terrain.group.visible = surface || showSurfaceReference;
-    setTerrainReference(!surface && showSurfaceReference);
-    liquids.group.visible = surface;
-    foam.group.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
-    water.mesh.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
-    interiorShell.group.visible = surface;
-    surfaceRoot.visible = surface;
-    rain.group.visible = surface;
-    sky.mesh.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
-    scene.background = new THREE.Color(
-      surface && (currentMap.environment ?? "exterior") === "exterior" ? 0x7ca5a0 : 0x020307,
-    );
+    const visibleDepths =
+      undergroundElevation === null
+        ? [viewedUndergroundDepth]
+        : undergroundVisibleDepthsAtElevation(undergroundElevation);
+    const seesSurface = visibleDepths.includes(null);
+    const surfaceBlend = showSurfaceReference
+      ? viewedUndergroundDepth === null
+        ? 1
+        : 0.16
+      : undergroundElevation !== null && undergroundElevation < 0
+        ? Math.max(
+            0,
+            Math.min(
+              1,
+              (undergroundElevation - undergroundFloorHeight(1)) / -undergroundFloorHeight(1),
+            ),
+          )
+        : seesSurface
+          ? 1
+          : 0;
+    terrain.group.visible = surfaceBlend > 0.005;
+    setTerrainOpacity(surfaceBlend);
+    liquids.group.visible = seesSurface;
+    foam.group.visible = seesSurface && (currentMap.environment ?? "exterior") === "exterior";
+    water.mesh.visible = seesSurface && (currentMap.environment ?? "exterior") === "exterior";
+    interiorShell.group.visible = seesSurface;
+    surfaceRoot.visible = true;
+    for (const content of surfaceRoot.children) {
+      const depth = content.userData.undergroundDepth;
+      content.visible =
+        depth === undefined || depth === null ? surfaceBlend > 0.04 : visibleDepths.includes(depth);
+    }
+    rain.group.visible = seesSurface;
+    sky.mesh.visible = seesSurface && (currentMap.environment ?? "exterior") === "exterior";
+    const undergroundBackground = new THREE.Color(0x020307);
+    scene.background =
+      (currentMap.environment ?? "exterior") === "exterior"
+        ? undergroundBackground.lerp(new THREE.Color(0x7ca5a0), surfaceBlend)
+        : undergroundBackground;
     for (const stair of stairs.group.children) {
       const depth = stair.userData.undergroundDepth;
       stair.visible =
         depth === null
-          ? surface
-          : surface
-            ? depth === 1
-            : depth === viewedUndergroundDepth || depth === (viewedUndergroundDepth ?? 0) + 1;
+          ? seesSurface
+          : visibleDepths.includes(depth) || (seesSurface && depth === 1);
     }
     if (showSurfaceReference) underground.setDepth(viewedUndergroundDepth);
     else underground.setElevation(undergroundElevation);
@@ -1056,6 +1091,7 @@ export function createHd2dScene(
       terrain.dispose();
       terrain.group.removeFromParent();
       terrain = terrainGroupFor(ctx, next, atlases);
+      terrainOpacity = -1;
       scene.add(terrain.group);
       stairs.dispose();
       stairs.group.removeFromParent();
@@ -1106,8 +1142,22 @@ export function createHd2dScene(
     //
     focusOn(x: number, z: number, elevation?: number, airborne = false): void {
       if (elevation !== undefined && currentMap.underground && !showSurfaceReference) {
-        viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
-        undergroundElevation = viewedUndergroundDepth === null ? null : elevation;
+        const transitioning = undergroundTransitionAt(
+          currentMap.underground,
+          currentMap.size,
+          x,
+          z,
+        );
+        // A jump changes the body's Y but not the room it occupies. Preserve the last grounded
+        // storey unless the body is physically inside a stair or shaft; those authored openings
+        // are the only places where seeing both floors during vertical travel is intentional.
+        if (airborne && !transitioning) {
+          undergroundElevation =
+            viewedUndergroundDepth === null ? 0 : undergroundFloorHeight(viewedUndergroundDepth);
+        } else {
+          viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
+          undergroundElevation = elevation;
+        }
         applyUndergroundVisibility();
       }
       focus = {

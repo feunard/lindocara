@@ -117,6 +117,7 @@ export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
 }
 
 export interface WorldEventColliderView {
+  y?: number;
   collider?: WorldEventCollider;
   harvest?: { collider: WorldEventCollider | null };
 }
@@ -139,6 +140,7 @@ export const PEASANT_CAMP_COLLIDER = {
 export function worldEventColliderRect(
   terrain: ZoneTerrain,
   tuple: WorldEventCollider,
+  authoredY?: number,
 ): import("./hd2d/collider-index.js").ColliderRect {
   const half = terrain.size / 2;
   const rect = {
@@ -152,7 +154,9 @@ export function worldEventColliderRect(
   const centreX = rect.x + rect.w / 2;
   const centreZ = rect.z + rect.h / 2;
   const base =
-    terrain.query.heightAt(centreX, centreZ) ?? terrain.query.waterLevelAt(centreX, centreZ);
+    authoredY ??
+    terrain.query.heightAt(centreX, centreZ) ??
+    terrain.query.waterLevelAt(centreX, centreZ);
   return { ...rect, top: base + elevation * terrain.levelHeight };
 }
 
@@ -161,7 +165,7 @@ function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[
   return {
     ...query,
     surfaceAt(wx, wz, ceilingY) {
-      let surface = query.surfaceAt?.(wx, wz, ceilingY) ?? query.heightAt(wx, wz);
+      let surface = query.surfaceAt ? query.surfaceAt(wx, wz, ceilingY) : query.heightAt(wx, wz);
       for (const platform of platforms) {
         const height = colliderSurfaceHeightAt(platform, wx, wz);
         if (height === null || height > ceilingY + HEIGHT_EPSILON) continue;
@@ -231,7 +235,7 @@ export function withWorldEventColliders(
   for (const event of events) {
     for (const tuple of [event.collider, event.harvest?.collider]) {
       if (!tuple) continue;
-      const rect = worldEventColliderRect(terrain, tuple);
+      const rect = worldEventColliderRect(terrain, tuple, event.y);
       colliders.add(rect);
       if (rect.top !== undefined) eventPlatforms.push({ ...rect, top: rect.top });
     }
@@ -262,13 +266,21 @@ export function canStand(
 ): boolean {
   const ceiling = standingCeiling(terrain, groundY);
   const ramp = terrain.query.rampAt(x, z);
-  const surface = terrain.query.surfaceAt?.(x, z, ceiling) ?? terrain.query.heightAt(x, z);
+  const surface = terrain.query.surfaceAt
+    ? terrain.query.surfaceAt(x, z, ceiling)
+    : terrain.query.heightAt(x, z);
   // `null` is water or off the grid. Neither is ground a server-simulated body may stand on.
   if (surface === null) return false;
-  if (
-    terrain.query.liquidAt(x, z) !== null &&
-    surface <= terrain.query.waterLevelAt(x, z) + HEIGHT_EPSILON
-  ) {
+  // `null` from the elevation-aware query is meaningful: this storey is dry even when the same
+  // X/Z column contains water or lava at the surface. Only fall back when the query implementation
+  // predates storeys entirely, never when it deliberately answered "no liquid here".
+  const liquid = terrain.query.liquidAtElevation
+    ? terrain.query.liquidAtElevation(x, z, groundY)
+    : terrain.query.liquidAt(x, z);
+  const liquidSurface = terrain.query.waterLevelAtElevation
+    ? terrain.query.waterLevelAtElevation(x, z, groundY)
+    : terrain.query.waterLevelAt(x, z);
+  if (liquid !== null && surface <= liquidSurface + HEIGHT_EPSILON) {
     return false;
   }
 
@@ -305,6 +317,11 @@ export function canStand(
  * so it answers with a bridge deck overhead as readily as with the floor underfoot.
  */
 export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback = 0): number {
+  // Positional callers (spawn, navigation and landing probes) are asking for the first surface
+  // encountered from above. A raised liquid is that surface even when an underground platform
+  // shares its X/Z column; asking `surfaceAt(Infinity)` first would skip the liquid and select the
+  // basement floor, making a surface spawn fall through the pool.
+  if (terrain.query.liquidAt(x, z) !== null) return terrain.query.waterLevelAt(x, z);
   return (
     terrain.query.surfaceAt?.(x, z, Number.POSITIVE_INFINITY) ??
     terrain.query.heightAt(x, z) ??
@@ -342,11 +359,10 @@ export function groundUnderBody(
   z: number,
   elevation: number,
 ): number {
-  return (
-    terrain.query.surfaceAt?.(x, z, standingCeiling(terrain, elevation)) ??
-    terrain.query.heightAt(x, z) ??
-    elevation
-  );
+  const surface = terrain.query.surfaceAt
+    ? terrain.query.surfaceAt(x, z, standingCeiling(terrain, elevation))
+    : terrain.query.heightAt(x, z);
+  return surface ?? elevation;
 }
 
 /**

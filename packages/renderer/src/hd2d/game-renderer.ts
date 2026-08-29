@@ -64,6 +64,8 @@ import {
 import {
   undergroundDepthAtElevation,
   undergroundFloorHeight,
+  undergroundTransitionAt,
+  undergroundVisibleDepthsAtElevation,
 } from "@lindocara/engine/underground.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
@@ -1028,7 +1030,7 @@ export function worldEventContentVisualKey(
       const presentation = worldEventStaticPresentation(event);
       return authoredActorSheet(assetId, "idle")
         ? `event:${event.id}:actor:${assetId ?? ""}`
-        : `event:${event.id}:${event.col}:${event.row}:${assetId ?? ""}:${event.presentation ?? "marker"}:${presentation.elevationOffset ?? 0}:${presentation.floating ? 1 : 0}`;
+        : `event:${event.id}:${event.col}:${event.row}:${event.y ?? ""}:${event.undergroundDepth ?? ""}:${assetId ?? ""}:${event.presentation ?? "marker"}:${presentation.elevationOffset ?? 0}:${presentation.floating ? 1 : 0}`;
     }),
     ...buildings.map(
       (building) =>
@@ -1126,6 +1128,7 @@ export class Hd2dRenderer implements RendererLike {
   #cameraYaw = 0;
   #cameraPitch = HD2D_CAMERA.pitch;
   #undergroundDepth: number | null = null;
+  #gameplayVisibilityDepth: number | null = null;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -1276,7 +1279,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals.setQuestMarkers(this.#questMarkers);
     this.#actors = createBillboardRegistry(
       scene.ctx,
-      this.#sceneFor(scene, heightfield),
+      this.#sceneFor(scene, heightfield, scene.scene),
       this.#textures,
     );
     // Fire and forget, but never silently: a failed scenery download costs the map its props and
@@ -1327,10 +1330,15 @@ export class Hd2dRenderer implements RendererLike {
     this.#scene?.setWeather(weather);
   }
 
-  /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */
-  #sceneFor(scene: Hd2dScene, heightfield: MapData): BillboardScene {
+  /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. Dynamic
+   * actors live at scene level so hiding surface scenery never hides the followed hero. */
+  #sceneFor(
+    scene: Hd2dScene,
+    heightfield: MapData,
+    root: THREE.Object3D = scene.surfaceRoot,
+  ): BillboardScene {
     return {
-      root: scene.surfaceRoot,
+      root,
       // Keep this live across editor content edits: building/bridge collision is replaced without
       // recreating the scene, and newly placed visuals must sample the refreshed surface.
       get query() {
@@ -1548,6 +1556,10 @@ export class Hd2dRenderer implements RendererLike {
               // Native scenery is bottom-anchored on the cell's lower edge, exactly like authored
               // map elements. Marker events stay centred in their logical cell.
               z: event.row + (event.presentation === "native" ? 1 : 0.5) - map.size / 2,
+              ...(event.y === undefined ? {} : { y: event.y }),
+              ...(event.undergroundDepth === undefined
+                ? {}
+                : { undergroundDepth: event.undergroundDepth }),
               graphicAssetId: assetId,
               ...(presentation.elevationOffset === undefined
                 ? {}
@@ -1589,6 +1601,7 @@ export class Hd2dRenderer implements RendererLike {
       );
     }
     this.#eventVisualKey = visualKey;
+    scene.setUndergroundDepth(this.#undergroundDepth, this.#currentMapId === "editor");
   }
 
   render(sample: SceneSample, context: RenderContext): void {
@@ -1914,7 +1927,7 @@ export class Hd2dRenderer implements RendererLike {
         id: `event:${event.id}`,
         kind: "event",
         x: movement.col + 0.5 - mapSize / 2,
-        y: 0,
+        y: event.y ?? 0,
         z: movement.row + 0.5 - mapSize / 2,
         ...GROUNDED,
         vy: 0,
@@ -1938,10 +1951,21 @@ export class Hd2dRenderer implements RendererLike {
       if (!present.has(actorId)) this.#combatAnimations.delete(actorId);
     }
     if (self && this.#map?.underground) {
-      const visibleDepth = undergroundDepthAtElevation(self.y);
+      const transitioning = undergroundTransitionAt(
+        this.#map.underground,
+        this.#map.size,
+        self.x,
+        self.z,
+      );
+      if (!self.airborne || transitioning) {
+        this.#gameplayVisibilityDepth = undergroundDepthAtElevation(self.y);
+      }
+      const visibleDepths = transitioning
+        ? undergroundVisibleDepthsAtElevation(self.y)
+        : [this.#gameplayVisibilityDepth];
       let write = 0;
       for (const view of views) {
-        if (undergroundDepthAtElevation(view.y) !== visibleDepth) continue;
+        if (!visibleDepths.includes(undergroundDepthAtElevation(view.y))) continue;
         views[write] = view;
         write += 1;
       }
@@ -2075,6 +2099,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#scene?.dispose();
     this.#scene = null;
     this.#map = null;
+    this.#gameplayVisibilityDepth = null;
   }
 
   destroy(): void {

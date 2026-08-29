@@ -1,6 +1,7 @@
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
 import {
   MAX_UNDERGROUND_DEPTH,
   parseUnderground,
@@ -9,6 +10,8 @@ import {
   undergroundFloorHeight,
   undergroundRamp,
   undergroundStairMouth,
+  undergroundTransitionAt,
+  undergroundVisibleDepthsAtElevation,
 } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
@@ -117,10 +120,93 @@ describe("multi-storey underground", () => {
     expect(state.y).toBeCloseTo(0);
   });
 
+  it("lets an underground floor extend beneath surface water", () => {
+    const platforms = undergroundColliders(underground, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => null,
+      kindAt: () => null,
+      liquidAt: () => "water",
+      liquidAtElevation: (_col, _row, elevation) => (elevation < -0.6 ? null : "water"),
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const floorY = undergroundFloorHeight(1);
+    const terrain = { query, colliders, size: 8, levelHeight: 0.9, waterLevel: -0.05 };
+
+    expect(query.surfaceAt?.(1.5, -1.5, floorY + 0.02)).toBeCloseTo(floorY);
+    expect(canStand(terrain, 1.5, -1.5, 0.2, floorY)).toBe(true);
+    expect(canStand(terrain, 1.5, -1.5, 0.2, 0)).toBe(false);
+    expect(groundUnder(terrain, 1.5, -1.5)).toBeCloseTo(-0.05);
+  });
+
+  it("keeps an elevated liquid as the entry surface above a basement", () => {
+    const platforms = undergroundColliders(underground, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => null,
+      kindAt: () => null,
+      liquidAt: () => "water",
+      liquidLevelAt: () => 3,
+      liquidAtElevation: (_col, _row, elevation) => (elevation < -0.6 ? null : "water"),
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const terrain = { query, colliders, size: 8, levelHeight: 0.9, waterLevel: -0.05 };
+
+    expect(groundUnder(terrain, 1.5, -1.5)).toBeCloseTo(2.7);
+    const state = createHeroState(1.5, -1.15, 3.5, 10, 2.2);
+    state.airborne = true;
+    for (let index = 0; index < 120 && !state.swimming; index += 1) {
+      stepHero(state, immobile, 1 / 60, { ...depsPlates(), query, colliders });
+    }
+    expect(state.swimming).toBe(true);
+    expect(state.y).toBeCloseTo(2.7);
+  });
+
+  it("ignores elevated surface terrain and lava while walking on the storey below", () => {
+    const platforms = undergroundColliders(underground, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 3,
+      kindAt: () => "lave",
+      liquidAt: () => "lava",
+      liquidAtElevation: (_col, _row, elevation) => (elevation < -0.6 ? null : "lava"),
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const floorY = undergroundFloorHeight(1);
+    const terrain = { query, colliders, size: 8, levelHeight: 0.9, waterLevel: -0.05 };
+
+    expect(query.surfaceAt?.(1.5, -1.5, floorY + 0.02)).toBeCloseTo(floorY);
+    expect(canStand(terrain, 1.5, -1.5, 0.2, floorY)).toBe(true);
+
+    const state = createHeroState(1.5, -1.15, floorY, 10, 2.2);
+    stepHero(state, immobile, 1 / 60, { ...depsPlates(), query, colliders });
+    expect(state.y).toBeCloseTo(floorY);
+    expect(state.swimming).toBe(false);
+    expect(state.liquid).toBeNull();
+  });
+
   it("opens the visual and collision wall at both ends of a stair flight", () => {
     expect(undergroundStairMouth(underground.stairs, 1, 2, 2, -1, 0)).toBe(true);
     expect(undergroundStairMouth(underground.stairs, 1, 4, 2, 1, 0)).toBe(true);
     expect(undergroundStairMouth(underground.stairs, 1, 3, 2, 0, -1)).toBe(false);
+  });
+
+  it("distinguishes a real vertical access from a jump elsewhere in the room", () => {
+    expect(undergroundTransitionAt(underground, 8, -1.5, -1.5)).toBe(true);
+    expect(undergroundTransitionAt(underground, 8, 2.5, 1.5)).toBe(true);
+    expect(undergroundTransitionAt(underground, 8, 1.5, -1.5)).toBe(false);
   });
 
   it("samples a continuous 2.4-unit stair instead of one terrain tier", () => {
@@ -138,6 +224,55 @@ describe("multi-storey underground", () => {
     expect(query.rampAt(ramp.x, ramp.z)?.height).toBeCloseTo(undergroundFloorHeight(1));
     expect(query.rampAt(ramp.x + ramp.width / 2, ramp.z)?.height).toBeCloseTo(-1.2);
     expect(query.rampAt(ramp.x + ramp.width, ramp.z)?.height).toBeCloseTo(0);
+    expect(undergroundVisibleDepthsAtElevation(0)).toEqual([null]);
+    expect(undergroundVisibleDepthsAtElevation(-1.2)).toEqual([null, 1]);
+    expect(undergroundVisibleDepthsAtElevation(-2.4)).toEqual([1]);
+    expect(undergroundVisibleDepthsAtElevation(-3.6)).toEqual([1, 2]);
+  });
+
+  it("descends onto the excavated landing without snapping back to the surface", () => {
+    const stair = underground.stairs[0];
+    if (!stair) throw new Error("fixture stair missing");
+    const accessible = {
+      levels: [
+        {
+          depth: 1,
+          style: "cave" as const,
+          cells: [{ col: 1, row: 2, length: 5 }],
+        },
+      ],
+      stairs: [stair],
+    };
+    const platforms = undergroundColliders(accessible, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      ramps: [undergroundRamp(stair, 8)],
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    // The foot collision point is 0.35 cells north of the sprite anchor.
+    const state = createHeroState(0.95, -1.15, -0.04, 10, 2.2);
+    state.groundY = state.y;
+    const deps = { ...depsPlates(), query, colliders };
+    const west = { ...immobile, x: -1 };
+    const elevations = [state.y];
+    for (let frame = 0; frame < 360; frame += 1) {
+      stepHero(state, west, 1 / 60, deps);
+      elevations.push(state.y);
+    }
+
+    expect(state.x).toBeLessThan(-2);
+    expect(state.airborne).toBe(false);
+    expect({ x: state.x, y: state.y, minimum: Math.min(...elevations) }).toEqual({
+      x: expect.any(Number),
+      y: expect.closeTo(undergroundFloorHeight(1)),
+      minimum: expect.closeTo(undergroundFloorHeight(1)),
+    });
   });
 
   it("falls continuously through every elevation down to depth 16", () => {
@@ -181,7 +316,9 @@ describe("multi-storey underground", () => {
     expect(elevations.some((elevation) => elevation < -20 && elevation > -21)).toBe(true);
     expect(
       Math.max(
-        ...elevations.slice(1).map((elevation, index) => Math.abs(elevation - elevations[index])),
+        ...elevations
+          .slice(1)
+          .map((elevation, index) => Math.abs(elevation - (elevations[index] ?? elevation))),
       ),
     ).toBeLessThan(1);
     expect(undergroundDepthAtElevation(state.y)).toBe(MAX_UNDERGROUND_DEPTH);
