@@ -8,6 +8,7 @@ import type {
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
+import { undergroundFloorHeight } from "@lindocara/engine/underground.js";
 
 export type AuthoredEventPreviewScope = "map-editor" | "playable-preview";
 
@@ -35,6 +36,12 @@ export function authoredEventPreviewSnapshots(
         id: event.id,
         col: event.col,
         row: event.row,
+        ...(event.undergroundDepth
+          ? {
+              y: undergroundFloorHeight(event.undergroundDepth),
+              undergroundDepth: event.undergroundDepth,
+            }
+          : {}),
         graphicAssetId: page.graphicAssetId ?? null,
         graphicTint: page.graphicTint ?? 0xffffff,
         onTop: page.optOnTop,
@@ -98,7 +105,9 @@ export function authoredMonsterPreviewSnapshots(
         rank: tuning.rank,
         specialTechnique: tuning.specialTechnique,
         x,
-        y: query.heightAt(x, z) ?? heightfield.waterLevel,
+        y: event.undergroundDepth
+          ? undergroundFloorHeight(event.undergroundDepth)
+          : (query.heightAt(x, z) ?? heightfield.waterLevel),
         z,
         hp: tuning.maxHp,
         maxHp: tuning.maxHp,
@@ -123,7 +132,7 @@ export function authoredSeaGuardianPreviewSnapshots(
           {
             id: seaGuardianRuntimeId(event.id),
             x: event.col + 0.5 - size / 2,
-            y: waterLevel,
+            y: event.undergroundDepth ? undergroundFloorHeight(event.undergroundDepth) : waterLevel,
             z: event.row + 0.5 - size / 2,
             facing: { x: 0, z: 1 },
             state: "patrol" as const,

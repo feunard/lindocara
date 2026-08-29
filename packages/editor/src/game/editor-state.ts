@@ -145,11 +145,13 @@ import {
   LINDOCARA_CHEST_OPEN_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
+  compactUndergroundTerrain,
   compactUndergroundCells,
   DEFAULT_UNDERGROUND_STAIR_LENGTH,
   DEFAULT_UNDERGROUND_STAIR_WIDTH,
   MAX_UNDERGROUND_DEPTH,
   undergroundCells,
+  undergroundTerrainCells,
 } from "@lindocara/engine/underground.js";
 
 /**
@@ -212,6 +214,7 @@ export interface EditorMap {
     row: number;
     layers: TileLayer[];
     interiorShell?: InteriorShell;
+    underground?: UndergroundMap;
   };
 }
 
@@ -296,7 +299,7 @@ export type EditorTool =
   | { kind: "stairs"; prefer?: RampDirection }
   | {
       kind: "underground";
-      operation: "dig" | "fill" | "shaft" | "stairs";
+      operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs";
       depth: number;
       style: InteriorShell["style"];
       /** Rectangle dimensions; a tunnel is simply a long, narrow rectangle. */
@@ -383,7 +386,14 @@ export type EditorSelection =
   // The full sub-position, not just `(col, row)`: a cell can hold a stack of decorations at distinct
   // quarter-cell offsets now, so the descriptor must carry the offset to name WHICH element of a
   // stack is selected. Every reader matches on the 4-tuple via `sameElementSlot`.
-  | { kind: "element"; col: number; row: number; offsetX: number; offsetY: number }
+  | {
+      kind: "element";
+      col: number;
+      row: number;
+      offsetX: number;
+      offsetY: number;
+      undergroundDepth?: number;
+    }
   | { kind: "event"; id: string }
   | { kind: "spawn" };
 
@@ -506,15 +516,23 @@ export function selectionAtMode(
   mode: EditorMode,
   offsetX = 0,
   offsetY = 0,
+  undergroundDepth: number | null = null,
 ): EditorSelection | null {
   if (mode === "event") {
-    const event = map.events.find((candidate) => candidate.col === col && candidate.row === row);
+    const event = map.events.find(
+      (candidate) =>
+        candidate.col === col &&
+        candidate.row === row &&
+        (candidate.undergroundDepth ?? null) === undergroundDepth,
+    );
     return event ? { kind: "event", id: event.id } : null;
   }
   if (mode === "element") {
     // Prefer the exact quarter-cell anchor under the pointer. If the author clicks another visible
     // cell of a multi-cell asset, fall back to the topmost footprint covering that cell.
-    const topFirst = [...map.elements].reverse();
+    const topFirst = map.elements
+      .filter((candidate) => (candidate.undergroundDepth ?? null) === undergroundDepth)
+      .reverse();
     const exact = topFirst.find(
       (candidate) =>
         candidate.col === col &&
@@ -555,6 +573,7 @@ export function selectionAtMode(
           row: covering.row,
           offsetX: covering.offsetX,
           offsetY: covering.offsetY,
+          ...(covering.undergroundDepth ? { undergroundDepth: covering.undergroundDepth } : {}),
         }
       : null;
   }
@@ -596,6 +615,17 @@ export function moveSelection(
     case "element": {
       const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
       if (!element) return null;
+      const { cols, rows } = editorMapSize(map);
+      if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+      const undergroundDepth = element.undergroundDepth ?? null;
+      if (
+        undergroundDepth !== null &&
+        undergroundCells(
+          map.underground?.levels.find((level) => level.depth === undergroundDepth),
+          Math.max(cols, rows),
+        )[row * Math.max(cols, rows) + col] === 0
+      )
+        return null;
       const destination = { col, row, offsetX, offsetY };
       if (sameElementSlot(element, destination)) return map;
       // Moving must never silently replace a different decoration already anchored at the target
@@ -621,6 +651,7 @@ export function moveSelection(
         "element",
         offsetX,
         offsetY,
+        element.undergroundDepth ?? null,
       );
       if (!moved) return null;
       return {
@@ -645,16 +676,32 @@ export function moveSelection(
       if (!event) return null;
       const { cols, rows } = editorMapSize(map);
       if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+      const undergroundDepth = event.undergroundDepth ?? null;
+      if (
+        undergroundDepth !== null &&
+        undergroundCells(
+          map.underground?.levels.find((level) => level.depth === undergroundDepth),
+          Math.max(cols, rows),
+        )[row * Math.max(cols, rows) + col] === 0
+      )
+        return null;
       // One event per cell: a move onto a cell another event already holds is a no-op, matching the
       // placement rule.
       if (
-        map.events.some((other) => other.id !== event.id && other.col === col && other.row === row)
+        map.events.some(
+          (other) =>
+            other.id !== event.id &&
+            other.col === col &&
+            other.row === row &&
+            (other.undergroundDepth ?? null) === undergroundDepth,
+        )
       )
         return null;
       // A `normal` event floats above collision, but a functional (entry/exit/monster) event is
       // load-bearing: it must stay on walkable ground, and an exit may not slide onto the spawn — the
       // same rules the server enforces, applied to a drag as well as a fresh placement.
-      if (!functionalEventPlacementOk(map, event.kind, col, row)) return null;
+      if (undergroundDepth === null && !functionalEventPlacementOk(map, event.kind, col, row))
+        return null;
       if (!harvestEventFootprintFitsMap(map, event)) return null;
       const events = map.events.map((candidate) =>
         candidate.id === selection.id ? { ...candidate, col, row } : candidate,
@@ -918,7 +965,14 @@ export function convertElementToEvent(
   if (runtimeEventCount(map.events) >= MAX_RUNTIME_EVENTS_PER_MAP) return null;
   const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
   if (!element) return null;
-  if (map.events.some((event) => event.col === element.col && event.row === element.row))
+  if (
+    map.events.some(
+      (event) =>
+        event.col === element.col &&
+        event.row === element.row &&
+        (event.undergroundDepth ?? null) === (element.undergroundDepth ?? null),
+    )
+  )
     return null;
   const eventId = crypto.randomUUID();
   const firstPage: MapEventPage = {
@@ -952,6 +1006,7 @@ export function convertElementToEvent(
     species: null,
     patrolRadius: null,
     pages,
+    ...(element.undergroundDepth ? { undergroundDepth: element.undergroundDepth } : {}),
   };
   return {
     eventId,
@@ -1317,11 +1372,33 @@ function numberedPresetName(label: string, events: readonly MapEvent[]): string 
  *  `EMPTY_MARKERS` and never a functional marker the server would ignore. */
 export function toMapData(map: EditorMap): MapData {
   const { cols, rows } = editorMapSize(map);
+  const elementDepths = map.elements.flatMap((element) =>
+    element.id && element.undergroundDepth
+      ? [{ id: element.id, depth: element.undergroundDepth }]
+      : [],
+  );
+  const eventDepths = map.events.flatMap((event) =>
+    event.undergroundDepth ? [{ id: event.id, depth: event.undergroundDepth }] : [],
+  );
+  const underground = map.underground
+    ? (() => {
+        const {
+          elementDepths: _storedElementDepths,
+          eventDepths: _storedEventDepths,
+          ...base
+        } = map.underground;
+        return {
+          ...base,
+          ...(elementDepths.length > 0 ? { elementDepths } : {}),
+          ...(eventDepths.length > 0 ? { eventDepths } : {}),
+        };
+      })()
+    : undefined;
   return {
     tilesetId: TINY_SWORDS_TILESET_ID,
     environment: map.environment ?? "exterior",
     ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
-    ...(map.underground ? { underground: map.underground } : {}),
+    ...(underground ? { underground } : {}),
     weather: map.weather ?? "none",
     cols,
     rows,
@@ -1422,6 +1499,7 @@ export function toSaveInput(
   name: string;
   environment: MapEnvironment;
   interiorShell?: InteriorShell;
+  underground?: UndergroundMap;
   weather: MapWeather;
   tilesetId: string;
   cols: number;
@@ -1443,6 +1521,7 @@ export function toSaveInput(
     name: map.name,
     environment: map.environment ?? "exterior",
     ...(cropped.interiorShell ? { interiorShell: cropped.interiorShell } : {}),
+    ...(data.underground ? { underground: data.underground } : {}),
     weather: map.weather ?? "none",
     audio: map.audio,
     heroSettings: map.heroSettings ?? defaultMapHeroSettings(),
@@ -1501,7 +1580,11 @@ function isWalkableCell(map: EditorMap, col: number, row: number): boolean {
 function keepsSpawnClear(map: EditorMap): boolean {
   return (
     isWalkableCell(map, map.spawn.col, map.spawn.row) &&
-    !map.elements.some((element) => elementCoversCell(element, map.spawn.col, map.spawn.row))
+    !map.elements.some(
+      (element) =>
+        element.undergroundDepth === undefined &&
+        elementCoversCell(element, map.spawn.col, map.spawn.row),
+    )
   );
 }
 
@@ -1670,8 +1753,17 @@ function erasedTerrainMap(map: EditorMap, col: number, row: number): EditorMap |
  *  or the map unchanged (same reference) when none is there. Peeling one at a time is what lets a
  *  stacked cell be cleared one click per decoration rather than wholesale. Never touches events or
  *  terrain. */
-function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
-  const covering = map.elements.filter((element) => elementCoversCell(element, col, row));
+function erasedElement(
+  map: EditorMap,
+  col: number,
+  row: number,
+  undergroundDepth: number | null = null,
+): EditorMap {
+  const covering = map.elements.filter(
+    (element) =>
+      (element.undergroundDepth ?? null) === undergroundDepth &&
+      elementCoversCell(element, col, row),
+  );
   const target = covering[covering.length - 1];
   if (!target) return map;
   return { ...map, elements: map.elements.filter((element) => element !== target) };
@@ -1679,8 +1771,18 @@ function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
 
 /** Event-mode eraser: drop the event on the cell (the topmost plane), or the map unchanged (same
  *  reference) when none is there. Never touches elements or terrain. */
-function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
-  const index = map.events.findIndex((event) => event.col === col && event.row === row);
+function erasedEvent(
+  map: EditorMap,
+  col: number,
+  row: number,
+  undergroundDepth: number | null = null,
+): EditorMap {
+  const index = map.events.findIndex(
+    (event) =>
+      event.col === col &&
+      event.row === row &&
+      (event.undergroundDepth ?? null) === undergroundDepth,
+  );
   if (index === -1) return map;
   const event = map.events[index];
   return event ? deleteSelection(map, { kind: "event", id: event.id }) : map;
@@ -2117,10 +2219,9 @@ function applyUndergroundTool(
   const { cols, rows } = editorMapSize(map);
   const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
   const alongX = tool.direction === "east" || tool.direction === "west";
-  const footprintCols =
-    tool.operation === "stairs" ? (alongX ? tool.length : tool.width) : tool.width;
-  const footprintRows =
-    tool.operation === "stairs" ? (alongX ? tool.width : tool.length) : tool.length;
+  const followsDirection = tool.operation === "stairs" || tool.operation === "tunnel";
+  const footprintCols = followsDirection ? (alongX ? tool.length : tool.width) : tool.width;
+  const footprintRows = followsDirection ? (alongX ? tool.width : tool.length) : tool.length;
   const c0 = Math.max(0, Math.min(cols - 1, col));
   const r0 = Math.max(0, Math.min(rows - 1, row));
   const c1 = Math.min(cols, c0 + Math.max(1, Math.trunc(footprintCols)));
@@ -2138,19 +2239,58 @@ function applyUndergroundTool(
   for (const touchedDepth of touchedDepths) {
     const previous = byDepth.get(touchedDepth);
     const cells = undergroundCells(previous, Math.max(cols, rows));
+    const excavation: Array<{ col: number; row: number }> = [];
     for (let cellRow = r0; cellRow < r1; cellRow += 1) {
-      for (let cellCol = c0; cellCol < c1; cellCol += 1) {
-        cells[cellRow * Math.max(cols, rows) + cellCol] = tool.operation === "fill" ? 0 : 1;
+      for (let cellCol = c0; cellCol < c1; cellCol += 1)
+        excavation.push({ col: cellCol, row: cellRow });
+    }
+    if (tool.operation === "stairs") {
+      const lowLanding = touchedDepth === depth;
+      const highLanding = touchedDepth === depth - 1;
+      const landing = lowLanding
+        ? tool.direction === "east"
+          ? { c0: c0 - 1, c1: c0, r0, r1 }
+          : tool.direction === "west"
+            ? { c0: c1, c1: c1 + 1, r0, r1 }
+            : tool.direction === "south"
+              ? { c0, c1, r0: r0 - 1, r1: r0 }
+              : { c0, c1, r0: r1, r1: r1 + 1 }
+        : highLanding
+          ? tool.direction === "east"
+            ? { c0: c1, c1: c1 + 1, r0, r1 }
+            : tool.direction === "west"
+              ? { c0: c0 - 1, c1: c0, r0, r1 }
+              : tool.direction === "south"
+                ? { c0, c1, r0: r1, r1: r1 + 1 }
+                : { c0, c1, r0: r0 - 1, r1: r0 }
+          : null;
+      if (landing) {
+        for (let landingRow = landing.r0; landingRow < landing.r1; landingRow += 1) {
+          for (let landingCol = landing.c0; landingCol < landing.c1; landingCol += 1) {
+            if (landingCol >= 0 && landingRow >= 0 && landingCol < cols && landingRow < rows)
+              excavation.push({ col: landingCol, row: landingRow });
+          }
+        }
       }
+    }
+    for (const cell of excavation) {
+      cells[cell.row * Math.max(cols, rows) + cell.col] = tool.operation === "fill" ? 0 : 1;
     }
     const compact = compactUndergroundCells(cells, Math.max(cols, rows));
     if (compact.length === 0) byDepth.delete(touchedDepth);
-    else
+    else {
+      const terrainCells = undergroundTerrainCells(previous, Math.max(cols, rows));
+      for (let index = 0; index < cells.length; index += 1) {
+        if (cells[index] === 0) terrainCells[index] = null;
+      }
+      const terrain = compactUndergroundTerrain(terrainCells, Math.max(cols, rows));
       byDepth.set(touchedDepth, {
         depth: touchedDepth,
         style: tool.operation === "fill" ? (previous?.style ?? tool.style) : tool.style,
         cells: compact,
+        ...(terrain.length > 0 ? { terrain } : {}),
       });
+    }
   }
   let stairs = source.stairs.filter((stair) => {
     if (tool.operation !== "fill" || stair.depth !== depth) return true;
@@ -2210,8 +2350,115 @@ function applyUndergroundTool(
     levels: [...byDepth.values()].sort((left, right) => left.depth - right.depth),
     stairs,
     ...(shafts.length > 0 ? { shafts } : {}),
+    ...(source.elementDepths ? { elementDepths: source.elementDepths } : {}),
+    ...(source.eventDepths ? { eventDepths: source.eventDepths } : {}),
   };
-  return { ...map, underground };
+  if (tool.operation !== "fill") return { ...map, underground };
+  const coversFilledCell = (element: MapElement): boolean => {
+    if (element.undergroundDepth !== depth) return false;
+    for (let cellRow = r0; cellRow < r1; cellRow += 1) {
+      for (let cellCol = c0; cellCol < c1; cellCol += 1) {
+        if (elementCoversCell(element, cellCol, cellRow)) return true;
+      }
+    }
+    return false;
+  };
+  return {
+    ...map,
+    underground,
+    elements: map.elements.filter((element) => !coversFilledCell(element)),
+    events: map.events.filter(
+      (event) =>
+        event.undergroundDepth !== depth ||
+        event.col < c0 ||
+        event.col >= c1 ||
+        event.row < r0 ||
+        event.row >= r1,
+    ),
+  };
+}
+
+function undergroundPaintMaterial(content: RectFillContent): "water" | TerrainMaterial {
+  if (content.kind === "block") return content.block === "water" ? "water" : "herbe";
+  return content.material ?? "herbe";
+}
+
+function paintUndergroundTerrain(
+  map: EditorMap,
+  depth: number,
+  cellsToPaint: readonly { col: number; row: number }[],
+  material: "water" | TerrainMaterial | null,
+  sourceUnderground: UndergroundMap | undefined = map.underground,
+): EditorMap | null {
+  const { cols, rows } = editorMapSize(map);
+  const size = Math.max(cols, rows);
+  const source = sourceUnderground ?? { levels: [], stairs: [] };
+  const levels = new Map(source.levels.map((level) => [level.depth, level]));
+  const previous = levels.get(depth);
+  const excavated = undergroundCells(previous, size);
+  const terrain = undergroundTerrainCells(previous, size);
+  for (const cell of cellsToPaint) {
+    if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue;
+    const index = cell.row * size + cell.col;
+    // Painting a floor also excavates it: the ordinary pencil/rectangle is the quickest way to
+    // grow a room, while the dedicated Fill cave tool remains the explicit way to close it again.
+    if (material !== null) excavated[index] = 1;
+    terrain[index] = material;
+  }
+  const compactCells = compactUndergroundCells(excavated, size);
+  if (compactCells.length === 0) levels.delete(depth);
+  else {
+    const compactTerrain = compactUndergroundTerrain(terrain, size);
+    levels.set(depth, {
+      depth,
+      style: previous?.style ?? "cave",
+      cells: compactCells,
+      ...(compactTerrain.length > 0 ? { terrain: compactTerrain } : {}),
+    });
+  }
+  return {
+    ...map,
+    underground: {
+      ...source,
+      levels: [...levels.values()].sort((left, right) => left.depth - right.depth),
+    },
+  };
+}
+
+function undergroundFloodRegion(
+  map: EditorMap,
+  depth: number,
+  col: number,
+  row: number,
+): Array<{ col: number; row: number }> {
+  const { cols, rows } = editorMapSize(map);
+  const size = Math.max(cols, rows);
+  const level = map.underground?.levels.find((candidate) => candidate.depth === depth);
+  const excavated = undergroundCells(level, size);
+  if (excavated[row * size + col] === 0) return [{ col, row }];
+  const terrain = undergroundTerrainCells(level, size);
+  const target = terrain[row * size + col] ?? null;
+  const result: Array<{ col: number; row: number }> = [];
+  const pending = [{ col, row }];
+  const seen = new Set<string>();
+  while (pending.length > 0) {
+    const cell = pending.pop();
+    if (!cell) continue;
+    const key = `${cell.col}:${cell.row}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue;
+    const index = cell.row * size + cell.col;
+    if (excavated[index] === 0 || (terrain[index] ?? null) !== target) continue;
+    result.push(cell);
+    pending.push(
+      { col: cell.col - 1, row: cell.row },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col, row: cell.row + 1 },
+    );
+  }
+  return result;
 }
 
 export function applyTool(
@@ -2223,6 +2470,7 @@ export function applyTool(
   mode: EditorMode = "field",
   offsetX = 0,
   offsetY = 0,
+  undergroundDepth: number | null = null,
 ): EditorMap | null {
   // A tool belongs to exactly one mode. Reaching applyTool with a mismatched pair means the UI let a
   // stale tool survive a mode switch; drop the stroke rather than write to a collection the author is
@@ -2237,6 +2485,14 @@ export function applyTool(
     case "underground":
       return applyUndergroundTool(map, tool, col, row);
     case "block": {
+      if (undergroundDepth !== null) {
+        return paintUndergroundTerrain(
+          map,
+          undergroundDepth,
+          [{ col, row }],
+          undergroundPaintMaterial(tool),
+        );
+      }
       // Grass goes through `paintElevation` at level 0 rather than a bare `paintAutotile`: painting
       // flat ground under a raised cell must also take away the cliff face that cell was casting.
       // Water is an erased ground cell — on layer 0 an empty cell *is* the sea.
@@ -2253,6 +2509,14 @@ export function applyTool(
      * like a brush that stopped working.
      */
     case "elevation": {
+      if (undergroundDepth !== null) {
+        return paintUndergroundTerrain(
+          map,
+          undergroundDepth,
+          [{ col, row }],
+          undergroundPaintMaterial(tool),
+        );
+      }
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
       const innerWalls = structuralRepaintCells(map, tool, [{ col, row }], ground);
@@ -2287,6 +2551,7 @@ export function applyTool(
             row,
             layers: map.layers,
             ...(map.interiorShell ? { interiorShell: map.interiorShell } : {}),
+            ...(map.underground ? { underground: map.underground } : {}),
           },
         };
       }
@@ -2294,6 +2559,20 @@ export function applyTool(
       if (!anchor) return null;
       const bounds = clampToMap(map, anchor.col, anchor.row, col, row);
       if (!bounds) return null;
+      if (undergroundDepth !== null) {
+        const cells: Array<{ col: number; row: number }> = [];
+        for (let cellRow = bounds.r0; cellRow <= bounds.r1; cellRow += 1) {
+          for (let cellCol = bounds.c0; cellCol <= bounds.c1; cellCol += 1)
+            cells.push({ col: cellCol, row: cellRow });
+        }
+        return paintUndergroundTerrain(
+          map,
+          undergroundDepth,
+          cells,
+          undergroundPaintMaterial(tool.content),
+          anchor.underground,
+        );
+      }
       const ground = anchor.layers[GROUND_LAYER];
       if (!ground) return null;
       const cells: Array<{ col: number; row: number }> = [];
@@ -2328,6 +2607,14 @@ export function applyTool(
     /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; the active mode
      *  never applies since the content is always terrain. */
     case "fill": {
+      if (undergroundDepth !== null) {
+        return paintUndergroundTerrain(
+          map,
+          undergroundDepth,
+          undergroundFloodRegion(map, undergroundDepth, col, row),
+          undergroundPaintMaterial(tool.content),
+        );
+      }
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
       const innerWalls = structuralRepaintCells(
@@ -2353,6 +2640,25 @@ export function applyTool(
      *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed
      *  straight through. */
     case "stairs": {
+      if (undergroundDepth !== null) {
+        const level = map.underground?.levels.find(
+          (candidate) => candidate.depth === undergroundDepth,
+        );
+        return applyUndergroundTool(
+          map,
+          {
+            kind: "underground",
+            operation: "stairs",
+            depth: undergroundDepth,
+            style: level?.style ?? "cave",
+            width: DEFAULT_UNDERGROUND_STAIR_WIDTH,
+            length: DEFAULT_UNDERGROUND_STAIR_LENGTH,
+            direction: tool.prefer ?? "east",
+          },
+          col,
+          row,
+        );
+      }
       const ground = map.layers[GROUND_LAYER];
       if (!ground) return null;
       const plan = inferStairsRun(ground, col, row, tool.prefer);
@@ -2436,6 +2742,7 @@ export function applyTool(
         row,
         offsetX: resourceOffset ?? offsetX,
         offsetY: resourceOffset ?? offsetY,
+        ...(undergroundDepth === null ? {} : { undergroundDepth }),
       };
       const replaced = map.elements.find((element) => sameElementSlot(element, slot));
       const building = defaultBuildingSettings(assetId);
@@ -2443,7 +2750,11 @@ export function applyTool(
         ? nativeSceneryDimensionsOrDefault(assetId)
         : null;
       const placed: MapElement = {
-        ...(replaced?.id ? { id: replaced.id } : {}),
+        ...(replaced?.id
+          ? { id: replaced.id }
+          : undergroundDepth === null
+            ? {}
+            : { id: crypto.randomUUID() }),
         ...slot,
         assetId,
         ...(replaced?.assetId === assetId && replaced.orientation
@@ -2469,7 +2780,8 @@ export function applyTool(
           : {}),
       };
       if (!placementFitsMap(map, placed)) return null;
-      if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
+      if (undergroundDepth === null && elementCoversCell(placed, map.spawn.col, map.spawn.row))
+        return null;
       // Identity is the full sub-position now, so a new `(col, row, offsetX, offsetY)` ADDS and only an
       // exact match REPLACES — that is what lets one cell hold a stack of decorations. The
       // visual-footprint overlap rejection is gone on purpose: stacked decor is meant to overlap, and
@@ -2493,8 +2805,10 @@ export function applyTool(
      */
     case "eraser": {
       if (!isStrokeStart) return null;
-      if (mode === "event") return erasedEvent(map, col, row);
-      if (mode === "element") return erasedElement(map, col, row);
+      if (mode === "event") return erasedEvent(map, col, row, undergroundDepth);
+      if (mode === "element") return erasedElement(map, col, row, undergroundDepth);
+      if (undergroundDepth !== null)
+        return paintUndergroundTerrain(map, undergroundDepth, [{ col, row }], null);
       return erasedTerrainMap(map, col, row);
     }
     /**
@@ -2525,15 +2839,25 @@ export function applyTool(
      * their own payload (species, patrol radius, profile) and the exit/spawn graph invariant.
      */
     case "event": {
+      const eventDepth = undergroundDepth === null ? {} : { undergroundDepth };
       if (tool.eventKind === "normal" && tool.preset === "teleporter") return null;
-      if (map.events.some((event) => event.col === col && event.row === row)) return null;
+      if (
+        map.events.some(
+          (event) =>
+            event.col === col &&
+            event.row === row &&
+            (event.undergroundDepth ?? null) === undergroundDepth,
+        )
+      )
+        return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
       if (
         isRuntimeEventKind(tool.eventKind) &&
         runtimeEventCount(map.events) >= MAX_RUNTIME_EVENTS_PER_MAP
       )
         return null;
-      if (!functionalEventPlacementOk(map, tool.eventKind, col, row)) return null;
+      if (undergroundDepth === null && !functionalEventPlacementOk(map, tool.eventKind, col, row))
+        return null;
       const ordinal = nextEventOrdinal(map.events);
       if (tool.eventKind === "normal") {
         // D13: a scripted event is placed via a PRESET (default `raw`, the blank event). `raw` yields
@@ -2554,7 +2878,7 @@ export function applyTool(
             ? {}
             : { name: numberedPresetName(tool.presetName, map.events) }),
         });
-        return { ...map, events: [...map.events, event] };
+        return { ...map, events: [...map.events, { ...event, ...eventDepth }] };
       }
       if (tool.eventKind === "sea-guardian") {
         const event = functionalEvent({
@@ -2565,7 +2889,7 @@ export function applyTool(
           kind: "sea-guardian",
           name: numberedPresetName(tool.presetName ?? "", map.events),
         });
-        return { ...map, events: [...map.events, event] };
+        return { ...map, events: [...map.events, { ...event, ...eventDepth }] };
       }
       if (tool.eventKind === "monster") {
         const { species, patrolRadius } = tool;
@@ -2593,6 +2917,7 @@ export function applyTool(
             ...map.events,
             {
               ...event,
+              ...eventDepth,
               pages: [
                 {
                   ...(event.pages[0] ?? defaultEventPage()),
@@ -2627,6 +2952,7 @@ export function applyTool(
             ...map.events,
             {
               ...event,
+              ...eventDepth,
               pages: [
                 {
                   ...(event.pages[0] ?? defaultEventPage()),
@@ -2663,6 +2989,7 @@ export function applyTool(
             ...map.events,
             {
               ...event,
+              ...eventDepth,
               pages: [
                 {
                   ...page,
@@ -2697,6 +3024,7 @@ export function applyTool(
             ...map.events,
             {
               ...event,
+              ...eventDepth,
               harvestProfile: cloneHarvestProfile(profile),
               pages: [
                 {
@@ -2715,7 +3043,7 @@ export function applyTool(
         ordinal,
         kind: tool.eventKind,
       });
-      return { ...map, events: [...map.events, event] };
+      return { ...map, events: [...map.events, { ...event, ...eventDepth }] };
     }
     case "pan":
       return map;
@@ -2742,6 +3070,7 @@ export function placementLegalAt(
   col: number,
   row: number,
   mode: EditorMode = "field",
+  undergroundDepth: number | null = null,
 ): boolean {
   // A tool the active mode does not own can never place — the same gate `applyTool` runs, applied
   // here too so the fill short-circuit below respects the mode rather than reading as legal.
@@ -2752,10 +3081,12 @@ export function placementLegalAt(
   if (tool.kind === "fill") {
     const { cols, rows } = editorMapSize(map);
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+    if (undergroundDepth !== null)
+      return applyTool(map, tool, col, row, true, mode, 0, 0, undergroundDepth) !== null;
     // Filling with water may cover the technical spawn, so unlike a material fill its legality is
     // not position-independent. Run the real mutation path and keep preview/click agreement.
     if (tool.content.kind === "block" && tool.content.block === "water") {
-      return applyTool(map, tool, col, row, true, mode) !== null;
+      return applyTool(map, tool, col, row, true, mode, 0, 0, undergroundDepth) !== null;
     }
     const ground = map.layers[GROUND_LAYER];
     return ground !== undefined && contentTarget(tool.content, ground, col, row) !== null;
@@ -2763,5 +3094,5 @@ export function placementLegalAt(
   // Before the first door is picked there is no pair to try, so legality is the single-cell rule.
   // Once one IS picked the stage passes it as `tool.from` and the full commit below answers.
   if (tool.kind === "link" && !tool.from) return canLinkDoorAt(map, col, row);
-  return applyTool(map, tool, col, row, true, mode) !== null;
+  return applyTool(map, tool, col, row, true, mode, 0, 0, undergroundDepth) !== null;
 }

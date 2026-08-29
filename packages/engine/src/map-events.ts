@@ -50,6 +50,7 @@ import {
   isGuardAppearanceAssetId,
   RETIRED_RUNNER_HOUND_ASSET_ID,
 } from "./tiny-swords-catalog.js";
+import { undergroundFloorHeight } from "./underground.js";
 
 /**
  * UX wave #12: markers die, their meaning becomes a typed event. A `normal` event is the wireframe
@@ -267,6 +268,8 @@ export interface MapEvent {
   id: string;
   col: number;
   row: number;
+  /** Authored storey below the surface. Missing means surface. */
+  undergroundDepth?: number;
   /** For entry/exit kinds this doubles as the marker label; for guards it names the reinforcement. */
   name: string;
   /** Creation order, per map. Display only (the wireframe's `EV{ordinal}`); never identity. */
@@ -325,11 +328,15 @@ export function eventCellCentre(event: { col: number; row: number }): { x: numbe
  * which is what turns a top-left cell index into a grid-centred coordinate.
  */
 export function authoredCellCentreGround(
-  event: { col: number; row: number },
+  event: { col: number; row: number; undergroundDepth?: number },
   gridSize: number,
 ): { x: number; y: number; z: number } {
   const half = gridSize / 2;
-  return { x: event.col + 0.5 - half, y: 0, z: event.row + 0.5 - half };
+  return {
+    x: event.col + 0.5 - half,
+    y: event.undergroundDepth ? undergroundFloorHeight(event.undergroundDepth) : 0,
+    z: event.row + 0.5 - half,
+  };
 }
 
 /**
@@ -728,7 +735,7 @@ function parseEventPages(value: unknown): MapEventPage[] | null {
  * in `map-data.ts`, applied to a richer record.
  *
  * Bounds ARE checked here (unlike `parseMapElements`): one event owns exactly one cell, that cell
- * is a unique key `map_event` enforces in D1, and an out-of-bounds or colliding event is not a
+ * is unique within its authored storey, and an out-of-bounds or colliding event is not a
  * value the editor or server should ever accept, so there is no reason to defer the check to a
  * caller the way collision-free scenery placement does.
  */
@@ -748,7 +755,16 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     const c = col as number;
     const r = row as number;
     if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
-    const cellKey = `${c}:${r}`;
+    const undergroundDepth = record.undergroundDepth;
+    if (
+      undergroundDepth !== undefined &&
+      (!Number.isSafeInteger(undergroundDepth) ||
+        (undergroundDepth as number) < 1 ||
+        (undergroundDepth as number) > 16)
+    )
+      return null;
+    const cellDepth = undergroundDepth === undefined ? 0 : (undergroundDepth as number);
+    const cellKey = `${cellDepth}:${c}:${r}`;
     if (seenCells.has(cellKey)) return null;
 
     const parsedName = validateEventName(name);
@@ -1070,6 +1086,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       id,
       col: c,
       row: r,
+      ...(undergroundDepth === undefined ? {} : { undergroundDepth: undergroundDepth as number }),
       name: parsedName,
       ordinal: ordinal as number,
       ...(linkedEventId === undefined ? {} : { linkedEventId }),

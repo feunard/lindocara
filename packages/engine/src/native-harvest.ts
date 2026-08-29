@@ -10,7 +10,7 @@ import { functionalEvent, type MapEvent } from "./map-events.js";
  * when saved. This keeps preview state stable without persisting a second resource model.
  */
 function previewElementId(element: MapElement): string {
-  const seed = `${element.assetId}:${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
+  const seed = `${element.undergroundDepth ?? 0}:${element.assetId}:${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
   let a = 0x9e3779b9;
   let b = 0x85ebca6b;
   let c = 0xc2b2ae35;
@@ -32,7 +32,7 @@ export function nativeHarvestEventForElement(
 ): MapEvent | null {
   const profile = nativeHarvestProfileForAsset(element.assetId);
   if (!profile) return null;
-  return functionalEvent({
+  const event = functionalEvent({
     id: element.id ?? previewElementId(element),
     col: element.col,
     row: element.row,
@@ -41,6 +41,9 @@ export function nativeHarvestEventForElement(
     harvestProfile: profile,
     graphicAssetId: element.assetId,
   });
+  return element.undergroundDepth
+    ? { ...event, undergroundDepth: element.undergroundDepth }
+    : event;
 }
 
 export function nativeHarvestEvents(elements: readonly MapElement[], ordinalStart = 1): MapEvent[] {

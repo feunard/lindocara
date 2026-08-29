@@ -100,8 +100,10 @@ export interface TerrainQuery {
   levelAt(wx: number, wz: number): number | null;
   /** Ground material under a point, or `null` if it is water / off the map. */
   kindAt(wx: number, wz: number): TerrainMaterial | null;
+  kindAtElevation?(wx: number, wz: number, elevation: number): TerrainMaterial | null;
   /** Liquid occupying the cell: open water (including off-map sea), lava, or dry terrain. */
   liquidAt(wx: number, wz: number): TerrainLiquid | null;
+  liquidAtElevation?(wx: number, wz: number, elevation: number): TerrainLiquid | null;
   /** Stair slope under a point, if any. */
   rampAt(wx: number, wz: number): TerrainRampSample | null;
   /** Whether one grounded movement segment follows a stair corridor or crosses one endpoint. */
@@ -129,6 +131,7 @@ export interface TerrainQuery {
    * everywhere and behaves exactly as it did before this existed.
    */
   waterLevelAt(wx: number, wz: number): number;
+  waterLevelAtElevation?(wx: number, wz: number, elevation: number): number;
 }
 
 /** What `createTerrainQuery` needs: the same CELL-indexed accessors as `HeightField` (see
@@ -155,6 +158,9 @@ export interface TerrainQuerySource {
   waterAt?(i: number, j: number): number | null;
   /** A dry vertical opening: no surface ground and, unlike ordinary null terrain, no liquid. */
   voidAt?(i: number, j: number): boolean;
+  kindAtElevation?(i: number, j: number, elevation: number): TerrainMaterial | null;
+  liquidAtElevation?(i: number, j: number, elevation: number): TerrainLiquid | null;
+  waterLevelAtElevation?(i: number, j: number, elevation: number): number | null;
   ramps?: readonly TerrainRamp[];
   platforms?: readonly TerrainPlatform[];
 }
@@ -214,6 +220,9 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     liquidLevelAt,
     waterAt,
     voidAt = () => false,
+    kindAtElevation: sourceKindAtElevation,
+    liquidAtElevation: sourceLiquidAtElevation,
+    waterLevelAtElevation: sourceWaterLevelAtElevation,
     ramps = [],
     platforms = [],
   } = source;
@@ -253,6 +262,18 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     }
     return top;
   };
+  const waterLevelAt = (wx: number, wz: number): number => {
+    const i = toCell(wx);
+    const j = toCell(wz);
+    const liquidLevel = liquidLevelAt?.(i, j);
+    if (liquidLevel !== null && liquidLevel !== undefined) return liquidLevel * levelHeight;
+    if (cellLiquidAt(i, j) === "lava") {
+      const legacyLevel = at(i, j);
+      if (legacyLevel !== null) return legacyLevel * levelHeight;
+    }
+    const w = waterAt?.(i, j);
+    return w === null || w === undefined ? waterLevel : w * levelHeight;
+  };
 
   return {
     heightAt(wx, wz) {
@@ -282,8 +303,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       const beneathSurface =
         ceilingY !== undefined &&
         platformAt(wx, wz, ceilingY) !== null &&
-        centreGround !== null &&
-        centreGround > ceilingY + 1e-3;
+        (centreGround === null || centreGround > ceilingY + 1e-3);
       for (let j = toCell(wz - r); j <= toCell(wz + r); j++) {
         for (let i = toCell(wx - r); i <= toCell(wx + r); i++) {
           // Point of the cell closest to the center: a cell only grazed by the corner of the
@@ -326,7 +346,17 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       if (voidAt(toCell(wx), toCell(wz))) return null;
       return kindAt(toCell(wx), toCell(wz));
     },
+    kindAtElevation(wx, wz, elevation) {
+      return sourceKindAtElevation
+        ? sourceKindAtElevation(toCell(wx), toCell(wz), elevation)
+        : kindAt(toCell(wx), toCell(wz));
+    },
     liquidAt,
+    liquidAtElevation(wx, wz, elevation) {
+      return sourceLiquidAtElevation
+        ? sourceLiquidAtElevation(toCell(wx), toCell(wz), elevation)
+        : liquidAt(wx, wz);
+    },
     rampAt(wx, wz) {
       return rampSampleAt(ramps, levelHeight, wx, wz);
     },
@@ -406,17 +436,11 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     cellCenter(i, j) {
       return [i + 0.5 - c, j + 0.5 - c];
     },
-    waterLevelAt(wx, wz) {
-      const i = toCell(wx);
-      const j = toCell(wz);
-      const liquidLevel = liquidLevelAt?.(i, j);
-      if (liquidLevel !== null && liquidLevel !== undefined) return liquidLevel * levelHeight;
-      if (cellLiquidAt(i, j) === "lava") {
-        const legacyLevel = at(i, j);
-        if (legacyLevel !== null) return legacyLevel * levelHeight;
-      }
-      const w = waterAt?.(i, j);
-      return w === null || w === undefined ? waterLevel : w * levelHeight;
+    waterLevelAt,
+    waterLevelAtElevation(wx, wz, elevation) {
+      return (
+        sourceWaterLevelAtElevation?.(toCell(wx), toCell(wz), elevation) ?? waterLevelAt(wx, wz)
+      );
     },
   };
 }

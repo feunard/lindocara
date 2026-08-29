@@ -31,7 +31,12 @@ import {
 import { type HarvestProfile, parseHarvestProfile } from "@lindocara/engine/harvest.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap, encodeMap } from "@lindocara/engine/hd2d/map-data.js";
-import { EMPTY_MARKERS, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
+import {
+  EMPTY_MARKERS,
+  type MapElement,
+  parseMapData,
+  type UndergroundMap,
+} from "@lindocara/engine/map-data.js";
 import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import {
   entryEvents,
@@ -113,6 +118,20 @@ const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_P
 // Reading pages binds one parameter per event id. Dense authored maps can carry 128 runtime events,
 // so the read path needs the same production-database discipline as writes and cascade cleanup.
 const MAP_EVENT_PAGE_READ_CHUNK = 40;
+/**
+ * Child tables predate vertical storeys and their unique keys contain only the 2D authored slot.
+ * Encode depth outside the legal editor-column range at rest, then restore it at the service
+ * boundary. This keeps the existing schema valid while allowing the same logical cell per floor.
+ */
+const UNDERGROUND_STORAGE_COL_STRIDE = 2_048;
+
+function storedContentCol(col: number, depth: number | undefined): number {
+  return depth === undefined ? col : col + depth * UNDERGROUND_STORAGE_COL_STRIDE;
+}
+
+function authoredContentCol(col: number, depth: number | undefined): number {
+  return depth === undefined ? col : col - depth * UNDERGROUND_STORAGE_COL_STRIDE;
+}
 
 /** The `heightfield` column's empty-string "no heightfield" sentinel (matching the `audio`/
  *  `heroSettings` convention on the same entity), normalised to `null` so nothing past
@@ -153,6 +172,7 @@ export interface MapPayload {
   revision: number;
   environment: MapEnvironment;
   interiorShell?: InteriorShell;
+  underground?: UndergroundMap;
   /** The authored weather, read back out of the heightfield the same way `environment` is. */
   weather: MapWeather;
   tilesetId: string;
@@ -533,6 +553,7 @@ export class MapService {
       revision: updated.revision,
       environment: data.environment ?? "exterior",
       ...(data.interiorShell ? { interiorShell: data.interiorShell } : {}),
+      ...(data.underground ? { underground: data.underground } : {}),
       weather: data.weather ?? "none",
       tilesetId: data.tilesetId,
       cols: data.cols,
@@ -803,7 +824,7 @@ export class MapService {
       elements.map((element) => ({
         id: element.id ?? crypto.randomUUID(),
         mapId,
-        col: element.col,
+        col: storedContentCol(element.col, element.undergroundDepth),
         row: element.row,
         offsetX: element.offsetX,
         offsetY: element.offsetY,
@@ -834,7 +855,7 @@ export class MapService {
       events.map((event) => ({
         id: event.id,
         mapId,
-        col: event.col,
+        col: storedContentCol(event.col, event.undergroundDepth),
         row: event.row,
         name: event.name,
         ordinal: event.ordinal,
@@ -915,6 +936,12 @@ export class MapService {
     try {
       const heightfield = heightfieldOfRow(row.heightfield);
       const decodedHeightfield = heightfield ? decodeMap(heightfield) : null;
+      const elementDepths = new Map(
+        decodedHeightfield?.underground?.elementDepths?.map((entry) => [entry.id, entry.depth]),
+      );
+      const eventDepths = new Map(
+        decodedHeightfield?.underground?.eventDepths?.map((entry) => [entry.id, entry.depth]),
+      );
       return {
         id: row.id,
         accountId: row.userId,
@@ -925,6 +952,7 @@ export class MapService {
         ...(decodedHeightfield?.interiorShell
           ? { interiorShell: decodedHeightfield.interiorShell }
           : {}),
+        ...(decodedHeightfield?.underground ? { underground: decodedHeightfield.underground } : {}),
         // Weather rides in the heightfield beside `environment` and is read back the same way: it
         // is authored map-level presentation, so it needs no column of its own.
         weather: decodedHeightfield?.weather ?? "none",
@@ -934,11 +962,30 @@ export class MapService {
         layers: decodeLayers(row.id, row.layers, row.cols, row.rows).map(encodeTileLayer),
         elements: elementRows.flatMap((element): MapElement[] => {
           const wire = elementToWire(element);
-          return wire ? [wire] : [];
+          if (!wire) return [];
+          const depth = elementDepths.get(wire.id ?? "");
+          return [
+            depth === undefined
+              ? wire
+              : {
+                  ...wire,
+                  col: authoredContentCol(wire.col, depth),
+                  undergroundDepth: depth,
+                },
+          ];
         }),
         spawn: { col: row.spawnCol, row: row.spawnRow },
         markers: markersOfRow({ markers: row.markers, cols: row.cols, rows: row.rows }),
-        events,
+        events: events.map((event) => {
+          const depth = eventDepths.get(event.id);
+          return depth === undefined
+            ? event
+            : {
+                ...event,
+                col: authoredContentCol(event.col, depth),
+                undergroundDepth: depth,
+              };
+        }),
         audio: decodeMapAudio(row.audio),
         heroSettings: decodeMapHeroSettings(row.heroSettings),
         dayNightCycle: row.dayNightCycle,

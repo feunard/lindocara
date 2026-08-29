@@ -35,6 +35,7 @@ import {
   standingCeiling,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
+import { undergroundDepthAtElevation } from "@lindocara/engine/underground.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 
 import {
@@ -71,6 +72,12 @@ const RUNNER_CONTACT_DISTANCE = BODY_RADIUS * 2;
 const RUNNER_CONTACT_HEIGHT = BODY_RADIUS * 2;
 /** The offset a safe-zone raider walks to. Tile units: the former (-40, +100) px. */
 const RAIDER_PATROL_OFFSET = { x: -40 / 64, z: 100 / 64 };
+
+/** Surface plateaus share one traversable world even when their elevations differ. Underground
+ * storeys do not: actors at the same X/Z on two authored floors must never acquire each other. */
+function sameAuthoredStorey(firstY: number, secondY: number): boolean {
+  return undergroundDepthAtElevation(firstY) === undergroundDepthAtElevation(secondY);
+}
 
 /**
  * Generic over the socket key (`TSocket`), same contract as `MovementSystemContext`: the legacy
@@ -207,9 +214,12 @@ function markTargetUnreachable(
 function targetOutOfReach(
   terrain: ZoneTerrain,
   monster: MonsterRuntime,
-  target: GroundVector,
+  target: GroundVector & { y?: number },
 ): boolean {
-  const targetGround = terrain.query.heightAt(target.x, target.z);
+  if (target.y !== undefined && !sameAuthoredStorey(monster.y, target.y)) return true;
+  const targetGround =
+    terrain.query.surfaceAt?.(target.x, target.z, standingCeiling(terrain, monster.y)) ??
+    terrain.query.heightAt(target.x, target.z);
   if (targetGround === null) return true;
   const monsterGround = groundUnderBody(terrain, monster.x, monster.z, monster.y);
   return targetGround > standingCeiling(terrain, monsterGround);
@@ -287,7 +297,9 @@ export function advanceMonsters<TSocket>(
     if (monster.slowUntil <= now) monster.slowMultiplier = 1;
     const relentless = monster.pursuitMode === "relentless";
     const runnerPursuer = relentless && monster.oneHitKill;
-    const players = relentless ? allLivingPlayers : visiblePlayers;
+    const players = (relentless ? allLivingPlayers : visiblePlayers).filter(([, player]) =>
+      sameAuthoredStorey(player.y, monster.y),
+    );
 
     if (monster.runnerLeap) {
       advanceRunnerLeap(context, monster, now);
@@ -308,6 +320,7 @@ export function advanceMonsters<TSocket>(
       if (
         !player?.authorized ||
         player.life !== "alive" ||
+        !sameAuthoredStorey(player.y, monster.y) ||
         player.forgottenUntil > now ||
         ((player.invisibleUntil > now || isRogueStealthed(player, now)) && !activeSilhouette) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||
@@ -781,6 +794,7 @@ export function advanceGuards<TSocket>(context: MonsterSystemContext<TSocket>, n
       // authored map does changes here. The catalogue's Heartroot guards are the only losers, and
       // no catalogue zone can be a room any more.
       if (monster.deadUntil > now) continue;
+      if (Math.abs(guard.y - monster.y) > 1.2) continue;
       const distance = groundDistance(guard, monster);
       if (distance >= targetDistance) continue;
       target = monster;

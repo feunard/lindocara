@@ -5,12 +5,15 @@ import {
   type TerrainMaterial,
   type TerrainRamp,
 } from "./hd2d/terrain-query.js";
+import { isUuid } from "./identifiers.js";
 import type {
+  UndergroundContentDepth,
   UndergroundCellRun,
   UndergroundLevel,
   UndergroundMap,
   UndergroundShaft,
   UndergroundStair,
+  UndergroundTerrainRun,
 } from "./map-data.js";
 import { INTERIOR_SHELL_STYLES, type InteriorShellStyle } from "./map-environment.js";
 
@@ -75,11 +78,57 @@ function parseLevel(value: unknown, size: number): UndergroundLevel | null {
   }
   const cells = value.cells.map((run) => parseRun(run, size));
   if (cells.some((run) => run === null)) return null;
+  const terrainValues = value.terrain ?? [];
+  if (!Array.isArray(terrainValues) || terrainValues.length > size * size) return null;
+  const terrain = terrainValues.map((entry): UndergroundTerrainRun | null => {
+    const run = parseRun(entry, size);
+    if (!run || !isRecord(entry)) return null;
+    const material = entry.material;
+    if (
+      typeof material !== "string" ||
+      ![
+        "sable",
+        "herbe",
+        "neige",
+        "glace",
+        "grotte",
+        "montagne",
+        "volcan",
+        "lave",
+        "water",
+      ].includes(material)
+    )
+      return null;
+    return { ...run, material: material as UndergroundTerrainRun["material"] };
+  });
+  if (terrain.some((entry) => entry === null)) return null;
   return {
     depth: value.depth as number,
     style: value.style as InteriorShellStyle,
     cells: cells as UndergroundCellRun[],
+    ...(value.terrain === undefined ? {} : { terrain: terrain as UndergroundTerrainRun[] }),
   };
+}
+
+function parseContentDepths(value: unknown): UndergroundContentDepth[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 2_000) return null;
+  const result: UndergroundContentDepth[] = [];
+  const ids = new Set<string>();
+  for (const entry of value) {
+    if (
+      !isRecord(entry) ||
+      !isUuid(entry.id) ||
+      ids.has(entry.id) ||
+      !Number.isSafeInteger(entry.depth) ||
+      (entry.depth as number) < 1 ||
+      (entry.depth as number) > MAX_UNDERGROUND_DEPTH
+    )
+      return null;
+    ids.add(entry.id);
+    result.push({ id: entry.id, depth: entry.depth as number });
+  }
+  return result;
 }
 
 export function undergroundStairFootprint(stair: UndergroundStair): { cols: number; rows: number } {
@@ -162,10 +211,14 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
   const levels = value.levels.map((level) => parseLevel(level, size));
   const stairs = value.stairs.map((stair) => parseStair(stair, size));
   const shafts = shaftValues.map((shaft) => parseShaft(shaft, size));
+  const elementDepths = parseContentDepths(value.elementDepths);
+  const eventDepths = parseContentDepths(value.eventDepths);
   if (
     levels.some((level) => level === null) ||
     stairs.some((stair) => stair === null) ||
-    shafts.some((shaft) => shaft === null)
+    shafts.some((shaft) => shaft === null) ||
+    elementDepths === null ||
+    eventDepths === null
   )
     return null;
   const decodedLevels = levels as UndergroundLevel[];
@@ -179,7 +232,42 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
     levels: decodedLevels,
     stairs: stairs as UndergroundStair[],
     ...(value.shafts === undefined ? {} : { shafts: shafts as UndergroundShaft[] }),
+    ...(value.elementDepths === undefined ? {} : { elementDepths }),
+    ...(value.eventDepths === undefined ? {} : { eventDepths }),
   };
+}
+
+export function undergroundTerrainCells(
+  level: UndergroundLevel | undefined,
+  size: number,
+): Array<UndergroundTerrainRun["material"] | null> {
+  const cells = new Array<UndergroundTerrainRun["material"] | null>(size * size).fill(null);
+  for (const run of level?.terrain ?? []) {
+    for (let col = run.col; col < run.col + run.length; col += 1)
+      cells[run.row * size + col] = run.material;
+  }
+  return cells;
+}
+
+export function compactUndergroundTerrain(
+  cells: readonly (UndergroundTerrainRun["material"] | null)[],
+  size: number,
+): UndergroundTerrainRun[] {
+  const runs: UndergroundTerrainRun[] = [];
+  for (let row = 0; row < size; row += 1) {
+    let col = 0;
+    while (col < size) {
+      const material = cells[row * size + col] ?? null;
+      if (material === null) {
+        col += 1;
+        continue;
+      }
+      const start = col;
+      while (col < size && cells[row * size + col] === material) col += 1;
+      runs.push({ col: start, row, length: col - start, material });
+    }
+  }
+  return runs;
 }
 
 export function undergroundCells(level: UndergroundLevel | undefined, size: number): Uint8Array {
@@ -310,6 +398,46 @@ export function undergroundDepthAtElevation(elevation: number): number | null {
     1,
     Math.min(MAX_UNDERGROUND_DEPTH, Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT)),
   );
+}
+
+/** Storeys visible while a body crosses vertically between them. Exact floor elevations select one
+ * storey; every in-between elevation selects the shallower and deeper neighbours so camera and
+ * actor visibility never switch halfway through a stair or fall. */
+export function undergroundVisibleDepthsAtElevation(elevation: number): readonly (number | null)[] {
+  if (!Number.isFinite(elevation) || elevation >= -0.02) return [null];
+  const storey = Math.max(
+    0,
+    Math.min(MAX_UNDERGROUND_DEPTH, -elevation / UNDERGROUND_STOREY_HEIGHT),
+  );
+  const nearest = Math.round(storey);
+  if (Math.abs(storey - nearest) <= 0.04) return [Math.max(1, nearest)];
+  const shallow = Math.floor(storey);
+  const deep = Math.min(MAX_UNDERGROUND_DEPTH, Math.ceil(storey));
+  return shallow <= 0 ? [null, deep] : shallow === deep ? [deep] : [shallow, deep];
+}
+
+/** Whether a world X/Z point lies inside an authored vertical connection. Height alone cannot tell
+ * a stair/shaft transition from an ordinary jump inside a room, yet only the former may reveal two
+ * storeys at once. */
+export function undergroundTransitionAt(
+  underground: UndergroundMap | undefined,
+  size: number,
+  x: number,
+  z: number,
+): boolean {
+  if (!underground) return false;
+  const col = Math.floor(x + size / 2);
+  const row = Math.floor(z + size / 2);
+  if (undergroundShaftCell(underground.shafts, col, row)) return true;
+  return underground.stairs.some((stair) => {
+    const footprint = undergroundStairFootprint(stair);
+    return (
+      col >= stair.col &&
+      col < stair.col + footprint.cols &&
+      row >= stair.row &&
+      row < stair.row + footprint.rows
+    );
+  });
 }
 
 /** Compile excavated volumes into the finite slabs and walls consumed by shared collision. */

@@ -167,7 +167,9 @@ function stepToward(
 function candidateFor(
   event: ActiveWorldEvent,
   runtime: NpcMovementRuntime,
-  players: readonly Pick<PlayerRuntime, "x" | "z" | "authorized" | "life">[],
+  players: readonly (Pick<PlayerRuntime, "x" | "z" | "authorized" | "life"> & {
+    y?: number;
+  })[],
   terrain: ZoneTerrain,
   tick: number,
 ): { cell: { col: number; row: number }; routeStep: number } {
@@ -176,7 +178,12 @@ function candidateFor(
 
   if (runtime.moveType === "approach") {
     const nearest = players
-      .filter((player) => player.authorized && player.life === "alive")
+      .filter(
+        (player) =>
+          player.authorized &&
+          player.life === "alive" &&
+          Math.abs((player.y ?? 0) - (event.y ?? 0)) <= 0.85,
+      )
       .map((player) => playerCell(terrain, player))
       .sort(
         (left, right) =>
@@ -292,12 +299,16 @@ function cellWalkable(
 export function advanceNpcEvents(params: {
   events: readonly ActiveWorldEvent[];
   movement: Map<string, NpcMovementRuntime>;
-  players: readonly Pick<PlayerRuntime, "x" | "z" | "authorized" | "life">[];
+  players: readonly (Pick<PlayerRuntime, "x" | "z" | "authorized" | "life"> & {
+    y?: number;
+  })[];
   terrain: ZoneTerrain;
   tick: number;
   pausedEventIds: ReadonlySet<string>;
 }): ActiveWorldEvent[] {
-  const occupied = new Set(params.events.map((event) => `${event.col}:${event.row}`));
+  const eventCellKey = (event: Pick<ActiveWorldEvent, "col" | "row" | "undergroundDepth">) =>
+    `${event.undergroundDepth ?? 0}:${event.col}:${event.row}`;
+  const occupied = new Set(params.events.map(eventCellKey));
   return params.events.map((event) => {
     const runtime = params.movement.get(event.id);
     if (
@@ -339,18 +350,18 @@ export function advanceNpcEvents(params: {
     let nextEvent = event;
     if (
       (candidate.cell.col === event.col && candidate.cell.row === event.row) ||
-      occupied.has(`${candidate.cell.col}:${candidate.cell.row}`) ||
+      occupied.has(`${event.undergroundDepth ?? 0}:${candidate.cell.col}:${candidate.cell.row}`) ||
       !cellWalkable(
         candidate.cell,
         params.terrain,
         runtime.through,
-        groundUnder(params.terrain, here.x, here.z),
+        groundUnder(params.terrain, here.x, here.z, event.y ?? Number.POSITIVE_INFINITY),
       )
     ) {
       nextEvent = event;
     } else {
-      occupied.delete(`${event.col}:${event.row}`);
-      occupied.add(`${candidate.cell.col}:${candidate.cell.row}`);
+      occupied.delete(eventCellKey(event));
+      occupied.add(`${event.undergroundDepth ?? 0}:${candidate.cell.col}:${candidate.cell.row}`);
       nextEvent = { ...event, ...candidate.cell };
     }
     if (runtime.movementStyle === "sheep") {

@@ -680,6 +680,10 @@ export interface WorldEventSnapshot {
   id: string;
   col: number;
   row: number;
+  /** Stable authored world height for content placed below the surface. */
+  y?: number;
+  /** Editor/runtime visibility storey. Omitted for surface content. */
+  undergroundDepth?: number;
   graphicAssetId: string | null;
   graphicTint?: number;
   onTop: boolean;
@@ -2106,6 +2110,11 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.col as number) >= 0 &&
     Number.isSafeInteger(value.row) &&
     (value.row as number) >= 0 &&
+    (value.y === undefined || isFiniteNumber(value.y)) &&
+    (value.undergroundDepth === undefined ||
+      (Number.isSafeInteger(value.undergroundDepth) &&
+        (value.undergroundDepth as number) >= 1 &&
+        (value.undergroundDepth as number) <= 16)) &&
     (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
     (value.graphicTint === undefined ||
       (Number.isSafeInteger(value.graphicTint) &&

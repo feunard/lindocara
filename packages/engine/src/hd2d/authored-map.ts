@@ -45,7 +45,7 @@ import {
   waterLevelOfTileId,
 } from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
-import { undergroundColliders, undergroundRamp } from "../underground.js";
+import { undergroundColliders, undergroundFloorHeight, undergroundRamp } from "../underground.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
 import type { TerrainLiquid, TerrainMaterial, TerrainRamp } from "./terrain-query.js";
@@ -633,6 +633,9 @@ export function authoredElementColliders(
   const rect = legacy ? { ...legacy, rotation: 0 } : exact;
   const asset = editorAsset(element.assetId);
   if (!rect) return [];
+  const baseTop = element.undergroundDepth
+    ? undergroundFloorHeight(element.undergroundDepth)
+    : elementBaseTop(element, levels, size);
   const collider = {
     x: groundCoordinate(rect.x, size),
     z: groundCoordinate(rect.y, size),
@@ -647,7 +650,7 @@ export function authoredElementColliders(
     const verticalScale = Math.sqrt(
       (dimensions.width / nativeDimensions.width) * (dimensions.depth / nativeDimensions.depth),
     );
-    const base = elementBaseTop(element, levels, size);
+    const base = baseTop;
     if (architecture.kind === "ceiling") {
       const bottom = base + (architecture.clearance ?? 1.4) * verticalScale;
       return [
@@ -668,7 +671,9 @@ export function authoredElementColliders(
     ];
   }
   if (asset?.editor.terrainOverride === "walkable") {
-    const top = authoredBridgeTop(authored, element, levels, size);
+    const top = element.undergroundDepth
+      ? baseTop
+      : authoredBridgeTop(authored, element, levels, size);
     const orientation = bridgeOrientation(element.assetId);
     if (!orientation) return [];
     // The deck is a SLAB, not a column: `bottom` is its underside, so a hero on the bank walks
@@ -679,7 +684,7 @@ export function authoredElementColliders(
       ...bridgeRails(collider, top, orientation),
     ];
   }
-  const roofs = buildingRoofParts(collider, element, elementBaseTop(element, levels, size));
+  const roofs = buildingRoofParts(collider, element, baseTop);
   if (roofs.length > 0)
     return roofs.flatMap((part) => [part.roof, ...buildingRoofEdgeColliders(part, element)]);
   const elevation = asset ? editorAssetCollisionElevation(asset) : null;
@@ -688,7 +693,7 @@ export function authoredElementColliders(
     : [
         {
           ...collider,
-          top: elementBaseTop(element, levels, size) + elevation * AUTHORED_LEVEL_HEIGHT,
+          top: baseTop + elevation * AUTHORED_LEVEL_HEIGHT,
         },
       ];
 }
@@ -735,6 +740,12 @@ function authoredContent(
     elements: staticElements.map((element) => ({
       assetId: element.assetId,
       ...authoredElementRenderPoint(element, size),
+      ...(element.undergroundDepth
+        ? {
+            y: undergroundFloorHeight(element.undergroundDepth),
+            undergroundDepth: element.undergroundDepth,
+          }
+        : {}),
       ...(element.orientation ? { orientation: element.orientation } : {}),
       ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
       ...(bridgeOrientation(element.assetId)
@@ -747,6 +758,12 @@ function authoredContent(
       id: event.id,
       x: event.col + 0.5 - size / 2,
       z: event.row + 0.5 - size / 2,
+      ...(event.undergroundDepth
+        ? {
+            y: undergroundFloorHeight(event.undergroundDepth),
+            undergroundDepth: event.undergroundDepth,
+          }
+        : {}),
       graphicAssetId: event.pages[0]?.graphicAssetId ?? null,
     })),
   };

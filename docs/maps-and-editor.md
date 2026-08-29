@@ -236,6 +236,29 @@ These operations are single undo entries. The depth selector also selects the st
 editor, with the surface retained as a translucent alignment reference instead of leaving the author
 to work over an empty background.
 
+The compact Surface/`-N` bar is the editing context for every normal palette mode, not a separate
+underground editor. At a selected storey, the pencil, rectangle and flood-fill tools paint any
+terrain material or water and excavate new cells as they grow; the cave Fill operation remains the
+explicit way to close rock again. Scenery, buildings, native resources and every event kind use the
+same placement, selection, resize, rotation, eraser and event-dialog workflows as the surface.
+Quest bindings continue to point at stable event UUIDs, so a giver, objective or turn-in below the
+map needs no special quest model. Content is filtered to the selected storey in the stage and event
+list, while the quest workspace may still inspect the whole map. Refilling rock removes content
+inside the closed volume instead of leaving invisible actors or colliders behind.
+
+Excavation participates in the saved content bounds independently of painted surface tiles. A
+storey, tunnel, stair or shaft may therefore extend beyond the land footprint above it (up to the
+same 256×256 authoring canvas), and the saved map grows to retain that volume plus its ocean margin.
+Surface height, liquids and relief are ignored by movement at an underground support elevation;
+only colliders whose vertical span intersects the body may block that storey.
+
+Element and event identities include the storey, so authors may stack content at the same logical
+cell on several floors. Their legacy database tables still have two-dimensional unique keys; the
+map service encodes the depth outside the legal editor-column range only while writing those rows
+and restores the authored column at its boundary. Depth metadata itself remains in the validated
+heightfield document. The editor and runtime therefore never see synthetic coordinates, and no
+schema migration is required for existing maps.
+
 Compilation turns each run into finite floor and ceiling slabs plus merged perimeter-wall segments.
 The original level-zero terrain remains above ordinary excavated volumes and is still a walkable
 surface. A surface stair or shaft is different: its footprint cuts the terrain top visibly, while a
@@ -247,10 +270,12 @@ considering underground platforms, so a hero below the map cannot be snapped bac
 above. Saved hero positions use the same body-bounded lookup on restore. Renderer and collision both
 consume the compiled underground document; visual walls use the same stair-mouth rule as collision,
 and surface scenery/actors from another storey are culled during descent. Gameplay selects the
-visible storey from the local hero's reported `y`, while the camera continues following the sampled
-stair/floor elevation and therefore descends continuously instead of teleporting between views. The
-editor can address a storey directly without altering gameplay state. Canvas padding/cropping shifts
-underground runs, stairs and shafts with every other authored cell.
+visible storey from the local hero's reported `y` while the body occupies a stair or shaft, so the
+camera follows the sampled elevation continuously instead of teleporting between views. Elsewhere,
+an airborne body retains its last grounded storey: an ordinary jump inside a basement cannot reveal
+the ceiling above or put its billboard into an in-between visibility state. The editor can address a
+storey directly without altering gameplay state. Canvas padding/cropping shifts underground runs,
+stairs and shafts with every other authored cell.
 
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed

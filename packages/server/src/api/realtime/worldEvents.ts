@@ -251,9 +251,14 @@ function harvestColliderOccupied(
   state: WorldRoomState,
   collider: ColliderRect,
   now: number,
+  authoredY: number,
 ): boolean {
   for (const player of state.players.values()) {
-    if (groundRectsOverlap(collider, actorBody(player.x, player.z))) return true;
+    if (
+      Math.abs(player.y - authoredY) <= 0.85 &&
+      groundRectsOverlap(collider, actorBody(player.x, player.z))
+    )
+      return true;
   }
   for (const monster of state.monsters) {
     // A living monster occupies its current body. A corpse due this tick will first teleport to
@@ -264,12 +269,21 @@ function harvestColliderOccupied(
         : monster.deadUntil <= now
           ? { x: monster.spawnX, z: monster.spawnZ }
           : null;
-    if (position && groundRectsOverlap(collider, actorBody(position.x, position.z))) {
+    if (
+      position &&
+      Math.abs(monster.y - authoredY) <= 0.85 &&
+      groundRectsOverlap(collider, actorBody(position.x, position.z))
+    ) {
       return true;
     }
   }
   for (const guard of state.guards) {
-    if (guard.hp > 0 && groundRectsOverlap(collider, actorBody(guard.x, guard.z))) return true;
+    if (
+      guard.hp > 0 &&
+      Math.abs(guard.y - authoredY) <= 0.85 &&
+      groundRectsOverlap(collider, actorBody(guard.x, guard.z))
+    )
+      return true;
   }
   const size = gridSize(state);
   for (const event of state.activeEvents) {
@@ -278,7 +292,11 @@ function harvestColliderOccupied(
     // An NPC stands at its cell's CENTRE. The pixel version inset its top-left box by half the
     // difference between a tile and a body to say the same thing.
     const centre = authoredCellCentreGround(event, size);
-    if (groundRectsOverlap(collider, actorBody(centre.x, centre.z))) return true;
+    if (
+      Math.abs(centre.y - authoredY) <= 0.85 &&
+      groundRectsOverlap(collider, actorBody(centre.x, centre.z))
+    )
+      return true;
   }
   return false;
 }
@@ -291,6 +309,7 @@ function projectHarvestCollider(
   harvestState: "intact" | "depleted",
   graphicAssetId: string | null,
   now: number,
+  authoredY: number,
 ): {
   collider: WorldEventCollider | null;
   collisionPending?: true;
@@ -305,7 +324,11 @@ function projectHarvestCollider(
     return { collider: colliderTuple(collider, elevation) };
   }
   const ground = harvestGroundColliderAt(profile, col, row, harvestState, gridSize(state));
-  if (harvestState === "intact" && ground && harvestColliderOccupied(state, ground, now)) {
+  if (
+    harvestState === "intact" &&
+    ground &&
+    harvestColliderOccupied(state, ground, now, authoredY)
+  ) {
     return { collider: null, collisionPending: true };
   }
   return { collider: colliderTuple(collider, elevation) };
@@ -326,12 +349,12 @@ function syncEventColliders(state: WorldRoomState): void {
   // tile footprint and its finite top to the room collision index.
   const next = state.activeEvents.flatMap((event): ColliderRect[] => {
     const colliders = event.collider
-      ? [worldEventColliderRect(definition.terrain, event.collider)]
+      ? [worldEventColliderRect(definition.terrain, event.collider, event.y)]
       : [];
     const authored = eventById.get(event.id);
     const profile = authored?.kind === "harvestable" ? authored.harvestProfile : undefined;
     if (profile && harvestActorBehavior(profile) !== "wander" && event.harvest?.collider) {
-      colliders.push(worldEventColliderRect(definition.terrain, event.harvest.collider));
+      colliders.push(worldEventColliderRect(definition.terrain, event.harvest.collider, event.y));
     }
     return colliders;
   });
@@ -435,6 +458,12 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       id: event.id,
       col: eventCol,
       row: eventRow,
+      ...(event.undergroundDepth
+        ? {
+            y: authoredCellCentreGround(event, definition.terrain.size).y,
+            undergroundDepth: event.undergroundDepth,
+          }
+        : {}),
       graphicAssetId,
       graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
@@ -469,6 +498,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
                 harvestState,
                 graphicAssetId,
                 now,
+                authoredCellCentreGround(event, definition.terrain.size).y,
               ),
             },
           }
@@ -542,6 +572,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
         depleted ? "depleted" : "intact",
         graphicAssetId,
         now,
+        active.y ?? 0,
       ),
     };
     if (
@@ -589,9 +620,10 @@ export function abortRunsForStalePages(state: WorldRoomState): void {
 /** Port of `#activeEventCell`: an NPC may have wandered off its authored cell. */
 export function activeEventCell(
   state: WorldRoomState,
-  event: Pick<MapEvent, "id" | "col" | "row">,
-): { col: number; row: number } {
-  return state.activeEvents.find((candidate) => candidate.id === event.id) ?? event;
+  event: Pick<MapEvent, "id" | "col" | "row" | "undergroundDepth">,
+): { col: number; row: number; undergroundDepth?: number } {
+  const active = state.activeEvents.find((candidate) => candidate.id === event.id);
+  return active ? { ...event, col: active.col, row: active.row } : event;
 }
 
 /**
@@ -603,7 +635,7 @@ export function activeEventCell(
  */
 export function activeEventCentre(
   state: WorldRoomState,
-  event: Pick<MapEvent, "id" | "col" | "row" | "kind">,
+  event: Pick<MapEvent, "id" | "col" | "row" | "kind" | "undergroundDepth">,
 ): WorldPosition {
   if (event.kind === "guard") {
     const guard = state.guards.find(
@@ -622,8 +654,8 @@ export function activeEventCentre(
  *  position instead of anchored at its top-left corner. */
 export function touchesEventCell(
   state: WorldRoomState,
-  position: GroundVector,
-  event: Pick<MapEvent, "id" | "col" | "row">,
+  position: GroundVector & { y?: number },
+  event: Pick<MapEvent, "id" | "col" | "row" | "undergroundDepth">,
   tolerance: number,
 ): boolean {
   const cell = activeEventCell(state, event);
@@ -633,6 +665,9 @@ export function touchesEventCell(
   const right = cell.col + 1 - half + tolerance;
   const bottom = cell.row + 1 - half + tolerance;
   return (
+    (event.undergroundDepth === undefined ||
+      position.y === undefined ||
+      Math.abs(position.y - authoredCellCentreGround(cell, gridSize(state)).y) <= 0.85) &&
     position.x - BODY_RADIUS < right &&
     position.x + BODY_RADIUS > left &&
     position.z - BODY_RADIUS < bottom &&
@@ -706,20 +741,24 @@ export function startAutomaticEventRuns(state: WorldRoomState): number {
   return started;
 }
 
-function eventActorPosition(state: WorldRoomState, event: MapEvent): GroundVector | null {
+function eventActorPosition(state: WorldRoomState, event: MapEvent): WorldPosition | null {
   if (event.kind === "guard") {
     const guard = state.guards.find(
       (candidate) => candidate.id === authoredGuardRuntimeId(event.id),
     );
-    return guard ? { x: guard.x, z: guard.z } : null;
+    return guard ? { x: guard.x, y: guard.y, z: guard.z } : null;
   }
   const active = state.activeEvents.find((candidate) => candidate.id === event.id);
   return active ? authoredCellCentreGround(active, gridSize(state)) : null;
 }
 
-function actorTouchesHero(actor: GroundVector, hero: GroundVector): boolean {
+function actorTouchesHero(actor: WorldPosition, hero: WorldPosition): boolean {
   const reach = 0.5 + BODY_RADIUS;
-  return Math.abs(actor.x - hero.x) < reach && Math.abs(actor.z - hero.z) < reach;
+  return (
+    (!Number.isFinite(actor.y) || !Number.isFinite(hero.y) || Math.abs(actor.y - hero.y) <= 0.85) &&
+    Math.abs(actor.x - hero.x) < reach &&
+    Math.abs(actor.z - hero.z) < reach
+  );
 }
 
 /**
@@ -810,8 +849,14 @@ export function detectPlayerTouch(
       const verticalContact = (position: WorldPosition): boolean => {
         const terrain = state.location?.definition.terrain;
         if (!terrain) return false;
+        if (
+          event.undergroundDepth !== undefined &&
+          Math.abs(position.y - activeEventCentre(state, event).y) > 0.85
+        )
+          return false;
         if (activeCollider) {
-          const top = worldEventColliderRect(terrain, activeCollider).top;
+          const active = state.activeEvents.find((candidate) => candidate.id === event.id);
+          const top = worldEventColliderRect(terrain, activeCollider, active?.y).top;
           if (top !== undefined) return position.y <= top + 1e-3;
         }
         if (!movementPickup) return true;

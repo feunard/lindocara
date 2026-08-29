@@ -174,6 +174,16 @@ export interface Hd2dEditorOverlay {
   /** Side of the hover/selection outline, in cells. Field and event modes mark a whole cell (1);
    *  element mode places at quarter cells and marks one of those. Defaults to 1. */
   cursorCells?: number;
+  /** Exact underground stamp written by one click. Its operation-specific tint makes rooms,
+   * tunnels, shafts and fill visibly different before the author commits them. */
+  undergroundStamp?: {
+    x: number;
+    z: number;
+    cols: number;
+    rows: number;
+    elevation: number;
+    operation: "dig" | "tunnel" | "fill" | "shaft" | "stairs";
+  } | null;
   stairsPreview?: { ramps: readonly TerrainRamp[]; valid: boolean; levelHeight: number } | null;
   assetPreview?: {
     point: GroundVector;
@@ -1796,6 +1806,25 @@ export class Hd2dVisualLayer {
         );
         this.#editorRoot.add(mesh);
       }
+    }
+
+    if (overlay.undergroundStamp) {
+      const stamp = overlay.undergroundStamp;
+      const color = {
+        dig: 0x47b8ff,
+        tunnel: 0xf0b84a,
+        shaft: 0x9d63ff,
+        stairs: 0x55d58a,
+        fill: 0xe35b55,
+      }[stamp.operation];
+      const material = transparentMaterial(color, 0.38);
+      material.depthTest = false;
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(stamp.cols, stamp.rows), material);
+      mesh.name = `editor-underground-${stamp.operation}-preview`;
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.renderOrder = 34;
+      mesh.position.set(stamp.x + stamp.cols / 2, stamp.elevation + 0.08, stamp.z + stamp.rows / 2);
+      this.#editorRoot.add(mesh);
     }
 
     if (overlay.saveRect) {

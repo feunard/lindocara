@@ -31,7 +31,15 @@ import {
 } from "../map-environment.js";
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
 import { isNativeSceneryAsset } from "../native-scenery.js";
-import { parseUnderground, undergroundShaftCell } from "../underground.js";
+import {
+  parseUnderground,
+  undergroundCells,
+  undergroundDepthAtElevation,
+  undergroundFloorHeight,
+  undergroundShaftCell,
+  undergroundStyleMaterial,
+  undergroundTerrainCells,
+} from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
@@ -143,6 +151,9 @@ export interface HeightfieldElement {
   assetId: string;
   x: number;
   z: number;
+  /** Explicit authored elevation for underground content. */
+  y?: number;
+  undergroundDepth?: number;
   orientation?: ElementOrientation;
   rotation?: ElementRotation;
   /** Explicit dimensions also signal the centre-based bridge coordinate convention. */
@@ -158,6 +169,8 @@ export interface HeightfieldEvent {
   id: string;
   x: number;
   z: number;
+  y?: number;
+  undergroundDepth?: number;
   graphicAssetId: string | null;
 }
 
@@ -255,6 +268,16 @@ function toElement(value: unknown): HeightfieldElement | null {
     !isFiniteNumber(value.z)
   )
     return null;
+  if (value.y !== undefined && !isFiniteNumber(value.y)) return null;
+  const undergroundDepth = value.undergroundDepth;
+  if (
+    undergroundDepth !== undefined &&
+    (typeof undergroundDepth !== "number" ||
+      !Number.isSafeInteger(undergroundDepth) ||
+      undergroundDepth < 1 ||
+      undergroundDepth > 16)
+  )
+    return null;
   const orientation = parseElementOrientation(value.orientation);
   const rotation = parseElementRotation(value.rotation);
   const hasRotation = value.rotation !== undefined && value.rotation !== null;
@@ -274,6 +297,8 @@ function toElement(value: unknown): HeightfieldElement | null {
     assetId: value.assetId,
     x: value.x,
     z: value.z,
+    ...(value.y === undefined ? {} : { y: value.y }),
+    ...(undergroundDepth === undefined ? {} : { undergroundDepth }),
     ...(orientation === 0 ? {} : { orientation }),
     ...(hasRotation ? { rotation } : {}),
     ...(bridge ? { bridge } : {}),
@@ -291,7 +316,24 @@ function toEvent(value: unknown): HeightfieldEvent | null {
     !(value.graphicAssetId === null || typeof value.graphicAssetId === "string")
   )
     return null;
-  return { id: value.id, x: value.x, z: value.z, graphicAssetId: value.graphicAssetId };
+  if (value.y !== undefined && !isFiniteNumber(value.y)) return null;
+  const undergroundDepth = value.undergroundDepth;
+  if (
+    undergroundDepth !== undefined &&
+    (typeof undergroundDepth !== "number" ||
+      !Number.isSafeInteger(undergroundDepth) ||
+      undergroundDepth < 1 ||
+      undergroundDepth > 16)
+  )
+    return null;
+  return {
+    id: value.id,
+    x: value.x,
+    z: value.z,
+    graphicAssetId: value.graphicAssetId,
+    ...(value.y === undefined ? {} : { y: value.y }),
+    ...(undergroundDepth === undefined ? {} : { undergroundDepth }),
+  };
 }
 
 function toRamp(value: unknown): TerrainRamp | null {
@@ -489,6 +531,23 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
       ? (m.levels[index] ?? null)
       : null;
   };
+  const undergroundLevels = new Map(
+    (m.underground?.levels ?? []).map((level) => [
+      level.depth,
+      {
+        level,
+        cells: undergroundCells(level, m.size),
+        terrain: undergroundTerrainCells(level, m.size),
+      },
+    ]),
+  );
+  const undergroundMaterialAt = (i: number, j: number, elevation: number) => {
+    const depth = undergroundDepthAtElevation(elevation);
+    if (depth === null || !inBounds(i, j)) return undefined;
+    const authored = undergroundLevels.get(depth);
+    if (!authored || authored.cells[indexOf(i, j)] === 0) return null;
+    return authored.terrain[indexOf(i, j)] ?? undergroundStyleMaterial(authored.level.style);
+  };
   return {
     size: m.size,
     levelHeight: m.levelHeight,
@@ -513,6 +572,23 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
     },
     voidAt(i, j) {
       return inBounds(i, j) && undergroundShaftCell(m.underground?.shafts, i, j);
+    },
+    kindAtElevation(i, j, elevation) {
+      const material = undergroundMaterialAt(i, j, elevation);
+      if (material === undefined)
+        return inBounds(i, j) && !liquidAt(i, j) ? (m.materials[indexOf(i, j)] ?? null) : null;
+      return material === "water" || material === "lave" ? null : material;
+    },
+    liquidAtElevation(i, j, elevation) {
+      const material = undergroundMaterialAt(i, j, elevation);
+      if (material === undefined) return liquidAt(i, j);
+      return material === "water" ? "water" : material === "lave" ? "lava" : null;
+    },
+    waterLevelAtElevation(i, j, elevation) {
+      const depth = undergroundDepthAtElevation(elevation);
+      if (depth === null || !inBounds(i, j)) return null;
+      const material = undergroundMaterialAt(i, j, elevation);
+      return material === "water" || material === "lave" ? undergroundFloorHeight(depth) : null;
     },
     ramps: m.ramps ?? [],
     platforms: m.colliders.flatMap((collider) =>

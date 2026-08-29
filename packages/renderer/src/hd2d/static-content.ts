@@ -276,6 +276,8 @@ export function placeStaticContent(
     dimensions?: BuildingDimensions,
     elevationOffset = 0,
     floating = false,
+    authoredY?: number,
+    undergroundDepth?: number,
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
@@ -344,19 +346,22 @@ export function placeStaticContent(
           : z;
     // A bridge receives the exact platform top authored into the heightfield. Other offshore art
     // still falls back to the sea rather than inventing a gameplay surface from its appearance.
-    const surfaceY = sky
-      ? authoredSkyAltitude(map)
-      : sprite.bridgeOrientation
-        ? (scene.query.surfaceAt?.(x, bridgeSampleZ, Number.POSITIVE_INFINITY) ??
-          scene.query.heightAt(x, bridgeSampleZ) ??
-          scene.waterLevel)
-        : (scene.query.heightAt(x, z) ?? scene.waterLevel);
+    const surfaceY =
+      authoredY ??
+      (sky
+        ? authoredSkyAltitude(map)
+        : sprite.bridgeOrientation
+          ? (scene.query.surfaceAt?.(x, bridgeSampleZ, Number.POSITIVE_INFINITY) ??
+            scene.query.heightAt(x, bridgeSampleZ) ??
+            scene.waterLevel)
+          : (scene.query.heightAt(x, z) ?? scene.waterLevel));
     const anchorY = surfaceY + (sky ? 0 : elevationOffset);
     if (native) {
       native.placeAt(x, anchorY, z);
     } else if (flat || sprite.renderMode === "cloud-volume") {
       billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
     } else (billboard as Billboard | CardVolume).placeAt(x, anchorY, z);
+    billboard.mesh.userData.undergroundDepth = undergroundDepth ?? null;
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
     depthLayers.set(depthKey, depthLayer + 1);
@@ -440,6 +445,8 @@ export function placeStaticContent(
         undefined,
         elevationOffset,
         floating,
+        authoredY,
+        undergroundDepth,
       );
     }
   }
@@ -450,6 +457,7 @@ export function placeStaticContent(
     y: number,
     z: number,
     health: NonNullable<StaticContentEvent["health"]>,
+    undergroundDepth?: number,
   ): void {
     const ratio = THREE.MathUtils.clamp(health.max > 0 ? health.value / health.max : 0, 0, 1);
     const group = new THREE.Group();
@@ -471,6 +479,7 @@ export function placeStaticContent(
     group.position.set(x, y, z);
     group.visible = health.visible && ratio > 0;
     group.renderOrder = 70;
+    group.userData.undergroundDepth = undergroundDepth ?? null;
     scene.root.add(group);
     healthBars.push({ contentKey, group, fill });
   }
@@ -488,6 +497,8 @@ export function placeStaticContent(
     dimensions?: BuildingDimensions,
     elevationOffset = 0,
     floating = false,
+    authoredY?: number,
+    undergroundDepth?: number,
   ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
@@ -511,9 +522,11 @@ export function placeStaticContent(
       dimensions,
       elevationOffset,
       floating,
+      authoredY,
+      undergroundDepth,
     );
     if (contentKey && health) {
-      const anchorY = scene.query.heightAt(x, z) ?? scene.waterLevel;
+      const anchorY = authoredY ?? scene.query.heightAt(x, z) ?? scene.waterLevel;
       placeHealthBar(
         contentKey,
         x,
@@ -529,13 +542,14 @@ export function placeStaticContent(
               : sprite.height + 0.4),
         z,
         health,
+        undergroundDepth,
       );
     }
   }
 
   const elementKey = (index: number): string => `element:${index}`;
   const elementVisual = (element: HeightfieldElement): string =>
-    `${element.assetId}:${element.x}:${element.z}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}:${element.dimensions?.width ?? ""}:${element.dimensions?.depth ?? ""}`;
+    `${element.assetId}:${element.x}:${element.y ?? ""}:${element.z}:${element.undergroundDepth ?? ""}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}:${element.dimensions?.width ?? ""}:${element.dimensions?.depth ?? ""}`;
 
   for (const [index, element] of map.elements.entries()) {
     const key = elementKey(index);
@@ -551,6 +565,10 @@ export function placeStaticContent(
       element.bridge,
       element.building,
       element.dimensions,
+      0,
+      false,
+      element.y,
+      element.undergroundDepth,
     );
   }
   for (const event of map.events) {
@@ -559,7 +577,7 @@ export function placeStaticContent(
     const staticEvent = event as StaticContentEvent;
     const health = staticEvent.health;
     const orientation = staticEvent.orientation ?? 0;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}:${staticEvent.elevationOffset ?? 0}:${staticEvent.floating ? 1 : 0}`;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}:${staticEvent.elevationOffset ?? 0}:${staticEvent.floating ? 1 : 0}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
     place(
@@ -575,6 +593,8 @@ export function placeStaticContent(
       undefined,
       staticEvent.elevationOffset,
       staticEvent.floating,
+      event.y,
+      event.undergroundDepth,
     );
   }
   function flushSkipped(): void {
@@ -664,6 +684,10 @@ export function placeStaticContent(
           element.bridge,
           element.building,
           element.dimensions,
+          0,
+          false,
+          element.y,
+          element.undergroundDepth,
         );
       }
       flushSkipped();
@@ -676,7 +700,7 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.z}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
@@ -694,6 +718,8 @@ export function placeStaticContent(
             undefined,
             event.elevationOffset,
             event.floating,
+            event.y,
+            event.undergroundDepth,
           );
         }
       }

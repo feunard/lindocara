@@ -351,24 +351,26 @@ export function TerrainPalette({
               />
             </label>
           </div>
-          <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
-            <span>{t("editor.underground.direction")}</span>
-            <select
-              className="h-7 rounded border border-zinc-200 bg-white px-1"
-              value={undergroundDirection}
-              onChange={(event) =>
-                onUndergroundDirectionChange(event.currentTarget.value as RampDirection)
-              }
-            >
-              {(["north", "east", "south", "west"] as const).map((direction) => (
-                <option key={direction} value={direction}>
-                  {t(`editor.underground.direction.${direction}`)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {undergroundOperation === "tunnel" || undergroundOperation === "stairs" ? (
+            <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
+              <span>{t("editor.underground.direction")}</span>
+              <select
+                className="h-7 rounded border border-zinc-200 bg-white px-1"
+                value={undergroundDirection}
+                onChange={(event) =>
+                  onUndergroundDirectionChange(event.currentTarget.value as RampDirection)
+                }
+              >
+                {(["north", "east", "south", "west"] as const).map((direction) => (
+                  <option key={direction} value={direction}>
+                    {t(`editor.underground.direction.${direction}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <p className="px-1 text-[10.5px] leading-snug text-zinc-500">
-            {t("editor.underground.hint")}
+            {t(`editor.underground.hint.${undergroundOperation ?? "dig"}`)}
           </p>
         </div>
         <SwatchButton

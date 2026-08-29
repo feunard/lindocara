@@ -801,7 +801,11 @@ export function triggerActionEventNearby(w: WorldGlue, player: PlayerRuntime): b
   for (const event of events) {
     const runnable = runnablePage(w.state, event, "action");
     if (runnable === null) continue;
-    const distance = groundDistance(player, activeEventCentre(w.state, event));
+    const centre = activeEventCentre(w.state, event);
+    const distance =
+      Math.abs(player.y - centre.y) > 0.85
+        ? Number.POSITIVE_INFINITY
+        : groundDistance(player, centre);
     if (distance > INTERACTION_RANGE) continue;
     if (best === null || distance < best.distance) best = { event, ...runnable, distance };
   }
@@ -862,7 +866,10 @@ export function closeWalkedAwayDialogues(w: WorldGlue): void {
     if (player === undefined) return true;
     const event = events.find((candidate) => candidate.id === context.eventId);
     if (event === undefined) return true;
-    return groundDistance(player, activeEventCentre(w.state, event)) > DIALOGUE_CLOSE_RADIUS;
+    const centre = activeEventCentre(w.state, event);
+    return (
+      Math.abs(player.y - centre.y) > 0.85 || groundDistance(player, centre) > DIALOGUE_CLOSE_RADIUS
+    );
   });
 }
 
@@ -1431,7 +1438,11 @@ export function triggerQuestTargetNearby(
     if (pageIndex === null) continue;
     const page = event.pages[pageIndex];
     if (page?.trigger !== "action") continue;
-    const distance = groundDistance(player, activeEventCentre(state, event));
+    const centre = activeEventCentre(state, event);
+    const distance =
+      Math.abs(player.y - centre.y) > 0.85
+        ? Number.POSITIVE_INFINITY
+        : groundDistance(player, centre);
     if (distance > INTERACTION_RANGE) continue;
     const entries = questDialogueEntries(w, player, { mapId, eventId: event.id });
     if (entries.length === 0) continue;
@@ -1615,6 +1626,7 @@ export async function handleQuestAction(
     !event ||
     !page ||
     page.trigger !== "action" ||
+    Math.abs(player.y - activeEventCentre(state, event).y) > 0.85 ||
     groundDistance(player, activeEventCentre(state, event)) > DIALOGUE_CLOSE_RADIUS
   ) {
     state.questConversations.delete(player.id);

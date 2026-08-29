@@ -1500,10 +1500,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.heading": "Souterrains",
   "editor.underground.dig": "Creuser un bloc",
   "editor.underground.tunnel": "Tunnel",
-  "editor.underground.shaft": "Puits vertical",
+  "editor.underground.shaft": "Trou direct",
   "editor.underground.stairs": "Escalier descendant",
   "editor.underground.fill": "Reboucher",
   "editor.underground.depth": "Étage (−1 à −16)",
+  "editor.level.label": "Niveau",
+  "editor.level.surface": "Surface",
+  "editor.level.hint": "Terrain, Décors et Événements agissent sur ce niveau.",
   "editor.underground.style": "Revêtement",
   "editor.underground.width": "Largeur",
   "editor.underground.length": "Longueur",
@@ -1514,6 +1517,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.direction.west": "Ouest",
   "editor.underground.hint":
     "La surface translucide reste visible comme repère. Un escalier relie deux étages ; un puits ouvre réellement le sol jusqu’à la profondeur choisie.",
+  "editor.underground.hint.dig": "Creuse une salle rectangulaire uniquement au niveau choisi.",
+  "editor.underground.hint.tunnel": "Creuse une galerie étroite dans le sens choisi.",
+  "editor.underground.hint.shaft":
+    "Ouvre le sol depuis la surface jusqu’à la profondeur choisie : la chute est réelle et aucune remontée n’est automatique.",
+  "editor.underground.hint.stairs":
+    "Relie progressivement deux niveaux et crée automatiquement les paliers nécessaires.",
+  "editor.underground.hint.fill": "Rebouche le volume choisi et retire son contenu souterrain.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

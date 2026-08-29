@@ -231,7 +231,12 @@ function eventToolFor(
 }
 
 function toEditorMap(map: MapPayload): EditorMap {
-  const underground = map.heightfield ? decodeMap(map.heightfield)?.underground : undefined;
+  const underground =
+    map.underground ?? (map.heightfield ? decodeMap(map.heightfield)?.underground : undefined);
+  const elementDepths = new Map(
+    underground?.elementDepths?.map((entry) => [entry.id, entry.depth]),
+  );
+  const eventDepths = new Map(underground?.eventDepths?.map((entry) => [entry.id, entry.depth]));
   return canvasEditorMap(
     {
       name: map.name,
@@ -244,12 +249,18 @@ function toEditorMap(map: MapPayload): EditorMap {
       dayNightCycle: map.dayNightCycle ?? true,
       fixedLighting: map.fixedLighting ?? DEFAULT_MAP_FIXED_LIGHTING,
       layers: editorLayersFromPayload(map),
-      elements: map.elements,
+      elements: map.elements.map((element) => {
+        const depth = element.id ? elementDepths.get(element.id) : undefined;
+        return depth === undefined ? element : { ...element, undergroundDepth: depth };
+      }),
       spawn: map.spawn,
       // Markers are QUARANTINED (UX wave #12): the editor ignores whatever a (legacy) payload
       // still carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
       markers: EMPTY_MARKERS,
-      events: map.events ?? [],
+      events: (map.events ?? []).map((event) => {
+        const depth = eventDepths.get(event.id);
+        return depth === undefined ? event : { ...event, undergroundDepth: depth };
+      }),
     },
     map.id,
   );
@@ -579,6 +590,8 @@ function AdventureEditorInner({
   const [linkPending, setLinkPending] = useState(false);
   const [wallOpeningPending, setWallOpeningPending] = useState(false);
   const [undergroundDepth, setUndergroundDepth] = useState(1);
+  const [editingDepth, setEditingDepth] = useState<number | null>(null);
+  const pendingEditingDepthRef = useRef<number | null>(null);
   const [undergroundStyle, setUndergroundStyle] = useState<InteriorShellStyle>("cave");
   const [undergroundWidth, setUndergroundWidth] = useState(3);
   const [undergroundLength, setUndergroundLength] = useState(6);
@@ -846,6 +859,7 @@ function AdventureEditorInner({
         }
         handleRef.current = handle;
         handle.setTool(pendingToolRef.current);
+        handle.setEditingDepth?.(pendingEditingDepthRef.current);
         handle.setActiveMode(pendingModeRef.current);
         handle.setDim(pendingDimRef.current);
         handle.setGrid(pendingGridRef.current);
@@ -968,6 +982,14 @@ function AdventureEditorInner({
     handleRef.current?.setTool(tool);
   }
 
+  function chooseEditingDepth(depth: number | null): void {
+    const next = depth === null ? null : Math.max(1, Math.min(16, Math.trunc(depth) || 1));
+    pendingEditingDepthRef.current = next;
+    setEditingDepth(next);
+    if (next !== null) setUndergroundDepth(next);
+    handleRef.current?.setEditingDepth?.(next);
+  }
+
   function selectTool(key: EditorPaintTool | "stairs"): void {
     setToolKey(key);
     setSelectedAsset(null);
@@ -1000,7 +1022,7 @@ function AdventureEditorInner({
   ): EditorTool {
     return {
       kind: "underground",
-      operation: operation === "tunnel" ? "dig" : operation,
+      operation,
       depth: overrides.depth ?? undergroundDepth,
       style: overrides.style ?? undergroundStyle,
       width: overrides.width ?? undergroundWidth,
@@ -1013,6 +1035,9 @@ function AdventureEditorInner({
     setToolKey("underground");
     setUndergroundOperation(operation);
     setSelectedAsset(null);
+    // A shaft is authored FROM the surface: keeping that view makes its open aperture immediately
+    // distinct from a room excavated on one selected storey.
+    chooseEditingDepth(operation === "shaft" ? null : undergroundDepth);
     if (operation === "tunnel") {
       setUndergroundWidth(2);
       pushTool(undergroundTool(operation, { width: 2 }));
@@ -2003,6 +2028,38 @@ function AdventureEditorInner({
           onOpenHelp={() => openHelp()}
         />
 
+        <div className="editor-chrome flex h-8 items-center gap-1 border-b border-zinc-200 bg-white px-2 text-[11px]">
+          <span className="mr-1 text-zinc-400">{t("editor.level.label")}</span>
+          <button
+            type="button"
+            aria-pressed={editingDepth === null}
+            onClick={() => chooseEditingDepth(null)}
+            className={`h-6 rounded px-2 ${editingDepth === null ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
+          >
+            {t("editor.level.surface")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={editingDepth !== null}
+            onClick={() => chooseEditingDepth(undergroundDepth)}
+            className={`h-6 rounded px-2 ${editingDepth !== null ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
+          >
+            {editingDepth === null ? `−${undergroundDepth}` : `−${editingDepth}`}
+          </button>
+          {editingDepth === null ? null : (
+            <input
+              aria-label={t("editor.underground.depth")}
+              className="h-6 w-14 rounded border border-zinc-200 px-1.5"
+              type="number"
+              min={1}
+              max={16}
+              value={editingDepth}
+              onChange={(event) => chooseEditingDepth(Number(event.currentTarget.value))}
+            />
+          )}
+          <span className="ml-1 truncate text-zinc-400">{t("editor.level.hint")}</span>
+        </div>
+
         <ResizablePanelGroup orientation="horizontal" className="editor-body min-h-0 flex-1">
           <ResizablePanel
             defaultSize="18"
@@ -2035,6 +2092,7 @@ function AdventureEditorInner({
                 onUndergroundDepthChange: (depth) => {
                   const next = Math.max(1, Math.min(16, Math.trunc(depth) || 1));
                   setUndergroundDepth(next);
+                  if (editingDepth !== null) chooseEditingDepth(next);
                   updateUndergroundTool({ depth: next });
                 },
                 onUndergroundStyleChange: (style) => {
@@ -2071,7 +2129,9 @@ function AdventureEditorInner({
                 npcGraphic,
                 enemyGraphic,
                 guardGraphic,
-                events: currentMap?.events ?? [],
+                events: (currentMap?.events ?? []).filter(
+                  (event) => (event.undergroundDepth ?? null) === editingDepth,
+                ),
                 selectedEventId: selection?.kind === "event" ? selection.id : null,
                 onSelectPreset: selectEventPreset,
                 onSelectEventKind: selectEventKind,

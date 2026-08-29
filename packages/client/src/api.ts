@@ -14,7 +14,7 @@ import type {
 } from "@lindocara/engine/audio-catalog.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
-import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
+import type { MapElement, MapMarkers, UndergroundMap } from "@lindocara/engine/map-data.js";
 import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { MapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
@@ -169,6 +169,8 @@ export interface MapPayload {
   environment?: MapEnvironment;
   /** Optional world-space cutaway walls around an interior floor. */
   interiorShell?: InteriorShell;
+  /** Compact rooms and authored content storeys below the surface. */
+  underground?: UndergroundMap;
   /** The authored weather. Missing on a legacy or test payload, which reads as a clear sky. */
   weather?: MapWeather;
   tilesetId: string;

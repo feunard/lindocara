@@ -33,6 +33,7 @@ import {
 } from "./element-orientation.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
+import type { TerrainMaterial } from "./hd2d/terrain-query.js";
 import { isUuid } from "./identifiers.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
@@ -69,6 +70,8 @@ export interface MapElement {
   /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles below the cell origin. */
   offsetY: number;
   assetId: EditorAssetId;
+  /** Authored storey below the surface. Missing means surface. */
+  undergroundDepth?: number;
   /** Optional quarter-turn: front (0/default), right side (1), rear (2), left side (3). */
   orientation?: ElementOrientation;
   /** Optional whole-degree rotation for native 3D scenery. Supersedes `orientation`. */
@@ -186,6 +189,17 @@ export interface UndergroundLevel {
   /** Reuses the established interior coating language and its existing assets. */
   style: InteriorShellStyle;
   cells: readonly UndergroundCellRun[];
+  /** Optional floor overrides. Missing cells keep the level's coating material. */
+  terrain?: readonly UndergroundTerrainRun[];
+}
+
+export interface UndergroundTerrainRun extends UndergroundCellRun {
+  material: TerrainMaterial | "water";
+}
+
+export interface UndergroundContentDepth {
+  id: string;
+  depth: number;
 }
 
 export interface UndergroundStair {
@@ -217,6 +231,9 @@ export interface UndergroundMap {
   stairs: readonly UndergroundStair[];
   /** Absent on maps authored before true surface openings existed. */
   shafts?: readonly UndergroundShaft[];
+  /** Depth metadata rides in map JSON while element/event rows keep their legacy DB schema. */
+  elementDepths?: readonly UndergroundContentDepth[];
+  eventDepths?: readonly UndergroundContentDepth[];
 }
 
 /**
@@ -654,7 +671,7 @@ export function elementsOverlap(left: MapElement, right: MapElement): boolean {
 }
 
 /**
- * Full sub-position identity: two elements share a slot only when their cell AND their quarter-tile
+ * Full vertical identity: two elements share a slot only when their storey, cell AND quarter-tile
  * offset both match — exactly the D1 primary key `(mapId, col, row, offsetX, offsetY)`.
  *
  * This is the identity element placement, selection and the eraser key on now that a cell can hold a
@@ -664,10 +681,28 @@ export function elementsOverlap(left: MapElement, right: MapElement): boolean {
  * selection descriptor (which carries no `assetId`) can be compared against a `MapElement`.
  */
 export function sameElementSlot(
-  a: { col: number; row: number; offsetX: number; offsetY: number },
-  b: { col: number; row: number; offsetX: number; offsetY: number },
+  a: {
+    col: number;
+    row: number;
+    offsetX: number;
+    offsetY: number;
+    undergroundDepth?: number;
+  },
+  b: {
+    col: number;
+    row: number;
+    offsetX: number;
+    offsetY: number;
+    undergroundDepth?: number;
+  },
 ): boolean {
-  return a.col === b.col && a.row === b.row && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
+  return (
+    a.col === b.col &&
+    a.row === b.row &&
+    a.offsetX === b.offsetX &&
+    a.offsetY === b.offsetY &&
+    (a.undergroundDepth ?? 0) === (b.undergroundDepth ?? 0)
+  );
 }
 
 /** Whether a tile blocks movement, resolved through the tileset. An empty cell blocks nothing —
@@ -766,6 +801,14 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     const offsetX = parseOffsetStep(item.offsetX);
     const offsetY = parseOffsetStep(item.offsetY);
     if (offsetX === null || offsetY === null) return null;
+    const undergroundDepth = item.undergroundDepth;
+    if (
+      undergroundDepth !== undefined &&
+      (!Number.isSafeInteger(undergroundDepth) ||
+        (undergroundDepth as number) < 1 ||
+        (undergroundDepth as number) > 16)
+    )
+      return null;
     let assetId: EditorAssetId;
     if (isEditorAssetId(item.assetId)) assetId = item.assetId;
     else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
@@ -815,6 +858,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       offsetX,
       offsetY,
       assetId,
+      ...(undergroundDepth === undefined ? {} : { undergroundDepth: undergroundDepth as number }),
       ...(orientation === 0 ? {} : { orientation }),
       ...(hasRotation ? { rotation } : {}),
       ...(bridge ? { bridge } : {}),
@@ -865,7 +909,9 @@ export function parseMapData(value: unknown): MapData | null {
   if (record.underground !== undefined && !underground) return null;
   if (
     underground?.levels.some((level) =>
-      level.cells.some((run) => run.row >= height || run.col + run.length > width),
+      [...level.cells, ...(level.terrain ?? [])].some(
+        (run) => run.row >= height || run.col + run.length > width,
+      ),
     ) ||
     underground?.stairs.some((stair) => {
       const alongX = stair.direction === "east" || stair.direction === "west";

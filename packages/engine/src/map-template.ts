@@ -11,7 +11,12 @@
  * passes through. This file only describes the shape and hands out the blank one.
  */
 import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "./audio-catalog.js";
-import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "./map-data.js";
+import {
+  EMPTY_MARKERS,
+  type MapElement,
+  type MapMarkers,
+  type UndergroundMap,
+} from "./map-data.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
   type InteriorShell,
@@ -35,6 +40,8 @@ export interface MapInput {
   environment?: MapEnvironment | undefined;
   /** Optional world-space cutaway walls. Meaningful only for an interior environment. */
   interiorShell?: InteriorShell | undefined;
+  /** Compact rooms, passages and content-storey metadata below the surface. */
+  underground?: UndergroundMap | undefined;
   /** Missing keeps legacy maps under a clear sky. */
   weather?: MapWeather | undefined;
   tilesetId: string;

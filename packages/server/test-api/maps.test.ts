@@ -1193,6 +1193,93 @@ describe("list, get, update, delete", () => {
     });
   });
 
+  test("round-trips scenery and events stacked on the same cell across storeys", async () => {
+    const { userId, token } = await registerAndLogin("mapdepth");
+    const id = await newMapId(await newAdventure(userId), token, "Vertical map");
+    const surfaceElementId = "10000000-0000-4000-8000-000000000001";
+    const deepElementId = "10000000-0000-4000-8000-000000000002";
+    const surfaceEventId = "20000000-0000-4000-8000-000000000001";
+    const deepEventId = "20000000-0000-4000-8000-000000000002";
+    const event = (eventId: string, undergroundDepth?: number) => ({
+      id: eventId,
+      col: 5,
+      row: 5,
+      name: undergroundDepth ? "Deep event" : "Surface event",
+      ordinal: undergroundDepth ? 2 : 1,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [wirePage()],
+      ...(undergroundDepth === undefined ? {} : { undergroundDepth }),
+    });
+    const updated = await putMap(
+      id,
+      token,
+      mapBody({
+        underground: {
+          levels: [
+            {
+              depth: 3,
+              style: "cave",
+              cells: [
+                { col: 4, row: 4, length: 1 },
+                { col: 5, row: 5, length: 1 },
+              ],
+              terrain: [{ col: 4, row: 4, length: 1, material: "volcan" }],
+            },
+          ],
+          stairs: [],
+          elementDepths: [{ id: deepElementId, depth: 3 }],
+          eventDepths: [{ id: deepEventId, depth: 3 }],
+        },
+        elements: [
+          {
+            id: surfaceElementId,
+            col: 4,
+            row: 4,
+            offsetX: 0,
+            offsetY: 0,
+            assetId: TREE_ASSET_ID,
+          },
+          {
+            id: deepElementId,
+            col: 4,
+            row: 4,
+            offsetX: 0,
+            offsetY: 0,
+            assetId: TREE_ASSET_ID,
+            undergroundDepth: 3,
+          },
+        ],
+        events: [event(surfaceEventId), event(deepEventId, 3)],
+      }),
+    );
+    expect(updated.status).toBe(200);
+
+    const storedElements = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    const storedEvents = await probe.mapEvents.findMany({ where: { mapId: { eq: id } } });
+    expect(new Set(storedElements.map((element) => element.col)).size).toBe(2);
+    expect(new Set(storedEvents.map((storedEvent) => storedEvent.col)).size).toBe(2);
+
+    const payload = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      elements: { id: string; col: number; row: number; undergroundDepth?: number }[];
+      events: { id: string; col: number; row: number; undergroundDepth?: number }[];
+      heightfield: string;
+    };
+    expect(payload.elements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: surfaceElementId, col: 4, row: 4 }),
+        expect.objectContaining({ id: deepElementId, col: 4, row: 4, undergroundDepth: 3 }),
+      ]),
+    );
+    expect(payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: surfaceEventId, col: 5, row: 5 }),
+        expect.objectContaining({ id: deepEventId, col: 5, row: 5, undergroundDepth: 3 }),
+      ]),
+    );
+  });
+
   test("persists the per-map day/night cycle and fixed ambience policy", async () => {
     const { userId, token } = await registerAndLogin("mapclock");
     const id = await newMapId(await newAdventure(userId), token);

@@ -1484,10 +1484,13 @@ export const en = {
   "editor.underground.heading": "Underground",
   "editor.underground.dig": "Dig block",
   "editor.underground.tunnel": "Tunnel",
-  "editor.underground.shaft": "Vertical shaft",
+  "editor.underground.shaft": "Direct hole",
   "editor.underground.stairs": "Down stairs",
   "editor.underground.fill": "Fill in",
   "editor.underground.depth": "Storey (−1 to −16)",
+  "editor.level.label": "Level",
+  "editor.level.surface": "Surface",
+  "editor.level.hint": "Terrain, Scenery and Event tools act on this level.",
   "editor.underground.style": "Coating",
   "editor.underground.width": "Width",
   "editor.underground.length": "Length",
@@ -1498,6 +1501,13 @@ export const en = {
   "editor.underground.direction.west": "West",
   "editor.underground.hint":
     "The translucent surface remains as a guide. Stairs connect two storeys; a shaft truly opens the ground down to the selected depth.",
+  "editor.underground.hint.dig": "Excavates a rectangular room only on the selected storey.",
+  "editor.underground.hint.tunnel": "Excavates a narrow gallery in the selected direction.",
+  "editor.underground.hint.shaft":
+    "Opens the ground from the surface to the selected depth: the fall is physical and there is no automatic way back up.",
+  "editor.underground.hint.stairs":
+    "Connects two levels progressively and creates the required landings automatically.",
+  "editor.underground.hint.fill": "Fills the selected volume and removes its underground content.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",

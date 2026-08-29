@@ -151,6 +151,7 @@ export function validateMapInput(input: MapInput): MapData & {
   const data: MapData = {
     environment,
     ...(input.interiorShell ? { interiorShell: input.interiorShell } : {}),
+    ...(input.underground ? { underground: input.underground } : {}),
     weather,
     tilesetId: input.tilesetId,
     cols,
@@ -166,7 +167,10 @@ export function validateMapInput(input: MapInput): MapData & {
     if (!elementFitsMap(element, cols, rows)) {
       throw new Error(`placement: ${element.assetId} exceeds map bounds`);
     }
-    if (elementCoversCell(element, input.spawn.col, input.spawn.row)) {
+    if (
+      element.undergroundDepth === undefined &&
+      elementCoversCell(element, input.spawn.col, input.spawn.row)
+    ) {
       throw new Error("spawn: cannot be covered by scenery");
     }
     if (input.elements.slice(0, index).some((other) => sameElementSlot(other, element))) {
@@ -251,6 +255,7 @@ export function parseMapBody(body: unknown): MapInput | null {
     name,
     environment,
     ...(data.interiorShell ? { interiorShell: data.interiorShell } : {}),
+    ...(data.underground ? { underground: data.underground } : {}),
     weather,
     tilesetId: data.tilesetId,
     cols: data.cols,

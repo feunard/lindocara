@@ -78,6 +78,7 @@ import {
   editorAsset,
   LINDOCARA_CHEST_CLOSED_ASSET_ID,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import { fixedLightingOverride } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredSkyAltitude } from "@lindocara/renderer/hd2d/static-content.js";
@@ -131,6 +132,8 @@ import {
 
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
+  /** Surface (`null`) or the underground storey edited by every existing tool. */
+  setEditingDepth(depth: number | null): void;
   setActiveMode(mode: EditorMode): void;
   setDim(dim: boolean): void;
   setGrid(show: boolean): void;
@@ -645,6 +648,7 @@ export function openMapEditorStage(
     let history = createEditorHistory(initial);
     let map = initial;
     let tool: EditorTool = { kind: "select" };
+    let editingDepth: number | null = null;
     let selected: EditorSelection | null = null;
     let highlightedEventId: string | null = null;
     let dim = defaultDimForMode(history.activeMode);
@@ -754,8 +758,11 @@ export function openMapEditorStage(
     let disposed = false;
     let lastCursorKey = "";
     const visualEvents = (): MapEvent[] => [
-      ...map.events,
-      ...nativeHarvestEvents(map.elements, map.events.length + 1),
+      ...map.events.filter((event) => (event.undergroundDepth ?? null) === editingDepth),
+      ...nativeHarvestEvents(
+        map.elements.filter((element) => (element.undergroundDepth ?? null) === editingDepth),
+        map.events.length + 1,
+      ),
     ];
     let renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
     let renderedMonsters: SceneSample["monsters"] = [];
@@ -943,6 +950,31 @@ export function openMapEditorStage(
       const bridgeResize = selectedBridgeGuide();
       const rotation = selectedRotationGuide();
       const rect = derivedRect();
+      const undergroundStamp =
+        hover && tool.kind === "underground"
+          ? (() => {
+              const alongX = tool.direction === "east" || tool.direction === "west";
+              const followsDirection = tool.operation === "stairs" || tool.operation === "tunnel";
+              const requestedCols = followsDirection
+                ? alongX
+                  ? tool.length
+                  : tool.width
+                : tool.width;
+              const requestedRows = followsDirection
+                ? alongX
+                  ? tool.width
+                  : tool.length
+                : tool.length;
+              return {
+                x: hover.col - size / 2,
+                z: hover.row - size / 2,
+                cols: Math.min(cols - hover.col, Math.max(1, Math.trunc(requestedCols))),
+                rows: Math.min(rows - hover.row, Math.max(1, Math.trunc(requestedRows))),
+                elevation: undergroundFloorHeight(tool.depth),
+                operation: tool.operation,
+              };
+            })()
+          : null;
       renderer.setEditorOverlay({
         cols,
         rows,
@@ -995,6 +1027,7 @@ export function openMapEditorStage(
         // and event work, one of the 4x4 sub-cell slots in element mode (`hoverPoint` is already a
         // quarter-cell centre there).
         cursorCells: history.activeMode === "element" ? 1 / ELEMENT_OFFSET_STEPS : 1,
+        undergroundStamp,
         // The ghost shows the ramp the cell can actually take. Where none fits it still draws, at
         // the default orientation and marked invalid, which the overlay paints red: an author who
         // hovers a flat field or a north-south bank sees a refusal rather than nothing at all.
@@ -1023,7 +1056,14 @@ export function openMapEditorStage(
                       z: hoverPoint.z + cell.row,
                     }))
                   : [hoverPoint],
-                valid: placementLegalAt(tool, map, hover.col, hover.row, history.activeMode),
+                valid: placementLegalAt(
+                  tool,
+                  map,
+                  hover.col,
+                  hover.row,
+                  history.activeMode,
+                  editingDepth,
+                ),
                 ...(previewBridgeTop === undefined ? {} : { elevation: previewBridgeTop }),
                 ...(previewAsset?.editor.renderLayer === "sky"
                   ? { skyAltitude: authoredSkyAltitude(heightfield) }
@@ -1036,9 +1076,9 @@ export function openMapEditorStage(
     const redraw = (contentOnly = false): void => {
       const heightfield = compiled();
       renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
-      renderedMonsters = authoredMonsterPreviewSnapshots(map.events, heightfield);
+      renderedMonsters = authoredMonsterPreviewSnapshots(visualEvents(), heightfield);
       renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
-        map.events,
+        visualEvents(),
         heightfield.size,
         heightfield.waterLevel,
       );
@@ -1302,7 +1342,15 @@ export function openMapEditorStage(
 
       if (tool.kind === "select") {
         if (isStrokeStart) {
-          dragSelection = selectionAtMode(map, col, row, history.activeMode, offsetX, offsetY);
+          dragSelection = selectionAtMode(
+            map,
+            col,
+            row,
+            history.activeMode,
+            offsetX,
+            offsetY,
+            editingDepth,
+          );
           selected = dragSelection;
           hoverResize = null;
           hoverRotation = false;
@@ -1389,6 +1437,7 @@ export function openMapEditorStage(
         history.activeMode,
         offsetX,
         offsetY,
+        editingDepth,
       );
       if (next === null) {
         // A refused stroke has to SAY so. `elevation` joined the list when the brushes went relative:
@@ -1748,7 +1797,10 @@ export function openMapEditorStage(
       const placement = placementAt(event.clientX, event.clientY);
       if (!placement) return;
       const eventAtCell = map.events.find(
-        (candidate) => candidate.col === placement.col && candidate.row === placement.row,
+        (candidate) =>
+          candidate.col === placement.col &&
+          candidate.row === placement.row &&
+          (candidate.undergroundDepth ?? null) === editingDepth,
       );
       const nextSelection = eventAtCell
         ? ({ kind: "event", id: eventAtCell.id } satisfies EditorSelection)
@@ -1759,6 +1811,7 @@ export function openMapEditorStage(
             history.activeMode,
             placement.offsetX,
             placement.offsetY,
+            editingDepth,
           );
       if (!nextSelection) return;
       selected = nextSelection;
@@ -1812,8 +1865,23 @@ export function openMapEditorStage(
         // would silently pair the author's next link with a door they picked minutes ago.
         if (next.kind !== "link") linkFrom = null;
         wallOpeningFrom = null;
-        renderer.setUndergroundDepth?.(next.kind === "underground" ? next.depth : null);
         renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
+        refreshCursor();
+        drawOverlay();
+        notify();
+      },
+      setEditingDepth(depth) {
+        editingDepth = depth === null ? null : Math.max(1, Math.min(16, Math.trunc(depth)));
+        selected = null;
+        renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
+        const heightfield = compiled();
+        renderedMonsters = authoredMonsterPreviewSnapshots(visualEvents(), heightfield);
+        renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
+          visualEvents(),
+          heightfield.size,
+          heightfield.waterLevel,
+        );
+        renderer.setUndergroundDepth?.(editingDepth);
         refreshCursor();
         drawOverlay();
         notify();

@@ -195,6 +195,22 @@ describe("contentBounds", () => {
     expect(bounds.row + bounds.rows - 1).toBe(100);
   });
 
+  test("lets excavated storeys extend beyond the surface footprint", () => {
+    const map: MapCanvasContent = {
+      ...lonelyTile(100, 100),
+      underground: {
+        levels: [{ depth: 1, style: "cave", cells: [{ col: 205, row: 220, length: 8 }] }],
+        stairs: [{ depth: 1, col: 202, row: 218, direction: "south", length: 3, width: 2 }],
+        shafts: [{ col: 215, row: 225, width: 3, length: 4, depth: 2 }],
+      },
+    };
+
+    expect(contentBounds(map)).toEqual({ col: 100, row: 100, cols: 118, rows: 129 });
+    const saved = derivedMapRect(map);
+    expect(saved.col + saved.cols).toBeGreaterThan(217);
+    expect(saved.row + saved.rows).toBeGreaterThan(228);
+  });
+
   test("counts a same-map teleport target given selfMapId, ignoring a cross-map one", () => {
     const selfMapId = "22222222-2222-4222-8222-222222222222";
     const otherMapId = "33333333-3333-4333-8333-333333333333";

@@ -291,7 +291,16 @@ function shiftMapContent(
             const end = Math.min(cols, run.col + run.length + dCol);
             return end <= start ? [] : [{ col: start, row, length: end - start }];
           });
-          return cells.length === 0 ? [] : [{ ...level, cells }];
+          const terrain = (level.terrain ?? []).flatMap((run) => {
+            const row = run.row + dRow;
+            if (row < 0 || row >= rows) return [];
+            const start = Math.max(0, run.col + dCol);
+            const end = Math.min(cols, run.col + run.length + dCol);
+            return end <= start ? [] : [{ ...run, col: start, row, length: end - start }];
+          });
+          return cells.length === 0
+            ? []
+            : [{ ...level, cells, ...(terrain.length > 0 ? { terrain } : {}) }];
         }),
         stairs: map.underground.stairs
           .map((stair) => ({ ...stair, col: stair.col + dCol, row: stair.row + dRow }))
@@ -319,6 +328,8 @@ function shiftMapContent(
                 ),
             }
           : {}),
+        ...(map.underground.elementDepths ? { elementDepths: map.underground.elementDepths } : {}),
+        ...(map.underground.eventDepths ? { eventDepths: map.underground.eventDepths } : {}),
       }
     : undefined;
   return {
