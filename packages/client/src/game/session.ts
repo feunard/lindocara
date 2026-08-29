@@ -1499,6 +1499,7 @@ async function startGameIdentity(
         horizontalDistance,
         self.airborne,
         dt,
+        self.swimming !== currentSelf.swimming,
       );
     } else {
       cameraSlopePitch = cameraSlopePitchOffset(cameraSlopePitch, 0, 0, true, dt);

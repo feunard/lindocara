@@ -56,4 +56,9 @@ describe("adventure camera policy", () => {
     expect(landing).toBeLessThan(climbing);
     expect(cameraSlopePitchOffset(0, 0.25, 0.25, true, 1 / 30)).toBe(0);
   });
+
+  it("keeps the exact camera angle while crossing a raised liquid edge", () => {
+    const current = 0.037;
+    expect(cameraSlopePitchOffset(current, -2.75, 0.08, false, 1 / 60, true)).toBe(current);
+  });
 });

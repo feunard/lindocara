@@ -96,7 +96,11 @@ export function cameraSlopePitchOffset(
   horizontalDistance: number,
   airborne: boolean,
   dt: number,
+  liquidTransition = false,
 ): number {
+  // Entering or leaving a liquid is a locomotion-state change, not a terrain incline. Keeping the
+  // exact offset for that frame prevents a raised pool edge from nudging the player's chosen view.
+  if (liquidTransition) return currentOffset;
   const safeDt = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.1)) : 0;
   const moving = Number.isFinite(horizontalDistance) && horizontalDistance >= 0.0001;
   const rising = Number.isFinite(elevationDelta) ? elevationDelta : 0;
