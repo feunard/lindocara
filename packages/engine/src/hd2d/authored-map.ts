@@ -45,7 +45,11 @@ import {
   waterLevelOfTileId,
 } from "../tilesets/tiny-swords.js";
 import { editorAsset, editorAssetCollisionElevation } from "../tiny-swords-catalog.js";
-import { undergroundColliders, undergroundFloorHeight, undergroundRamp } from "../underground.js";
+import {
+  undergroundColliders,
+  undergroundRamp,
+  undergroundTerrainHeightAt,
+} from "../underground.js";
 import type { ColliderRect } from "./collider-index.js";
 import type { MapData } from "./map-data.js";
 import type { TerrainLiquid, TerrainMaterial, TerrainRamp } from "./terrain-query.js";
@@ -623,7 +627,7 @@ function buildingRoofEdgeColliders(part: BuildingRoofPart, element: MapElement):
  * flat plate cutting through the visible architecture.
  */
 export function authoredElementColliders(
-  authored: Pick<AuthoredMapData, "cols" | "rows">,
+  authored: Pick<AuthoredMapData, "cols" | "rows"> & Partial<Pick<AuthoredMapData, "underground">>,
   element: MapElement,
   levels: readonly (number | null)[],
   size: number,
@@ -633,8 +637,17 @@ export function authoredElementColliders(
   const rect = legacy ? { ...legacy, rotation: 0 } : exact;
   const asset = editorAsset(element.assetId);
   if (!rect) return [];
+  const groundPoint = authoredElementGroundPoint(element, size);
+  const groundCol = Math.floor(groundPoint.x + size / 2);
+  const groundRow = Math.floor(groundPoint.z + size / 2);
   const baseTop = element.undergroundDepth
-    ? undergroundFloorHeight(element.undergroundDepth)
+    ? undergroundTerrainHeightAt(
+        authored.underground,
+        element.undergroundDepth,
+        groundCol,
+        groundRow,
+        AUTHORED_LEVEL_HEIGHT,
+      )
     : elementBaseTop(element, levels, size);
   const collider = {
     x: groundCoordinate(rect.x, size),
@@ -728,7 +741,9 @@ function authoredContent(
             AUTHORED_LEVEL_HEIGHT,
           )
         : []),
-      ...(authored.underground ? undergroundColliders(authored.underground, size) : []),
+      ...(authored.underground
+        ? undergroundColliders(authored.underground, size, AUTHORED_LEVEL_HEIGHT)
+        : []),
     ],
     spawns: [
       {
@@ -737,30 +752,47 @@ function authoredContent(
         z: authored.spawn.row + 0.5 - size / 2,
       },
     ],
-    elements: staticElements.map((element) => ({
-      assetId: element.assetId,
-      ...authoredElementRenderPoint(element, size),
-      ...(element.undergroundDepth
-        ? {
-            y: undergroundFloorHeight(element.undergroundDepth),
-            undergroundDepth: element.undergroundDepth,
-          }
-        : {}),
-      ...(element.orientation ? { orientation: element.orientation } : {}),
-      ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
-      ...(bridgeOrientation(element.assetId)
-        ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
-        : {}),
-      ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
-      ...(element.dimensions ? { dimensions: element.dimensions } : {}),
-    })),
+    elements: staticElements.map((element) => {
+      const point = authoredElementRenderPoint(element, size);
+      const groundCol = Math.floor(point.x + size / 2);
+      const groundRow = Math.floor(point.z + size / 2);
+      return {
+        assetId: element.assetId,
+        ...point,
+        ...(element.undergroundDepth
+          ? {
+              y: undergroundTerrainHeightAt(
+                authored.underground,
+                element.undergroundDepth,
+                groundCol,
+                groundRow,
+                AUTHORED_LEVEL_HEIGHT,
+              ),
+              undergroundDepth: element.undergroundDepth,
+            }
+          : {}),
+        ...(element.orientation ? { orientation: element.orientation } : {}),
+        ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
+        ...(bridgeOrientation(element.assetId)
+          ? { bridge: bridgeDimensionsOrDefault(element.bridge) }
+          : {}),
+        ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
+        ...(element.dimensions ? { dimensions: element.dimensions } : {}),
+      };
+    }),
     events: events.map((event) => ({
       id: event.id,
       x: event.col + 0.5 - size / 2,
       z: event.row + 0.5 - size / 2,
       ...(event.undergroundDepth
         ? {
-            y: undergroundFloorHeight(event.undergroundDepth),
+            y: undergroundTerrainHeightAt(
+              authored.underground,
+              event.undergroundDepth,
+              event.col,
+              event.row,
+              AUTHORED_LEVEL_HEIGHT,
+            ),
             undergroundDepth: event.undergroundDepth,
           }
         : {}),

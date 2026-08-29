@@ -11,6 +11,7 @@ import {
   undergroundStairUpperDepth,
   undergroundSurfaceOpenings,
   undergroundTerrainCells,
+  undergroundTerrainElevationCells,
   undergroundVisibleDepthsAtElevation,
   UNDERGROUND_SLAB_THICKNESS,
 } from "@lindocara/engine/underground.js";
@@ -34,6 +35,8 @@ export interface UndergroundVisual {
   setDepth(depth: number | null): void;
   /** Gameplay descent: keeps adjacent storeys visible around the body's exact elevation. */
   setElevation(elevation: number | null): void;
+  /** Opaque surface liquid must not become a window onto a whole connected basement. */
+  setSurfaceAccessPreview(enabled: boolean): void;
   setCameraYaw(yaw: number): void;
   dispose(): void;
 }
@@ -135,6 +138,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
         );
       }) || undergroundShaftCell(map.underground?.shafts, col, row, level.depth + 1);
     const terrainCells = undergroundTerrainCells(level, map.size);
+    const terrainElevations = undergroundTerrainElevationCells(level, map.size);
     const visibleFloorCells = floorCells.filter(
       (cell) =>
         !floorOpening(cell.col, cell.row) && terrainCells[cell.row * map.size + cell.col] === null,
@@ -157,18 +161,28 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     floor.instanceMatrix.needsUpdate = true;
     floor.computeBoundingSphere();
     group.add(floor);
-    const overrides = new Map<string, Array<{ col: number; row: number }>>();
+    const overrides = new Map<
+      string,
+      {
+        material: string;
+        elevation: number;
+        entries: Array<{ col: number; row: number }>;
+      }
+    >();
     for (const cell of floorCells) {
       if (floorOpening(cell.col, cell.row)) continue;
       const material = terrainCells[cell.row * map.size + cell.col];
       if (material === null || material === undefined) continue;
-      const entries = overrides.get(material) ?? [];
-      entries.push(cell);
-      overrides.set(material, entries);
+      const elevation = terrainElevations[cell.row * map.size + cell.col] ?? 0;
+      const key = `${material}:${elevation}`;
+      const group = overrides.get(key) ?? { material, elevation, entries: [] };
+      group.entries.push(cell);
+      overrides.set(key, group);
     }
-    for (const [material, entries] of overrides) {
+    for (const { material, elevation, entries } of overrides.values()) {
       const overrideTexture = terrainTextureFor(material, textures);
       if (overrideTexture) ownedTextures.push(overrideTexture);
+      const liquid = material === "water" || material === "lave";
       const overrideMaterial =
         material === "water"
           ? new THREE.MeshPhongMaterial({ color: 0x2d7fbb, transparent: true, opacity: 0.78 })
@@ -182,14 +196,17 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       const overrideFloor = new THREE.InstancedMesh(box, overrideMaterial, entries.length);
       overrideFloor.name = `underground-terrain-${level.depth}-${material}`;
       entries.forEach((cell, index) => {
+        const solidHeight = UNDERGROUND_SLAB_THICKNESS + elevation * map.levelHeight;
         matrix.compose(
           new THREE.Vector3(
             cell.col + 0.5 - map.size / 2,
-            floorY + (material === "water" ? 0.025 : -UNDERGROUND_SLAB_THICKNESS / 2),
+            liquid
+              ? floorY + elevation * map.levelHeight + 0.025
+              : floorY + (elevation * map.levelHeight) / 2 - UNDERGROUND_SLAB_THICKNESS / 2,
             cell.row + 0.5 - map.size / 2,
           ),
           new THREE.Quaternion(),
-          new THREE.Vector3(1, material === "water" ? 0.035 : UNDERGROUND_SLAB_THICKNESS, 1),
+          new THREE.Vector3(1, liquid ? 0.035 : solidHeight, 1),
         );
         overrideFloor.setMatrixAt(index, matrix);
       });
@@ -390,17 +407,25 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
   let activeDepth: number | null = null;
   let visibleDepths = new Set<number>();
   let activeElevation: number | null = null;
+  let surfaceAccessPreview = true;
   let cameraYaw = 0;
   const refresh = (): void => {
     root.visible = visibleDepths.size > 0 || surfaceAccess.children.length > 0;
     surfaceAccess.visible =
-      activeElevation === null ? activeDepth === null : activeElevation > undergroundFloorHeight(1);
+      surfaceAccessPreview &&
+      (activeElevation === null
+        ? activeDepth === null
+        : activeElevation > undergroundFloorHeight(1));
     const x = Math.sin(cameraYaw);
     const z = Math.cos(cameraYaw);
     const near =
       Math.abs(x) > Math.abs(z) ? (x >= 0 ? "east" : "west") : z >= 0 ? "south" : "north";
     for (const wall of accessWalls) wall.mesh.visible = wall.side !== near;
-    const previewDepths = new Set(undergroundAccessVisibleDepths(map.underground, activeDepth));
+    const previewDepths = new Set(
+      surfaceAccessPreview || activeDepth !== null
+        ? undergroundAccessVisibleDepths(map.underground, activeDepth)
+        : [],
+    );
     for (const [depth, level] of levels) {
       // At surface level the terrain itself occludes these groups everywhere except through a real
       // opening. Keeping the connected shaft depth rendered therefore reveals the actual landing
@@ -428,6 +453,10 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       const depths = elevation === null ? [null] : undergroundVisibleDepthsAtElevation(elevation);
       visibleDepths = new Set(depths.flatMap((depth) => (depth === null ? [] : [depth])));
       activeDepth = [...visibleDepths].at(-1) ?? null;
+      refresh();
+    },
+    setSurfaceAccessPreview(enabled) {
+      surfaceAccessPreview = enabled;
       refresh();
     },
     setCameraYaw(yaw) {

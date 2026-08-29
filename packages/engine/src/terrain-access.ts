@@ -327,15 +327,15 @@ export function canStand(
  */
 export function groundUnder(terrain: ZoneTerrain, x: number, z: number, fallback = 0): number {
   // Positional callers (spawn, navigation and landing probes) are asking for the first surface
-  // encountered from above. A raised liquid is that surface even when an underground platform
-  // shares its X/Z column; asking `surfaceAt(Infinity)` first would skip the liquid and select the
-  // basement floor, making a surface spawn fall through the pool.
-  if (terrain.query.liquidAt(x, z) !== null) return terrain.query.waterLevelAt(x, z);
-  return (
-    terrain.query.surfaceAt?.(x, z, Number.POSITIVE_INFINITY) ??
-    terrain.query.heightAt(x, z) ??
-    fallback
-  );
+  // encountered from above. Liquids are not part of `surfaceAt`, so compare their surface with the
+  // highest solid platform explicitly. This keeps a raised pool above a basement from selecting
+  // the basement floor without hiding a bridge or building roof that genuinely sits over water.
+  const solid =
+    terrain.query.surfaceAt?.(x, z, Number.POSITIVE_INFINITY) ?? terrain.query.heightAt(x, z);
+  const liquid = terrain.query.liquidAt(x, z) === null ? null : terrain.query.waterLevelAt(x, z);
+  if (solid === null) return liquid ?? fallback;
+  if (liquid === null) return solid;
+  return Math.max(solid, liquid);
 }
 
 /**

@@ -4,7 +4,8 @@ import {
   toMapData,
   toSaveInput,
 } from "@lindocara/editor/game/editor-state.js";
-import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
+import { decodeMap, mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
+import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { describe, expect, it } from "vitest";
 
 describe("underground editor tools", () => {
@@ -105,7 +106,7 @@ describe("underground editor tools", () => {
         direction: "south",
       },
       4,
-      4,
+      5,
     );
     expect(edited).not.toBeNull();
     expect(edited?.underground?.levels.map((level) => level.depth)).toEqual([1, 2]);
@@ -113,7 +114,7 @@ describe("underground editor tools", () => {
     expect(edited?.underground?.levels[1]?.cells).toContainEqual({ col: 4, row: 3, length: 1 });
     const heightfield = edited ? decodeMap(toSaveInput(edited).heightfield) : null;
     expect(heightfield?.underground?.stairs).toEqual([
-      { depth: 2, fromDepth: 0, col: 4, row: 4, direction: "south", length: 6, width: 1 },
+      { depth: 2, fromDepth: 0, col: 4, row: 0, direction: "south", length: 6, width: 1 },
     ]);
     expect(heightfield?.ramps?.at(-1)).toMatchObject({ lowHeight: -4.8, highHeight: 0 });
     expect(toMapData(edited ?? map).underground).toEqual(edited?.underground);
@@ -171,13 +172,14 @@ describe("underground editor tools", () => {
         length: 3,
         direction: "east",
       },
-      3,
+      47,
       3,
     );
 
     expect(edited?.underground?.stairs[0]).toMatchObject({
       depth: 16,
       fromDepth: 0,
+      col: 0,
       length: 48,
       width: 2,
     });
@@ -370,5 +372,100 @@ describe("underground editor tools", () => {
       1,
     );
     expect(heightfield?.events.filter((event) => event.undergroundDepth === 3)).toHaveLength(1);
+  });
+
+  it("raises underground terrain and places liquids, scenery and events on its true top", () => {
+    const tree = "decoration.terrain-decorations-bushes.bushe1";
+    let map = applyTool(
+      blankMap("Raised basement", 12, 12),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 3,
+        style: "cave",
+        width: 4,
+        length: 4,
+        direction: "east",
+      },
+      3,
+      3,
+    );
+    if (!map) throw new Error("underground room was refused");
+    map = applyTool(
+      map,
+      { kind: "elevation", step: "raise", material: "volcan" },
+      4,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+    if (!map) throw new Error("raised underground terrain was refused");
+    map = applyTool(
+      map,
+      { kind: "elevation", step: "raise", material: "herbe" },
+      5,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+    map = map
+      ? applyTool(map, { kind: "block", block: "water" }, 5, 4, true, "field", 0, 0, 3)
+      : null;
+    if (!map) throw new Error("raised underground water was refused");
+    map = applyTool(
+      map,
+      { kind: "elevation", step: "raise", material: "lave" },
+      6,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+    if (!map) throw new Error("raised underground lava was refused");
+    // Stored row 3 projects its visual foot onto row 4, the raised cell under the cursor.
+    map = applyTool(map, { kind: "element", assetId: tree }, 4, 3, true, "element", 0, 0, 3);
+    if (!map) throw new Error("underground scenery was refused");
+    map = applyTool(map, { kind: "event", eventKind: "normal" }, 4, 4, true, "event", 0, 0, 3);
+    if (!map) throw new Error("underground event was refused");
+
+    expect(map.underground?.levels.find((level) => level.depth === 3)?.terrain).toEqual([
+      { col: 4, row: 4, length: 1, material: "volcan", elevation: 1 },
+      { col: 5, row: 4, length: 1, material: "water", elevation: 1 },
+      { col: 6, row: 4, length: 1, material: "lave", elevation: 1 },
+    ]);
+    expect(
+      applyTool(
+        map,
+        { kind: "elevation", step: "raise", material: "volcan" },
+        4,
+        4,
+        true,
+        "field",
+        0,
+        0,
+        3,
+      ),
+    ).toBeNull();
+
+    const heightfield = decodeMap(toSaveInput(map).heightfield);
+    if (!heightfield) throw new Error("compiled underground map was rejected");
+    expect(heightfield.elements.find((element) => element.undergroundDepth === 3)?.y).toBeCloseTo(
+      -6.3,
+    );
+    expect(heightfield.events.find((event) => event.undergroundDepth === 3)?.y).toBeCloseTo(-6.3);
+    const query = createTerrainQuery(mapToQuerySource(heightfield));
+    const water = query.waterLevelAtElevation?.(-0.5, -1.5, -7.2);
+    expect(water).toBeCloseTo(-6.3);
+    expect(query.liquidAtElevation?.(0.5, -1.5, -7.2)).toBe("lava");
+    expect(query.waterLevelAtElevation?.(0.5, -1.5, -7.2)).toBeCloseTo(-6.3);
+    expect(query.surfaceAt?.(-1.5, -1.5, -6.1)).toBeCloseTo(-6.3);
   });
 });

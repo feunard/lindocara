@@ -22,6 +22,7 @@ export const UNDERGROUND_STOREY_HEIGHT = 2.4;
 export const UNDERGROUND_SLAB_THICKNESS = 0.18;
 export const DEFAULT_UNDERGROUND_STAIR_LENGTH = 3;
 export const DEFAULT_UNDERGROUND_STAIR_WIDTH = 1;
+export const MAX_UNDERGROUND_TERRAIN_ELEVATION = 1;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -84,6 +85,7 @@ function parseLevel(value: unknown, size: number): UndergroundLevel | null {
     const run = parseRun(entry, size);
     if (!run || !isRecord(entry)) return null;
     const material = entry.material;
+    const elevation = entry.elevation;
     if (
       typeof material !== "string" ||
       ![
@@ -99,7 +101,18 @@ function parseLevel(value: unknown, size: number): UndergroundLevel | null {
       ].includes(material)
     )
       return null;
-    return { ...run, material: material as UndergroundTerrainRun["material"] };
+    if (
+      elevation !== undefined &&
+      (!Number.isSafeInteger(elevation) ||
+        (elevation as number) < 0 ||
+        (elevation as number) > MAX_UNDERGROUND_TERRAIN_ELEVATION)
+    )
+      return null;
+    return {
+      ...run,
+      material: material as UndergroundTerrainRun["material"],
+      ...((elevation as number | undefined) ? { elevation: 1 as const } : {}),
+    };
   });
   if (terrain.some((entry) => entry === null)) return null;
   return {
@@ -254,9 +267,38 @@ export function undergroundTerrainCells(
   return cells;
 }
 
+export function undergroundTerrainElevationCells(
+  level: UndergroundLevel | undefined,
+  size: number,
+): Uint8Array {
+  const cells = new Uint8Array(size * size);
+  for (const run of level?.terrain ?? []) {
+    if (!run.elevation) continue;
+    for (let col = run.col; col < run.col + run.length; col += 1)
+      cells[run.row * size + col] = run.elevation;
+  }
+  return cells;
+}
+
+/** Exact authored floor/liquid top at one underground cell. */
+export function undergroundTerrainHeightAt(
+  underground: UndergroundMap | undefined,
+  depth: number,
+  col: number,
+  row: number,
+  levelHeight: number,
+): number {
+  const level = underground?.levels.find((candidate) => candidate.depth === depth);
+  const elevation =
+    level?.terrain?.find((run) => run.row === row && col >= run.col && col < run.col + run.length)
+      ?.elevation ?? 0;
+  return undergroundFloorHeight(depth) + elevation * levelHeight;
+}
+
 export function compactUndergroundTerrain(
   cells: readonly (UndergroundTerrainRun["material"] | null)[],
   size: number,
+  elevations: ArrayLike<number> = [],
 ): UndergroundTerrainRun[] {
   const runs: UndergroundTerrainRun[] = [];
   for (let row = 0; row < size; row += 1) {
@@ -268,8 +310,20 @@ export function compactUndergroundTerrain(
         continue;
       }
       const start = col;
-      while (col < size && cells[row * size + col] === material) col += 1;
-      runs.push({ col: start, row, length: col - start, material });
+      const elevation = elevations[row * size + col] ?? 0;
+      while (
+        col < size &&
+        cells[row * size + col] === material &&
+        (elevations[row * size + col] ?? 0) === elevation
+      )
+        col += 1;
+      runs.push({
+        col: start,
+        row,
+        length: col - start,
+        material,
+        ...(elevation > 0 ? { elevation: 1 } : {}),
+      });
     }
   }
   return runs;
@@ -500,7 +554,11 @@ export function undergroundTransitionAt(
 }
 
 /** Compile excavated volumes into the finite slabs and walls consumed by shared collision. */
-export function undergroundColliders(underground: UndergroundMap, size: number): ColliderRect[] {
+export function undergroundColliders(
+  underground: UndergroundMap,
+  size: number,
+  levelHeight = 0.9,
+): ColliderRect[] {
   const colliders: ColliderRect[] = [];
   for (const level of underground.levels) {
     const cells = undergroundCells(level, size);
@@ -538,6 +596,17 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
         level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
         level.depth,
       );
+    }
+    for (const run of level.terrain ?? []) {
+      if (!run.elevation || run.material === "water" || run.material === "lave") continue;
+      colliders.push({
+        x: run.col - size / 2,
+        z: run.row - size / 2,
+        w: run.length,
+        h: 1,
+        bottom: floorY,
+        top: floorY + run.elevation * levelHeight,
+      });
     }
     const occupied = (col: number, row: number): boolean =>
       col >= 0 && row >= 0 && col < size && row < size && cells[row * size + col] !== 0;

@@ -195,6 +195,8 @@ export interface UndergroundLevel {
 
 export interface UndergroundTerrainRun extends UndergroundCellRun {
   material: TerrainMaterial | "water";
+  /** One raised tier still leaves 1.5 world units of headroom beneath the next storey. */
+  elevation?: 1;
 }
 
 export interface UndergroundContentDepth {

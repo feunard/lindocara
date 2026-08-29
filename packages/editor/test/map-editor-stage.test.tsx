@@ -18,7 +18,10 @@ import {
   elementRotationGuide,
   openMapEditorStage,
 } from "@lindocara/editor/game/map-editor-stage.js";
-import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
+import {
+  authoredElementGroundPoint,
+  compileAuthoredMap,
+} from "@lindocara/engine/hd2d/authored-map.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
@@ -30,6 +33,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
+const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
 
 const mock = vi.hoisted(() => {
   let frame: ((now: number) => void) | null = null;
@@ -52,6 +56,7 @@ const mock = vi.hoisted(() => {
     setDayCycleOverride: vi.fn(),
     setFogEnabled: vi.fn(),
     setTiltShiftEnabled: vi.fn(),
+    setUndergroundDepth: vi.fn(),
   };
   return {
     renderer,
@@ -511,12 +516,64 @@ describe("HD-2D map editor stage", () => {
       }),
     );
 
-    // At the east edge only one cell remains: the same ghost stays visible, but turns invalid.
-    point.x = 9.5;
+    // The pointer is the high mouth: too close to the west edge an east-climbing flight cannot fit.
+    point.x = -9.5;
     canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 11, clientY: 10 }));
     expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
       expect.objectContaining({ stairsPreview: expect.objectContaining({ valid: false }) }),
     );
+    stage.dispose();
+  });
+
+  it("places underground scenery at the cursor on the selected terrain top", async () => {
+    let map = applyTool(
+      blankMap("Map", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 3,
+        style: "cave",
+        width: 4,
+        length: 4,
+        direction: "east",
+      },
+      7,
+      7,
+    );
+    map = map
+      ? applyTool(
+          map,
+          { kind: "elevation", step: "raise", material: "grotte" },
+          8,
+          8,
+          true,
+          "field",
+          0,
+          0,
+          3,
+        )
+      : null;
+    if (!map) throw new Error("underground fixture was refused");
+    const stage = await openMapEditorStage(map, vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -1.375, z: -1.375 };
+    mock.renderer.screenToWorld.mockImplementation(() => point);
+    stage.setEditingDepth(3);
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "element", assetId: BUSH });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    const element = stage.current().elements.at(-1);
+    if (!element) throw new Error("underground scenery was not placed");
+    expect(element.undergroundDepth).toBe(3);
+    const placed = authoredElementGroundPoint(element, 20);
+    expect(Math.abs(placed.x - point.x)).toBeLessThanOrEqual(0.125);
+    expect(Math.abs(placed.z - point.z)).toBeLessThanOrEqual(0.125);
+    const compiled = compileAuthoredMap(toMapData(stage.current()), stage.current().events);
+    expect(compiled.elements.at(-1)?.y).toBeCloseTo(-6.3);
     stage.dispose();
   });
 

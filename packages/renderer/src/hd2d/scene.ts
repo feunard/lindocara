@@ -412,6 +412,15 @@ export function undergroundStairVisible(
   );
 }
 
+/** Transparent surface liquids are scenery, never a window onto connected underground geometry. */
+export function surfaceAccessPreviewAt(map: MapData, x: number, z: number): boolean {
+  const col = Math.floor(x + map.size / 2);
+  const row = Math.floor(z + map.size / 2);
+  if (col < 0 || row < 0 || col >= map.size || row >= map.size) return false;
+  const index = row * map.size + col;
+  return (map.liquids?.[index] ?? null) === null && map.levels[index] !== null;
+}
+
 // --- settings -----------------------------------------------------------------------------------
 // Transcribed from `apps/lab/src/settings.ts`. Copied rather than imported: `apps/lab` sits outside
 // the package dependency graph on purpose (root `AGENTS.md`), and no package source may reach into
@@ -434,6 +443,9 @@ export const HD2D_CAMERA = {
   fogFar: 0.38,
   /** How fast the camera catches up with what it follows, as an exponential rate (see `render`). */
   follow: 6,
+  /** Inclinaison temporaire pendant une transition verticale, ajoutée au réglage manuel. */
+  transitionPitch: 24 * (Math.PI / 180),
+  transitionPitchFollow: 7,
 } as const;
 
 const CAMERA = HD2D_CAMERA;
@@ -778,9 +790,7 @@ export function createHd2dScene(
       const lowDepth =
         ramp?.lowHeight === undefined ? null : undergroundDepthAtElevation(ramp.lowHeight);
       const highDepth =
-        ramp?.highHeight === undefined
-          ? null
-          : (undergroundDepthAtElevation(ramp.highHeight) ?? 0);
+        ramp?.highHeight === undefined ? null : (undergroundDepthAtElevation(ramp.highHeight) ?? 0);
       child.userData.undergroundDepth = lowDepth;
       child.userData.undergroundUpperDepth = highDepth;
     });
@@ -840,6 +850,7 @@ export function createHd2dScene(
   let viewedUndergroundDepth: number | null = null;
   let undergroundElevation: number | null = null;
   let authoringUndergroundView = false;
+  let surfaceAccessPreview = true;
   let terrainOpacity = 1;
   const setTerrainOpacity = (opacity: number): void => {
     if (Math.abs(opacity - terrainOpacity) < 0.005) return;
@@ -872,7 +883,7 @@ export function createHd2dScene(
         : undergroundVisibleDepthsAtElevation(undergroundElevation)),
     ];
     const seesSurface = visibleDepths.includes(null);
-    if (seesSurface || authoringUndergroundView) {
+    if ((seesSurface && surfaceAccessPreview) || authoringUndergroundView) {
       for (const depth of undergroundAccessVisibleDepths(
         currentMap.underground,
         viewedUndergroundDepth,
@@ -919,6 +930,7 @@ export function createHd2dScene(
       const upperDepth = stair.userData.undergroundUpperDepth;
       stair.visible = undergroundStairVisible(depth, upperDepth, visibleDepths);
     }
+    underground.setSurfaceAccessPreview(surfaceAccessPreview);
     if (authoringUndergroundView) underground.setDepth(viewedUndergroundDepth);
     else underground.setElevation(undergroundElevation);
   };
@@ -1011,6 +1023,8 @@ export function createHd2dScene(
   let framedCameraDistance: number = cameraDistance;
   let cameraYaw = 0;
   let cameraPitch = CAMERA.pitch;
+  let transitionPitch = 0;
+  let wantedTransitionPitch = 0;
   const wantedTarget = new THREE.Vector3();
   let cameraMin = 0;
   let cameraMax = 0;
@@ -1024,7 +1038,12 @@ export function createHd2dScene(
   function frameCamera(recoveryDt = 0): void {
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
-    const requestedOffset = cameraOrbitOffset(cameraYaw, cameraDistance, cameraPitch);
+    const effectivePitch = THREE.MathUtils.clamp(
+      cameraPitch + transitionPitch,
+      5 * (Math.PI / 180),
+      82 * (Math.PI / 180),
+    );
+    const requestedOffset = cameraOrbitOffset(cameraYaw, cameraDistance, effectivePitch);
     const clearDistance =
       viewedUndergroundDepth === null && (currentMap.environment ?? "exterior") === "exterior"
         ? cameraDistanceBeforeTerrain(query, target, requestedOffset, cameraDistance)
@@ -1040,7 +1059,7 @@ export function createHd2dScene(
     }
     framedCameraDistance = Math.min(framedCameraDistance, cameraDistance);
     const distance = framedCameraDistance;
-    const offset = cameraOrbitOffset(cameraYaw, distance, cameraPitch);
+    const offset = cameraOrbitOffset(cameraYaw, distance, effectivePitch);
     camera.position.set(target.x + offset.x, target.y + offset.y, target.z + offset.z);
     camera.lookAt(target);
 
@@ -1220,6 +1239,7 @@ export function createHd2dScene(
     // units — there is nothing to convert here any more.
     //
     focusOn(x: number, z: number, elevation?: number, airborne = false): void {
+      surfaceAccessPreview = surfaceAccessPreviewAt(currentMap, x, z);
       if (elevation !== undefined && currentMap.underground && !authoringUndergroundView) {
         const transitioning = undergroundTransitionAt(
           currentMap.underground,
@@ -1237,7 +1257,13 @@ export function createHd2dScene(
           viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
           undergroundElevation = elevation;
         }
+        // L'escalier est désormais un volume plein. Une caméra restée à l'angle du terrain plat
+        // regarde son flanc pendant la descente ; relever progressivement le regard garde les
+        // marches et le héros visibles, puis l'ajout revient à zéro dès que le sol redevient plat.
+        wantedTransitionPitch = transitioning ? CAMERA.transitionPitch : 0;
         applyUndergroundVisibility();
+      } else {
+        wantedTransitionPitch = 0;
       }
       focus = {
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
@@ -1346,6 +1372,11 @@ export function createHd2dScene(
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
       last = now;
       if (focus) {
+        transitionPitch = THREE.MathUtils.lerp(
+          transitionPitch,
+          wantedTransitionPitch,
+          1 - Math.exp(-CAMERA.transitionPitchFollow * dt),
+        );
         wantedTarget.set(
           focus.x,
           cameraFocusSurface(

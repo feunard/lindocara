@@ -16,6 +16,7 @@ import {
   projectileVisualLift,
   SKID_DWELL_MS,
   SKID_FADE_MS,
+  stairPreviewGuidePositions,
 } from "../src/hd2d/visual-layer.js";
 
 function harness(
@@ -53,7 +54,10 @@ function harness(
     query: {
       heightAt: () => 0,
       liquidAt: () => liquid,
+      liquidAtElevation: () => null,
+      surfaceAt: () => surfaceY,
       waterLevelAt: () => surfaceY,
+      waterLevelAtElevation: () => surfaceY,
     },
     scene: root,
     pickGround(raycaster: THREE.Raycaster) {
@@ -88,6 +92,32 @@ describe("Hd2dVisualLayer screen ray", () => {
 
     expect(layer.screenToWorld(100, 0)).toBeNull();
     layer.dispose();
+  });
+});
+
+describe("underground stair editor guide", () => {
+  it("outlines the whole multi-storey slope with one crossbar per cell", () => {
+    const positions = stairPreviewGuidePositions(
+      [
+        {
+          x: -6,
+          z: 2,
+          width: 6,
+          depth: 2,
+          direction: "east",
+          lowLevel: -2,
+          lowHeight: -4.8,
+          highHeight: 0,
+        },
+      ],
+      0.9,
+      0,
+    );
+
+    // Deux côtés + sept traverses, chaque segment contenant deux sommets XYZ.
+    expect(positions).toHaveLength(9 * 2 * 3);
+    expect(positions.slice(0, 6)).toEqual([-6, -4.8, 2, 0, 0, 2]);
+    expect(positions.slice(-6)).toEqual([0, 0, 2, 0, 0, 4]);
   });
 });
 
@@ -630,6 +660,17 @@ describe("Hd2dVisualLayer spawn marker", () => {
     dim: false,
     colliders: [],
   };
+
+  it("anchors editor overlays to the selected raised underground floor", () => {
+    const { layer, root } = harness(20, -6.3);
+    layer.setEditorGroundElevation(-7.2);
+    layer.setEditorOverlay({ ...base, spawn: { x: 0.5, z: -2.5 } });
+
+    const marker = root.getObjectByName("editor-spawn");
+    expect(marker?.position.y).toBeGreaterThan(-6.3);
+    expect(marker?.position.y).toBeLessThan(-6);
+    layer.dispose();
+  });
 
   it("distinguishes walkable platform tops from solid collision in the editor overlay", () => {
     const { layer, root } = harness();

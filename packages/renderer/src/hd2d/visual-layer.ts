@@ -311,6 +311,43 @@ export function editorCursorGeometry(sideCells: number): THREE.RingGeometry {
   return geometry;
 }
 
+/** Lignes rayon X d'une volée : deux côtés, ses deux extrémités et une traverse par case. */
+export function stairPreviewGuidePositions(
+  ramps: readonly TerrainRamp[],
+  levelHeight: number,
+  lift = 0.08,
+): number[] {
+  const positions: number[] = [];
+  const segment = (from: readonly number[], to: readonly number[]): void => {
+    positions.push(from[0] ?? 0, from[1] ?? 0, from[2] ?? 0, to[0] ?? 0, to[1] ?? 0, to[2] ?? 0);
+  };
+  for (const ramp of ramps) {
+    const alongX = ramp.direction === "east" || ramp.direction === "west";
+    const climbsPositive = ramp.direction === "east" || ramp.direction === "south";
+    const low = (ramp.lowHeight ?? ramp.lowLevel * levelHeight) + lift;
+    const high = (ramp.highHeight ?? (ramp.lowLevel + 1) * levelHeight) + lift;
+    const startY = climbsPositive ? low : high;
+    const endY = climbsPositive ? high : low;
+    const alongStart = alongX ? ramp.x : ramp.z;
+    const span = alongX ? ramp.width : ramp.depth;
+    const alongEnd = alongStart + span;
+    const acrossStart = alongX ? ramp.z : ramp.x;
+    const acrossEnd = acrossStart + (alongX ? ramp.depth : ramp.width);
+    const at = (along: number, across: number, y: number): [number, number, number] =>
+      alongX ? [along, y, across] : [across, y, along];
+    segment(at(alongStart, acrossStart, startY), at(alongEnd, acrossStart, endY));
+    segment(at(alongStart, acrossEnd, startY), at(alongEnd, acrossEnd, endY));
+    const cells = Math.max(1, Math.round(span));
+    for (let index = 0; index <= cells; index += 1) {
+      const progress = index / cells;
+      const along = alongStart + span * progress;
+      const y = startY + (endY - startY) * progress;
+      segment(at(along, acrossStart, y), at(along, acrossEnd, y));
+    }
+  }
+  return positions;
+}
+
 /** Server projectile `y` is collision elevation (normally the shooter's ground), not the centre of
  * its rendered card. The card rotates in its own plane, so its lowest corner changes with the shot
  * direction; the trail can become vertical too. Return enough presentation-only lift to keep the
@@ -456,6 +493,8 @@ export class Hd2dVisualLayer {
    *  lookup, and `setEditorOverlay` runs on every hover — rebuilding it there stalls the pointer. */
   #gridLines: THREE.LineSegments | null = null;
   #gridKey = "";
+  /** Selected authoring floor; keeps overlays and ghosts off the hidden surface above it. */
+  #editorGroundElevation: number | null = null;
   /** Built once and repositioned, never rebuilt: `setEditorOverlay` runs on every hover. Unlike
    *  `#gridLines` this needs no cache key — its geometry does not depend on the map at all, only
    *  its position does. */
@@ -541,7 +580,25 @@ export class Hd2dVisualLayer {
   }
 
   #groundY(x: number, z: number, lift = 0.04): number {
+    if (this.#editorGroundElevation !== null) {
+      const liquid = this.#scene.query.liquidAtElevation?.(x, z, this.#editorGroundElevation);
+      if (liquid)
+        return (
+          (this.#scene.query.waterLevelAtElevation?.(x, z, this.#editorGroundElevation) ??
+            this.#editorGroundElevation) + lift
+        );
+      return (
+        (this.#scene.query.surfaceAt?.(x, z, this.#editorGroundElevation + 1.01) ??
+          this.#editorGroundElevation) + lift
+      );
+    }
     return (this.#scene.query.heightAt(x, z) ?? 0) + lift;
+  }
+
+  setEditorGroundElevation(elevation: number | null): void {
+    if (this.#editorGroundElevation === elevation) return;
+    this.#editorGroundElevation = elevation;
+    this.#gridKey = "";
   }
 
   #disposeEffect(effect: TimedVisual): void {
@@ -2084,6 +2141,31 @@ export class Hd2dVisualLayer {
       }
     }
     if (overlay.stairsPreview) {
+      const guideGeometry = new THREE.BufferGeometry();
+      guideGeometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(
+          stairPreviewGuidePositions(
+            overlay.stairsPreview.ramps,
+            overlay.stairsPreview.levelHeight,
+          ),
+          3,
+        ),
+      );
+      const guide = new THREE.LineSegments(
+        guideGeometry,
+        new THREE.LineBasicMaterial({
+          color: overlay.stairsPreview.valid ? 0xffd66b : 0xff4f45,
+          transparent: true,
+          opacity: 0.98,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      guide.name = "editor-stairs-preview-guide";
+      guide.renderOrder = 46;
+      this.#editorRoot.add(guide);
       const atlases = this.#textures ? terrainAtlases(this.#textures) : null;
       const fallback = atlases?.lvl0;
       if (atlases && fallback) {
@@ -2094,8 +2176,28 @@ export class Hd2dVisualLayer {
           atlasFor: (level) =>
             atlases[terrainAtlasKey(overlay.stairsPreview?.material ?? "herbe", level)] ?? fallback,
           color: overlay.stairsPreview.valid ? 0xffd66b : 0xe34d42,
-          opacity: 0.58,
+          opacity: 0.34,
           lift: 0.03,
+        });
+        // Une volée profonde se trouve presque entièrement sous le sol encore intact avant le
+        // clic. Le fantôme doit donc être une vraie vue rayon X : sinon seul son dernier giron
+        // affleure et un escalier 0 → −16 ressemble exactement au même carré qu'un petit escalier.
+        // Le rendu validé reste la géométrie finale ; seuls le test de profondeur et l'ordre du
+        // fantôme changent afin que l'auteur voie d'avance sa longueur et son sens de descente.
+        preview.group.name = "editor-stairs-preview";
+        preview.group.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          for (const material of materials) {
+            material.depthTest = false;
+            material.depthWrite = false;
+            if (material instanceof THREE.MeshLambertMaterial) {
+              material.emissive.set(overlay.stairsPreview?.valid ? 0x6f5518 : 0x661813);
+              material.emissiveIntensity = 0.55;
+            }
+            material.needsUpdate = true;
+          }
+          object.renderOrder = 45;
         });
         this.#editorRoot.add(preview.group);
       }

@@ -142,6 +142,25 @@ describe("meshStairs", () => {
     built.dispose();
   });
 
+  it("ferme le dessous et le palier haut d'une volée profonde", () => {
+    const deep = { ...RAMP, lowHeight: -14.4, highHeight: 0, width: 18 };
+    const built = meshStairs([deep], { levelHeight: LEVEL_HEIGHT, lift: 0, atlasFor: atlas });
+    const mesh = onlyMesh(built.group);
+    mesh.updateMatrixWorld(true);
+
+    const below = new THREE.Raycaster(
+      new THREE.Vector3(deep.x + deep.width / 2, deep.lowHeight - 1, deep.z + deep.depth / 2),
+      new THREE.Vector3(0, 1, 0),
+    );
+    expect(below.intersectObject(mesh, false)[0]?.point.y).toBeCloseTo(deep.lowHeight);
+    const highEnd = new THREE.Raycaster(
+      new THREE.Vector3(deep.x + deep.width + 1, -7, deep.z + deep.depth / 2),
+      new THREE.Vector3(-1, 0, 0),
+    );
+    expect(highEnd.intersectObject(mesh, false)[0]).toBeDefined();
+    built.dispose();
+  });
+
   it("asks for the atlas of the bank it climbs TO", () => {
     // Grass reads its tileset from its altitude — the pack ships five hues — so a ramp climbing 1
     // to 2 drawn with level 0's sheet is the wrong green. The plateau you walk off is the hue the

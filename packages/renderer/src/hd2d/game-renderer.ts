@@ -114,7 +114,13 @@ import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.
 import { createBillboardRegistry } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
-import { createHd2dScene, HD2D_CAMERA, HD2D_TEXTURE_URLS, waterPlaneKey } from "./scene.js";
+import {
+  createHd2dScene,
+  HD2D_CAMERA,
+  HD2D_TEXTURE_URLS,
+  surfaceAccessPreviewAt,
+  waterPlaneKey,
+} from "./scene.js";
 import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import type { StructureVolumeKind } from "./structure-volumes.js";
@@ -331,6 +337,16 @@ function facingOf(vector: GroundVector): Facing {
  */
 /** Locomotion flags for room-stepped actors which are always grounded (guards and corpses). */
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
+
+/** A local jump stays in its room; only a real stair/shaft transition may change visibility depth. */
+export function actorUndergroundVisibilityDepth(
+  elevation: number,
+  localAirborne: boolean,
+  transitioning: boolean,
+  stableDepth: number | null,
+): number | null {
+  return localAirborne && !transitioning ? stableDepth : undergroundDepthAtElevation(elevation);
+}
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
 export const SEA_GUARDIAN_SWIM_TEXTURE_URL = "/assets/lindocara/hd2d/sea-guardian-swim.png";
@@ -1273,6 +1289,9 @@ export class Hd2dRenderer implements RendererLike {
       this.#textures,
       (x, z) => authoredMaterialAt(heightfield, x, z),
     );
+    this.#visuals.setEditorGroundElevation(
+      this.#undergroundDepth === null ? null : undergroundFloorHeight(this.#undergroundDepth),
+    );
     this.#visuals.setEditorPreviewArt(this.#editorPreviewArt);
     this.#visuals.setSpawnKnightArt(this.#spawnKnightArt);
     this.#visuals.setMerchant(this.#merchant);
@@ -1398,6 +1417,10 @@ export class Hd2dRenderer implements RendererLike {
         return materializeStaticSpec(spec, textures);
       },
     );
+    // Le chargement des textures est asynchrone : ces enfants n'existaient pas encore lorsque la
+    // vue −N a masqué la surface. Réappliquer la profondeur après leur insertion évite que maisons,
+    // tours et décors reviennent par-dessus le sous-sol quelques images plus tard.
+    scene.setUndergroundDepth(this.#undergroundDepth, this.#currentMapId === "editor");
   }
 
   /** Loads only missing scenery sheets, then diffs placements against the content already alive. */
@@ -1422,6 +1445,7 @@ export class Hd2dRenderer implements RendererLike {
       if (!spec || !textures) return null;
       return materializeStaticSpec(spec, textures);
     });
+    scene.setUndergroundDepth(this.#undergroundDepth, this.#currentMapId === "editor");
   }
 
   async #loadEditorPreviewAsset(assetId: string, token: number): Promise<void> {
@@ -1963,7 +1987,7 @@ export class Hd2dRenderer implements RendererLike {
       const visibleDepths: Array<number | null> = transitioning
         ? [...undergroundVisibleDepthsAtElevation(self.y)]
         : [this.#gameplayVisibilityDepth];
-      if (visibleDepths.includes(null)) {
+      if (visibleDepths.includes(null) && surfaceAccessPreviewAt(this.#map, self.x, self.z)) {
         const shaftDepth = Math.max(
           0,
           ...(this.#map.underground.shafts ?? []).map((shaft) => shaft.depth),
@@ -1972,7 +1996,13 @@ export class Hd2dRenderer implements RendererLike {
       }
       let write = 0;
       for (const view of views) {
-        if (!visibleDepths.includes(undergroundDepthAtElevation(view.y))) continue;
+        const viewDepth = actorUndergroundVisibilityDepth(
+          view.y,
+          view.id === self.id && self.airborne,
+          transitioning,
+          this.#gameplayVisibilityDepth,
+        );
+        if (!visibleDepths.includes(viewDepth)) continue;
         views[write] = view;
         write += 1;
       }
@@ -2538,6 +2568,9 @@ export class Hd2dRenderer implements RendererLike {
   setUndergroundDepth(depth: number | null): void {
     this.#undergroundDepth = depth;
     this.#scene?.setUndergroundDepth(depth, this.#currentMapId === "editor");
+    this.#visuals?.setEditorGroundElevation(
+      depth === null ? null : undergroundFloorHeight(this.#undergroundDepth ?? depth),
+    );
     if (this.#manualFocus) this.setCameraFocus(this.#manualFocus.x, this.#manualFocus.z);
   }
 

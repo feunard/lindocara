@@ -140,7 +140,7 @@ describe("SettingsMenu", () => {
     expect(screen.getByRole("button", { name: "Remap Jump" })).toHaveTextContent("Cross");
     await userEvent.click(screen.getByText("Combat & abilities"));
 
-    expect(screen.getByRole("button", { name: "Remap Basic attack" })).toHaveTextContent("L2");
+    expect(screen.getByRole("button", { name: "Remap Basic attack" })).toHaveTextContent("R2");
     expect(screen.getByRole("button", { name: "Remap Ability 1" })).toHaveTextContent("Square");
     expect(screen.getByRole("button", { name: "Remap Ability 2" })).toHaveTextContent("Triangle");
     expect(screen.getByRole("button", { name: "Remap Ability 3" })).toHaveTextContent("Circle");

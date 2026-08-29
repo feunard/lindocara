@@ -288,6 +288,47 @@ export function meshStairs(
       }
     }
 
+    // Une volée profonde était fermée sur les côtés mais restait ouverte dessous : la caméra qui
+    // descendait sous la première dalle voyait alors l'intérieur vide des marches. Le fond au pied
+    // et le bouchon du palier haut transforment la même géométrie en volume réellement fermé, sans
+    // ajouter d'objet ni modifier la pente lisse que lit la collision.
+    builder.quad(
+      [
+        at(alongStart, acrossOrigin, lowY),
+        at(alongEnd, acrossOrigin, lowY),
+        at(alongEnd, acrossOrigin + acrossSpan, lowY),
+        at(alongStart, acrossOrigin + acrossSpan, lowY),
+      ],
+      [0, -1, 0],
+      [
+        [top.u0, top.v0],
+        [top.u1, top.v0],
+        [top.u1, top.v1],
+        [top.u0, top.v1],
+      ],
+      [pied(lowY), pied(lowY), pied(lowY), pied(lowY)],
+    );
+    const highAlong = climbsPositive ? alongEnd : alongStart;
+    const highNormal: Vec3 = alongX
+      ? [climbsPositive ? 1 : -1, 0, 0]
+      : [0, 0, climbsPositive ? 1 : -1];
+    builder.quad(
+      [
+        at(highAlong, acrossOrigin, lowY),
+        at(highAlong, acrossOrigin + acrossSpan, lowY),
+        at(highAlong, acrossOrigin + acrossSpan, topY),
+        at(highAlong, acrossOrigin, topY),
+      ],
+      highNormal,
+      [
+        [cheek.u0, cheek.v0],
+        [cheek.u1, cheek.v0],
+        [cheek.u1, cheek.v1],
+        [cheek.u0, cheek.v1],
+      ],
+      [pied(lowY), pied(lowY), pied(topY), pied(topY)],
+    );
+
     const geometry = builder.build();
     const material = new THREE.MeshLambertMaterial({
       map: atlas.texture,

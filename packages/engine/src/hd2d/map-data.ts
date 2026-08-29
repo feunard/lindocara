@@ -39,6 +39,7 @@ import {
   undergroundShaftCell,
   undergroundStyleMaterial,
   undergroundTerrainCells,
+  undergroundTerrainElevationCells,
 } from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
@@ -538,15 +539,20 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
         level,
         cells: undergroundCells(level, m.size),
         terrain: undergroundTerrainCells(level, m.size),
+        elevations: undergroundTerrainElevationCells(level, m.size),
       },
     ]),
   );
-  const undergroundMaterialAt = (i: number, j: number, elevation: number) => {
+  const undergroundTerrainAt = (i: number, j: number, elevation: number) => {
     const depth = undergroundDepthAtElevation(elevation);
     if (depth === null || !inBounds(i, j)) return undefined;
     const authored = undergroundLevels.get(depth);
     if (!authored || authored.cells[indexOf(i, j)] === 0) return null;
-    return authored.terrain[indexOf(i, j)] ?? undergroundStyleMaterial(authored.level.style);
+    const index = indexOf(i, j);
+    return {
+      material: authored.terrain[index] ?? undergroundStyleMaterial(authored.level.style),
+      surface: undergroundFloorHeight(depth) + (authored.elevations[index] ?? 0) * m.levelHeight,
+    };
   };
   return {
     size: m.size,
@@ -574,21 +580,21 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
       return inBounds(i, j) && undergroundShaftCell(m.underground?.shafts, i, j);
     },
     kindAtElevation(i, j, elevation) {
-      const material = undergroundMaterialAt(i, j, elevation);
-      if (material === undefined)
+      const terrain = undergroundTerrainAt(i, j, elevation);
+      if (terrain === undefined)
         return inBounds(i, j) && !liquidAt(i, j) ? (m.materials[indexOf(i, j)] ?? null) : null;
-      return material === "water" || material === "lave" ? null : material;
+      return terrain === null || terrain.material === "water" || terrain.material === "lave"
+        ? null
+        : terrain.material;
     },
     liquidAtElevation(i, j, elevation) {
-      const material = undergroundMaterialAt(i, j, elevation);
-      if (material === undefined) return liquidAt(i, j);
-      return material === "water" ? "water" : material === "lave" ? "lava" : null;
+      const terrain = undergroundTerrainAt(i, j, elevation);
+      if (terrain === undefined) return liquidAt(i, j);
+      return terrain?.material === "water" ? "water" : terrain?.material === "lave" ? "lava" : null;
     },
     waterLevelAtElevation(i, j, elevation) {
-      const depth = undergroundDepthAtElevation(elevation);
-      if (depth === null || !inBounds(i, j)) return null;
-      const material = undergroundMaterialAt(i, j, elevation);
-      return material === "water" || material === "lave" ? undergroundFloorHeight(depth) : null;
+      const terrain = undergroundTerrainAt(i, j, elevation);
+      return terrain?.material === "water" || terrain?.material === "lave" ? terrain.surface : null;
     },
     ramps: m.ramps ?? [],
     platforms: m.colliders.flatMap((collider) =>

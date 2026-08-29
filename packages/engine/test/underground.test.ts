@@ -11,6 +11,8 @@ import {
   undergroundFloorHeight,
   undergroundRamp,
   undergroundStairMouth,
+  undergroundTerrainElevationCells,
+  undergroundTerrainHeightAt,
   undergroundTransitionAt,
   undergroundVisibleDepthsAtElevation,
 } from "@lindocara/engine/underground.js";
@@ -45,6 +47,41 @@ describe("multi-storey underground", () => {
     expect(
       parseUnderground(
         { ...underground, stairs: [{ ...underground.stairs[0], fromDepth: 2, depth: 2 }] },
+        8,
+      ),
+    ).toBeNull();
+  });
+
+  it("round-trips the single safe raised tier and rejects ceiling-blocking terrain", () => {
+    const first = underground.levels[0];
+    const second = underground.levels[1];
+    if (!first || !second) throw new Error("underground fixture is incomplete");
+    const raised = {
+      ...underground,
+      levels: [
+        {
+          ...first,
+          terrain: [
+            { col: 2, row: 2, length: 2, material: "volcan" as const, elevation: 1 as const },
+          ],
+        },
+        second,
+      ],
+    };
+    expect(parseUnderground(raised, 8)).toEqual(raised);
+    expect(undergroundTerrainElevationCells(raised.levels[0], 8)[2 * 8 + 3]).toBe(1);
+    expect(undergroundTerrainHeightAt(raised, 1, 3, 2, 0.9)).toBeCloseTo(-1.5);
+    expect(
+      parseUnderground(
+        {
+          ...raised,
+          levels: [
+            {
+              ...raised.levels[0],
+              terrain: [{ col: 2, row: 2, length: 2, material: "volcan", elevation: 2 }],
+            },
+          ],
+        },
         8,
       ),
     ).toBeNull();
@@ -351,6 +388,67 @@ describe("multi-storey underground", () => {
       minimum: expect.closeTo(undergroundFloorHeight(1)),
     });
   });
+
+  it.each([2, 6, 16])(
+    "walks continuously down a proportional surface flight to depth %i",
+    (depth) => {
+      const size = 56;
+      const length = depth * 3;
+      const stair = {
+        depth,
+        fromDepth: 0,
+        col: 3,
+        row: 20,
+        direction: "east" as const,
+        length,
+        width: 2,
+      };
+      const deep = {
+        levels: Array.from({ length: depth }, (_unused, index) => ({
+          depth: index + 1,
+          style: "cave" as const,
+          cells: [
+            { col: 2, row: 20, length: length + 2 },
+            { col: 2, row: 21, length: length + 2 },
+          ],
+        })),
+        stairs: [stair],
+      };
+      const platforms = undergroundColliders(deep, size);
+      const ramp = undergroundRamp(stair, size);
+      const query = createTerrainQuery({
+        size,
+        levelHeight: 0.9,
+        waterLevel: -0.05,
+        at: () => 0,
+        kindAt: () => "herbe",
+        ramps: [ramp],
+        platforms,
+      });
+      const colliders = createColliderIndex();
+      for (const collider of platforms) colliders.add(collider);
+      // The sprite anchor sits 0.35 cells north of its collision foot.
+      const state = createHeroState(ramp.x + ramp.width - 0.05, ramp.z + 0.65, 0, 10, 2.2);
+      state.groundY = state.y;
+      const elevations = [state.y];
+      const west = { ...immobile, x: -1 };
+      for (let frame = 0; frame < length * 45 + 240; frame += 1) {
+        stepHero(state, west, 1 / 60, { ...depsPlates(), query, colliders });
+        elevations.push(state.y);
+      }
+
+      expect(state.x).toBeLessThan(ramp.x);
+      expect(state.airborne).toBe(false);
+      expect(state.y).toBeCloseTo(undergroundFloorHeight(depth));
+      expect(
+        Math.max(
+          ...elevations
+            .slice(1)
+            .map((elevation, index) => Math.abs(elevation - (elevations[index] ?? elevation))),
+        ),
+      ).toBeLessThan(0.15);
+    },
+  );
 
   it("falls continuously through every elevation down to depth 16", () => {
     const deep = {

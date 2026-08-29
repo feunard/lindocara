@@ -13,11 +13,36 @@ import {
   editorGroundPickPoint,
   heightFieldFor,
   stairMaterialKeyFor,
+  surfaceAccessPreviewAt,
   terrainAtlasKey,
   terrainGroupFor,
   undergroundStairVisible,
   waterPlaneKey,
 } from "../src/hd2d/scene.js";
+
+describe("surface access preview", () => {
+  const map = (liquid: "water" | "lava" | null, level: number | null = 0): MapData => ({
+    version: 1,
+    size: 1,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: [level],
+    materials: ["herbe"],
+    liquids: [liquid],
+    liquidLevels: [liquid ? 0 : null],
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  });
+
+  it("keeps deep rooms hidden below surface water and lava", () => {
+    expect(surfaceAccessPreviewAt(map("water"), 0, 0)).toBe(false);
+    expect(surfaceAccessPreviewAt(map("lava"), 0, 0)).toBe(false);
+    expect(surfaceAccessPreviewAt(map(null, null), 0, 0)).toBe(false);
+    expect(surfaceAccessPreviewAt(map(null), 0, 0)).toBe(true);
+  });
+});
 
 describe("underground stair visibility", () => {
   it("keeps a surface-to-depth-16 flight visible from every crossed level", () => {
@@ -547,6 +572,32 @@ describe("the HD-2D scene's terrain", () => {
     expect(lowerTerrain).not.toBeNull();
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, true)).toBe(1.35);
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, false)).toBe(lowerTerrain);
+  });
+
+  it("follows every point of a deep stair instead of snapping between storeys", () => {
+    const deepRamp = {
+      x: -9,
+      z: -0.5,
+      width: 18,
+      depth: 1,
+      direction: "east" as const,
+      lowLevel: -6,
+      lowHeight: -14.4,
+      highHeight: 0,
+    };
+    const map = { ...ground(24), ramps: [deepRamp] };
+    const query = createTerrainQuery(mapToQuerySource(map));
+    const samples = Array.from({ length: 19 }, (_unused, index) => {
+      const x = deepRamp.x + index;
+      const expected = deepRamp.lowHeight + (index / 18) * -deepRamp.lowHeight;
+      return cameraFocusSurface(query, map.waterLevel, x, 0, expected);
+    });
+
+    expect(samples[0]).toBeCloseTo(-14.4);
+    expect(samples.at(-1)).toBeCloseTo(0);
+    for (let index = 1; index < samples.length; index += 1) {
+      expect((samples[index] ?? 0) - (samples[index - 1] ?? 0)).toBeCloseTo(0.8);
+    }
   });
 
   it("pulls the orbit camera in front of raised terrain behind its target", () => {

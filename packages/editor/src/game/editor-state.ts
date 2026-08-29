@@ -151,8 +151,10 @@ import {
   DEFAULT_UNDERGROUND_STAIR_LENGTH,
   DEFAULT_UNDERGROUND_STAIR_WIDTH,
   MAX_UNDERGROUND_DEPTH,
+  MAX_UNDERGROUND_TERRAIN_ELEVATION,
   undergroundCells,
   undergroundTerrainCells,
+  undergroundTerrainElevationCells,
 } from "@lindocara/engine/underground.js";
 
 /**
@@ -2315,13 +2317,17 @@ export function undergroundStairPlacement(
     startDepth === null ? 0 : Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(startDepth)));
   if (fromDepth >= depth) return null;
   const alongX = tool.direction === "east" || tool.direction === "west";
-  const c0 = Math.max(0, Math.min(cols - 1, col));
-  const r0 = Math.max(0, Math.min(rows - 1, row));
   const requestedLength = undergroundStairRequiredLength(tool, startDepth);
   const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
-  const availableLength = alongX ? cols - c0 : rows - r0;
-  const availableWidth = alongX ? rows - r0 : cols - c0;
-  if (requestedLength > availableLength || requestedWidth > availableWidth) return null;
+  // Le pointeur désigne toujours la bouche HAUTE, celle que l'auteur voit sur l'étage courant.
+  // Sans cette convention, une montée vers l'est/sud partait du clic par son pied profond : un
+  // escalier de seize étages ressemblait alors à un grand rectangle noir et sa vraie entrée se
+  // retrouvait quarante-huit cases plus loin, souvent hors écran.
+  const c0 = tool.direction === "east" ? col - requestedLength + 1 : col;
+  const r0 = tool.direction === "south" ? row - requestedLength + 1 : row;
+  const footprintCols = alongX ? requestedLength : requestedWidth;
+  const footprintRows = alongX ? requestedWidth : requestedLength;
+  if (c0 < 0 || r0 < 0 || c0 + footprintCols > cols || r0 + footprintRows > rows) return null;
   return {
     depth,
     fromDepth,
@@ -2359,8 +2365,8 @@ function applyUndergroundTool(
       ? footprintWidth
       : footprintLength
     : footprintLength;
-  const c0 = Math.max(0, Math.min(cols - 1, col));
-  const r0 = Math.max(0, Math.min(rows - 1, row));
+  const c0 = stairPlacement?.col ?? Math.max(0, Math.min(cols - 1, col));
+  const r0 = stairPlacement?.row ?? Math.max(0, Math.min(rows - 1, row));
   const c1 = Math.min(cols, c0 + Math.max(1, Math.trunc(footprintCols)));
   const r1 = Math.min(rows, r0 + Math.max(1, Math.trunc(footprintRows)));
   if (c1 <= c0 || r1 <= r0) return null;
@@ -2511,6 +2517,7 @@ function paintUndergroundTerrain(
   depth: number,
   cellsToPaint: readonly { col: number; row: number }[],
   material: "water" | TerrainMaterial | null,
+  elevationContent?: ElevationContent,
   sourceUnderground: UndergroundMap | undefined = map.underground,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
@@ -2520,18 +2527,24 @@ function paintUndergroundTerrain(
   const previous = levels.get(depth);
   const excavated = undergroundCells(previous, size);
   const terrain = undergroundTerrainCells(previous, size);
+  const elevations = undergroundTerrainElevationCells(previous, size);
   for (const cell of cellsToPaint) {
     if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue;
     const index = cell.row * size + cell.col;
     // Painting a floor also excavates it: the ordinary pencil/rectangle is the quickest way to
     // grow a room, while the dedicated Fill cave tool remains the explicit way to close it again.
     if (material !== null) excavated[index] = 1;
+    if (elevationContent) {
+      const target = elevationTargetLevel(elevationContent, elevations[index] ?? 0);
+      if (target === null || target > MAX_UNDERGROUND_TERRAIN_ELEVATION) return null;
+      elevations[index] = target;
+    }
     terrain[index] = material;
   }
   const compactCells = compactUndergroundCells(excavated, size);
   if (compactCells.length === 0) levels.delete(depth);
   else {
-    const compactTerrain = compactUndergroundTerrain(terrain, size);
+    const compactTerrain = compactUndergroundTerrain(terrain, size, elevations);
     levels.set(depth, {
       depth,
       style: previous?.style ?? "cave",
@@ -2560,7 +2573,9 @@ function undergroundFloodRegion(
   const excavated = undergroundCells(level, size);
   if (excavated[row * size + col] === 0) return [{ col, row }];
   const terrain = undergroundTerrainCells(level, size);
+  const elevations = undergroundTerrainElevationCells(level, size);
   const target = terrain[row * size + col] ?? null;
+  const targetElevation = elevations[row * size + col] ?? 0;
   const result: Array<{ col: number; row: number }> = [];
   const pending = [{ col, row }];
   const seen = new Set<string>();
@@ -2572,7 +2587,12 @@ function undergroundFloodRegion(
     seen.add(key);
     if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue;
     const index = cell.row * size + cell.col;
-    if (excavated[index] === 0 || (terrain[index] ?? null) !== target) continue;
+    if (
+      excavated[index] === 0 ||
+      (terrain[index] ?? null) !== target ||
+      (elevations[index] ?? 0) !== targetElevation
+    )
+      continue;
     result.push(cell);
     pending.push(
       { col: cell.col - 1, row: cell.row },
@@ -2711,6 +2731,7 @@ export function applyTool(
           undergroundDepth,
           [{ col, row }],
           undergroundPaintMaterial(tool),
+          tool,
         );
       }
       const ground = map.layers[GROUND_LAYER];
@@ -2766,6 +2787,7 @@ export function applyTool(
           undergroundDepth,
           cells,
           undergroundPaintMaterial(tool.content),
+          tool.content.kind === "elevation" ? tool.content : undefined,
           anchor.underground,
         );
       }
@@ -2809,6 +2831,7 @@ export function applyTool(
           undergroundDepth,
           undergroundFloodRegion(map, undergroundDepth, col, row),
           undergroundPaintMaterial(tool.content),
+          tool.content.kind === "elevation" ? tool.content : undefined,
         );
       }
       const ground = map.layers[GROUND_LAYER];
@@ -3005,7 +3028,10 @@ export function applyTool(
       if (mode === "event") return erasedEvent(map, col, row, undergroundDepth);
       if (mode === "element") return erasedElement(map, col, row, undergroundDepth);
       if (undergroundDepth !== null)
-        return paintUndergroundTerrain(map, undergroundDepth, [{ col, row }], null);
+        return paintUndergroundTerrain(map, undergroundDepth, [{ col, row }], null, {
+          kind: "elevation",
+          level: 0,
+        });
       return erasedTerrainMap(map, col, row);
     }
     /**
