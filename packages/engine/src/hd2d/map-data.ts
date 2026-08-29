@@ -31,7 +31,7 @@ import {
 } from "../map-environment.js";
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
 import { isNativeSceneryAsset } from "../native-scenery.js";
-import { parseUnderground } from "../underground.js";
+import { parseUnderground, undergroundShaftCell } from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
   isRampDirection,
@@ -510,6 +510,9 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
     liquidLevelAt,
     waterAt(i, j) {
       return liquidAt(i, j) === "water" ? liquidLevelAt(i, j) : null;
+    },
+    voidAt(i, j) {
+      return inBounds(i, j) && undergroundShaftCell(m.underground?.shafts, i, j);
     },
     ramps: m.ramps ?? [],
     platforms: m.colliders.flatMap((collider) =>

@@ -202,9 +202,21 @@ export interface UndergroundStair {
   width: number;
 }
 
+/** A vertical opening from the surface through every storey above its bottom. */
+export interface UndergroundShaft {
+  col: number;
+  row: number;
+  width: number;
+  length: number;
+  /** Deepest excavated storey; its floor closes the bottom of the shaft. */
+  depth: number;
+}
+
 export interface UndergroundMap {
   levels: readonly UndergroundLevel[];
   stairs: readonly UndergroundStair[];
+  /** Absent on maps authored before true surface openings existed. */
+  shafts?: readonly UndergroundShaft[];
 }
 
 /**
@@ -860,7 +872,10 @@ export function parseMapData(value: unknown): MapData | null {
       const cols = alongX ? stair.length : stair.width;
       const rows = alongX ? stair.width : stair.length;
       return stair.col + cols > width || stair.row + rows > height;
-    })
+    }) ||
+    underground?.shafts?.some(
+      (shaft) => shaft.col + shaft.width > width || shaft.row + shaft.length > height,
+    )
   )
     return null;
   if (interiorShell?.innerWalls?.some((run) => run.row >= height || run.col + run.length > width))

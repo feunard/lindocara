@@ -1500,7 +1500,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.heading": "Souterrains",
   "editor.underground.dig": "Creuser un bloc",
   "editor.underground.tunnel": "Tunnel",
-  "editor.underground.shaft": "Excavation profonde",
+  "editor.underground.shaft": "Puits vertical",
   "editor.underground.stairs": "Escalier descendant",
   "editor.underground.fill": "Reboucher",
   "editor.underground.depth": "Étage (−1 à −16)",
@@ -1513,7 +1513,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.direction.south": "Sud",
   "editor.underground.direction.west": "Ouest",
   "editor.underground.hint":
-    "Choisissez l’étage et les dimensions, puis cliquez la première case. L’escalier relie cet étage à celui du dessus.",
+    "La surface translucide reste visible comme repère. Un escalier relie deux étages ; un puits ouvre réellement le sol jusqu’à la profondeur choisie.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

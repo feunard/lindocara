@@ -61,7 +61,10 @@ import {
   LINDOCARA_RUNNER_ASSET_IDS,
   NPC_MODEL_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
-import { undergroundFloorHeight } from "@lindocara/engine/underground.js";
+import {
+  undergroundDepthAtElevation,
+  undergroundFloorHeight,
+} from "@lindocara/engine/underground.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
 import { fetchAll } from "@lindocara/hd2d/loader.js";
 import type { Water } from "@lindocara/hd2d/terrain/water.js";
@@ -1224,7 +1227,7 @@ export class Hd2dRenderer implements RendererLike {
       this.#disposeSceneContents();
       scene = this.#scene;
       scene.updateTerrain(heightfield);
-      scene.setUndergroundDepth(this.#undergroundDepth);
+      scene.setUndergroundDepth(this.#undergroundDepth, this.#currentMapId === "editor");
     } else {
       this.#disposeScene();
       if (this.#water && this.#waterKey !== waterKey) {
@@ -1247,7 +1250,7 @@ export class Hd2dRenderer implements RendererLike {
       scene.setPitch(this.#cameraPitch);
       scene.setTiltShiftEnabled(this.#tiltShiftEnabled);
       scene.setFogEnabled(this.#fogEnabled);
-      scene.setUndergroundDepth(this.#undergroundDepth);
+      scene.setUndergroundDepth(this.#undergroundDepth, this.#currentMapId === "editor");
       if (this.#manualFocus)
         scene.focusOn(
           this.#manualFocus.x,
@@ -1327,7 +1330,7 @@ export class Hd2dRenderer implements RendererLike {
   /** What `billboards.ts` and `static-content.ts` both need of the scene they draw into. */
   #sceneFor(scene: Hd2dScene, heightfield: MapData): BillboardScene {
     return {
-      root: scene.scene,
+      root: scene.surfaceRoot,
       // Keep this live across editor content edits: building/bridge collision is replaced without
       // recreating the scene, and newly placed visuals must sample the refreshed surface.
       get query() {
@@ -1934,6 +1937,16 @@ export class Hd2dRenderer implements RendererLike {
     for (const actorId of this.#combatAnimations.keys()) {
       if (!present.has(actorId)) this.#combatAnimations.delete(actorId);
     }
+    if (self && this.#map?.underground) {
+      const visibleDepth = undergroundDepthAtElevation(self.y);
+      let write = 0;
+      for (const view of views) {
+        if (undergroundDepthAtElevation(view.y) !== visibleDepth) continue;
+        views[write] = view;
+        write += 1;
+      }
+      views.length = write;
+    }
     return views;
   }
 
@@ -2492,7 +2505,7 @@ export class Hd2dRenderer implements RendererLike {
   /** Selects the surface or a specific underground storey in creator tools. */
   setUndergroundDepth(depth: number | null): void {
     this.#undergroundDepth = depth;
-    this.#scene?.setUndergroundDepth(depth);
+    this.#scene?.setUndergroundDepth(depth, this.#currentMapId === "editor");
     if (this.#manualFocus) this.setCameraFocus(this.#manualFocus.x, this.#manualFocus.z);
   }
 

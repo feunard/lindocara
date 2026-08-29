@@ -306,6 +306,19 @@ function shiftMapContent(
               stair.row + stairRows <= rows
             );
           }),
+        ...(map.underground.shafts
+          ? {
+              shafts: map.underground.shafts
+                .map((shaft) => ({ ...shaft, col: shaft.col + dCol, row: shaft.row + dRow }))
+                .filter(
+                  (shaft) =>
+                    shaft.col >= 0 &&
+                    shaft.row >= 0 &&
+                    shaft.col + shaft.width <= cols &&
+                    shaft.row + shaft.length <= rows,
+                ),
+            }
+          : {}),
       }
     : undefined;
   return {
@@ -386,6 +399,10 @@ export function contentBounds(map: MapCanvasContent, selfMapId?: string): MapRec
       stair.col + (alongX ? stair.length : stair.width) - 1,
       stair.row + (alongX ? stair.width : stair.length) - 1,
     );
+  }
+  for (const shaft of map.underground?.shafts ?? []) {
+    include(shaft.col, shaft.row);
+    include(shaft.col + shaft.width - 1, shaft.row + shaft.length - 1);
   }
   for (const element of map.elements) include(element.col, element.row);
   const events = map.events ?? [];

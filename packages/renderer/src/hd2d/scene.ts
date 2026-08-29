@@ -38,6 +38,8 @@ import {
   weatherStorms,
 } from "@lindocara/engine/map-weather.js";
 import {
+  undergroundDepthAtElevation,
+  undergroundSurfaceOpenings,
   undergroundStyleMaterial,
   UNDERGROUND_STOREY_HEIGHT,
 } from "@lindocara/engine/underground.js";
@@ -228,11 +230,29 @@ export function terrainGroupFor(
 ): { group: THREE.Group; dispose(): void } {
   // The ramps go to the MESHER too, not only to `meshStairs`: it is what opens the cliff face at
   // each ramp's mouth, so a slope arrives on the plateau instead of into a drawn wall.
-  return meshTerrain(ctx, heightFieldFor(map), {
+  return meshTerrain(ctx, surfaceCutawayField(map), {
     atlases,
     levelHeight: map.levelHeight,
     ramps: map.ramps ?? [],
   });
+}
+
+/** Rendering-only terrain cut. Collision keeps reading the stored field plus ramps/platforms. */
+function surfaceCutawayField(map: MapData): HeightField {
+  const source = heightFieldFor(map);
+  const openings = undergroundSurfaceOpenings(map.underground, map.size);
+  if (!openings.some((cell) => cell !== 0)) return source;
+  const open = (i: number, j: number): boolean =>
+    i >= 0 && j >= 0 && i < source.cols && j < source.rows && openings[j * source.cols + i] !== 0;
+  return {
+    cols: source.cols,
+    rows: source.rows,
+    levelAt: (i, j) => (open(i, j) ? null : source.levelAt(i, j)),
+    materialAt: (i, j) => (open(i, j) ? null : source.materialAt(i, j)),
+    liquidAt: (i, j) => (open(i, j) ? null : (source.liquidAt?.(i, j) ?? null)),
+    liquidLevelAt: (i, j) => (open(i, j) ? null : (source.liquidLevelAt?.(i, j) ?? null)),
+    waterAt: (i, j) => (open(i, j) ? null : (source.waterAt?.(i, j) ?? null)),
+  };
 }
 
 /** The serialized grid, read as the field the mesher consumes. `null` levels stay water outdoors:
@@ -575,7 +595,7 @@ export interface Hd2dScene {
   /** Sets the vertical viewing angle while keeping the same target, yaw and distance. */
   setPitch(radians: number): void;
   /** Surface (`null`) or one authored underground storey. */
-  setUndergroundDepth(depth: number | null): void;
+  setUndergroundDepth(depth: number | null, showSurfaceReference?: boolean): void;
   /** Presentation-only screen-space camera impulse. It never changes the followed world point. */
   setCameraShake(xPixels: number, yPixels: number): void;
   /** Enables the gameplay diorama blur. Editor authoring disables it for precise cell work. */
@@ -589,6 +609,8 @@ export interface Hd2dScene {
   dispose(): void;
   ctx: Hd2dContext;
   scene: THREE.Scene;
+  /** Surface-authored scenery, hidden as one unit while the player is below ground. */
+  surfaceRoot: THREE.Group;
   camera: THREE.PerspectiveCamera;
   /** Answers for the terrain currently drawn — it is replaced by `updateTerrain`, so read it off
    *  the scene at the moment you need it rather than capturing it. */
@@ -664,6 +686,9 @@ export function createHd2dScene(
   reuse: { water?: Water } = {},
 ): Hd2dScene {
   const scene = new THREE.Scene();
+  const surfaceRoot = new THREE.Group();
+  surfaceRoot.name = "surface-content";
+  scene.add(surfaceRoot);
   const camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 5000);
 
   const ctx = createHd2dContext({ pitch: CAMERA.pitch });
@@ -687,13 +712,20 @@ export function createHd2dScene(
   // climbing 1 to 2 in level 0's green.
   const stairsFor = (source: MapData): ReturnType<typeof meshStairs> => {
     const sourceField = heightFieldFor(source);
-    return meshStairs(source.ramps ?? [], {
+    const ramps = source.ramps ?? [];
+    const built = meshStairs(ramps, {
       levelHeight: source.levelHeight,
       atlasFor: (level, ramp) =>
         atlases[stairMaterialKeyFor(source, ramp, sourceField)] ??
         atlases[terrainAtlasKey("herbe", level)] ??
         fallbackAtlas,
     });
+    built.group.children.forEach((child, index) => {
+      const ramp = ramps[index];
+      child.userData.undergroundDepth =
+        ramp?.lowHeight === undefined ? null : undergroundDepthAtElevation(ramp.lowHeight);
+    });
+    return built;
   };
   let terrain = terrainGroupFor(ctx, map, atlases);
   scene.add(terrain.group);
@@ -747,16 +779,51 @@ export function createHd2dScene(
   foam.group.visible = (map.environment ?? "exterior") === "exterior";
   scene.add(foam.group);
   let viewedUndergroundDepth: number | null = null;
+  let undergroundElevation: number | null = null;
+  let showSurfaceReference = false;
+  const setTerrainReference = (enabled: boolean): void => {
+    terrain.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const source = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of source) {
+        if (material.userData.surfaceReferenceAlphaTest === undefined) {
+          material.userData.surfaceReferenceAlphaTest = material.alphaTest;
+        }
+        material.transparent = enabled;
+        material.opacity = enabled ? 0.16 : 1;
+        material.depthWrite = !enabled;
+        material.alphaTest = enabled ? 0 : (material.userData.surfaceReferenceAlphaTest as number);
+        material.needsUpdate = true;
+      }
+      object.castShadow = !enabled;
+    });
+  };
   const applyUndergroundVisibility = (): void => {
     const surface = viewedUndergroundDepth === null;
-    terrain.group.visible = surface;
+    terrain.group.visible = surface || showSurfaceReference;
+    setTerrainReference(!surface && showSurfaceReference);
     liquids.group.visible = surface;
     foam.group.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
     water.mesh.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
     interiorShell.group.visible = surface;
-    underground.setDepth(viewedUndergroundDepth);
+    surfaceRoot.visible = surface;
+    rain.group.visible = surface;
+    sky.mesh.visible = surface && (currentMap.environment ?? "exterior") === "exterior";
+    scene.background = new THREE.Color(
+      surface && (currentMap.environment ?? "exterior") === "exterior" ? 0x7ca5a0 : 0x020307,
+    );
+    for (const stair of stairs.group.children) {
+      const depth = stair.userData.undergroundDepth;
+      stair.visible =
+        depth === null
+          ? surface
+          : surface
+            ? depth === 1
+            : depth === viewedUndergroundDepth || depth === (viewedUndergroundDepth ?? 0) + 1;
+    }
+    if (showSurfaceReference) underground.setDepth(viewedUndergroundDepth);
+    else underground.setElevation(undergroundElevation);
   };
-  applyUndergroundVisibility();
 
   // Weather. The curtain exists whatever the map declares and is simply silent under a clear sky:
   // building it lazily would mean building it mid-frame the first time an author flips the control
@@ -772,6 +839,7 @@ export function createHd2dScene(
   scene.background = new THREE.Color(
     (map.environment ?? "exterior") === "interior" ? 0x020307 : 0x7ca5a0,
   );
+  applyUndergroundVisibility();
 
   // --- lights -----------------------------------------------------------------------------------
   // Before the pipeline, as in the lab: `createPipeline` compiles the scene's materials, and a
@@ -969,6 +1037,7 @@ export function createHd2dScene(
   return {
     ctx,
     scene,
+    surfaceRoot,
     camera,
     // A GETTER, not the value: `updateTerrain` replaces the query, and anything that had captured
     // the old one would answer heights for the terrain before the edit — a hero standing in the air
@@ -1036,11 +1105,9 @@ export function createHd2dScene(
     // units — there is nothing to convert here any more.
     //
     focusOn(x: number, z: number, elevation?: number, airborne = false): void {
-      if (elevation !== undefined && currentMap.underground) {
-        viewedUndergroundDepth =
-          elevation < -0.6
-            ? THREE.MathUtils.clamp(Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT), 1, 16)
-            : null;
+      if (elevation !== undefined && currentMap.underground && !showSurfaceReference) {
+        viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
+        undergroundElevation = viewedUndergroundDepth === null ? null : elevation;
         applyUndergroundVisibility();
       }
       focus = {
@@ -1090,9 +1157,11 @@ export function createHd2dScene(
       ctx.setPitch(cameraPitch);
       frameCamera();
     },
-    setUndergroundDepth(depth: number | null): void {
+    setUndergroundDepth(depth: number | null, reference = false): void {
       viewedUndergroundDepth =
         depth === null ? null : THREE.MathUtils.clamp(Math.round(depth), 1, 16);
+      undergroundElevation = null;
+      showSurfaceReference = reference && viewedUndergroundDepth !== null;
       applyUndergroundVisibility();
     },
     setCameraShake: applyCameraShake,
@@ -1104,9 +1173,10 @@ export function createHd2dScene(
     },
     pickGround(raycaster: THREE.Raycaster): { x: number; z: number } | null {
       const half = currentMap.size / 2;
-      const authoredSurfaces = scene.children.filter(
-        (child) => child.userData[AUTHORED_PICK_SURFACE] === "building",
-      );
+      const authoredSurfaces: THREE.Object3D[] = [];
+      surfaceRoot.traverse((child) => {
+        if (child.userData[AUTHORED_PICK_SURFACE] === "building") authoredSurfaces.push(child);
+      });
       for (const hit of raycaster.intersectObjects(
         [
           terrain.group,
@@ -1186,7 +1256,8 @@ export function createHd2dScene(
       sky.update(dt, camera, mood.value.aurora);
       // Copied EVERY frame, not only on a mood crossfade: `sky.horizon` also moves with effects
       // that follow their own timing.
-      if ((currentMap.environment ?? "exterior") === "interior") fog.color.set(0x020307);
+      if (viewedUndergroundDepth !== null || (currentMap.environment ?? "exterior") === "interior")
+        fog.color.set(0x020307);
       else fog.color.copy(sky.horizon);
       // The mood settles once and then never moves again while only `day` exists — `update` returns
       // false and nothing is pushed. Kept anyway: it is one comparison per frame, and it is the

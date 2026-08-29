@@ -2127,7 +2127,7 @@ function applyUndergroundTool(
   const r1 = Math.min(rows, r0 + Math.max(1, Math.trunc(footprintRows)));
   if (c1 <= c0 || r1 <= r0) return null;
 
-  const source = map.underground ?? { levels: [], stairs: [] };
+  const source: UndergroundMap = map.underground ?? { levels: [], stairs: [] };
   const byDepth = new Map(source.levels.map((level) => [level.depth, level]));
   const touchedDepths =
     tool.operation === "shaft"
@@ -2164,6 +2164,15 @@ function applyUndergroundTool(
       stair.row >= r1
     );
   });
+  let shafts = (source.shafts ?? []).filter((shaft) => {
+    if (tool.operation !== "fill") return true;
+    return (
+      shaft.col + shaft.width <= c0 ||
+      shaft.col >= c1 ||
+      shaft.row + shaft.length <= r0 ||
+      shaft.row >= r1
+    );
+  });
   if (tool.operation === "stairs") {
     const requestedLength = Math.max(
       2,
@@ -2185,9 +2194,22 @@ function applyUndergroundTool(
       },
     ];
   }
+  if (tool.operation === "shaft") {
+    shafts = [
+      ...shafts.filter(
+        (shaft) =>
+          shaft.col + shaft.width <= c0 ||
+          shaft.col >= c1 ||
+          shaft.row + shaft.length <= r0 ||
+          shaft.row >= r1,
+      ),
+      { col: c0, row: r0, width: c1 - c0, length: r1 - r0, depth },
+    ];
+  }
   const underground: UndergroundMap = {
     levels: [...byDepth.values()].sort((left, right) => left.depth - right.depth),
     stairs,
+    ...(shafts.length > 0 ? { shafts } : {}),
   };
   return { ...map, underground };
 }

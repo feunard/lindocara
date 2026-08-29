@@ -153,6 +153,8 @@ export interface TerrainQuerySource {
   /** For a WATER cell, the LEVEL tier its surface sits at — or `null`/absent for the world's sea.
    *  See `TerrainQuery.waterLevelAt`. */
   waterAt?(i: number, j: number): number | null;
+  /** A dry vertical opening: no surface ground and, unlike ordinary null terrain, no liquid. */
+  voidAt?(i: number, j: number): boolean;
   ramps?: readonly TerrainRamp[];
   platforms?: readonly TerrainPlatform[];
 }
@@ -211,6 +213,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     liquidAt: sourceLiquidAt,
     liquidLevelAt,
     waterAt,
+    voidAt = () => false,
     ramps = [],
     platforms = [],
   } = source;
@@ -219,12 +222,19 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
   const groundHeightAt = (wx: number, wz: number): number | null => {
     const ramp = rampSampleAt(ramps, levelHeight, wx, wz);
     if (ramp) return ramp.height;
-    const h = at(toCell(wx), toCell(wz));
+    const i = toCell(wx);
+    const j = toCell(wz);
+    if (voidAt(i, j)) return null;
+    const h = at(i, j);
     return h === null ? null : h * levelHeight;
   };
   const cellLiquidAt = (i: number, j: number): TerrainLiquid | null => {
     const explicit = sourceLiquidAt?.(i, j);
     if (explicit) return explicit;
+    // A shaft removes the SOLID terrain column, not an explicitly authored liquid volume above
+    // it. Water or lava painted over an excavation must still catch the hero at its surface; an
+    // unpainted shaft remains a dry, traversable void.
+    if (voidAt(i, j)) return null;
     // Backward compatibility for heightfields produced before liquids had their own grid.
     if (kindAt(i, j) === "lave") return "lava";
     return at(i, j) === null ? "water" : null;
@@ -286,6 +296,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
           // cell again, returning `-Infinity` — breaking the JSDoc promise above the moment
           // `r = 0`, latent for as long as only `HERO.radius = 0.3` ever called this function.
           if ((nx - wx) ** 2 + (nz - wz) ** 2 > r * r) continue;
+          if (voidAt(i, j)) continue;
           const h = at(i, j);
           const liquidLevel = liquidLevelAt?.(i, j);
           const candidate =
@@ -308,9 +319,11 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       return max;
     },
     levelAt(wx, wz) {
+      if (voidAt(toCell(wx), toCell(wz))) return null;
       return at(toCell(wx), toCell(wz));
     },
     kindAt(wx, wz) {
+      if (voidAt(toCell(wx), toCell(wz))) return null;
       return kindAt(toCell(wx), toCell(wz));
     },
     liquidAt,

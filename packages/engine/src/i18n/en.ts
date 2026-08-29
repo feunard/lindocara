@@ -1484,7 +1484,7 @@ export const en = {
   "editor.underground.heading": "Underground",
   "editor.underground.dig": "Dig block",
   "editor.underground.tunnel": "Tunnel",
-  "editor.underground.shaft": "Deep excavation",
+  "editor.underground.shaft": "Vertical shaft",
   "editor.underground.stairs": "Down stairs",
   "editor.underground.fill": "Fill in",
   "editor.underground.depth": "Storey (−1 to −16)",
@@ -1497,7 +1497,7 @@ export const en = {
   "editor.underground.direction.south": "South",
   "editor.underground.direction.west": "West",
   "editor.underground.hint":
-    "Choose a storey and dimensions, then click the first cell. Stairs connect this storey to the one above.",
+    "The translucent surface remains as a guide. Stairs connect two storeys; a shaft truly opens the ground down to the selected depth.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",

@@ -9,6 +9,7 @@ import type {
   UndergroundCellRun,
   UndergroundLevel,
   UndergroundMap,
+  UndergroundShaft,
   UndergroundStair,
 } from "./map-data.js";
 import { INTERIOR_SHELL_STYLES, type InteriorShellStyle } from "./map-environment.js";
@@ -81,7 +82,7 @@ function parseLevel(value: unknown, size: number): UndergroundLevel | null {
   };
 }
 
-function stairFootprint(stair: UndergroundStair): { cols: number; rows: number } {
+export function undergroundStairFootprint(stair: UndergroundStair): { cols: number; rows: number } {
   return rampAlongX(stair.direction)
     ? { cols: stair.length, rows: stair.width }
     : { cols: stair.width, rows: stair.length };
@@ -114,17 +115,59 @@ function parseStair(value: unknown, size: number): UndergroundStair | null {
     length: length as number,
     width: width as number,
   };
-  const footprint = stairFootprint(stair);
+  const footprint = undergroundStairFootprint(stair);
   return stair.col + footprint.cols <= size && stair.row + footprint.rows <= size ? stair : null;
+}
+
+function parseShaft(value: unknown, size: number): UndergroundShaft | null {
+  if (!isRecord(value)) return null;
+  const { col, row, width, length, depth } = value;
+  if (
+    !Number.isSafeInteger(col) ||
+    !Number.isSafeInteger(row) ||
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(length) ||
+    !Number.isSafeInteger(depth) ||
+    (col as number) < 0 ||
+    (row as number) < 0 ||
+    (width as number) < 1 ||
+    (length as number) < 1 ||
+    (depth as number) < 1 ||
+    (depth as number) > MAX_UNDERGROUND_DEPTH ||
+    (col as number) + (width as number) > size ||
+    (row as number) + (length as number) > size
+  ) {
+    return null;
+  }
+  return {
+    col: col as number,
+    row: row as number,
+    width: width as number,
+    length: length as number,
+    depth: depth as number,
+  };
 }
 
 /** Strict storage parser shared by authored maps and compiled heightfields. */
 export function parseUnderground(value: unknown, size: number): UndergroundMap | null {
   if (!isRecord(value) || !Array.isArray(value.levels) || !Array.isArray(value.stairs)) return null;
-  if (value.levels.length > MAX_UNDERGROUND_DEPTH || value.stairs.length > 512) return null;
+  const shaftValues = value.shafts ?? [];
+  if (!Array.isArray(shaftValues)) return null;
+  if (
+    value.levels.length > MAX_UNDERGROUND_DEPTH ||
+    value.stairs.length > 512 ||
+    shaftValues.length > 512
+  )
+    return null;
   const levels = value.levels.map((level) => parseLevel(level, size));
   const stairs = value.stairs.map((stair) => parseStair(stair, size));
-  if (levels.some((level) => level === null) || stairs.some((stair) => stair === null)) return null;
+  const shafts = shaftValues.map((shaft) => parseShaft(shaft, size));
+  if (
+    levels.some((level) => level === null) ||
+    stairs.some((stair) => stair === null) ||
+    shafts.some((shaft) => shaft === null)
+  )
+    return null;
   const decodedLevels = levels as UndergroundLevel[];
   if (new Set(decodedLevels.map((level) => level.depth)).size !== decodedLevels.length) return null;
   if (
@@ -132,7 +175,11 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
     size * MAX_UNDERGROUND_DEPTH
   )
     return null;
-  return { levels: decodedLevels, stairs: stairs as UndergroundStair[] };
+  return {
+    levels: decodedLevels,
+    stairs: stairs as UndergroundStair[],
+    ...(value.shafts === undefined ? {} : { shafts: shafts as UndergroundShaft[] }),
+  };
 }
 
 export function undergroundCells(level: UndergroundLevel | undefined, size: number): Uint8Array {
@@ -179,7 +226,7 @@ function stairCell(
 ): boolean {
   return stairs.some((stair) => {
     if (stair.depth !== depth) return false;
-    const footprint = stairFootprint(stair);
+    const footprint = undergroundStairFootprint(stair);
     return (
       col >= stair.col &&
       col < stair.col + footprint.cols &&
@@ -189,7 +236,7 @@ function stairCell(
   });
 }
 
-function stairMouth(
+export function undergroundStairMouth(
   stairs: readonly UndergroundStair[],
   depth: number,
   col: number,
@@ -199,7 +246,7 @@ function stairMouth(
 ): boolean {
   return stairs.some((stair) => {
     if (stair.depth !== depth && stair.depth !== depth + 1) return false;
-    const footprint = stairFootprint(stair);
+    const footprint = undergroundStairFootprint(stair);
     if (
       col < stair.col ||
       col >= stair.col + footprint.cols ||
@@ -216,6 +263,55 @@ function stairMouth(
   });
 }
 
+export function undergroundShaftCell(
+  shafts: readonly UndergroundShaft[] | undefined,
+  col: number,
+  row: number,
+  minimumDepth = 1,
+): boolean {
+  return (shafts ?? []).some(
+    (shaft) =>
+      shaft.depth >= minimumDepth &&
+      col >= shaft.col &&
+      col < shaft.col + shaft.width &&
+      row >= shaft.row &&
+      row < shaft.row + shaft.length,
+  );
+}
+
+/** Surface cells whose terrain top must be cut away so an access is visible and traversable. */
+export function undergroundSurfaceOpenings(
+  underground: UndergroundMap | undefined,
+  size: number,
+): Uint8Array {
+  const cells = new Uint8Array(size * size);
+  for (const stair of underground?.stairs ?? []) {
+    if (stair.depth !== 1) continue;
+    const footprint = undergroundStairFootprint(stair);
+    for (let row = stair.row; row < stair.row + footprint.rows; row += 1) {
+      for (let col = stair.col; col < stair.col + footprint.cols; col += 1) {
+        cells[row * size + col] = 1;
+      }
+    }
+  }
+  for (const shaft of underground?.shafts ?? []) {
+    for (let row = shaft.row; row < shaft.row + shaft.length; row += 1) {
+      for (let col = shaft.col; col < shaft.col + shaft.width; col += 1) {
+        cells[row * size + col] = 1;
+      }
+    }
+  }
+  return cells;
+}
+
+export function undergroundDepthAtElevation(elevation: number): number | null {
+  if (!Number.isFinite(elevation) || elevation >= -0.6) return null;
+  return Math.max(
+    1,
+    Math.min(MAX_UNDERGROUND_DEPTH, Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT)),
+  );
+}
+
 /** Compile excavated volumes into the finite slabs and walls consumed by shared collision. */
 export function undergroundColliders(underground: UndergroundMap, size: number): ColliderRect[] {
   const colliders: ColliderRect[] = [];
@@ -227,7 +323,9 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
       let start = -1;
       for (let col = run.col; col <= run.col + run.length; col += 1) {
         const open =
-          col >= run.col + run.length || stairCell(underground.stairs, openingDepth, col, run.row);
+          col >= run.col + run.length ||
+          stairCell(underground.stairs, openingDepth, col, run.row) ||
+          undergroundShaftCell(underground.shafts, col, run.row, openingDepth);
         if (!open && start < 0) start = col;
         if (open && start >= 0) {
           colliders.push({
@@ -244,7 +342,15 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
     };
     for (const run of level.cells) {
       addSlabs(run, floorY, level.depth + 1);
-      addSlabs(run, ceilingY, level.depth);
+      // At the surface, the authored heightfield already supplies the walkable top. Keeping the
+      // underground ceiling's collider all the way up to y=0 made a swimmer at the conventional
+      // -0.05 waterline overlap that slab even though they were still outside. Its underside is
+      // the actual underground boundary; deeper ceilings coincide with the floor above.
+      addSlabs(
+        run,
+        level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
+        level.depth,
+      );
     }
     const occupied = (col: number, row: number): boolean =>
       col >= 0 && row >= 0 && col < size && row < size && cells[row * size + col] !== 0;
@@ -258,7 +364,7 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
             col < size &&
             occupied(col, row) &&
             !occupied(col, row + dz) &&
-            !stairMouth(underground.stairs, level.depth, col, row, 0, dz);
+            !undergroundStairMouth(underground.stairs, level.depth, col, row, 0, dz);
           if (exposed && start < 0) start = col;
           if (!exposed && start >= 0) {
             colliders.push({
@@ -267,7 +373,7 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
               w: col - start,
               h: thickness,
               bottom: floorY,
-              top: ceilingY,
+              top: level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
             });
             start = -1;
           }
@@ -283,7 +389,7 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
             row < size &&
             occupied(col, row) &&
             !occupied(col + dx, row) &&
-            !stairMouth(underground.stairs, level.depth, col, row, dx, 0);
+            !undergroundStairMouth(underground.stairs, level.depth, col, row, dx, 0);
           if (exposed && start < 0) start = row;
           if (!exposed && start >= 0) {
             colliders.push({
@@ -292,7 +398,7 @@ export function undergroundColliders(underground: UndergroundMap, size: number):
               w: thickness,
               h: row - start,
               bottom: floorY,
-              top: ceilingY,
+              top: level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
             });
             start = -1;
           }

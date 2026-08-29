@@ -451,6 +451,20 @@ describe("the HD-2D scene's terrain", () => {
     expect(centre).toHaveLength(0);
   });
 
+  it("cuts surface terrain above stairs and direct shafts", () => {
+    const ctx = createHd2dContext();
+    const map: MapData = {
+      ...ground(4),
+      underground: {
+        levels: [{ depth: 1, style: "cave", cells: [{ col: 0, row: 0, length: 4 }] }],
+        stairs: [{ depth: 1, col: 0, row: 0, direction: "east", length: 2, width: 1 }],
+        shafts: [{ col: 3, row: 3, width: 1, length: 1, depth: 1 }],
+      },
+    };
+    const cut = terrainGroupFor(ctx, map, allAtlases());
+    expect(topVertices(cut.group)).toHaveLength((16 - 3) * 4);
+  });
+
   it("centres the grid on the world origin, matching createTerrainQuery", () => {
     const ctx = createHd2dContext();
     const size = 4;

@@ -79,4 +79,45 @@ describe("underground editor tools", () => {
     expect(heightfield?.ramps?.at(-1)).toMatchObject({ lowHeight: -4.8, highHeight: -2.4 });
     expect(toMapData(edited ?? map).underground).toEqual(edited?.underground);
   });
+
+  it("authors a true surface shaft through every storey and removes it when filled", () => {
+    const map = blankMap("Shaft", 12, 12);
+    const dug = applyTool(
+      map,
+      {
+        kind: "underground",
+        operation: "shaft",
+        depth: 4,
+        style: "cave",
+        width: 2,
+        length: 3,
+        direction: "east",
+      },
+      5,
+      4,
+    );
+    expect(dug?.underground?.levels.map((level) => level.depth)).toEqual([1, 2, 3, 4]);
+    expect(dug?.underground?.shafts).toEqual([{ col: 5, row: 4, width: 2, length: 3, depth: 4 }]);
+    const heightfield = dug ? decodeMap(toSaveInput(dug).heightfield) : null;
+    expect(heightfield?.underground?.shafts).toEqual(dug?.underground?.shafts);
+    expect(heightfield?.levels[4 * 12 + 5]).toBe(0);
+
+    const filled = dug
+      ? applyTool(
+          dug,
+          {
+            kind: "underground",
+            operation: "fill",
+            depth: 2,
+            style: "cave",
+            width: 2,
+            length: 3,
+            direction: "east",
+          },
+          5,
+          4,
+        )
+      : null;
+    expect(filled?.underground?.shafts).toBeUndefined();
+  });
 });

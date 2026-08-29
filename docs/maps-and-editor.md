@@ -230,21 +230,27 @@ True underground space is authored separately from the surface heightfield. A ma
 sixteen storeys (`-1` through `-16`), each 2.4 world units below the previous one. Excavated cells
 are stored as compact row runs with one of the existing interior styles; sand, water and grass are
 not underground coatings. The Field palette can excavate a rectangular room/block or long narrow
-tunnel, apply the same footprint through every storey as a deep bulk excavation, refill a volume,
-and place a multi-cell stair flight between the selected storey and the one above. These operations
-are single undo entries and the depth selector also selects the storey rendered by the editor.
+tunnel, cut a true vertical shaft from the surface through every storey down to its selected bottom,
+refill a volume, and place a multi-cell stair flight between the selected storey and the one above.
+These operations are single undo entries. The depth selector also selects the storey rendered by the
+editor, with the surface retained as a translucent alignment reference instead of leaving the author
+to work over an empty background.
 
 Compilation turns each run into finite floor and ceiling slabs plus merged perimeter-wall segments.
-The original level-zero terrain remains above those volumes and is still a walkable surface. Floor
-and ceiling spans are opened only under connecting stairs, whose absolute endpoints span the full
-2.4-unit storey rather than one 0.9-unit terrain tier. Shared terrain queries filter the surface
-terrain by the moving body's vertical ceiling before considering underground platforms, so a hero
-below the map cannot be snapped back onto the ground above. Saved hero positions use the same
-body-bounded lookup on restore. Renderer and collision both consume the compiled underground
-document; gameplay selects the visible storey from the local hero's reported `y`, while the camera
-continues following the sampled stair/floor elevation and therefore descends continuously instead
-of teleporting between views. The editor can address a storey directly without altering gameplay
-state. Canvas padding/cropping shifts underground runs and stairs with every other authored cell.
+The original level-zero terrain remains above ordinary excavated volumes and is still a walkable
+surface. A surface stair or shaft is different: its footprint cuts the terrain top visibly, while a
+shaft also removes surface support without being misread as water. Floor and ceiling spans open
+under connecting stairs and through every intermediate shaft storey, retaining only the shaft's
+bottom floor. Stair endpoints span the full 2.4-unit storey rather than one 0.9-unit terrain tier.
+Shared terrain queries filter the surface terrain by the moving body's vertical ceiling before
+considering underground platforms, so a hero below the map cannot be snapped back onto the ground
+above. Saved hero positions use the same body-bounded lookup on restore. Renderer and collision both
+consume the compiled underground document; visual walls use the same stair-mouth rule as collision,
+and surface scenery/actors from another storey are culled during descent. Gameplay selects the
+visible storey from the local hero's reported `y`, while the camera continues following the sampled
+stair/floor elevation and therefore descends continuously instead of teleporting between views. The
+editor can address a storey directly without altering gameplay state. Canvas padding/cropping shifts
+underground runs, stairs and shafts with every other authored cell.
 
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
