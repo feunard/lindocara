@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 import {
+  cameraDistanceBeforeTerrain,
   cameraFocusSurface,
   editorGroundPickPoint,
   heightFieldFor,
@@ -528,6 +529,37 @@ describe("the HD-2D scene's terrain", () => {
     expect(lowerTerrain).not.toBeNull();
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, true)).toBe(1.35);
     expect(cameraFocusSurface(query, map.waterLevel, 0, 0, 1.35, false)).toBe(lowerTerrain);
+  });
+
+  it("pulls the orbit camera in front of raised terrain behind its target", () => {
+    const size = 16;
+    const clear = ground(size);
+    const blocked = {
+      ...clear,
+      levels: clear.levels.map((level, index) =>
+        Math.floor(index / size) === size / 2 + 2 ? 10 : level,
+      ),
+    };
+    const target = { x: 0, y: 1.2, z: 0 };
+    const offset = { x: 0, y: 24.6, z: 31.5 };
+    const distance = 40;
+
+    expect(
+      cameraDistanceBeforeTerrain(
+        createTerrainQuery(mapToQuerySource(clear)),
+        target,
+        offset,
+        distance,
+      ),
+    ).toBe(distance);
+    expect(
+      cameraDistanceBeforeTerrain(
+        createTerrainQuery(mapToQuerySource(blocked)),
+        target,
+        offset,
+        distance,
+      ),
+    ).toBeLessThan(distance);
   });
 });
 

@@ -667,6 +667,41 @@ export function cameraOrbitOffset(
   };
 }
 
+const CAMERA_TERRAIN_PROBE_STEP = 0.5;
+const CAMERA_TERRAIN_NEAR = 1.25;
+const CAMERA_TERRAIN_MARGIN = 0.35;
+
+/**
+ * Pulls a followed camera in front of raised terrain lying between it and its target. Sampling the
+ * authoritative terrain query keeps this independent from mesh/atlas batching and preserves the
+ * requested yaw and pitch: only the distance changes.
+ */
+export function cameraDistanceBeforeTerrain(
+  query: TerrainQuery,
+  target: { x: number; y: number; z: number },
+  offset: { x: number; y: number; z: number },
+  requestedDistance: number,
+): number {
+  if (!Number.isFinite(requestedDistance) || requestedDistance <= CAMERA_TERRAIN_NEAR) {
+    return Math.max(0, requestedDistance);
+  }
+  for (
+    let travelled = CAMERA_TERRAIN_NEAR;
+    travelled <= requestedDistance;
+    travelled += CAMERA_TERRAIN_PROBE_STEP
+  ) {
+    const progress = travelled / requestedDistance;
+    const x = target.x + offset.x * progress;
+    const y = target.y + offset.y * progress;
+    const z = target.z + offset.z * progress;
+    const terrainY = query.maxHeightAround(x, z, 0.18);
+    if (terrainY + CAMERA_TERRAIN_MARGIN >= y) {
+      return Math.max(0.75, travelled - CAMERA_TERRAIN_MARGIN);
+    }
+  }
+  return requestedDistance;
+}
+
 /**
  * Builds the scene.
  *
@@ -950,6 +985,7 @@ export function createHd2dScene(
   let focus: { x: number; z: number; elevation?: number; airborne?: boolean } | null = null;
   let focusReached = false;
   let cameraDistance = CAMERA.distance;
+  let framedCameraDistance: number = cameraDistance;
   let cameraYaw = 0;
   let cameraPitch = CAMERA.pitch;
   const wantedTarget = new THREE.Vector3();
@@ -962,10 +998,25 @@ export function createHd2dScene(
   };
   clampCameraTo(map.size);
 
-  function frameCamera(): void {
+  function frameCamera(recoveryDt = 0): void {
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
-    const distance = cameraDistance;
+    const requestedOffset = cameraOrbitOffset(cameraYaw, cameraDistance, cameraPitch);
+    const clearDistance =
+      viewedUndergroundDepth === null && (currentMap.environment ?? "exterior") === "exterior"
+        ? cameraDistanceBeforeTerrain(query, target, requestedOffset, cameraDistance)
+        : cameraDistance;
+    if (clearDistance < framedCameraDistance) framedCameraDistance = clearDistance;
+    else {
+      const safeDt = THREE.MathUtils.clamp(recoveryDt, 0, 0.1);
+      framedCameraDistance = THREE.MathUtils.lerp(
+        framedCameraDistance,
+        clearDistance,
+        1 - Math.exp(-5 * safeDt),
+      );
+    }
+    framedCameraDistance = Math.min(framedCameraDistance, cameraDistance);
+    const distance = framedCameraDistance;
     const offset = cameraOrbitOffset(cameraYaw, distance, cameraPitch);
     camera.position.set(target.x + offset.x, target.y + offset.y, target.z + offset.z);
     camera.lookAt(target);
@@ -1196,6 +1247,7 @@ export function createHd2dScene(
     setZoom(percent: number): void {
       const safePercent = THREE.MathUtils.clamp(percent, 2, 250);
       cameraDistance = (CAMERA.distance * 100) / safePercent;
+      framedCameraDistance = Math.min(framedCameraDistance, cameraDistance);
       frameCamera();
     },
     setYaw(radians: number): void {
@@ -1294,7 +1346,7 @@ export function createHd2dScene(
           target.copy(wantedTarget);
           focusReached = true;
         }
-        frameCamera();
+        frameCamera(dt);
       }
       cycle = mapDayCycleAt(Date.now(), cycleKey, cycleOverride);
       mood.set(cycle.nightWeight);
