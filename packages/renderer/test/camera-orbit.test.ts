@@ -63,6 +63,34 @@ describe("camera orbit input", () => {
     tracker.stop();
   });
 
+  it("makes the right stick follow left/right and up/down naturally", () => {
+    const axes = [0, 0, 1, 0];
+    const gamepad = {
+      axes,
+      buttons: [],
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const tracker = trackCameraOrbit(document.createElement("canvas"));
+
+    expect(tracker.takeSample(0.1).yawDelta).toBeLessThan(0);
+    axes[2] = -1;
+    expect(tracker.takeSample(0.1).yawDelta).toBeGreaterThan(0);
+    axes[2] = 0;
+    axes[3] = -1;
+    expect(tracker.takeSample(0.1).pitchDelta).toBeLessThan(0);
+    axes[3] = 1;
+    expect(tracker.takeSample(0.1).pitchDelta).toBeGreaterThan(0);
+
+    tracker.stop();
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: original });
+  });
+
   it("keeps a full horizontal orbit instead of returning to the default heading", () => {
     expect(cameraYawAfterDelta(0, Math.PI)).toBeCloseTo(Math.PI);
     expect(cameraYawAfterDelta(Math.PI, Math.PI / 2)).toBeCloseTo(-Math.PI / 2);

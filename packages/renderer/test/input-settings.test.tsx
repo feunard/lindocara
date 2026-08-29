@@ -55,14 +55,14 @@ describe("input remapping", () => {
     expect(gamepad.item3).toEqual([{ kind: "button", index: 15 }]);
     expect(gamepad.inventory).toEqual([{ kind: "button", index: 13 }]);
     expect(gamepad.jump).toEqual([{ kind: "button", index: 0 }]);
-    expect(gamepad.skill1).toEqual([{ kind: "button", index: 6 }]);
+    expect(gamepad.skill1).toEqual([{ kind: "button", index: 7 }]);
     expect(gamepad.skill2).toEqual([{ kind: "button", index: 2 }]);
     expect(gamepad.skill3).toEqual([{ kind: "button", index: 3 }]);
     expect(gamepad.skill4).toEqual([{ kind: "button", index: 1 }]);
     expect(gamepad.skill5).toEqual([{ kind: "button", index: 11 }]);
     expect(gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
     expect(gamepad.release).toEqual([{ kind: "button", index: 9 }]);
-    expect(gamepad.chat).toEqual([{ kind: "button", index: 7 }]);
+    expect(gamepad.chat).toEqual([{ kind: "button", index: 10 }]);
     expect(gamepad.settings).toEqual([{ kind: "button", index: 9 }]);
   });
 

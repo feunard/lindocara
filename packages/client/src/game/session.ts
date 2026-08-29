@@ -72,6 +72,7 @@ import {
   mapDayCycleAt,
 } from "@lindocara/renderer/hd2d/day-cycle.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
+import { getInputMode } from "@lindocara/renderer/input-settings.js";
 import {
   CAMERA_PITCH_DEFAULT,
   cameraZoomAfterWheel,
@@ -94,6 +95,7 @@ import { getGameNavigation } from "../state/navigation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { leaveAdventureTest } from "./adventure-test.js";
 import {
+  cameraFollowsMovement,
   cameraFollowDirection,
   cameraPitchAfterModeDelta,
   cameraSlopePitchOffset,
@@ -1478,7 +1480,12 @@ async function startGameIdentity(
       const deltaZ = self.z - currentSelf.z;
       const horizontalDistance = Math.hypot(deltaX, deltaZ);
       const followDirection = cameraFollowDirection(movementInput, cameraYaw);
-      if (now >= cameraFollowResumeAt && horizontalDistance >= 0.0001 && followDirection) {
+      if (
+        cameraFollowsMovement(getInputMode()) &&
+        now >= cameraFollowResumeAt &&
+        horizontalDistance >= 0.0001 &&
+        followDirection
+      ) {
         const followedYaw = cameraYawAfterMovement(
           cameraYaw,
           followDirection.x,

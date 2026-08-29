@@ -2,6 +2,7 @@ import { CAMERA_PARTIAL_YAW_LIMIT } from "@lindocara/renderer/input.js";
 import { describe, expect, it } from "vitest";
 
 import {
+  cameraFollowsMovement,
   cameraFollowDirection,
   cameraPitchAfterModeDelta,
   cameraSlopePitchOffset,
@@ -10,6 +11,10 @@ import {
 } from "../src/game/camera-policy.js";
 
 describe("adventure camera policy", () => {
+  it("leaves gamepad heading entirely to the right stick", () => {
+    expect(cameraFollowsMovement("gamepad")).toBe(false);
+    expect(cameraFollowsMovement("keyboard")).toBe(true);
+  });
   it("allows full yaw and bounded pitch when orbit mode is enabled", () => {
     expect(cameraYawAfterModeDelta("orbit", 0, Math.PI)).toBeCloseTo(Math.PI);
     expect(cameraPitchAfterModeDelta("orbit", Math.PI / 4, 0.1)).toBeCloseTo(Math.PI / 4 + 0.1);

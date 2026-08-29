@@ -42,7 +42,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 7;
+const INPUT_BINDINGS_VERSION = 8;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const HERO_DIRECTION_CONTROLS = ["moveUp", "moveDown", "moveLeft", "moveRight"] as const;
 const listeners = new Set<() => void>();
@@ -87,7 +87,8 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     moveRight: [{ kind: "axis", index: 0, direction: 1 }],
     // Standard button 0 is the physical south face button: Xbox A, PlayStation Cross, Switch B.
     jump: [{ kind: "button", index: 0 }],
-    skill1: [{ kind: "button", index: 6 }],
+    // Standard button 7 is the analogue right trigger on Xbox/PlayStation-compatible mappings.
+    skill1: [{ kind: "button", index: 7 }],
     skill2: [{ kind: "button", index: 2 }],
     skill3: [{ kind: "button", index: 3 }],
     skill4: [{ kind: "button", index: 1 }],
@@ -104,7 +105,7 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     talents: [{ kind: "button", index: 5 }],
     inventory: [{ kind: "button", index: 13 }],
     quests: [{ kind: "button", index: 18 }],
-    chat: [{ kind: "button", index: 7 }],
+    chat: [{ kind: "button", index: 10 }],
     settings: [{ kind: "button", index: 9 }],
   },
 };
@@ -349,6 +350,18 @@ function loadSettings(): InputSettings {
           ...binding,
         }));
         fallback.gamepad.settings = DEFAULT_INPUT_SETTINGS.gamepad.settings.map((binding) => ({
+          ...binding,
+        }));
+      }
+      const storedSkill1 = validGamepadBindings(parsed.gamepad?.skill1);
+      const storedChat = validGamepadBindings(parsed.gamepad?.chat);
+      if (storedSkill1 && sameGamepadBindings(storedSkill1, [{ kind: "button", index: 6 }])) {
+        fallback.gamepad.skill1 = DEFAULT_INPUT_SETTINGS.gamepad.skill1.map((binding) => ({
+          ...binding,
+        }));
+      }
+      if (storedChat && sameGamepadBindings(storedChat, [{ kind: "button", index: 7 }])) {
+        fallback.gamepad.chat = DEFAULT_INPUT_SETTINGS.gamepad.chat.map((binding) => ({
           ...binding,
         }));
       }

@@ -52,7 +52,7 @@ describe("controller default migration", () => {
     expect(gamepad.moveLeft).toEqual([{ kind: "axis", index: 0, direction: -1 }]);
     expect(gamepad.moveRight).toEqual([{ kind: "axis", index: 0, direction: 1 }]);
     expect(gamepad.jump).toEqual([{ kind: "button", index: 0 }]);
-    expect(gamepad.skill1).toEqual([{ kind: "button", index: 6 }]);
+    expect(gamepad.skill1).toEqual([{ kind: "button", index: 7 }]);
     expect(gamepad.skill4).toEqual([{ kind: "button", index: 1 }]);
     expect(gamepad.skill5).toEqual([{ kind: "button", index: 11 }]);
     expect(gamepad.interact).toEqual([{ kind: "button", index: 0 }]);
@@ -60,7 +60,7 @@ describe("controller default migration", () => {
     expect(gamepad.item2).toEqual([{ kind: "button", index: 12 }]);
     expect(gamepad.item3).toEqual([{ kind: "button", index: 15 }]);
     expect(gamepad.inventory).toEqual([{ kind: "button", index: 13 }]);
-    expect(gamepad.chat).toEqual([{ kind: "button", index: 7 }]);
+    expect(gamepad.chat).toEqual([{ kind: "button", index: 10 }]);
   });
 
   it("moves untouched version 4 arrows to items and shares interaction with jump", async () => {

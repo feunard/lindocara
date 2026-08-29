@@ -1,5 +1,6 @@
 import type { AdventureCameraMode } from "@lindocara/engine/adventure.js";
 import type { Input } from "@lindocara/engine/simulation.js";
+import type { InputMode } from "@lindocara/renderer/input-settings.js";
 import {
   cameraPartialYawAfterDelta,
   cameraPitchAfterDelta,
@@ -11,6 +12,11 @@ const CAMERA_SLOPE_FOLLOW_SPEED = 9;
 const CAMERA_SLOPE_RETURN_SPEED = 5;
 const CAMERA_SLOPE_UP_MAX = 5 * (Math.PI / 180);
 const CAMERA_SLOPE_DOWN_MAX = -3 * (Math.PI / 180);
+
+/** The right stick owns a gamepad camera; keyboard movement retains the assisted heading. */
+export function cameraFollowsMovement(inputMode: InputMode): boolean {
+  return inputMode !== "gamepad";
+}
 
 /** Applies the adventure's authored horizontal camera policy. */
 export function cameraYawAfterModeDelta(

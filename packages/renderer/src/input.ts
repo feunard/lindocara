@@ -242,9 +242,14 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       const yawAxis = Math.abs(axisX) >= Math.abs(axisY) ? axisX : 0;
       const pitchAxis = Math.abs(axisY) > Math.abs(axisX) ? axisY : 0;
       const sensitivity = getCameraSettings();
-      const pitchDelta = -cameraOrbitDelta(mouseY, pitchAxis, dt) * sensitivity.verticalSensitivity;
+      // A standard stick reports left/up as negative values. The camera orbits from the opposite
+      // side of its focus, so gamepad axes use the opposite pointer-drag sign: the view follows the
+      // physical direction in which the player pushes the stick.
+      const pitchDelta =
+        (-cameraOrbitDelta(mouseY, 0, dt) + cameraOrbitDelta(0, pitchAxis, dt)) *
+        sensitivity.verticalSensitivity;
       return {
-        yawDelta: cameraOrbitDelta(mouseX, yawAxis, dt) * sensitivity.horizontalSensitivity,
+        yawDelta: cameraOrbitDelta(mouseX, -yawAxis, dt) * sensitivity.horizontalSensitivity,
         pitchDelta: pitchDelta === 0 ? 0 : pitchDelta,
         wheelPixels: wheel,
       };
