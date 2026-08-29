@@ -29,12 +29,24 @@ export interface InteriorShellCellRun {
   length: number;
 }
 
+/** Contiguous unit edges removed from both the rendered shell and its authoritative collision. */
+export interface InteriorShellOpeningRun {
+  side: "north" | "east" | "south" | "west";
+  /** Owning interior cell at the first unit edge. */
+  col: number;
+  row: number;
+  /** Horizontal cells for north/south, vertical cells for east/west. */
+  length: number;
+}
+
 export interface InteriorShell {
   style: InteriorShellStyle;
   /** Camera-facing perimeter walls become a low cutaway. Missing preserves the historical `true`. */
   openOuterWalls?: boolean;
   /** Camera-facing walls painted inside the room become a low cutaway. Missing means `true`. */
   openInnerWalls?: boolean;
+  /** True traversable gaps, shared by perimeter and author-painted inner walls. */
+  openings?: readonly InteriorShellOpeningRun[];
   /**
    * Sparse architectural mask, independent from the visible terrain.
    *
@@ -56,6 +68,7 @@ export function parseInteriorShell(value: unknown): InteriorShell | null {
     style?: unknown;
     openOuterWalls?: unknown;
     openInnerWalls?: unknown;
+    openings?: unknown;
     innerWalls?: unknown;
   };
   const style = record.style;
@@ -69,7 +82,42 @@ export function parseInteriorShell(value: unknown): InteriorShell | null {
     ...(record.openOuterWalls === undefined ? {} : { openOuterWalls: record.openOuterWalls }),
     ...(record.openInnerWalls === undefined ? {} : { openInnerWalls: record.openInnerWalls }),
   };
-  if (record.innerWalls === undefined) return { style: style as InteriorShellStyle, ...options };
+  let openings: InteriorShellOpeningRun[] | undefined;
+  if (record.openings !== undefined) {
+    if (!Array.isArray(record.openings) || record.openings.length > 65_536) return null;
+    openings = [];
+    let openingEdges = 0;
+    for (const candidate of record.openings) {
+      if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate))
+        return null;
+      const run = candidate as { side?: unknown; col?: unknown; row?: unknown; length?: unknown };
+      if (
+        typeof run.side !== "string" ||
+        !(["north", "east", "south", "west"] as readonly string[]).includes(run.side) ||
+        !Number.isSafeInteger(run.col) ||
+        !Number.isSafeInteger(run.row) ||
+        !Number.isSafeInteger(run.length) ||
+        (run.col as number) < 0 ||
+        (run.row as number) < 0 ||
+        (run.length as number) <= 0 ||
+        (run.side === "north" || run.side === "south"
+          ? (run.col as number) + (run.length as number) > 256 || (run.row as number) >= 256
+          : (run.row as number) + (run.length as number) > 256 || (run.col as number) >= 256)
+      )
+        return null;
+      openingEdges += run.length as number;
+      if (openingEdges > 65_536) return null;
+      openings.push({
+        side: run.side as InteriorShellOpeningRun["side"],
+        col: run.col as number,
+        row: run.row as number,
+        length: run.length as number,
+      });
+    }
+  }
+  const openingOptions = openings === undefined ? {} : { openings };
+  if (record.innerWalls === undefined)
+    return { style: style as InteriorShellStyle, ...options, ...openingOptions };
   if (!Array.isArray(record.innerWalls) || record.innerWalls.length > 65_536) return null;
   const innerWalls: InteriorShellCellRun[] = [];
   let innerWallCells = 0;
@@ -96,5 +144,5 @@ export function parseInteriorShell(value: unknown): InteriorShell | null {
       length: run.length as number,
     });
   }
-  return { style: style as InteriorShellStyle, ...options, innerWalls };
+  return { style: style as InteriorShellStyle, ...options, ...openingOptions, innerWalls };
 }

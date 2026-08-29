@@ -351,6 +351,14 @@ export function decodeMap(s: string): MapData | null {
     )
   )
     return null;
+  if (
+    interiorShell?.openings?.some((run) =>
+      run.side === "north" || run.side === "south"
+        ? run.row >= (size as number) || run.col + run.length > (size as number)
+        : run.col >= (size as number) || run.row + run.length > (size as number),
+    )
+  )
+    return null;
   if (!isFiniteNumber(levelHeight) || !isFiniteNumber(waterLevel)) return null;
 
   const cells = (size as number) * (size as number);

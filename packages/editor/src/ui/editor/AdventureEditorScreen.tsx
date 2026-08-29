@@ -161,7 +161,14 @@ type StageStatus = "loading" | "empty" | "ready" | "error";
 /** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no toolbar button —
  *  they are picked in the palette or the EV slot — so the toolbar highlights only its six canvas
  *  tools. */
-type ToolKey = EditorPaintTool | "stairs" | "spawn" | "event" | "link";
+type ToolKey =
+  | EditorPaintTool
+  | "stairs"
+  | "spawn"
+  | "event"
+  | "link"
+  | "wall-opening"
+  | "wall-closing";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -564,6 +571,7 @@ function AdventureEditorInner({
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [linkPending, setLinkPending] = useState(false);
+  const [wallOpeningPending, setWallOpeningPending] = useState(false);
   const [savingMap, setSavingMap] = useState(false);
   const [buildingInteriorBusy, setBuildingInteriorBusy] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -788,6 +796,9 @@ function AdventureEditorInner({
         // first door lives in the stage between the two clicks, and the palette has to say whether
         // that click registered instead of leaving the author to guess.
         setLinkPending(state.linkAnchor !== null);
+        setWallOpeningPending(
+          state.wallOpeningAnchor !== null && state.wallOpeningAnchor !== undefined,
+        );
         setPendingTeleportOrigin(state.pendingTeleportOrigin ?? null);
         // C7: a new rejection count flashes the "can't place here" hint, restarting its timer even
         // if the previous flash is still fading (see the `placementHint` state declaration above).
@@ -955,6 +966,12 @@ function AdventureEditorInner({
     setToolKey("spawn");
     setSelectedAsset(null);
     pushTool({ kind: "spawn" });
+  }
+
+  function selectWallOpening(operation: "open" | "close"): void {
+    setToolKey(operation === "open" ? "wall-opening" : "wall-closing");
+    setSelectedAsset(null);
+    pushTool({ kind: "wall-opening", operation });
   }
 
   function selectAsset(assetId: EditorAssetId): void {
@@ -1797,9 +1814,13 @@ function AdventureEditorInner({
     ? t("editor.inspector.element")
     : toolKey === null
       ? t("editor.inspector.element")
-      : isPaintToolKey(toolKey) || toolKey === "stairs"
-        ? toolLabelText(toolKey)
-        : t(`editor.tool.${toolKey}`);
+      : toolKey === "wall-opening"
+        ? t("editor.wallOpening.open")
+        : toolKey === "wall-closing"
+          ? t("editor.wallOpening.close")
+          : isPaintToolKey(toolKey) || toolKey === "stairs"
+            ? toolLabelText(toolKey)
+            : t(`editor.tool.${toolKey}`);
 
   // The live map the inspector reads its selected marker's fields off — the handle's current edits
   // while a stage is mounted, else whatever payload is loaded. Read in render so a new selection
@@ -1943,9 +1964,14 @@ function AdventureEditorInner({
                 terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
                 stairsActive: toolKey === "stairs",
                 spawnActive: toolKey === "spawn",
+                interior: currentMap?.environment === "interior",
+                wallOpeningOperation:
+                  toolKey === "wall-opening" ? "open" : toolKey === "wall-closing" ? "close" : null,
+                wallOpeningPending,
                 onPickContent: pickContent,
                 onSelectStairs: () => selectTool("stairs"),
                 onSelectSpawn: selectSpawn,
+                onSelectWallOpening: selectWallOpening,
               }}
               element={{
                 selectedAsset,

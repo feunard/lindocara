@@ -1,4 +1,5 @@
 import {
+  applyInteriorShellSetting,
   applyTool,
   blankMap,
   canvasEditorMap,
@@ -832,6 +833,45 @@ describe("HD-2D map editor stage", () => {
     stage.undo();
     expect(stage.current().events).toEqual([]);
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
+
+  it("opens a variable-width physical passage over two wall clicks", async () => {
+    const changes = vi.fn();
+    const room = applyInteriorShellSetting(blankMap("Room", 20, 15), "interior", {
+      style: "castle",
+    });
+    const stage = await openMapEditorStage(room, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -6.5, z: 5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+
+    stage.setTool({ kind: "wall-opening", operation: "open" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(stage.current().interiorShell?.openings).toBeUndefined();
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        wallOpeningAnchor: { side: "south", col: 3, row: 14, length: 1 },
+        canUndo: false,
+      }),
+    );
+
+    point.x = -3.5;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(stage.current().interiorShell?.openings).toEqual([
+      { side: "south", col: 3, row: 14, length: 4 },
+    ]);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ wallOpeningAnchor: null, canUndo: true, dirty: true }),
+    );
+
+    stage.undo();
+    expect(stage.current().interiorShell?.openings).toBeUndefined();
     stage.dispose();
   });
 

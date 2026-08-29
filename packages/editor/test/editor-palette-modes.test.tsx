@@ -17,11 +17,15 @@ function fieldBody() {
     stairsDirection: "east" as const,
     stairsLowLevel: 0 as const,
     spawnActive: false,
+    interior: true,
+    wallOpeningOperation: null,
+    wallOpeningPending: false,
     onPickContent: () => {},
     onSelectStairs: () => {},
     onStairsDirectionChange: () => {},
     onStairsLowLevelChange: () => {},
     onSelectSpawn: () => {},
+    onSelectWallOpening: () => {},
   };
 }
 
@@ -84,6 +88,7 @@ describe("mode-scoped palette", () => {
     // "grass" in their allowed-terrain caption (e.g. tree3, bushe1), which a loose /grass/i
     // match would also hit and turn this into a false negative once Element mode is rendered.
     expect(screen.getByRole("button", { name: t("editor.tool.grass") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("editor.wallOpening.open") })).toBeInTheDocument();
     expect(screen.queryByTestId("catalogue-picker")).toBeNull();
   });
 

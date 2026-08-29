@@ -168,6 +168,7 @@ describe("parsing a map off the wire", () => {
             style: "volcano",
             openOuterWalls: false,
             openInnerWalls: true,
+            openings: [{ side: "south", col: 0, row: 1, length: 2 }],
             innerWalls: [{ col: 0, row: 0, length: 2 }],
           },
         }),
@@ -176,6 +177,7 @@ describe("parsing a map off the wire", () => {
       style: "volcano",
       openOuterWalls: false,
       openInnerWalls: true,
+      openings: [{ side: "south", col: 0, row: 1, length: 2 }],
       innerWalls: [{ col: 0, row: 0, length: 2 }],
     });
     expect(parseMapData(wire({ interiorShell: { style: "castle" } }))).toBeNull();
@@ -192,6 +194,17 @@ describe("parsing a map off the wire", () => {
         wire({
           environment: "interior",
           interiorShell: { style: "castle", innerWalls: [{ col: 1, row: 0, length: 2 }] },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseMapData(
+        wire({
+          environment: "interior",
+          interiorShell: {
+            style: "castle",
+            openings: [{ side: "south", col: 1, row: 1, length: 2 }],
+          },
         }),
       ),
     ).toBeNull();

@@ -36,6 +36,10 @@ import {
 } from "@lindocara/engine/hd2d/authored-map.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData as CompiledMapData } from "@lindocara/engine/hd2d/map-data.js";
+import {
+  interiorShellOpeningBetween,
+  interiorShellOpeningEdgeAt,
+} from "@lindocara/engine/interior-shell.js";
 import { derivedMapRect, type MapRect } from "@lindocara/engine/map-canvas.js";
 import {
   ELEMENT_OFFSET_STEPS,
@@ -46,7 +50,11 @@ import {
   type MapElement,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
-import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
+import type {
+  InteriorShell,
+  InteriorShellOpeningRun,
+  MapEnvironment,
+} from "@lindocara/engine/map-environment.js";
 import {
   MAX_EVENTS_PER_MAP,
   MAX_RUNTIME_EVENTS_PER_MAP,
@@ -85,6 +93,7 @@ import type {
 } from "./editor-state.js";
 import {
   adjustTerrainToolElevation,
+  applyInteriorWallOpening,
   applyInteriorShellSetting,
   applyTool,
   beginEventDraft,
@@ -183,6 +192,8 @@ export interface MapEditorStageState {
   linkAnchor: { col: number; row: number } | null;
   /** First cell of an in-progress reciprocal teleporter placement. */
   pendingTeleportOrigin?: { col: number; row: number } | null;
+  /** First wall edge of an in-progress variable-width opening. */
+  wallOpeningAnchor?: InteriorShellOpeningRun | null;
 }
 
 export function defaultDimForMode(mode: EditorMode): boolean {
@@ -223,6 +234,19 @@ function selectionPoint(map: EditorMap, selection: EditorSelection | null) {
     return { x: map.spawn.col + 0.5 - size / 2, z: map.spawn.row + 0.5 - size / 2 };
   }
   return authoredElementGroundPoint(selection, size);
+}
+
+function wallOpeningPoint(edge: InteriorShellOpeningRun, size: number): { x: number; z: number } {
+  switch (edge.side) {
+    case "north":
+      return { x: edge.col + 0.5 - size / 2, z: edge.row - size / 2 };
+    case "south":
+      return { x: edge.col + 0.5 - size / 2, z: edge.row + 1 - size / 2 };
+    case "east":
+      return { x: edge.col + 1 - size / 2, z: edge.row + 0.5 - size / 2 };
+    case "west":
+      return { x: edge.col - size / 2, z: edge.row + 0.5 - size / 2 };
+  }
 }
 
 export type BuildingResizeAxis = "width" | "depth";
@@ -630,6 +654,7 @@ export function openMapEditorStage(
     let revision = 0;
     let placementRejections = 0;
     let pendingTeleportOrigin: { col: number; row: number } | null = null;
+    let wallOpeningFrom: InteriorShellOpeningRun | null = null;
     let hover: { col: number; row: number; offsetX: number; offsetY: number } | null = null;
     let painting = false;
     let panning = false;
@@ -876,14 +901,16 @@ export function openMapEditorStage(
       // A pending link owns the selection highlight: the first door IS what the author has picked,
       // and there is no element or event selection worth showing in the middle of the two clicks.
       const pendingLink = pendingTeleportOrigin ?? linkFrom;
-      const focusSelection = pendingLink
-        ? {
-            x: pendingLink.col + 0.5 - size / 2,
-            z: pendingLink.row + 0.5 - size / 2,
-          }
-        : highlightedEventId
-          ? selectionPoint(map, { kind: "event", id: highlightedEventId })
-          : selectionPoint(map, selected);
+      const focusSelection = wallOpeningFrom
+        ? wallOpeningPoint(wallOpeningFrom, size)
+        : pendingLink
+          ? {
+              x: pendingLink.col + 0.5 - size / 2,
+              z: pendingLink.row + 0.5 - size / 2,
+            }
+          : highlightedEventId
+            ? selectionPoint(map, { kind: "event", id: highlightedEventId })
+            : selectionPoint(map, selected);
       const hoverPoint = hover
         ? history.activeMode === "element"
           ? authoredElementGroundPoint(hover, size)
@@ -1062,6 +1089,7 @@ export function openMapEditorStage(
         placementRejectedAt: placementRejections > 0 ? placementRejections : null,
         linkAnchor: linkFrom,
         pendingTeleportOrigin,
+        wallOpeningAnchor: wallOpeningFrom,
       });
     };
 
@@ -1171,6 +1199,58 @@ export function openMapEditorStage(
     };
 
     const paintAt = (clientX: number, clientY: number, isStrokeStart: boolean): void => {
+      // A passage is defined by two wall edges, not by the floor cell under the cursor. Handle it
+      // before `placementAt`: an outer wall lies exactly on the document edge, whose far half is no
+      // longer a floor cell. The first click anchors; the second writes one undoable span.
+      if (tool.kind === "wall-opening") {
+        if (!isStrokeStart) return;
+        const shell = map.interiorShell;
+        const point = renderer.screenToWorld(clientX, clientY);
+        const heightfield = compiled();
+        const edge =
+          shell && point
+            ? interiorShellOpeningEdgeAt(
+                heightfield.size,
+                heightfield.levels,
+                heightfield.materials,
+                shell,
+                point.x,
+                point.z,
+                heightfield.liquidLevels,
+              )
+            : null;
+        if (!edge) {
+          placementRejections += 1;
+          notify();
+          return;
+        }
+        if (!wallOpeningFrom) {
+          wallOpeningFrom = edge;
+          selected = null;
+          drawOverlay(heightfield);
+          notify();
+          return;
+        }
+        const opening = interiorShellOpeningBetween(wallOpeningFrom, edge);
+        if (!opening) {
+          placementRejections += 1;
+          notify();
+          return;
+        }
+        const previous = map;
+        const next = applyInteriorWallOpening(map, opening, tool.operation);
+        if (!next || next === map) {
+          placementRejections += 1;
+          notify();
+          return;
+        }
+        map = next;
+        wallOpeningFrom = null;
+        strokeRedraw(previous);
+        notify();
+        return;
+      }
+
       const placement = placementAt(clientX, clientY);
       if (!placement) return;
       const { col, row, offsetX, offsetY } = placement;
@@ -1730,6 +1810,7 @@ export function openMapEditorStage(
         // A door picked under the link tool means nothing under any other tool, and a stale anchor
         // would silently pair the author's next link with a door they picked minutes ago.
         if (next.kind !== "link") linkFrom = null;
+        wallOpeningFrom = null;
         renderer.setEditorPreviewAsset(editorToolPreviewAssetId(tool));
         refreshCursor();
         drawOverlay();
@@ -1737,6 +1818,7 @@ export function openMapEditorStage(
       },
       setActiveMode(mode) {
         pendingTeleportOrigin = null;
+        if (mode !== "field") wallOpeningFrom = null;
         history = setActiveMode(history, mode);
         const matches =
           (mode === "field" && selected?.kind === "spawn") ||
@@ -1815,8 +1897,7 @@ export function openMapEditorStage(
         const interiorShell = environment === "interior" ? shell : undefined;
         if (
           environment === map.environment &&
-          interiorShell?.style === map.interiorShell?.style &&
-          (interiorShell !== undefined) === (map.interiorShell !== undefined)
+          JSON.stringify(interiorShell) === JSON.stringify(map.interiorShell)
         ) {
           return;
         }
@@ -1845,8 +1926,9 @@ export function openMapEditorStage(
       },
       undo() {
         stopStroke();
-        const cancelledTeleport = pendingTeleportOrigin !== null;
+        const cancelledTeleport = pendingTeleportOrigin !== null || wallOpeningFrom !== null;
         pendingTeleportOrigin = null;
+        wallOpeningFrom = null;
         const previousRect = derivedRect();
         const next = undoEditorHistory(history);
         if (next === history) {
@@ -1870,8 +1952,9 @@ export function openMapEditorStage(
       },
       redo() {
         stopStroke();
-        const cancelledTeleport = pendingTeleportOrigin !== null;
+        const cancelledTeleport = pendingTeleportOrigin !== null || wallOpeningFrom !== null;
         pendingTeleportOrigin = null;
+        wallOpeningFrom = null;
         const previousRect = derivedRect();
         const next = redoEditorHistory(history);
         if (next === history) {

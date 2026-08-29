@@ -1475,6 +1475,12 @@ export const en = {
   "editor.shell.tool.stairs": "Stairs",
   "editor.stairs.hint":
     "Click a ledge, its lower bank, nearby water or flat ground. Stairs choose one of four directions; raised flights reach level zero, while flat or sunken ground is excavated down to level -3.",
+  "editor.wallOpening.heading": "Wall passages",
+  "editor.wallOpening.open": "Create passage",
+  "editor.wallOpening.close": "Close passage",
+  "editor.wallOpening.hint": "Click both ends on the same wall to choose the passage width freely.",
+  "editor.wallOpening.pending": "First end selected: click the second end on the same wall.",
+  "editor.wallOpening.exterior": "Switch the map to interior mode to edit its walls.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",

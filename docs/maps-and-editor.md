@@ -217,6 +217,15 @@ finite heightfield colliders, keeping the visible enclosure and both movement au
 geometry source. Missing cutaway flags preserve the historical open-both behaviour, and omitting
 `interiorShell` preserves older open interiors.
 
+Physical passages are separate authored `interiorShell.openings`. In Field mode, **Create passage**
+records two unit wall edges on the same straight perimeter or inner wall; every edge between the two
+clicks is removed, so authors choose any width in one-cell increments. **Close passage** uses the same
+two-click gesture and restores only that span, including a sub-span of a wider opening. The first
+click is transient and the completed passage is one undo step. Openings follow padding/cropping and
+round-trip through both stored map formats. Unlike camera cutaways, they filter the shared boundary
+runs before rendering and collider compilation, so the visible gap is genuinely traversable for
+both movement authorities.
+
 Content edits deliberately do not rebuild terrain. Moving/resizing a building or bridge and
 adding/removing scenery recompiles only authored content plus its colliders, then diffs the changed
 static visuals in place; event edits reuse the same path while their preview remains dynamic. The

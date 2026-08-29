@@ -62,9 +62,14 @@ interface TerrainPaletteProps {
   stairsActive: boolean;
   /** True while the hero-spawn tool is the active tool, so its palette button reads as pressed. */
   spawnActive: boolean;
+  /** Passages exist only on an interior shell. */
+  interior: boolean;
+  wallOpeningOperation: "open" | "close" | null;
+  wallOpeningPending: boolean;
   onPickContent(content: RectFillContent): void;
   onSelectStairs(): void;
   onSelectSpawn(): void;
+  onSelectWallOpening(operation: "open" | "close"): void;
 }
 
 /**
@@ -83,9 +88,13 @@ export function TerrainPalette({
   terrainActive,
   stairsActive,
   spawnActive,
+  interior,
+  wallOpeningOperation,
+  wallOpeningPending,
   onPickContent,
   onSelectStairs,
   onSelectSpawn,
+  onSelectWallOpening,
 }: TerrainPaletteProps) {
   useLocale();
 
@@ -193,6 +202,37 @@ export function TerrainPalette({
           />
           <p className="text-[10.5px] leading-snug text-zinc-500">{t("editor.stairs.hint")}</p>
         </div>
+        <div
+          data-testid="terrain-wall-openings"
+          className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-2"
+        >
+          <span className="px-1 text-[11.5px] font-medium text-zinc-600">
+            {t("editor.wallOpening.heading")}
+          </span>
+          <div className="grid grid-cols-2 gap-1">
+            <SwatchButton
+              label={t("editor.wallOpening.open")}
+              active={wallOpeningOperation === "open"}
+              disabled={!interior}
+              preview={<WallOpeningPreview open />}
+              onClick={() => onSelectWallOpening("open")}
+            />
+            <SwatchButton
+              label={t("editor.wallOpening.close")}
+              active={wallOpeningOperation === "close"}
+              disabled={!interior}
+              preview={<WallOpeningPreview open={false} />}
+              onClick={() => onSelectWallOpening("close")}
+            />
+          </div>
+          <p className="px-1 text-[10.5px] leading-snug text-zinc-500">
+            {wallOpeningPending
+              ? t("editor.wallOpening.pending")
+              : interior
+                ? t("editor.wallOpening.hint")
+                : t("editor.wallOpening.exterior")}
+          </p>
+        </div>
         <SwatchButton
           label={t("editor.tool.spawn")}
           active={spawnActive}
@@ -204,6 +244,21 @@ export function TerrainPalette({
         </p>
       </div>
     </aside>
+  );
+}
+
+function WallOpeningPreview({ open }: { open: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative size-8 flex-none overflow-hidden rounded border border-black/10 bg-zinc-100"
+    >
+      <span className="absolute top-1/2 left-1 h-2 w-3 -translate-y-1/2 rounded-sm bg-zinc-700" />
+      <span
+        className={`absolute top-1/2 right-1 h-2 -translate-y-1/2 rounded-sm bg-zinc-700 ${open ? "w-3" : "w-6"}`}
+      />
+      {open ? <span className="absolute bottom-1 left-1/2 h-4 w-px bg-emerald-500" /> : null}
+    </span>
   );
 }
 

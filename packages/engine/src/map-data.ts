@@ -810,6 +810,14 @@ export function parseMapData(value: unknown): MapData | null {
   if (width <= 0 || height <= 0) return null;
   if (interiorShell?.innerWalls?.some((run) => run.row >= height || run.col + run.length > width))
     return null;
+  if (
+    interiorShell?.openings?.some((run) =>
+      run.side === "north" || run.side === "south"
+        ? run.row >= height || run.col + run.length > width
+        : run.col >= width || run.row + run.length > height,
+    )
+  )
+    return null;
 
   if (!Array.isArray(layers) || layers.length !== MAP_LAYERS) return null;
   const parsedLayers: TileLayer[] = [];

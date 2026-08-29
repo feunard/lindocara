@@ -1,13 +1,17 @@
 import {
   INTERIOR_SHELL_WALL_HEIGHT,
+  addInteriorShellOpening,
   addInteriorShellInnerWalls,
   filterInteriorShellInnerWalls,
   interiorShellBoundaryRuns,
   interiorShellColliders,
   interiorShellFloorMaterial,
   interiorShellLevels,
+  interiorShellOpeningBetween,
+  interiorShellOpeningEdgeAt,
   interiorShellRunGroups,
   interiorShellRuns,
+  removeInteriorShellOpening,
 } from "@lindocara/engine/interior-shell.js";
 import { describe, expect, it } from "vitest";
 
@@ -160,5 +164,56 @@ describe("interior shell boundary", () => {
     expect(filterInteriorShellInnerWalls({ ...shell, openOuterWalls: false }, () => false)).toEqual(
       { style: "cave", openOuterWalls: false },
     );
+  });
+
+  it("cuts an arbitrary-width passage from rendering and authoritative collision", () => {
+    const levels = Array.from({ length: 9 }, () => 0);
+    const materials = Array.from({ length: 9 }, () => "volcan" as const);
+    const shell = addInteriorShellOpening(
+      { style: "volcano" },
+      { side: "south", col: 0, row: 2, length: 2 },
+    );
+    const runs = interiorShellBoundaryRuns(3, levels, materials, shell);
+
+    expect(runs.filter((run) => run.side === "south")).toEqual([
+      { side: "south", x: 1, z: 1.5, length: 1, level: 0 },
+    ]);
+    expect(interiorShellColliders(runs, 0.5)).toHaveLength(4);
+    expect(interiorShellOpeningEdgeAt(3, levels, materials, shell, -1, 1.5)).toEqual({
+      side: "south",
+      col: 0,
+      row: 2,
+      length: 1,
+    });
+  });
+
+  it("spans two clicks and can close only part of a wider passage", () => {
+    expect(
+      interiorShellOpeningBetween(
+        { side: "north", col: 4, row: 2, length: 1 },
+        { side: "north", col: 1, row: 2, length: 1 },
+      ),
+    ).toEqual({ side: "north", col: 1, row: 2, length: 4 });
+    expect(
+      interiorShellOpeningBetween(
+        { side: "north", col: 1, row: 2, length: 1 },
+        { side: "south", col: 1, row: 2, length: 1 },
+      ),
+    ).toBeNull();
+
+    const opened = addInteriorShellOpening(
+      { style: "castle" },
+      { side: "west", col: 2, row: 1, length: 4 },
+    );
+    const closed = removeInteriorShellOpening(opened, {
+      side: "west",
+      col: 2,
+      row: 2,
+      length: 2,
+    });
+    expect(closed.openings).toEqual([
+      { side: "west", col: 2, row: 1, length: 1 },
+      { side: "west", col: 2, row: 4, length: 1 },
+    ]);
   });
 });

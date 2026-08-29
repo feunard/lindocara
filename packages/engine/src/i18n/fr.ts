@@ -1490,6 +1490,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.tool.stairs": "Escalier",
   "editor.stairs.hint":
     "Cliquez sur un rebord, sa berge basse, l’eau voisine ou un sol plat. L’escalier choisit l’un des quatre sens : un escalier surélevé rejoint le niveau zéro, tandis qu’un sol plat ou creusé descend jusqu’au niveau -3.",
+  "editor.wallOpening.heading": "Passages dans les murs",
+  "editor.wallOpening.open": "Créer un passage",
+  "editor.wallOpening.close": "Refermer",
+  "editor.wallOpening.hint":
+    "Cliquez les deux extrémités sur un même mur pour choisir librement la largeur du passage.",
+  "editor.wallOpening.pending": "Première extrémité choisie : cliquez la seconde sur le même mur.",
+  "editor.wallOpening.exterior": "Passez la carte en mode intérieur pour modifier ses murs.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

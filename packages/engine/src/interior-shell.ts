@@ -1,6 +1,11 @@
 import type { ColliderRect } from "./hd2d/collider-index.js";
 import type { TerrainMaterial } from "./hd2d/terrain-query.js";
-import type { InteriorShell, InteriorShellCellRun, InteriorShellStyle } from "./map-environment.js";
+import type {
+  InteriorShell,
+  InteriorShellCellRun,
+  InteriorShellOpeningRun,
+  InteriorShellStyle,
+} from "./map-environment.js";
 
 export type InteriorShellSide = "north" | "east" | "south" | "west";
 
@@ -16,6 +21,94 @@ export interface InteriorShellRun {
 export const INTERIOR_SHELL_THICKNESS = 0.42;
 export const INTERIOR_SHELL_WALL_HEIGHT = 2.6;
 export const INTERIOR_SHELL_SILL_HEIGHT = 0.34;
+
+function openingUnits(run: InteriorShellOpeningRun): InteriorShellOpeningRun[] {
+  return Array.from({ length: run.length }, (_unused, offset) => ({
+    side: run.side,
+    col: run.col + (run.side === "north" || run.side === "south" ? offset : 0),
+    row: run.row + (run.side === "east" || run.side === "west" ? offset : 0),
+    length: 1,
+  }));
+}
+
+function openingKey(edge: Omit<InteriorShellOpeningRun, "length">): string {
+  return `${edge.side}:${edge.col}:${edge.row}`;
+}
+
+function compactOpeningRuns(edges: readonly InteriorShellOpeningRun[]): InteriorShellOpeningRun[] {
+  const units = new Map<string, InteriorShellOpeningRun>();
+  for (const run of edges) {
+    for (const edge of openingUnits(run)) units.set(openingKey(edge), edge);
+  }
+  const ordered = [...units.values()].sort(
+    (left, right) =>
+      left.side.localeCompare(right.side) || left.row - right.row || left.col - right.col,
+  );
+  const compact: InteriorShellOpeningRun[] = [];
+  for (const edge of ordered) {
+    const previous = compact.at(-1);
+    const horizontal = edge.side === "north" || edge.side === "south";
+    if (
+      previous &&
+      previous.side === edge.side &&
+      (horizontal ? previous.row === edge.row : previous.col === edge.col) &&
+      (horizontal
+        ? previous.col + previous.length === edge.col
+        : previous.row + previous.length === edge.row)
+    ) {
+      previous.length += 1;
+    } else {
+      compact.push({ ...edge });
+    }
+  }
+  return compact;
+}
+
+function sameOpeningRuns(
+  left: readonly InteriorShellOpeningRun[],
+  right: readonly InteriorShellOpeningRun[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((run, index) => {
+      const other = right[index];
+      return (
+        other?.side === run.side &&
+        other.col === run.col &&
+        other.row === run.row &&
+        other.length === run.length
+      );
+    })
+  );
+}
+
+/** Add/merge one traversable wall gap. */
+export function addInteriorShellOpening(
+  shell: InteriorShell,
+  opening: InteriorShellOpeningRun,
+): InteriorShell {
+  const current = shell.openings ?? [];
+  const openings = compactOpeningRuns([...current, opening]);
+  return sameOpeningRuns(current, openings) ? shell : { ...shell, openings };
+}
+
+/** Close only the requested unit edges, splitting wider saved gaps when necessary. */
+export function removeInteriorShellOpening(
+  shell: InteriorShell,
+  closing: InteriorShellOpeningRun,
+): InteriorShell {
+  if (!shell.openings?.length) return shell;
+  const removed = new Set(openingUnits(closing).map(openingKey));
+  const remaining = shell.openings
+    .flatMap(openingUnits)
+    .filter((edge) => !removed.has(openingKey(edge)));
+  if (remaining.length > 0) {
+    const openings = compactOpeningRuns(remaining);
+    return sameOpeningRuns(shell.openings, openings) ? shell : { ...shell, openings };
+  }
+  const { openings: _removed, ...withoutOpenings } = shell;
+  return withoutOpenings;
+}
 
 function normalizedCellRuns(runs: readonly InteriorShellCellRun[]): InteriorShellCellRun[] {
   const byRow = new Map<number, Array<{ start: number; end: number }>>();
@@ -273,6 +366,53 @@ export interface InteriorShellRunGroups {
   inner: readonly InteriorShellRun[];
 }
 
+function openingEdgeForRunUnit(
+  size: number,
+  run: InteriorShellRun,
+  offset: number,
+): InteriorShellOpeningRun {
+  const half = size / 2;
+  const horizontal = run.side === "north" || run.side === "south";
+  const fixed = Math.round((horizontal ? run.z : run.x) + half);
+  const start = Math.round((horizontal ? run.x : run.z) - run.length / 2 + half) + offset;
+  switch (run.side) {
+    case "north":
+      return { side: run.side, col: start, row: fixed, length: 1 };
+    case "south":
+      return { side: run.side, col: start, row: fixed - 1, length: 1 };
+    case "east":
+      return { side: run.side, col: fixed - 1, row: start, length: 1 };
+    case "west":
+      return { side: run.side, col: fixed, row: start, length: 1 };
+  }
+}
+
+function withoutOpenings(
+  size: number,
+  runs: readonly InteriorShellRun[],
+  openings: readonly InteriorShellOpeningRun[],
+): InteriorShellRun[] {
+  if (openings.length === 0) return [...runs];
+  const removed = new Set(openings.flatMap(openingUnits).map(openingKey));
+  const kept: InteriorShellRun[] = [];
+  for (const run of runs) {
+    for (let offset = 0; offset < run.length; offset += 1) {
+      const edge = openingEdgeForRunUnit(size, run, offset);
+      if (removed.has(openingKey(edge))) continue;
+      const horizontal = run.side === "north" || run.side === "south";
+      const along = offset + 0.5 - run.length / 2;
+      kept.push({
+        side: run.side,
+        x: run.x + (horizontal ? along : 0),
+        z: run.z + (horizontal ? 0 : along),
+        length: 1,
+        level: run.level,
+      });
+    }
+  }
+  return mergeBoundaryRuns(size, kept);
+}
+
 /** Unmerged visual groups, so outer and author-painted inner walls can cut away independently. */
 export function interiorShellRunGroups(
   size: number,
@@ -281,14 +421,69 @@ export function interiorShellRunGroups(
   shell: InteriorShell,
   liquidLevels: readonly (number | null)[] = [],
 ): InteriorShellRunGroups {
+  const openings = shell.openings ?? [];
   return {
-    outer: interiorShellRuns(
+    outer: withoutOpenings(
       size,
-      interiorShellLevels(size, levels, materials, shell.style, liquidLevels),
+      interiorShellRuns(
+        size,
+        interiorShellLevels(size, levels, materials, shell.style, liquidLevels),
+      ),
+      openings,
     ),
-    inner: shell.innerWalls
-      ? interiorShellRuns(size, innerWallLevels(size, levels, materials, shell))
-      : [],
+    inner: withoutOpenings(
+      size,
+      shell.innerWalls
+        ? interiorShellRuns(size, innerWallLevels(size, levels, materials, shell))
+        : [],
+      openings,
+    ),
+  };
+}
+
+/** Raw wall edge nearest a world point, including edges currently removed by a saved opening. */
+export function interiorShellOpeningEdgeAt(
+  size: number,
+  levels: readonly (number | null)[],
+  materials: readonly TerrainMaterial[],
+  shell: InteriorShell,
+  x: number,
+  z: number,
+  liquidLevels: readonly (number | null)[] = [],
+): InteriorShellOpeningRun | null {
+  const { openings: _openings, ...raw } = shell;
+  const groups = interiorShellRunGroups(size, levels, materials, raw, liquidLevels);
+  let closest: { edge: InteriorShellOpeningRun; distance: number } | null = null;
+  for (const run of [...groups.outer, ...groups.inner]) {
+    for (let offset = 0; offset < run.length; offset += 1) {
+      const edge = openingEdgeForRunUnit(size, run, offset);
+      const horizontal = run.side === "north" || run.side === "south";
+      const along = offset + 0.5 - run.length / 2;
+      const cx = run.x + (horizontal ? along : 0);
+      const cz = run.z + (horizontal ? 0 : along);
+      const distance = Math.hypot(x - cx, z - cz);
+      if (!closest || distance < closest.distance) closest = { edge, distance };
+    }
+  }
+  return closest && closest.distance <= 0.72 ? closest.edge : null;
+}
+
+/** Span between two clicks on the same straight wall. */
+export function interiorShellOpeningBetween(
+  first: InteriorShellOpeningRun,
+  second: InteriorShellOpeningRun,
+): InteriorShellOpeningRun | null {
+  if (first.side !== second.side) return null;
+  const horizontal = first.side === "north" || first.side === "south";
+  if (horizontal && first.row !== second.row) return null;
+  if (!horizontal && first.col !== second.col) return null;
+  const start = Math.min(horizontal ? first.col : first.row, horizontal ? second.col : second.row);
+  const end = Math.max(horizontal ? first.col : first.row, horizontal ? second.col : second.row);
+  return {
+    side: first.side,
+    col: horizontal ? start : first.col,
+    row: horizontal ? first.row : start,
+    length: end - start + 1,
   };
 }
 

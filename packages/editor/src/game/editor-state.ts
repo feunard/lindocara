@@ -44,9 +44,11 @@ import { compileAuthoredMap, isAuthoredWaterCell } from "@lindocara/engine/hd2d/
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
+  addInteriorShellOpening,
   addInteriorShellInnerWalls,
   filterInteriorShellInnerWalls,
   interiorShellFloorMaterial,
+  removeInteriorShellOpening,
 } from "@lindocara/engine/interior-shell.js";
 import { cropMapToRect, derivedMapRect, padMapToCanvas } from "@lindocara/engine/map-canvas.js";
 import {
@@ -67,7 +69,11 @@ import {
   parseMapData,
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
-import type { InteriorShell, MapEnvironment } from "@lindocara/engine/map-environment.js";
+import type {
+  InteriorShell,
+  InteriorShellOpeningRun,
+  MapEnvironment,
+} from "@lindocara/engine/map-environment.js";
 import {
   EVENT_GRAPHIC_TINT_DEFAULT,
   type EventKind,
@@ -278,6 +284,7 @@ export type EditorTool =
    * yaw so a cell where two ramps genuinely fit climbs the way the author is looking.
    */
   | { kind: "stairs"; prefer?: RampDirection }
+  | { kind: "wall-opening"; operation: "open" | "close" }
   /**
    * Two clicks, one round trip: pick a door, pick another door on the same map, and both get a
    * `player-touch` teleporter aimed at the other. It authors nothing the event language could not
@@ -331,7 +338,18 @@ export type EditorMode = "field" | "element" | "event";
  * tool to Event, and select/pan/eraser are shared because they act on whatever the active mode owns.
  */
 const MODE_TOOLS: Record<EditorMode, readonly EditorTool["kind"][]> = {
-  field: ["block", "elevation", "rect", "fill", "stairs", "spawn", "eraser", "select", "pan"],
+  field: [
+    "block",
+    "elevation",
+    "rect",
+    "fill",
+    "stairs",
+    "wall-opening",
+    "spawn",
+    "eraser",
+    "select",
+    "pan",
+  ],
   element: ["element", "eraser", "select", "pan"],
   event: ["event", "link", "eraser", "select", "pan"],
 };
@@ -1318,6 +1336,7 @@ export function applyInteriorShellSetting(
     ...(previous?.innerWalls && previous.innerWalls.length > 0
       ? { innerWalls: previous.innerWalls }
       : {}),
+    ...(previous?.openings && previous.openings.length > 0 ? { openings: previous.openings } : {}),
   };
   if (
     previous?.style === requested.style &&
@@ -1350,6 +1369,22 @@ export function applyInteriorShellSetting(
     ? map.layers
     : [resolveWholeLayer({ ...ground, ids }, TINY_SWORDS_TILESET), ...map.layers.slice(1)];
   return { ...map, environment, interiorShell, layers };
+}
+
+/** Open or close a real passage while keeping the coating and every unrelated gap intact. */
+export function applyInteriorWallOpening(
+  map: EditorMap,
+  opening: InteriorShellOpeningRun,
+  operation: "open" | "close",
+): EditorMap | null {
+  const shell = map.environment === "interior" ? map.interiorShell : undefined;
+  if (!shell) return null;
+  const interiorShell =
+    operation === "open"
+      ? addInteriorShellOpening(shell, opening)
+      : removeInteriorShellOpening(shell, opening);
+  if (interiorShell === shell) return map;
+  return { ...map, interiorShell };
 }
 
 /**
@@ -2196,6 +2231,10 @@ export function applyTool(
       if (layers === map.layers) return null;
       return commitTerrain(map, layers);
     }
+    // The stage resolves an exact wall edge from the world-space pointer before applying this tool.
+    // A cell alone is ambiguous at corners, so the generic cell mutation path must refuse it.
+    case "wall-opening":
+      return null;
     /**
      * The second click of a door link. The first is the stage's to remember (`tool.from`), so what
      * lands here is the complete round trip: two `player-touch` teleporters, each aimed at the cell

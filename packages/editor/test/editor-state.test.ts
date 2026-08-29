@@ -1,5 +1,6 @@
 import {
   applyInteriorShellSetting,
+  applyInteriorWallOpening,
   applyTool,
   beginEventDraft,
   blankMap,
@@ -214,6 +215,31 @@ describe("interior architecture", () => {
       style: "castle",
       openOuterWalls: false,
     });
+  });
+
+  it("persists real wall passages and closes any selected sub-span", () => {
+    const coated = applyInteriorShellSetting(blankMap("room", 20, 15), "interior", {
+      style: "castle",
+    });
+    const opened = applyInteriorWallOpening(
+      coated,
+      { side: "south", col: 3, row: 4, length: 4 },
+      "open",
+    );
+    expect(opened?.interiorShell?.openings).toEqual([{ side: "south", col: 3, row: 4, length: 4 }]);
+    if (!opened) throw new Error("opening was refused");
+    const closed = applyInteriorWallOpening(
+      opened,
+      { side: "south", col: 4, row: 4, length: 2 },
+      "close",
+    );
+    expect(closed?.interiorShell?.openings).toEqual([
+      { side: "south", col: 3, row: 4, length: 1 },
+      { side: "south", col: 6, row: 4, length: 1 },
+    ]);
+    expect(
+      decodeMap(toSaveInput(closed as EditorMap).heightfield)?.interiorShell?.openings,
+    ).toEqual(closed?.interiorShell?.openings);
   });
 
   it("converts existing solid terrain on first coating without flattening it", () => {

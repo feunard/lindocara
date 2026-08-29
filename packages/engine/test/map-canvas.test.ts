@@ -126,12 +126,16 @@ describe("padMapToCanvas", () => {
         style: "cave",
         openOuterWalls: false,
         openInnerWalls: true,
+        openings: [{ side: "south", col: 3, row: 4, length: 2 }],
         innerWalls: [{ col: 3, row: 4, length: 2 }],
       },
     };
     const padded: MapCanvasContent = { ...input, ...padMapToCanvas(input) };
     expect(padded.interiorShell?.innerWalls).toEqual([
       { col: 3 + PAD_COL, row: 4 + PAD_ROW, length: 2 },
+    ]);
+    expect(padded.interiorShell?.openings).toEqual([
+      { side: "south", col: 3 + PAD_COL, row: 4 + PAD_ROW, length: 2 },
     ]);
     expect(padded.interiorShell).toMatchObject({
       openOuterWalls: false,
@@ -141,6 +145,14 @@ describe("padMapToCanvas", () => {
     const cropped = cropMapToRect(padded, derivedMapRect(padded));
     expect(cropped.interiorShell?.innerWalls).toEqual([
       { col: 3 + MAP_OCEAN_MARGIN, row: 4 + MAP_OCEAN_MARGIN, length: 2 },
+    ]);
+    expect(cropped.interiorShell?.openings).toEqual([
+      {
+        side: "south",
+        col: 3 + MAP_OCEAN_MARGIN,
+        row: 4 + MAP_OCEAN_MARGIN,
+        length: 2,
+      },
     ]);
     expect(cropped.interiorShell).toMatchObject({
       openOuterWalls: false,

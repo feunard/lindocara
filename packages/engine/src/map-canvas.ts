@@ -18,7 +18,11 @@
 import type { EventCommand } from "./event-commands.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
 import { EMPTY_MARKERS, MAP_LAYERS } from "./map-data.js";
-import type { InteriorShell, InteriorShellCellRun } from "./map-environment.js";
+import type {
+  InteriorShell,
+  InteriorShellCellRun,
+  InteriorShellOpeningRun,
+} from "./map-environment.js";
 import type { MapEvent, MapEventPage } from "./map-events.js";
 import {
   MAP_MAX_COLS,
@@ -244,6 +248,24 @@ function shiftMapContent(
     return end <= start ? [] : [{ col: start, row, length: end - start }];
   });
   const innerWalls = shiftedInnerWalls ? compactInnerWallRuns(shiftedInnerWalls) : undefined;
+  const openings = map.interiorShell?.openings?.flatMap((run): InteriorShellOpeningRun[] => {
+    const horizontal = run.side === "north" || run.side === "south";
+    const fixed = horizontal ? run.row + dRow : run.col + dCol;
+    const limit = horizontal ? rows : cols;
+    if (fixed < 0 || fixed >= limit) return [];
+    const rawStart = horizontal ? run.col + dCol : run.row + dRow;
+    const start = Math.max(0, rawStart);
+    const end = Math.min(horizontal ? cols : rows, rawStart + run.length);
+    if (end <= start) return [];
+    return [
+      {
+        side: run.side,
+        col: horizontal ? start : fixed,
+        row: horizontal ? fixed : start,
+        length: end - start,
+      },
+    ];
+  });
   const interiorShell: InteriorShell | undefined = map.interiorShell
     ? {
         style: map.interiorShell.style,
@@ -253,6 +275,7 @@ function shiftMapContent(
         ...(map.interiorShell.openInnerWalls === undefined
           ? {}
           : { openInnerWalls: map.interiorShell.openInnerWalls }),
+        ...(openings && openings.length > 0 ? { openings } : {}),
         ...(innerWalls && innerWalls.length > 0 ? { innerWalls } : {}),
       }
     : undefined;
@@ -312,6 +335,13 @@ export function contentBounds(map: MapCanvasContent, selfMapId?: string): MapRec
   for (const run of map.interiorShell?.innerWalls ?? []) {
     include(run.col, run.row);
     include(run.col + run.length - 1, run.row);
+  }
+  for (const run of map.interiorShell?.openings ?? []) {
+    include(run.col, run.row);
+    include(
+      run.col + (run.side === "north" || run.side === "south" ? run.length - 1 : 0),
+      run.row + (run.side === "east" || run.side === "west" ? run.length - 1 : 0),
+    );
   }
   for (const element of map.elements) include(element.col, element.row);
   const events = map.events ?? [];
