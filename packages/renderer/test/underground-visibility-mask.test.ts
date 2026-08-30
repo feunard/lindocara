@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   surfaceLiquidOcclusionRuns,
   undergroundLevelOcclusionRuns,
+  undergroundPreviewDepths,
 } from "../src/hd2d/underground.js";
 
 describe("underground storey visibility mask", () => {
@@ -81,6 +82,35 @@ describe("underground storey visibility mask", () => {
     expect(covered.has("1:1")).toBe(false);
     expect(covered.has("2:1")).toBe(false);
     expect(covered.has("0:0")).toBe(true);
+  });
+
+  it("does not let an upper-floor cutaway cover the ground-floor editing view", () => {
+    const vertical = {
+      levels: [],
+      stairs: [
+        {
+          depth: 1,
+          fromDepth: 0,
+          col: 0,
+          row: 0,
+          direction: "east" as const,
+          length: 2,
+          width: 1,
+        },
+        {
+          depth: 0,
+          fromDepth: -1,
+          col: 2,
+          row: 2,
+          direction: "east" as const,
+          length: 2,
+          width: 1,
+        },
+      ],
+    };
+
+    expect(undergroundPreviewDepths(vertical, null)).toEqual([1]);
+    expect(undergroundPreviewDepths(vertical, -1)).toEqual([-1]);
   });
 
   it("occludes basements below water without closing real surface accesses", () => {

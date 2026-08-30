@@ -41,6 +41,21 @@ export interface UndergroundVisual {
   dispose(): void;
 }
 
+/** Storeys that may be drawn as a cutaway around the currently viewed floor.
+ *
+ * Basement floors sit below the active surface, so their depth-only mask can reveal a landing
+ * through a real opening without covering the surface itself. An upper floor sits between the
+ * gameplay camera and the ground floor: previewing it from `Surface` would therefore turn the
+ * whole room into its invisible occlusion slab. The staircase remains a separate visible mesh;
+ * only the upper floor shell waits until the author/player actually selects or reaches it. */
+export function undergroundPreviewDepths(
+  underground: MapData["underground"],
+  activeDepth: number | null,
+): readonly number[] {
+  const depths = undergroundAccessVisibleDepths(underground, activeDepth);
+  return activeDepth === null ? depths.filter((depth) => depth > 0) : depths;
+}
+
 function textureFor(style: InteriorShellStyle, textures: TextureRegistry): THREE.Texture {
   const surface = STYLE_TEXTURE[style];
   const texture = textures.get(surface.url).clone();
@@ -569,7 +584,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     for (const wall of accessWalls) wall.mesh.visible = wall.side !== near;
     const previewDepths = new Set(
       surfaceAccessPreview || activeDepth !== null
-        ? undergroundAccessVisibleDepths(map.underground, activeDepth)
+        ? undergroundPreviewDepths(map.underground, activeDepth)
         : [],
     );
     for (const [depth, level] of levels) {

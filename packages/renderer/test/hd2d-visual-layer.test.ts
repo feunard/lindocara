@@ -688,6 +688,19 @@ describe("Hd2dVisualLayer spawn marker", () => {
     layer.dispose();
   });
 
+  it("keeps an empty upper-floor grid on its selected editing plane", () => {
+    const { layer, root } = harness(20, 0);
+    layer.setEditorGroundElevation(2.4);
+    layer.setEditorOverlay({ ...base, showGrid: true });
+
+    const grid = root.getObjectByName("editor-grid") as THREE.LineSegments;
+    const positions = grid.geometry.getAttribute("position");
+    for (let index = 0; index < positions.count; index += 1) {
+      expect(positions.getY(index)).toBeCloseTo(2.46);
+    }
+    layer.dispose();
+  });
+
   it("distinguishes walkable platform tops from solid collision in the editor overlay", () => {
     const { layer, root } = harness();
     layer.setEditorOverlay({

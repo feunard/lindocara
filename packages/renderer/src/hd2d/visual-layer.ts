@@ -587,9 +587,16 @@ export class Hd2dVisualLayer {
           (this.#scene.query.waterLevelAtElevation?.(x, z, this.#editorGroundElevation) ??
             this.#editorGroundElevation) + lift
         );
+      const surface =
+        this.#scene.query.surfaceAt?.(x, z, this.#editorGroundElevation + 1.01) ??
+        this.#editorGroundElevation;
+      // On an upper storey, an empty cell still belongs to the selected editing plane. The generic
+      // surface query otherwise falls through to the ground floor at y=0, sinking most of the grid
+      // below the upper-floor occlusion slab and leaving only already-built cells visible.
       return (
-        (this.#scene.query.surfaceAt?.(x, z, this.#editorGroundElevation + 1.01) ??
-          this.#editorGroundElevation) + lift
+        (this.#editorGroundElevation > 0
+          ? Math.max(this.#editorGroundElevation, surface)
+          : surface) + lift
       );
     }
     if (referenceElevation !== undefined && Number.isFinite(referenceElevation)) {
@@ -1762,7 +1769,9 @@ export class Hd2dVisualLayer {
       depthWrite: false,
       toneMapped: false,
     });
-    return new THREE.LineSegments(geometry, material);
+    const grid = new THREE.LineSegments(geometry, material);
+    grid.name = "editor-grid";
+    return grid;
   }
 
   /** The hero start marker: the ghost knight, and nothing else. The knight is the same catalogue

@@ -38,7 +38,6 @@ import {
   weatherStorms,
 } from "@lindocara/engine/map-weather.js";
 import {
-  undergroundAccessVisibleDepths,
   undergroundDepthAtElevation,
   undergroundFloorHeight,
   undergroundSurfaceOpenings,
@@ -68,7 +67,7 @@ import * as THREE from "three";
 
 import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
 import { createInteriorShell, INTERIOR_SHELL_TEXTURES } from "./interior-shell.js";
-import { createUnderground } from "./underground.js";
+import { createUnderground, undergroundPreviewDepths } from "./underground.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
@@ -914,7 +913,7 @@ export function createHd2dScene(
     ];
     const seesSurface = visibleDepths.includes(null);
     if ((seesSurface && surfaceAccessPreview) || authoringUndergroundView) {
-      for (const depth of undergroundAccessVisibleDepths(
+      for (const depth of undergroundPreviewDepths(
         currentMap.underground,
         viewedUndergroundDepth,
       )) {
