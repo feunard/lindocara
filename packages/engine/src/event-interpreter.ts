@@ -129,7 +129,8 @@ export type StateMutation =
       readonly objectiveId: string;
       readonly amount: number;
     }
-  | { readonly type: "completeQuest"; readonly questId: string };
+  | { readonly type: "completeQuest"; readonly questId: string }
+  | { readonly type: "consumeTeleporter"; readonly eventId: string };
 
 /**
  * Apply one mutation to a party's adventure state, returning a NEW state (the interpreter never
@@ -156,6 +157,13 @@ export function applyStateMutation(
         ...state,
         selfSwitches: { ...state.selfSwitches, [mutation.key]: mutation.value },
       };
+    case "consumeTeleporter": {
+      const uses = state.teleporterUses ?? {};
+      return {
+        ...state,
+        teleporterUses: { ...uses, [mutation.eventId]: (uses[mutation.eventId] ?? 0) + 1 },
+      };
+    }
     case "startQuest": {
       const quests = state.quests ?? {};
       if (quests[mutation.questId]) return state;
@@ -246,6 +254,9 @@ export type EventEffect =
       readonly category: TransitionCategory;
       /** An event on the destination map to arrive at, resolved by the room. See the command. */
       readonly eventId?: string;
+      readonly useLimit?: number;
+      readonly costCurrency?: "gold" | "crystals";
+      readonly costAmount?: number;
     }
   | { readonly kind: "endAdventure" }
   /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
@@ -539,6 +550,10 @@ function executeCommand(
             // Turning an event id into a cell needs the DESTINATION map's events, which only the
             // room holds.
             ...(command.eventId === undefined ? {} : { eventId: command.eventId }),
+            ...(command.useLimit === undefined ? {} : { useLimit: command.useLimit }),
+            ...(command.costCurrency === undefined
+              ? {}
+              : { costCurrency: command.costCurrency, costAmount: command.costAmount }),
           },
         ],
       };

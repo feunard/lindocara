@@ -43,6 +43,7 @@ import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
 import {
   authoredTeleportTarget,
+  dispatchTeleport,
   dispatchMovementEffect,
   teleportSameMap,
 } from "../src/api/realtime/world-interactions.ts";
@@ -201,12 +202,13 @@ describe("an authored teleport's destination", () => {
   const EVENT = "bbbbbbbb-0000-4000-8000-000000000001";
 
   it("resolves a target event's own cell, so moving the target moves the arrival", () => {
-    const events = [{ id: EVENT, col: 11, row: 6 }] as unknown as Parameters<
+    const events = [{ id: EVENT, col: 11, row: 6, undergroundDepth: 3 }] as unknown as Parameters<
       typeof authoredTeleportTarget
     >[0];
     expect(authoredTeleportTarget(events, { col: 3, row: 5, eventId: EVENT })).toEqual({
       col: 11,
       row: 6,
+      undergroundDepth: 3,
     });
   });
 
@@ -222,6 +224,78 @@ describe("an authored teleport's destination", () => {
 });
 
 describe("an authored teleport, in tile units", () => {
+  it("charges the triggering hero and refuses exhausted or unaffordable passages", () => {
+    const player = hero(0, 0);
+    player.inventory.gold = 150;
+    player.inventory.crystals = 5;
+    const w = glue(terrain(), player);
+    const eventId = "bbbbbbbb-0000-4000-8000-000000000001";
+    w.state.adventureState = {
+      state: { ...EMPTY_ADVENTURE_STATE, teleporterUses: { [eventId]: 1 } },
+      version: 1,
+    };
+    const dispatch = { heroId: HERO_ID, runId: "run", eventId } as const;
+
+    expect(
+      dispatchTeleport(
+        w,
+        dispatch,
+        {
+          kind: "teleport",
+          mapId: MAP_ID,
+          col: 3,
+          row: 5,
+          category: "geographic",
+          useLimit: 2,
+          costCurrency: "gold",
+          costAmount: 100,
+        },
+        NOW,
+      ),
+    ).toBe(true);
+    expect(player.inventory.gold).toBe(50);
+    expect(player.dirty).toBe(true);
+
+    w.state.adventureState.state = {
+      ...w.state.adventureState.state,
+      teleporterUses: { [eventId]: 2 },
+    };
+    expect(
+      dispatchTeleport(
+        w,
+        dispatch,
+        {
+          kind: "teleport",
+          mapId: MAP_ID,
+          col: 4,
+          row: 5,
+          category: "geographic",
+          useLimit: 2,
+        },
+        NOW,
+      ),
+    ).toBe(false);
+
+    w.state.adventureState.state = { ...EMPTY_ADVENTURE_STATE };
+    expect(
+      dispatchTeleport(
+        w,
+        dispatch,
+        {
+          kind: "teleport",
+          mapId: MAP_ID,
+          col: 4,
+          row: 5,
+          category: "geographic",
+          costCurrency: "crystals",
+          costAmount: 10,
+        },
+        NOW,
+      ),
+    ).toBe(false);
+    expect(player.inventory.crystals).toBe(5);
+  });
+
   it("lands on the grid-centred centre of the authored cell", () => {
     const built = terrain();
     const player = hero(0, 0);

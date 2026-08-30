@@ -97,6 +97,39 @@ describe("parseEventCommands: good payloads", () => {
     ).toBeNull();
   });
 
+  it("accepts bounded teleporter uses and an optional hero-paid currency cost", () => {
+    expect(
+      parseEventCommands([
+        {
+          t: "teleport",
+          mapId: UUID,
+          col: 1,
+          row: 2,
+          useLimit: 2,
+          costCurrency: "crystals",
+          costAmount: 10,
+        },
+      ]),
+    ).toEqual([
+      {
+        t: "teleport",
+        mapId: UUID,
+        col: 1,
+        row: 2,
+        category: "geographic",
+        useLimit: 2,
+        costCurrency: "crystals",
+        costAmount: 10,
+      },
+    ]);
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, costCurrency: "gold" }]),
+    ).toBeNull();
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, useLimit: 0 }]),
+    ).toBeNull();
+  });
+
   it("accepts all three condition forms", () => {
     const program: EventCommand[] = [
       { t: "if", cond: { type: "switch", switchId: "0001" }, then: [], else: [] },

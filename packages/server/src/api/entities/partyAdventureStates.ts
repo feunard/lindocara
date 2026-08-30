@@ -53,6 +53,7 @@ export const partyAdventureStates = $entity({
     defeatedMonsters: db.default(z.string(), "{}"),
     materials: db.default(z.string(), "{}"),
     harvestNodes: db.default(z.string(), "{}"),
+    teleporterUses: db.default(z.string(), "{}"),
     /** Private support-spend saga journal. Never copied into the public adventure-state shape. */
     supportSpends: db.default(z.string(), "{}"),
     version: db.default(z.integer(), 0),

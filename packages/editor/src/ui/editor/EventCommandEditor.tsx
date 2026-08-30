@@ -10,6 +10,10 @@ import {
   type EventCondition,
   ITEM_ID_MAX,
   MAX_CHOICE_OPTIONS,
+  TELEPORT_COST_LIMITS,
+  TELEPORT_CURRENCIES,
+  type TeleportCurrency,
+  TELEPORT_USE_LIMITS,
   TRANSITION_CATEGORIES,
   type TransitionCategory,
   TRAP_IMPULSE_LIMITS,
@@ -1771,6 +1775,8 @@ function TeleportParams({
   const maxRow = map ? map.rows - 1 : 0;
   const widthLabel = t("editor.event.cmd.field.col", { max: maxCol + 1 });
   const heightLabel = t("editor.event.cmd.field.row", { max: maxRow + 1 });
+  const usageMode = command.useLimit === undefined ? "infinite" : "limited";
+  const costMode = command.costCurrency ?? "free";
   return (
     <div className="flex flex-wrap items-end gap-2">
       <Field label={t("editor.event.cmd.field.transitionCategory")}>
@@ -1866,6 +1872,97 @@ function TeleportParams({
             />
           </Field>
         </>
+      )}
+      <Field label={t("editor.event.cmd.field.teleportUses")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.teleportUses")}
+          className="w-32"
+          value={usageMode}
+          onChange={(event) => {
+            if (event.currentTarget.value === "limited") {
+              onChange({ ...command, useLimit: command.useLimit ?? 1 });
+              return;
+            }
+            const { useLimit: _dropped, ...rest } = command;
+            onChange(rest);
+          }}
+        >
+          <option value="infinite">{t("editor.event.cmd.teleportUses.infinite")}</option>
+          <option value="limited">{t("editor.event.cmd.teleportUses.limited")}</option>
+        </FieldSelect>
+      </Field>
+      {command.useLimit !== undefined && (
+        <Field label={t("editor.event.cmd.field.teleportUseCount")}>
+          <NumberField
+            ariaLabel={t("editor.event.cmd.field.teleportUseCount")}
+            className="w-20"
+            value={command.useLimit}
+            min={TELEPORT_USE_LIMITS.min}
+            max={TELEPORT_USE_LIMITS.max}
+            onChange={(useLimit) => onChange({ ...command, useLimit })}
+            onBlur={() =>
+              onChange({
+                ...command,
+                useLimit: clampInt(
+                  command.useLimit ?? 1,
+                  TELEPORT_USE_LIMITS.min,
+                  TELEPORT_USE_LIMITS.max,
+                  1,
+                ),
+              })
+            }
+          />
+        </Field>
+      )}
+      <Field label={t("editor.event.cmd.field.teleportCost")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.teleportCost")}
+          className="w-36"
+          value={costMode}
+          onChange={(event) => {
+            const currency = event.currentTarget.value;
+            if (currency === "free") {
+              const { costCurrency: _currency, costAmount: _amount, ...rest } = command;
+              onChange(rest);
+              return;
+            }
+            onChange({
+              ...command,
+              costCurrency: currency as TeleportCurrency,
+              costAmount: command.costAmount ?? 1,
+            });
+          }}
+        >
+          <option value="free">{t("editor.event.cmd.teleportCost.free")}</option>
+          {TELEPORT_CURRENCIES.map((currency) => (
+            <option key={currency} value={currency}>
+              {t(`item.${currency === "gold" ? "gold" : "crystal"}`)}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      {command.costCurrency !== undefined && (
+        <Field label={t("editor.event.cmd.field.teleportCostAmount")}>
+          <NumberField
+            ariaLabel={t("editor.event.cmd.field.teleportCostAmount")}
+            className="w-24"
+            value={command.costAmount ?? 1}
+            min={TELEPORT_COST_LIMITS.min}
+            max={TELEPORT_COST_LIMITS.max}
+            onChange={(costAmount) => onChange({ ...command, costAmount })}
+            onBlur={() =>
+              onChange({
+                ...command,
+                costAmount: clampInt(
+                  command.costAmount ?? 1,
+                  TELEPORT_COST_LIMITS.min,
+                  TELEPORT_COST_LIMITS.max,
+                  1,
+                ),
+              })
+            }
+          />
+        </Field>
       )}
     </div>
   );

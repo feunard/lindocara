@@ -1,3 +1,4 @@
+import { TELEPORT_USE_LIMITS } from "./event-commands.js";
 /**
  * Party-owned adventure state — switches, variables, self-switches — and the rule that turns it
  * into which page of a `MapEvent` is currently showing.
@@ -178,6 +179,8 @@ export interface PartyAdventureState {
   materials?: PartyMaterials;
   /** Durable per-event harvest progress. Optional only for source compatibility with old saves. */
   harvestNodes?: HarvestNodeStates;
+  /** Successful finite teleports used by this party, keyed by the source event id. */
+  teleporterUses?: Record<string, number>;
 }
 
 export interface AuthoredQuestProgress {
@@ -276,6 +279,7 @@ function isSelfSwitchKey(key: string): boolean {
  *  applies regardless of whether a caller prunes. */
 export const MAX_SELF_SWITCH_ENTRIES = 512;
 export const MAX_DEFEATED_MONSTER_ENTRIES = 512;
+export const MAX_TELEPORTER_USE_ENTRIES = 512;
 
 function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
   if (!isPlainObject(value)) return null;
@@ -300,6 +304,26 @@ function parseDefeatedMonsters(value: unknown): Record<string, true> | null {
     defeatedMonsters[eventId] = true;
   }
   return defeatedMonsters;
+}
+
+function parseTeleporterUses(value: unknown): Record<string, number> | null {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length > MAX_TELEPORTER_USE_ENTRIES) return null;
+  const uses: Record<string, number> = {};
+  for (const [eventId, count] of entries) {
+    if (
+      !isUuid(eventId) ||
+      typeof count !== "number" ||
+      !Number.isSafeInteger(count) ||
+      count < 1 ||
+      count > TELEPORT_USE_LIMITS.max
+    )
+      return null;
+    uses[eventId] = count as number;
+  }
+  return uses;
 }
 
 function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgress> | null {
@@ -400,6 +424,8 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   if (!materials) return null;
   const harvestNodes = parseHarvestNodeStates(value.harvestNodes);
   if (!harvestNodes) return null;
+  const teleporterUses = parseTeleporterUses(value.teleporterUses);
+  if (!teleporterUses) return null;
   return {
     switches,
     variables,
@@ -408,6 +434,7 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
     harvestNodes,
     ...(Object.keys(quests).length > 0 ? { quests } : {}),
     ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
+    ...(Object.keys(teleporterUses).length > 0 ? { teleporterUses } : {}),
   };
 }
 

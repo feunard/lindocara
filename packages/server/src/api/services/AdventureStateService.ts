@@ -124,6 +124,7 @@ interface StoredPartyAdventureStateFields {
   defeatedMonsters: string;
   materials: string;
   harvestNodes: string;
+  teleporterUses: string;
   supportSpends: string;
   version: number;
 }
@@ -176,6 +177,7 @@ function decodePartyAdventureStateRow(
       defeatedMonsters: JSON.parse(row.defeatedMonsters),
       materials: JSON.parse(row.materials),
       harvestNodes: JSON.parse(row.harvestNodes),
+      teleporterUses: JSON.parse(row.teleporterUses),
     };
   } catch {
     return { ok: false, reason: "invalid_json" };
@@ -308,6 +310,7 @@ export class AdventureStateService {
       defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
       materials: JSON.stringify(state.materials ?? {}),
       harvestNodes: JSON.stringify(state.harvestNodes ?? {}),
+      teleporterUses: JSON.stringify(state.teleporterUses ?? {}),
       version,
     });
   }
@@ -331,6 +334,7 @@ export class AdventureStateService {
       defeatedMonsters: JSON.stringify(state.defeatedMonsters ?? {}),
       materials: JSON.stringify(state.materials ?? {}),
       harvestNodes: JSON.stringify(state.harvestNodes ?? {}),
+      teleporterUses: JSON.stringify(state.teleporterUses ?? {}),
       supportSpends: JSON.stringify(supportSpends),
       version,
     });

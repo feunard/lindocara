@@ -1113,6 +1113,9 @@ export const fr: Record<keyof typeof en, string> = {
   "event.zone.transition_cooldown": "La porte doit reprendre son souffle avant un autre passage.",
   "event.zone.transition_failed":
     "Le passage a échoué. Votre dernière position sûre est conservée.",
+  "event.teleport.exhausted": "Ce passage ne peut plus être utilisé.",
+  "event.teleport.insufficient_gold": "Ce passage coûte {amount} marcs solaires.",
+  "event.teleport.insufficient_crystals": "Ce passage coûte {amount} éclats du crépuscule.",
   "event.adventure.victory":
     "Aventure terminée ! La sauvegarde de votre partie est marquée comme accomplie.",
   "adventure.victory.title": "Victoire !",
@@ -2195,6 +2198,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.field.transitionCategory": "Nature du passage",
   "editor.event.cmd.field.destination": "Arrivée",
   "editor.event.cmd.field.destination.cell": "Une case (ci-dessous)",
+  "editor.event.cmd.field.teleportUses": "Disponibilité",
+  "editor.event.cmd.field.teleportUseCount": "Utilisations",
+  "editor.event.cmd.teleportUses.infinite": "Illimité",
+  "editor.event.cmd.teleportUses.limited": "Limité",
+  "editor.event.cmd.field.teleportCost": "Prix",
+  "editor.event.cmd.field.teleportCostAmount": "Montant",
+  "editor.event.cmd.teleportCost.free": "Gratuit",
   "editor.event.cmd.field.map": "Carte",
   "editor.event.cmd.field.col": "Largeur X (1 à {max})",
   "editor.event.cmd.field.row": "Hauteur Y (1 à {max})",

@@ -257,6 +257,22 @@ function evictPartyRoom(partyId: string): void {
 }
 
 describe("applyStateChanges", () => {
+  test("persists finite teleporter uses per source event", async () => {
+    const { partyId } = await newPartyOnly("teleuses");
+    const eventId = "11111111-1111-4111-8111-111111111111";
+
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "consumeTeleporter", eventId },
+    ]);
+    await partyRoom.room.call(partyId, "applyStateChanges", [
+      { type: "consumeTeleporter", eventId },
+    ]);
+
+    const row = await probe.partyAdventureStates.findById(partyId);
+    expect(row?.version).toBe(2);
+    expect(JSON.parse(row?.teleporterUses ?? "{}")).toEqual({ [eventId]: 2 });
+  });
+
   test("bumps the version and lands in D1 immediately, no clock advance", async () => {
     const { partyId } = await newPartyOnly("applybump");
 

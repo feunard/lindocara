@@ -43,6 +43,12 @@ export const MAX_COMMANDS_PER_PAGE = 200;
 export const COMMAND_TEXT_MAX = 200;
 export const MAX_CHOICE_OPTIONS = 4;
 export const MAX_COMMAND_DEPTH = 8;
+/** A finite teleporter may be used this many times by one party before it closes. */
+export const TELEPORT_USE_LIMITS = { min: 1, max: 999 } as const;
+/** Optional price paid by the triggering hero. Zero is represented by an absent price. */
+export const TELEPORT_COST_LIMITS = { min: 1, max: 999_999 } as const;
+export const TELEPORT_CURRENCIES = ["gold", "crystals"] as const;
+export type TeleportCurrency = (typeof TELEPORT_CURRENCIES)[number];
 
 /** The runtime drains at most this many commands per tick across every live context (the
  *  navigation-system budget discipline). Exported here as the single source even though the
@@ -187,6 +193,11 @@ export type EventCommand =
        * deleted, so nothing authored before this existed changed meaning.
        */
       readonly eventId?: string;
+      /** Absent means unlimited. The counter is party-owned and durable. */
+      readonly useLimit?: number;
+      /** Both cost fields are present together; absent means free. */
+      readonly costCurrency?: TeleportCurrency;
+      readonly costAmount?: number;
     }
   | { readonly t: "endAdventure" }
   /**
@@ -425,6 +436,31 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       // outright rather than silently dropped: a command that says "arrive at that door" and
       // quietly arrives somewhere else is worse than one that fails to parse.
       if (record.eventId !== undefined && !isUuid(record.eventId)) return null;
+      const useLimit = record.useLimit;
+      if (
+        useLimit !== undefined &&
+        (typeof useLimit !== "number" ||
+          !Number.isSafeInteger(useLimit) ||
+          useLimit < TELEPORT_USE_LIMITS.min ||
+          useLimit > TELEPORT_USE_LIMITS.max)
+      )
+        return null;
+      const costCurrency = record.costCurrency;
+      const costAmount = record.costAmount;
+      if ((costCurrency === undefined) !== (costAmount === undefined)) return null;
+      if (
+        costCurrency !== undefined &&
+        !TELEPORT_CURRENCIES.includes(costCurrency as TeleportCurrency)
+      )
+        return null;
+      if (
+        costAmount !== undefined &&
+        (typeof costAmount !== "number" ||
+          !Number.isSafeInteger(costAmount) ||
+          costAmount < TELEPORT_COST_LIMITS.min ||
+          costAmount > TELEPORT_COST_LIMITS.max)
+      )
+        return null;
       return {
         t: "teleport",
         mapId: record.mapId,
@@ -432,6 +468,13 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
         row,
         category,
         ...(record.eventId === undefined ? {} : { eventId: record.eventId as string }),
+        ...(useLimit === undefined ? {} : { useLimit: useLimit as number }),
+        ...(costCurrency === undefined
+          ? {}
+          : {
+              costCurrency: costCurrency as TeleportCurrency,
+              costAmount: costAmount as number,
+            }),
       };
     }
     case "endAdventure":

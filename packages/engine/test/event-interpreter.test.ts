@@ -184,14 +184,31 @@ describe("stepEventRun — the per-opcode table", () => {
 
   it("teleport, inventory and damage commands each emit their effect and keep running", () => {
     const program: EventCommand[] = [
-      { t: "teleport", mapId: MAP_ID, col: 4, row: 5 },
+      {
+        t: "teleport",
+        mapId: MAP_ID,
+        col: 4,
+        row: 5,
+        useLimit: 2,
+        costCurrency: "gold",
+        costAmount: 100,
+      },
       { t: "changeGold", amount: -10 },
       { t: "changeItems", itemId: "health_potion", count: 2 },
       { t: "damage", amount: 25, lethal: true },
     ];
     const drained = drain(run(program), state());
     expect(drained.effects.filter((e) => e.kind !== "closeDialogue")).toEqual([
-      { kind: "teleport", mapId: MAP_ID, col: 4, row: 5, category: "geographic" },
+      {
+        kind: "teleport",
+        mapId: MAP_ID,
+        col: 4,
+        row: 5,
+        category: "geographic",
+        useLimit: 2,
+        costCurrency: "gold",
+        costAmount: 100,
+      },
       { kind: "changeGold", amount: -10 },
       { kind: "changeItems", itemId: "health_potion", count: 2 },
       { kind: "damage", amount: 25, lethal: true },
@@ -240,6 +257,15 @@ describe("stepEventRun — the per-opcode table", () => {
     expect(result.effects).toEqual([
       { kind: "mutateState", op: { type: "startQuest", questId: "0002" } },
     ]);
+  });
+
+  it("records successful finite teleporter uses in party-owned state", () => {
+    let snapshot = applyStateMutation(state(), {
+      type: "consumeTeleporter",
+      eventId: EVENT_ID,
+    });
+    snapshot = applyStateMutation(snapshot, { type: "consumeTeleporter", eventId: EVENT_ID });
+    expect(snapshot.teleporterUses).toEqual({ [EVENT_ID]: 2 });
   });
 
   it("comment produces no effect and advances", () => {

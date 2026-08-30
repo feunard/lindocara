@@ -691,10 +691,18 @@ export function cheatRevive(w: WorldGlue, player: PlayerRuntime): void {
 export function authoredTeleportTarget(
   events: readonly MapEvent[] | undefined,
   effect: { col: number; row: number; eventId?: string },
-): { col: number; row: number } {
+): { col: number; row: number; undergroundDepth?: number } {
   if (effect.eventId === undefined) return { col: effect.col, row: effect.row };
   const target = events?.find((candidate) => candidate.id === effect.eventId);
-  return target ? { col: target.col, row: target.row } : { col: effect.col, row: effect.row };
+  return target
+    ? {
+        col: target.col,
+        row: target.row,
+        ...(target.undergroundDepth === undefined
+          ? {}
+          : { undergroundDepth: target.undergroundDepth }),
+      }
+    : { col: effect.col, row: effect.row };
 }
 
 export function teleportSameMap(
@@ -703,18 +711,25 @@ export function teleportSameMap(
   col: number,
   row: number,
   eventId: string,
+  undergroundDepth?: number,
 ): "teleported" | "first-refusal" | "repeat-refusal" {
   const terrain = zone(w.state).terrain;
   // `authoredCellCentreGround`, not `eventCellCentre`: the latter answers in the editor's PIXEL,
   // top-left-origin space, and a hero snapped there would land thousands of tiles off the grid.
-  const destination = authoredCellCentreGround({ col, row }, terrain.size);
+  const destination = authoredCellCentreGround(
+    undergroundDepth === undefined ? { col, row } : { col, row, undergroundDepth },
+    terrain.size,
+  );
   // The grid runs `-size/2`..`+size/2`, so "in bounds" is a cell index test rather than a
   // rectangle anchored at zero — the origin moved to the middle with the units.
   const inBounds = col >= 0 && row >= 0 && col < terrain.size && row < terrain.size;
   // A teleport is not a step, so the destination's own ground is the right thing to test it
   // against: the question is whether a body could be standing there, not whether one could walk
   // there. Only the disc's relief and the props may refuse it.
-  const landing = groundUnder(terrain, destination.x, destination.z, player.y);
+  const landing =
+    undergroundDepth === undefined
+      ? groundUnder(terrain, destination.x, destination.z, player.y)
+      : destination.y;
   if (!inBounds || !canStand(terrain, destination.x, destination.z, BODY_RADIUS, landing)) {
     const first = logTeleportRefusedOnce(
       w.state,
@@ -1059,22 +1074,58 @@ export function dispatchItems(
  *  authored exit uses. */
 export function dispatchTeleport(
   w: WorldGlue,
-  dispatch: DispatchEffect,
+  dispatch: Pick<DispatchEffect, "heroId" | "runId" | "eventId">,
   effect: Extract<DispatchEffect["effect"], { kind: "teleport" }>,
   now: number,
-): void {
+): boolean {
   const connectionId = connectionOf(w.state, dispatch.heroId);
   const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
-  if (connectionId === undefined || !player?.authorized || player.transitioning) return;
+  if (connectionId === undefined || !player?.authorized || player.transitioning) return false;
+  const used = w.state.adventureState.state.teleporterUses?.[dispatch.eventId] ?? 0;
+  if (effect.useLimit !== undefined && used >= effect.useLimit) {
+    w.deps.send(connectionId, { t: "event", code: "teleport.exhausted", tone: "bad" });
+    return false;
+  }
+  if (effect.costCurrency !== undefined) {
+    const available = player.inventory[effect.costCurrency];
+    const amount = effect.costAmount ?? 0;
+    if (available < amount) {
+      w.deps.send(connectionId, {
+        t: "event",
+        code:
+          effect.costCurrency === "gold"
+            ? "teleport.insufficient_gold"
+            : "teleport.insufficient_crystals",
+        params: { amount },
+        tone: "bad",
+      });
+      return false;
+    }
+  }
+  const pay = (): void => {
+    if (effect.costCurrency === undefined) return;
+    const amount = effect.costAmount ?? 0;
+    player.inventory[effect.costCurrency] -= amount;
+    player.dirty = true;
+    sendStateTo(w, connectionId, player);
+  };
   if (effect.mapId === w.state.location?.zoneId) {
     // A tile-unit position IS the body's centre; the pixel `+ PLAYER_SIZE / 2` recentring is gone.
     const fromX = player.x;
     const fromZ = player.z;
     const target = authoredTeleportTarget(w.state.location?.definition.events, effect);
-    const result = teleportSameMap(w, player, target.col, target.row, dispatch.eventId);
+    const result = teleportSameMap(
+      w,
+      player,
+      target.col,
+      target.row,
+      dispatch.eventId,
+      target.undergroundDepth,
+    );
     if (result === "first-refusal") {
       w.deps.send(connectionId, { t: "event", code: "zone.transition_failed", tone: "bad" });
     } else if (result === "teleported") {
+      pay();
       w.deps.send(connectionId, {
         t: "event",
         code: "zone.transition",
@@ -1095,8 +1146,9 @@ export function dispatchTeleport(
         z: fromZ,
       });
     }
-    return;
+    return result === "teleported";
   }
+  pay();
   w.deps.teleportCrossMap(
     connectionId,
     player,
@@ -1108,6 +1160,7 @@ export function dispatchTeleport(
     effect.category,
     effect.eventId,
   );
+  return true;
 }
 
 /** Port of `#dispatchOpenShop` (`world.ts:5011`): the event's cell becomes the hero's counter —
@@ -1246,7 +1299,9 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
       if (effect.kind === "mutateState") {
         mutations.push(effect.op);
       } else if (effect.kind === "teleport") {
-        dispatchTeleport(w, dispatch, effect, now);
+        if (dispatchTeleport(w, dispatch, effect, now) && effect.useLimit !== undefined) {
+          mutations.push({ type: "consumeTeleporter", eventId: dispatch.eventId });
+        }
       } else if (effect.kind === "endAdventure") {
         dispatchEndAdventure(w, dispatch);
       } else if (effect.kind === "openShop") {

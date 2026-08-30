@@ -1009,6 +1009,9 @@ export const EVENT_CODES = [
   "zone.transition_denied",
   "zone.transition_cooldown",
   "zone.transition_failed",
+  "teleport.exhausted",
+  "teleport.insufficient_gold",
+  "teleport.insufficient_crystals",
   "adventure.victory",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];

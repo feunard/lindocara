@@ -69,7 +69,7 @@ import {
   type WorldInfo,
 } from "@lindocara/engine/protocol.js";
 import { TICK_HZ } from "@lindocara/engine/simulation.js";
-import { mapEntryPosition } from "@lindocara/engine/terrain-access.js";
+import { BODY_RADIUS, canStand, mapEntryPosition } from "@lindocara/engine/terrain-access.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
@@ -1740,13 +1740,17 @@ export class WorldRoom {
       const destinationEvent = destinationEventId
         ? destinationMap.events.find((candidate) => candidate.id === destinationEventId)
         : undefined;
-      const preferred = destinationEvent
-        ? authoredCellCentreGround(
-            { col: destinationEvent.col, row: destinationEvent.row },
-            destination.terrain.size,
-          )
-        : destination.spawns?.[0];
-      const spawn = mapEntryPosition(destination.terrain, preferred);
+      const eventTarget = destinationEvent
+        ? authoredCellCentreGround(destinationEvent, destination.terrain.size)
+        : undefined;
+      const preferred = eventTarget ?? destination.spawns?.[0];
+      const targetedStorey =
+        destinationEvent?.undergroundDepth !== undefined &&
+        eventTarget !== undefined &&
+        canStand(destination.terrain, eventTarget.x, eventTarget.z, BODY_RADIUS, eventTarget.y)
+          ? eventTarget
+          : undefined;
+      const spawn = targetedStorey ?? mapEntryPosition(destination.terrain, preferred);
 
       player.lastTransitionAt = now;
       cancelCombatAction(player);

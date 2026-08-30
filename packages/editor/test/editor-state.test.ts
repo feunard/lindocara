@@ -2181,6 +2181,28 @@ describe("event serialization", () => {
     expect(deleteSelection(map, { kind: "event", id: map.events[0]?.id ?? "" }).events).toEqual([]);
     expect(deleteSelection(map, { kind: "event", id: map.events[1]?.id ?? "" }).events).toEqual([]);
   });
+
+  it("keeps each linked teleporter endpoint's appearance independent", () => {
+    const map = placeLinkedTeleporters(
+      blankMap("m", 20, 15),
+      {
+        kind: "event",
+        eventKind: "normal",
+        preset: "teleporter",
+        selfMapId: crypto.randomUUID(),
+      },
+      { col: 3, row: 4 },
+      { col: 8, row: 9 },
+    );
+    if (!map) throw new Error("linked pair was not placed");
+    const source = beginEventDraft(map, map.events[0]?.id ?? "");
+    if (!source) throw new Error("source teleporter draft missing");
+    const draft = updateEventDraftPage(source, 0, { graphicAssetId: TREE });
+    const committed = commitEventDraft(createEditorHistory(map), draft).present;
+
+    expect(committed.events[0]?.pages[0]?.graphicAssetId).toBe(TREE);
+    expect(committed.events[1]?.pages[0]?.graphicAssetId).toBeNull();
+  });
 });
 
 describe("placementLegalAt (UX wave #9 hover legality)", () => {

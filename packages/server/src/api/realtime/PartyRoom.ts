@@ -404,6 +404,7 @@ interface VersionedState {
  *  membership-checked here, where the party's authoritative adventure registry is available. Port
  *  of legacy `game-session.ts`'s `mutationBelongsToRegistry`. */
 function mutationBelongsToRegistry(registry: AdventureRegistry, mutation: StateMutation): boolean {
+  if (mutation.type === "consumeTeleporter") return isUuid(mutation.eventId);
   if (
     mutation.type !== "startQuest" &&
     mutation.type !== "advanceQuest" &&

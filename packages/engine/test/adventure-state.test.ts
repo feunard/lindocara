@@ -256,6 +256,7 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_B}:A`]: false },
       defeatedMonsters: { [EVENT_A]: true },
+      teleporterUses: { [EVENT_B]: 2 },
       materials: { wood: 2, stone: 1, meat: 3 },
       harvestNodes: {
         [EVENT_A]: {
@@ -289,6 +290,18 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
         defeatedMonsters: { [EVENT_A]: false },
       }),
     ).toBeNull();
+  });
+
+  it("rejects malformed or overflowing teleporter use counters", () => {
+    for (const teleporterUses of [
+      { "not-an-event-id": 1 },
+      { [EVENT_A]: 0 },
+      { [EVENT_A]: 1_000 },
+    ]) {
+      expect(
+        parsePartyAdventureState({ switches: {}, variables: {}, selfSwitches: {}, teleporterUses }),
+      ).toBeNull();
+    }
   });
 
   it("accepts safe-integer variable extremes, including negative", () => {

@@ -385,6 +385,29 @@ describe("EventCommandEditor", () => {
     await insertVia(user, "teleport")();
     expect(latest.current[0]).toMatchObject({ category: "geographic" });
     await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cmd.field.teleportUses") }),
+      "limited",
+    );
+    const uses = screen.getByRole("spinbutton", {
+      name: t("editor.event.cmd.field.teleportUseCount"),
+    });
+    await user.clear(uses);
+    await user.type(uses, "2");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cmd.field.teleportCost") }),
+      "crystals",
+    );
+    const cost = screen.getByRole("spinbutton", {
+      name: t("editor.event.cmd.field.teleportCostAmount"),
+    });
+    await user.clear(cost);
+    await user.type(cost, "10");
+    expect(latest.current[0]).toMatchObject({
+      useLimit: 2,
+      costCurrency: "crystals",
+      costAmount: 10,
+    });
+    await user.selectOptions(
       screen.getByRole("combobox", { name: t("editor.event.cmd.field.transitionCategory") }),
       "shortcut",
     );
