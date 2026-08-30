@@ -577,6 +577,46 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("places an event on the selected floor even when the surface cell already has one", async () => {
+    let map = applyTool(
+      blankMap("Stacked events", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 3,
+        style: "cave",
+        width: 4,
+        length: 4,
+        direction: "east",
+      },
+      0,
+      0,
+    );
+    map = map ? applyTool(map, { kind: "event", eventKind: "normal" }, 1, 2, true, "event") : null;
+    if (!map) throw new Error("stacked event fixture was refused");
+    const stage = await openMapEditorStage(map, vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.setEditingDepth(3);
+    stage.setActiveMode("event");
+    stage.setTool({ kind: "event", eventKind: "npc", patrolRadius: 2 });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().events).toHaveLength(2);
+    expect(stage.current().events[0]).toMatchObject({ col: 1, row: 2, kind: "normal" });
+    expect(stage.current().events[0]).not.toHaveProperty("undergroundDepth");
+    expect(stage.current().events[1]).toMatchObject({
+      col: 1,
+      row: 2,
+      kind: "npc",
+      undergroundDepth: 3,
+    });
+    stage.dispose();
+  });
+
   it("shows the hero start point where it may go, and refuses out loud where it may not", async () => {
     const withTree = applyTool(
       blankMap("Map", 20, 15),
@@ -935,6 +975,48 @@ describe("HD-2D map editor stage", () => {
     stage.undo();
     expect(stage.current().events).toEqual([]);
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
+    stage.dispose();
+  });
+
+  it("keeps both endpoints of a teleporter pair on the selected basement floor", async () => {
+    const map = applyTool(
+      blankMap("Basement teleporters", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 2,
+        style: "cave",
+        width: 8,
+        length: 8,
+        direction: "east",
+      },
+      0,
+      0,
+    );
+    if (!map) throw new Error("basement teleporter fixture was refused");
+    const stage = await openMapEditorStage(map, vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -8.5, z: -7.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    stage.setEditingDepth(2);
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "event",
+      eventKind: "normal",
+      preset: "teleporter",
+      selfMapId: crypto.randomUUID(),
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    point.x = -4.5;
+    point.z = -3.5;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().events).toHaveLength(2);
+    expect(stage.current().events.map((event) => event.undergroundDepth)).toEqual([2, 2]);
     stage.dispose();
   });
 

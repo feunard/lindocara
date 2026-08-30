@@ -1831,6 +1831,32 @@ function erasedEvent(
   return event ? deleteSelection(map, { kind: "event", id: event.id }) : map;
 }
 
+/** Whether one authored event can occupy this exact vertical cell. Surface, basements and upper
+ * floors are independent planes; a non-surface event also needs a real excavated/built floor under
+ * it, so it can never be saved into invisible void. */
+export function eventCellAvailableAtDepth(
+  map: EditorMap,
+  col: number,
+  row: number,
+  undergroundDepth: number | null = null,
+): boolean {
+  const { cols, rows } = editorMapSize(map);
+  if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+  if (
+    map.events.some(
+      (event) =>
+        event.col === col &&
+        event.row === row &&
+        (event.undergroundDepth ?? null) === undergroundDepth,
+    )
+  )
+    return false;
+  if (undergroundDepth === null) return true;
+  const size = Math.max(cols, rows);
+  const level = map.underground?.levels.find((candidate) => candidate.depth === undergroundDepth);
+  return undergroundCells(level, size)[row * size + col] !== 0;
+}
+
 /**
  * Place a reciprocal same-map teleporter pair as one document change. The editor stage waits for
  * both clicks before calling this function, so neither history nor persistence can ever observe a
@@ -1854,18 +1880,24 @@ export function placeLinkedTeleporters(
   tool: EditorEventTool,
   source: { col: number; row: number },
   destination: { col: number; row: number },
+  undergroundDepth: number | null = null,
 ): EditorMap | null {
   if (tool.eventKind !== "normal" || tool.preset !== "teleporter") return null;
   if (source.col === destination.col && source.row === destination.row) return null;
   if (map.events.length > MAX_EVENTS_PER_MAP - 2) return null;
   if (runtimeEventCount(map.events) > MAX_RUNTIME_EVENTS_PER_MAP - 2) return null;
   for (const point of [source, destination]) {
-    if (map.events.some((event) => event.col === point.col && event.row === point.row)) return null;
-    if (!functionalEventPlacementOk(map, "normal", point.col, point.row)) return null;
+    if (!eventCellAvailableAtDepth(map, point.col, point.row, undergroundDepth)) return null;
+    if (
+      undergroundDepth === null &&
+      !functionalEventPlacementOk(map, "normal", point.col, point.row)
+    )
+      return null;
   }
   const sourceId = crypto.randomUUID();
   const destinationId = crypto.randomUUID();
   const ordinal = nextEventOrdinal(map.events);
+  const eventDepth = undergroundDepth === null ? {} : { undergroundDepth };
   const name =
     tool.presetName === undefined ? undefined : numberedPresetName(tool.presetName, map.events);
   const sourceEvent = linkedTeleportEvent(
@@ -1892,7 +1924,14 @@ export function placeLinkedTeleporters(
     }),
     sourceId,
   );
-  return { ...map, events: [...map.events, sourceEvent, destinationEvent] };
+  return {
+    ...map,
+    events: [
+      ...map.events,
+      { ...sourceEvent, ...eventDepth },
+      { ...destinationEvent, ...eventDepth },
+    ],
+  };
 }
 
 /** `syncElevationWalls` for one cell, widened to a rectangle. Each call already checks the cell and
@@ -3137,15 +3176,7 @@ export function applyTool(
     case "event": {
       const eventDepth = undergroundDepth === null ? {} : { undergroundDepth };
       if (tool.eventKind === "normal" && tool.preset === "teleporter") return null;
-      if (
-        map.events.some(
-          (event) =>
-            event.col === col &&
-            event.row === row &&
-            (event.undergroundDepth ?? null) === undergroundDepth,
-        )
-      )
-        return null;
+      if (!eventCellAvailableAtDepth(map, col, row, undergroundDepth)) return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
       if (
         isRuntimeEventKind(tool.eventKind) &&

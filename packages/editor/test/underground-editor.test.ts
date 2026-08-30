@@ -718,4 +718,55 @@ describe("underground editor tools", () => {
     expect(query.waterLevelAtElevation?.(0.5, -1.5, -7.2)).toBeCloseTo(-6.3);
     expect(query.surfaceAt?.(-1.5, -1.5, -6.1)).toBeCloseTo(-6.3);
   });
+
+  it("attaches runtime events only to real cells on the selected vertical floor", () => {
+    let map = applyTool(
+      blankMap("Vertical events", 12, 12),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 2,
+        style: "cave",
+        width: 3,
+        length: 3,
+        direction: "east",
+      },
+      3,
+      3,
+    );
+    if (!map) throw new Error("underground fixture was refused");
+
+    map = applyTool(
+      map,
+      {
+        kind: "event",
+        eventKind: "monster",
+        species: "spear_goblin",
+        patrolRadius: 3,
+      },
+      4,
+      4,
+      true,
+      "event",
+      0,
+      0,
+      2,
+    );
+    if (!map) throw new Error("underground monster was refused");
+
+    expect(map.events[0]).toMatchObject({ kind: "monster", col: 4, row: 4, undergroundDepth: 2 });
+    expect(
+      applyTool(
+        map,
+        { kind: "event", eventKind: "npc", patrolRadius: 2 },
+        9,
+        9,
+        true,
+        "event",
+        0,
+        0,
+        2,
+      ),
+    ).toBeNull();
+  });
 });

@@ -109,6 +109,7 @@ import {
   createEditorHistory,
   deleteSelection,
   editorMapSize,
+  eventCellAvailableAtDepth,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
@@ -1354,7 +1355,7 @@ export function openMapEditorStage(
       ) {
         if (pendingTeleportOrigin === null) {
           if (
-            map.events.some((event) => event.col === col && event.row === row) ||
+            !eventCellAvailableAtDepth(map, col, row, editingDepth) ||
             map.events.length > MAX_EVENTS_PER_MAP - 2 ||
             runtimeEventCount(map.events) > MAX_RUNTIME_EVENTS_PER_MAP - 2
           ) {
@@ -1369,7 +1370,7 @@ export function openMapEditorStage(
           return;
         }
         const source = pendingTeleportOrigin;
-        const next = placeLinkedTeleporters(map, tool, source, { col, row });
+        const next = placeLinkedTeleporters(map, tool, source, { col, row }, editingDepth);
         if (!next) {
           placementRejections += 1;
           notify();
@@ -1379,7 +1380,10 @@ export function openMapEditorStage(
         map = next;
         pendingTeleportOrigin = null;
         const placed = map.events.find(
-          (event) => event.col === source.col && event.row === source.row,
+          (event) =>
+            event.col === source.col &&
+            event.row === source.row &&
+            (event.undergroundDepth ?? null) === editingDepth,
         );
         if (placed) selected = { kind: "event", id: placed.id };
         strokeRedraw(previous);
@@ -1440,7 +1444,12 @@ export function openMapEditorStage(
         }
       }
       if (tool.kind === "event") {
-        const exists = map.events.find((event) => event.col === col && event.row === row);
+        const exists = map.events.find(
+          (event) =>
+            event.col === col &&
+            event.row === row &&
+            (event.undergroundDepth ?? null) === editingDepth,
+        );
         if (exists) {
           selected = { kind: "event", id: exists.id };
           hoverResize = null;
@@ -1918,6 +1927,10 @@ export function openMapEditorStage(
         notify();
       },
       setEditingDepth(depth) {
+        // A two-click placement may never bridge two vertical planes accidentally. Changing the
+        // viewed storey cancels its first endpoint just like changing tools or modes does.
+        pendingTeleportOrigin = null;
+        linkFrom = null;
         editingDepth =
           depth === null
             ? null
