@@ -1641,7 +1641,16 @@ export function openMapEditorStage(
         }
       }
       if (tool.kind === "event") {
-        const placed = map.events.find((event) => event.col === col && event.row === row);
+        // A surface event and one event per vertical storey may legitimately share a cell. Select
+        // the event this click just authored on the ACTIVE plane; taking the first coordinate match
+        // instead selects the surface event and makes the basement NPC look as though it was never
+        // placed (its inspector/list selection points at content hidden on another storey).
+        const placed = map.events.find(
+          (event) =>
+            event.col === col &&
+            event.row === row &&
+            (event.undergroundDepth ?? null) === editingDepth,
+        );
         if (placed) selected = { kind: "event", id: placed.id };
       }
       // The pair landed: the tool is ready for the next link rather than still holding a door the

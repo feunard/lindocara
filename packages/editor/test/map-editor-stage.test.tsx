@@ -32,6 +32,7 @@ import {
   terrainDescriptorOfTileId,
   waterLevelOfTileId,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
@@ -580,13 +581,13 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
-  it("places an event on the selected floor even when the surface cell already has one", async () => {
+  it("places and selects a visible NPC on basement -1 even when the surface cell has an event", async () => {
     let map = applyTool(
       blankMap("Stacked events", 20, 15),
       {
         kind: "underground",
         operation: "dig",
-        depth: 3,
+        depth: 1,
         style: "cave",
         width: 4,
         length: 4,
@@ -597,13 +598,19 @@ describe("HD-2D map editor stage", () => {
     );
     map = map ? applyTool(map, { kind: "event", eventKind: "normal" }, 1, 2, true, "event") : null;
     if (!map) throw new Error("stacked event fixture was refused");
-    const stage = await openMapEditorStage(map, vi.fn());
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(map, changes);
     const canvas = document.querySelector<HTMLCanvasElement>("#stage");
     if (!canvas) throw new Error("fixture canvas missing");
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
-    stage.setEditingDepth(3);
+    stage.setEditingDepth(1);
     stage.setActiveMode("event");
-    stage.setTool({ kind: "event", eventKind: "npc", patrolRadius: 2 });
+    stage.setTool({
+      kind: "event",
+      eventKind: "npc",
+      patrolRadius: 2,
+      graphic: DEFAULT_NPC_MODEL_ASSET_ID,
+    });
 
     canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
     window.dispatchEvent(new PointerEvent("pointerup"));
@@ -611,12 +618,32 @@ describe("HD-2D map editor stage", () => {
     expect(stage.current().events).toHaveLength(2);
     expect(stage.current().events[0]).toMatchObject({ col: 1, row: 2, kind: "normal" });
     expect(stage.current().events[0]).not.toHaveProperty("undergroundDepth");
-    expect(stage.current().events[1]).toMatchObject({
+    const basementNpc = stage.current().events[1];
+    expect(basementNpc).toMatchObject({
       col: 1,
       row: 2,
       kind: "npc",
-      undergroundDepth: 3,
+      undergroundDepth: 1,
+      pages: [expect.objectContaining({ graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID })],
     });
+    expect(changes.mock.lastCall?.[1].selection).toEqual({ kind: "event", id: basementNpc?.id });
+
+    const frame = mock.frame();
+    if (!frame) throw new Error("renderer frame callback missing");
+    frame(performance.now());
+    expect(mock.renderer.render).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        events: [
+          expect.objectContaining({
+            id: basementNpc?.id,
+            undergroundDepth: 1,
+            y: -2.4,
+            graphicAssetId: DEFAULT_NPC_MODEL_ASSET_ID,
+          }),
+        ],
+      }),
+      expect.any(Object),
+    );
     stage.dispose();
   });
 
