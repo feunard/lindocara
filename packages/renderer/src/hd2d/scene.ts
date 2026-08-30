@@ -443,9 +443,6 @@ export const HD2D_CAMERA = {
   fogFar: 0.38,
   /** How fast the camera catches up with what it follows, as an exponential rate (see `render`). */
   follow: 6,
-  /** Inclinaison temporaire pendant une transition verticale, ajoutée au réglage manuel. */
-  transitionPitch: 24 * (Math.PI / 180),
-  transitionPitchFollow: 7,
 } as const;
 
 const CAMERA = HD2D_CAMERA;
@@ -1023,8 +1020,6 @@ export function createHd2dScene(
   let framedCameraDistance: number = cameraDistance;
   let cameraYaw = 0;
   let cameraPitch = CAMERA.pitch;
-  let transitionPitch = 0;
-  let wantedTransitionPitch = 0;
   const wantedTarget = new THREE.Vector3();
   let cameraMin = 0;
   let cameraMax = 0;
@@ -1038,12 +1033,7 @@ export function createHd2dScene(
   function frameCamera(recoveryDt = 0): void {
     // How far back the camera sits. Zoom updates this value while preserving the camera pitch and
     // day a wheel is wired is what makes the two zoom couplings below mean anything.
-    const effectivePitch = THREE.MathUtils.clamp(
-      cameraPitch + transitionPitch,
-      5 * (Math.PI / 180),
-      82 * (Math.PI / 180),
-    );
-    const requestedOffset = cameraOrbitOffset(cameraYaw, cameraDistance, effectivePitch);
+    const requestedOffset = cameraOrbitOffset(cameraYaw, cameraDistance, cameraPitch);
     const clearDistance =
       viewedUndergroundDepth === null && (currentMap.environment ?? "exterior") === "exterior"
         ? cameraDistanceBeforeTerrain(query, target, requestedOffset, cameraDistance)
@@ -1059,7 +1049,7 @@ export function createHd2dScene(
     }
     framedCameraDistance = Math.min(framedCameraDistance, cameraDistance);
     const distance = framedCameraDistance;
-    const offset = cameraOrbitOffset(cameraYaw, distance, effectivePitch);
+    const offset = cameraOrbitOffset(cameraYaw, distance, cameraPitch);
     camera.position.set(target.x + offset.x, target.y + offset.y, target.z + offset.z);
     camera.lookAt(target);
 
@@ -1257,13 +1247,7 @@ export function createHd2dScene(
           viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
           undergroundElevation = elevation;
         }
-        // L'escalier est désormais un volume plein. Une caméra restée à l'angle du terrain plat
-        // regarde son flanc pendant la descente ; relever progressivement le regard garde les
-        // marches et le héros visibles, puis l'ajout revient à zéro dès que le sol redevient plat.
-        wantedTransitionPitch = transitioning ? CAMERA.transitionPitch : 0;
         applyUndergroundVisibility();
-      } else {
-        wantedTransitionPitch = 0;
       }
       focus = {
         x: THREE.MathUtils.clamp(x, cameraMin, cameraMax),
@@ -1372,11 +1356,6 @@ export function createHd2dScene(
       const dt = last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS);
       last = now;
       if (focus) {
-        transitionPitch = THREE.MathUtils.lerp(
-          transitionPitch,
-          wantedTransitionPitch,
-          1 - Math.exp(-CAMERA.transitionPitchFollow * dt),
-        );
         wantedTarget.set(
           focus.x,
           cameraFocusSurface(
