@@ -230,6 +230,30 @@ describe("parsing a map off the wire", () => {
     ).toBeNull();
   });
 
+  it("accepts upper storeys only on interior maps", () => {
+    const upperStorey = {
+      levels: [{ depth: -1, style: "timber", cells: [{ col: 0, row: 0, length: 2 }] }],
+      stairs: [
+        {
+          depth: 0,
+          fromDepth: -1,
+          col: 0,
+          row: 0,
+          direction: "east",
+          length: 2,
+          width: 1,
+        },
+      ],
+    };
+    expect(parseMapData(wire({ underground: upperStorey }))).toBeNull();
+    expect(
+      parseMapData({
+        ...wire({ environment: "interior", underground: upperStorey }),
+        interiorShell: { style: "timber" },
+      })?.underground,
+    ).toEqual(upperStorey);
+  });
+
   it("parses explicit bridge dimensions and derives their resized footprint and collider", () => {
     const bridge = {
       col: 3,

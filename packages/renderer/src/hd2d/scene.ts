@@ -45,7 +45,6 @@ import {
   undergroundStyleMaterial,
   undergroundTransitionAt,
   undergroundVisibleDepthsAtElevation,
-  UNDERGROUND_STOREY_HEIGHT,
 } from "@lindocara/engine/underground.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
 import type { Hd2dContext } from "@lindocara/hd2d/context.js";
@@ -390,13 +389,17 @@ export function stairMaterialKeyFor(
   field: HeightField = heightFieldFor(map),
 ): string {
   if (ramp.lowHeight !== undefined && map.underground) {
-    const lowerDepth = Math.max(1, Math.round(-ramp.lowHeight / UNDERGROUND_STOREY_HEIGHT));
-    if (lowerDepth > 1) {
-      const attachedLevel =
-        map.underground.levels.find((level) => level.depth === lowerDepth - 1) ??
-        map.underground.levels.find((level) => level.depth === lowerDepth);
-      if (attachedLevel) return terrainAtlasKey(undergroundStyleMaterial(attachedLevel.style), 0);
-    }
+    const upperDepth =
+      ramp.highHeight === undefined ? null : undergroundDepthAtElevation(ramp.highHeight);
+    const lowerDepth = undergroundDepthAtElevation(ramp.lowHeight);
+    const attachedLevel =
+      (upperDepth === null
+        ? null
+        : map.underground.levels.find((level) => level.depth === upperDepth)) ??
+      (lowerDepth === null
+        ? null
+        : map.underground.levels.find((level) => level.depth === lowerDepth));
+    if (attachedLevel) return terrainAtlasKey(undergroundStyleMaterial(attachedLevel.style), 0);
   }
   const half = map.size / 2;
   const middleX = ramp.x + ramp.width / 2;
@@ -431,12 +434,15 @@ export function undergroundStairVisible(
   upperDepth: number | null,
   visibleDepths: readonly (number | null)[],
 ): boolean {
-  if (lowDepth === null) return visibleDepths.includes(null);
-  if (upperDepth === 0 && visibleDepths.includes(null)) return true;
-  const upper = upperDepth ?? lowDepth - 1;
-  return visibleDepths.some(
-    (visibleDepth) => visibleDepth !== null && visibleDepth >= upper && visibleDepth <= lowDepth,
-  );
+  if (lowDepth === null && upperDepth === null) return visibleDepths.includes(null);
+  const lower = lowDepth ?? 0;
+  const upper = upperDepth ?? lower - 1;
+  const minimum = Math.min(lower, upper);
+  const maximum = Math.max(lower, upper);
+  return visibleDepths.some((visibleDepth) => {
+    const numeric = visibleDepth ?? 0;
+    return numeric >= minimum && numeric <= maximum;
+  });
 }
 
 /** Transparent surface liquids are scenery, never a window onto connected underground geometry. */
@@ -812,7 +818,7 @@ export function createHd2dScene(
     built.group.children.forEach((child, index) => {
       const ramp = ramps[index];
       const lowDepth =
-        ramp?.lowHeight === undefined ? null : undergroundDepthAtElevation(ramp.lowHeight);
+        ramp?.lowHeight === undefined ? null : (undergroundDepthAtElevation(ramp.lowHeight) ?? 0);
       const highDepth =
         ramp?.highHeight === undefined ? null : (undergroundDepthAtElevation(ramp.highHeight) ?? 0);
       child.userData.undergroundDepth = lowDepth;
@@ -1326,7 +1332,12 @@ export function createHd2dScene(
     },
     setUndergroundDepth(depth: number | null, reference = false): void {
       viewedUndergroundDepth =
-        depth === null ? null : THREE.MathUtils.clamp(Math.round(depth), 1, 16);
+        depth === null
+          ? null
+          : (() => {
+              const clamped = THREE.MathUtils.clamp(Math.round(depth), -16, 16);
+              return clamped === 0 ? (depth < 0 ? -1 : 1) : clamped;
+            })();
       undergroundElevation = null;
       authoringUndergroundView = reference && viewedUndergroundDepth !== null;
       applyUndergroundVisibility();

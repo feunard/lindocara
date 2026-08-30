@@ -2565,7 +2565,7 @@ export class Hd2dRenderer implements RendererLike {
     );
   }
 
-  /** Selects the surface or a specific underground storey in creator tools. */
+  /** Selects the ground floor or a signed vertical storey in creator tools. */
   setUndergroundDepth(depth: number | null): void {
     this.#undergroundDepth = depth;
     this.#scene?.setUndergroundDepth(depth, this.#currentMapId === "editor");

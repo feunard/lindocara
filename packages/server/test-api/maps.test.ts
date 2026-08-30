@@ -1198,14 +1198,21 @@ describe("list, get, update, delete", () => {
     const id = await newMapId(await newAdventure(userId), token, "Vertical map");
     const surfaceElementId = "10000000-0000-4000-8000-000000000001";
     const deepElementId = "10000000-0000-4000-8000-000000000002";
+    const upperElementId = "10000000-0000-4000-8000-000000000003";
     const surfaceEventId = "20000000-0000-4000-8000-000000000001";
     const deepEventId = "20000000-0000-4000-8000-000000000002";
+    const upperEventId = "20000000-0000-4000-8000-000000000003";
     const event = (eventId: string, undergroundDepth?: number) => ({
       id: eventId,
       col: 5,
       row: 5,
-      name: undergroundDepth ? "Deep event" : "Surface event",
-      ordinal: undergroundDepth ? 2 : 1,
+      name:
+        undergroundDepth === undefined
+          ? "Surface event"
+          : undergroundDepth < 0
+            ? "Upper event"
+            : "Deep event",
+      ordinal: undergroundDepth === undefined ? 1 : undergroundDepth < 0 ? 3 : 2,
       kind: "normal",
       species: null,
       patrolRadius: null,
@@ -1216,6 +1223,8 @@ describe("list, get, update, delete", () => {
       id,
       token,
       mapBody({
+        environment: "interior",
+        interiorShell: { style: "timber" },
         underground: {
           levels: [
             {
@@ -1227,10 +1236,25 @@ describe("list, get, update, delete", () => {
               ],
               terrain: [{ col: 4, row: 4, length: 1, material: "volcan" }],
             },
+            {
+              depth: -1,
+              style: "timber",
+              cells: [
+                { col: 4, row: 4, length: 1 },
+                { col: 5, row: 5, length: 1 },
+              ],
+              terrain: [{ col: 4, row: 4, length: 1, material: "parquet" }],
+            },
           ],
           stairs: [],
-          elementDepths: [{ id: deepElementId, depth: 3 }],
-          eventDepths: [{ id: deepEventId, depth: 3 }],
+          elementDepths: [
+            { id: deepElementId, depth: 3 },
+            { id: upperElementId, depth: -1 },
+          ],
+          eventDepths: [
+            { id: deepEventId, depth: 3 },
+            { id: upperEventId, depth: -1 },
+          ],
         },
         elements: [
           {
@@ -1250,16 +1274,25 @@ describe("list, get, update, delete", () => {
             assetId: TREE_ASSET_ID,
             undergroundDepth: 3,
           },
+          {
+            id: upperElementId,
+            col: 4,
+            row: 4,
+            offsetX: 0,
+            offsetY: 0,
+            assetId: TREE_ASSET_ID,
+            undergroundDepth: -1,
+          },
         ],
-        events: [event(surfaceEventId), event(deepEventId, 3)],
+        events: [event(surfaceEventId), event(deepEventId, 3), event(upperEventId, -1)],
       }),
     );
     expect(updated.status).toBe(200);
 
     const storedElements = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
     const storedEvents = await probe.mapEvents.findMany({ where: { mapId: { eq: id } } });
-    expect(new Set(storedElements.map((element) => element.col)).size).toBe(2);
-    expect(new Set(storedEvents.map((storedEvent) => storedEvent.col)).size).toBe(2);
+    expect(new Set(storedElements.map((element) => element.col)).size).toBe(3);
+    expect(new Set(storedEvents.map((storedEvent) => storedEvent.col)).size).toBe(3);
 
     const payload = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
       elements: { id: string; col: number; row: number; undergroundDepth?: number }[];
@@ -1270,12 +1303,14 @@ describe("list, get, update, delete", () => {
       expect.arrayContaining([
         expect.objectContaining({ id: surfaceElementId, col: 4, row: 4 }),
         expect.objectContaining({ id: deepElementId, col: 4, row: 4, undergroundDepth: 3 }),
+        expect.objectContaining({ id: upperElementId, col: 4, row: 4, undergroundDepth: -1 }),
       ]),
     );
     expect(payload.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: surfaceEventId, col: 5, row: 5 }),
         expect.objectContaining({ id: deepEventId, col: 5, row: 5, undergroundDepth: 3 }),
+        expect.objectContaining({ id: upperEventId, col: 5, row: 5, undergroundDepth: -1 }),
       ]),
     );
   });

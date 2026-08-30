@@ -26,6 +26,8 @@ function fieldBody() {
     undergroundWidth: 3,
     undergroundLength: 6,
     undergroundDirection: "east" as const,
+    upperStorey: 1,
+    upperStairsActive: false,
     onPickContent: () => {},
     onSelectStairs: () => {},
     onStairsDirectionChange: () => {},
@@ -37,6 +39,8 @@ function fieldBody() {
     onUndergroundStyleChange: () => {},
     onUndergroundSizeChange: () => {},
     onUndergroundDirectionChange: () => {},
+    onSelectUpperStairs: () => {},
+    onUpperStoreyChange: () => {},
   };
 }
 
@@ -101,6 +105,19 @@ describe("mode-scoped palette", () => {
     expect(screen.getByRole("button", { name: t("editor.tool.grass") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("editor.wallOpening.open") })).toBeInTheDocument();
     expect(screen.queryByTestId("catalogue-picker")).toBeNull();
+  });
+
+  it("offers upper-floor stairs only for interior maps", () => {
+    setLocale("en");
+    const props = fieldProps();
+    const { rerender } = render(<EditorPalette mode="field" {...props} />);
+    expect(screen.getByTestId("terrain-upper-storeys")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: t("editor.upperStorey.stairs") }),
+    ).toBeInTheDocument();
+
+    rerender(<EditorPalette mode="field" {...props} field={{ ...props.field, interior: false }} />);
+    expect(screen.queryByTestId("terrain-upper-storeys")).toBeNull();
   });
 
   it("shows the catalogue and the element counter in element mode", () => {

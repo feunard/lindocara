@@ -188,6 +188,172 @@ describe("underground editor tools", () => {
     );
   });
 
+  it("creates proportional upper-floor stairs only inside an interior map", () => {
+    const exterior = blankMap("Exterior", 24, 24);
+    const interior = {
+      ...blankMap("Upper floors", 24, 24),
+      environment: "interior" as const,
+      interiorShell: { style: "timber" as const },
+    };
+    const tool = {
+      kind: "underground" as const,
+      operation: "stairs" as const,
+      depth: -2,
+      style: "timber" as const,
+      width: 2,
+      length: 3,
+      direction: "east" as const,
+    };
+    const exteriorEdited = applyTool(exterior, tool, 3, 7);
+    const edited = applyTool(interior, tool, 3, 7);
+
+    expect(exteriorEdited).toBeNull();
+    expect(edited?.underground?.stairs).toEqual([
+      {
+        depth: 0,
+        fromDepth: -2,
+        col: 3,
+        row: 7,
+        direction: "east",
+        length: 6,
+        width: 2,
+      },
+    ]);
+    expect(edited?.underground?.levels.map((level) => level.depth)).toEqual([-2, -1]);
+    const heightfield = edited ? decodeMap(toSaveInput(edited).heightfield) : null;
+    expect(heightfield?.underground?.levels.map((level) => level.depth)).toEqual([-2, -1]);
+    expect(heightfield?.ramps?.at(-1)).toMatchObject({ lowHeight: 0, highHeight: 4.8 });
+  });
+
+  it("authors terrain, liquids, scenery and events independently on an upper floor", () => {
+    let edited = {
+      ...blankMap("Furnished floor", 12, 12),
+      environment: "interior" as const,
+      interiorShell: { style: "timber" as const },
+    };
+    edited = applyTool(
+      edited,
+      { kind: "elevation", material: "parquet", step: "keep" },
+      4,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      -1,
+    ) as typeof edited;
+    edited = applyTool(
+      edited,
+      { kind: "block", block: "water" },
+      5,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      -1,
+    ) as typeof edited;
+    edited = applyTool(
+      edited,
+      { kind: "element", assetId: "decoration.deco.01" },
+      4,
+      4,
+      true,
+      "element",
+      0,
+      0,
+      -1,
+    ) as typeof edited;
+    edited = applyTool(
+      edited,
+      { kind: "event", eventKind: "normal" },
+      5,
+      4,
+      true,
+      "event",
+      0,
+      0,
+      -1,
+    ) as typeof edited;
+
+    expect(edited.underground?.levels).toMatchObject([
+      {
+        depth: -1,
+        style: "timber",
+        terrain: [
+          { col: 4, row: 4, length: 1, material: "parquet" },
+          { col: 5, row: 4, length: 1, material: "water" },
+        ],
+      },
+    ]);
+    expect(edited.elements[0]?.undergroundDepth).toBe(-1);
+    expect(edited.events[0]?.undergroundDepth).toBe(-1);
+    const heightfield = decodeMap(toSaveInput(edited).heightfield);
+    if (!heightfield) throw new Error("upper-floor heightfield did not decode");
+    expect(heightfield?.elements[0]).toMatchObject({ undergroundDepth: -1, y: 2.4 });
+    expect(heightfield?.events[0]).toMatchObject({ undergroundDepth: -1, y: 2.4 });
+    expect(mapToQuerySource(heightfield).kindAtElevation?.(4, 4, 2.4)).toBe("parquet");
+    expect(mapToQuerySource(heightfield).liquidAtElevation?.(5, 4, 2.4)).toBe("water");
+  });
+
+  it("grows and removes upper-floor zones with the same block and fill tools as a basement", () => {
+    const interior = {
+      ...blankMap("Editable floor", 12, 12),
+      environment: "interior" as const,
+      interiorShell: { style: "castle" as const },
+    };
+    const built = applyTool(
+      interior,
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: -1,
+        style: "castle",
+        width: 4,
+        length: 3,
+        direction: "east",
+      },
+      3,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      -1,
+    );
+    expect(built?.underground?.levels).toEqual([
+      {
+        depth: -1,
+        style: "castle",
+        cells: [
+          { col: 3, row: 4, length: 4 },
+          { col: 3, row: 5, length: 4 },
+          { col: 3, row: 6, length: 4 },
+        ],
+      },
+    ]);
+
+    const fillTool = {
+      kind: "underground" as const,
+      operation: "fill" as const,
+      depth: -1,
+      style: "castle" as const,
+      width: 1,
+      length: 1,
+      direction: "east" as const,
+      shape: "rect" as const,
+    };
+    const anchored = built ? applyTool(built, fillTool, 3, 4, true, "field", 0, 0, -1) : null;
+    const removed = anchored ? applyTool(anchored, fillTool, 4, 6, false, "field", 0, 0, -1) : null;
+    const remaining = removed?.underground?.levels[0]?.cells.flatMap((run) =>
+      Array.from({ length: run.length }, (_unused, offset) => `${run.col + offset}:${run.row}`),
+    );
+    expect(remaining).not.toContain("3:4");
+    expect(remaining).not.toContain("4:6");
+    expect(remaining).toContain("5:4");
+    expect(remaining).toContain("6:6");
+  });
+
   it("authors a true surface shaft through every storey and removes it when filled", () => {
     const map = blankMap("Shaft", 12, 12);
     const dug = applyTool(

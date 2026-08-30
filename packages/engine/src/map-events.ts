@@ -50,7 +50,7 @@ import {
   isGuardAppearanceAssetId,
   RETIRED_RUNNER_HOUND_ASSET_ID,
 } from "./tiny-swords-catalog.js";
-import { undergroundFloorHeight } from "./underground.js";
+import { undergroundFloorHeight, validVerticalDepth } from "./underground.js";
 
 /**
  * UX wave #12: markers die, their meaning becomes a typed event. A `normal` event is the wireframe
@@ -756,13 +756,7 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     const r = row as number;
     if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
     const undergroundDepth = record.undergroundDepth;
-    if (
-      undergroundDepth !== undefined &&
-      (!Number.isSafeInteger(undergroundDepth) ||
-        (undergroundDepth as number) < 1 ||
-        (undergroundDepth as number) > 16)
-    )
-      return null;
+    if (undergroundDepth !== undefined && !validVerticalDepth(undergroundDepth)) return null;
     const cellDepth = undergroundDepth === undefined ? 0 : (undergroundDepth as number);
     const cellKey = `${cellDepth}:${c}:${r}`;
     if (seenCells.has(cellKey)) return null;

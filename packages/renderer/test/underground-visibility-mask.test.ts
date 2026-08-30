@@ -52,6 +52,37 @@ describe("underground storey visibility mask", () => {
     expect(depthOne.has("4:4")).toBe(false);
   });
 
+  it("opens an upper floor only above its real staircase footprint", () => {
+    const upperMap = {
+      size: 5,
+      underground: {
+        levels: [],
+        stairs: [
+          {
+            depth: 0,
+            fromDepth: -1,
+            col: 1,
+            row: 1,
+            direction: "east" as const,
+            length: 2,
+            width: 1,
+          },
+        ],
+      },
+    };
+    const covered = new Set<string>();
+    for (const run of undergroundLevelOcclusionRuns(upperMap, -1)) {
+      for (let col = run.col; col < run.col + run.length; col += 1) {
+        covered.add(`${col}:${run.row}`);
+      }
+    }
+
+    expect(covered.size).toBe(23);
+    expect(covered.has("1:1")).toBe(false);
+    expect(covered.has("2:1")).toBe(false);
+    expect(covered.has("0:0")).toBe(true);
+  });
+
   it("occludes basements below water without closing real surface accesses", () => {
     const size = 4;
     const liquids = new Array<"water" | null>(size * size).fill("water");

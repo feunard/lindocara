@@ -90,6 +90,7 @@ import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { tileIdInTileset } from "@lindocara/engine/tileset.js";
 import { tilesetById } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { hasUpperStoreys } from "@lindocara/engine/underground.js";
 import { HttpError } from "alepha/server";
 
 export { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_MIN_COLS, MAP_MIN_ROWS, MAX_ADVENTURE_MAPS };
@@ -145,6 +146,14 @@ export function validateMapInput(input: MapInput): MapData & {
   if (!environment) throw new Error("environment: must be exterior or interior");
   if (input.interiorShell && environment !== "interior") {
     throw new Error("interior_shell: requires an interior map");
+  }
+  if (
+    environment !== "interior" &&
+    (hasUpperStoreys(input.underground) ||
+      input.elements.some((element) => (element.undergroundDepth ?? 0) < 0) ||
+      (input.events ?? []).some((event) => (event.undergroundDepth ?? 0) < 0))
+  ) {
+    throw new Error("underground: upper storeys require an interior map");
   }
   const weather = parseMapWeather(input.weather ?? DEFAULT_MAP_WEATHER);
   if (!weather) throw new Error(`weather: must be one of ${MAP_WEATHERS.join(", ")}`);
@@ -223,6 +232,8 @@ export function parseMapBody(body: unknown): MapInput | null {
   const rawEvents = (body as { events?: unknown } | null)?.events;
   const events = rawEvents === undefined ? [] : parseMapEvents(rawEvents, data.cols, data.rows);
   if (events === null) return null;
+  if (data.environment !== "interior" && events.some((event) => (event.undergroundDepth ?? 0) < 0))
+    return null;
   const rawAudio = (body as { audio?: unknown } | null)?.audio;
   let audio: MapAudioConfig | undefined;
   if (rawAudio !== undefined) {

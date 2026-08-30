@@ -33,6 +33,7 @@ import {
 import { DEFAULT_MAP_WEATHER, type MapWeather, parseMapWeather } from "../map-weather.js";
 import { isNativeSceneryAsset } from "../native-scenery.js";
 import {
+  hasUpperStoreys,
   parseUnderground,
   undergroundCells,
   undergroundDepthAtElevation,
@@ -41,6 +42,7 @@ import {
   undergroundStyleMaterial,
   undergroundTerrainCells,
   undergroundTerrainElevationCells,
+  validVerticalDepth,
   withUndergroundStairSideColliders,
 } from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
@@ -279,14 +281,7 @@ function toElement(value: unknown): HeightfieldElement | null {
     return null;
   if (value.y !== undefined && !isFiniteNumber(value.y)) return null;
   const undergroundDepth = value.undergroundDepth;
-  if (
-    undergroundDepth !== undefined &&
-    (typeof undergroundDepth !== "number" ||
-      !Number.isSafeInteger(undergroundDepth) ||
-      undergroundDepth < 1 ||
-      undergroundDepth > 16)
-  )
-    return null;
+  if (undergroundDepth !== undefined && !validVerticalDepth(undergroundDepth)) return null;
   const orientation = parseElementOrientation(value.orientation);
   const rotation = parseElementRotation(value.rotation);
   const hasRotation = value.rotation !== undefined && value.rotation !== null;
@@ -338,14 +333,7 @@ function toEvent(value: unknown): HeightfieldEvent | null {
     return null;
   if (value.y !== undefined && !isFiniteNumber(value.y)) return null;
   const undergroundDepth = value.undergroundDepth;
-  if (
-    undergroundDepth !== undefined &&
-    (typeof undergroundDepth !== "number" ||
-      !Number.isSafeInteger(undergroundDepth) ||
-      undergroundDepth < 1 ||
-      undergroundDepth > 16)
-  )
-    return null;
+  if (undergroundDepth !== undefined && !validVerticalDepth(undergroundDepth)) return null;
   return {
     id: value.id,
     x: value.x,
@@ -449,6 +437,7 @@ export function decodeMap(s: string): MapData | null {
       ? undefined
       : parseUnderground(value.underground, size as number);
   if (value.underground !== undefined && !underground) return null;
+  if (environment !== "interior" && hasUpperStoreys(underground ?? undefined)) return null;
 
   const cells = (size as number) * (size as number);
   if (!Array.isArray(levels) || levels.length !== cells) return null;

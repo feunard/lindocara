@@ -1072,8 +1072,8 @@ export function openMapEditorStage(
                   ramps: [
                     undergroundRamp(
                       hoveredUndergroundStair ?? {
-                        depth: Math.max(1, Math.min(16, Math.trunc(tool.depth))),
-                        fromDepth: editingDepth ?? 0,
+                        depth: Math.max(editingDepth ?? 0, Math.trunc(tool.depth)),
+                        fromDepth: Math.min(editingDepth ?? 0, Math.trunc(tool.depth)),
                         col: hover.col,
                         row: hover.row,
                         direction: tool.direction,
@@ -1918,7 +1918,10 @@ export function openMapEditorStage(
         notify();
       },
       setEditingDepth(depth) {
-        editingDepth = depth === null ? null : Math.max(1, Math.min(16, Math.trunc(depth)));
+        editingDepth =
+          depth === null
+            ? null
+            : Math.max(-16, Math.min(16, Math.trunc(depth) || (depth < 0 ? -1 : 1)));
         selected = null;
         renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
         const heightfield = compiled();

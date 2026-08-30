@@ -51,7 +51,7 @@ import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
 import { isRampFixedIndex, tilesetById, waterLevelOfTileId } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
-import { parseUnderground } from "./underground.js";
+import { hasUpperStoreys, parseUnderground, validVerticalDepth } from "./underground.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
@@ -70,7 +70,8 @@ export interface MapElement {
   /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles below the cell origin. */
   offsetY: number;
   assetId: EditorAssetId;
-  /** Authored storey below the surface. Missing means surface. */
+  /** Authored vertical storey. Positive depths are basements, negative depths are upper floors;
+   * missing means the surface/ground floor. */
   undergroundDepth?: number;
   /** Optional quarter-turn: front (0/default), right side (1), rear (2), left side (3). */
   orientation?: ElementOrientation;
@@ -164,7 +165,8 @@ export interface MapData {
   environment?: MapEnvironment;
   /** Optional world-space cutaway generated around the authored floor boundary. */
   interiorShell?: InteriorShell;
-  /** Authored rooms and passages below the surface, kept compact as row runs. */
+  /** Authored rooms and passages on vertical storeys, kept compact as row runs. Legacy maps only
+   * contain positive basement depths; interior maps may additionally contain negative upper floors. */
   underground?: UndergroundMap;
   /** The authored weather. Absent on every map written before it existed, which reads as `none`.
    *  Appearance only, like `environment`: nothing here may reach collision. */
@@ -180,7 +182,7 @@ export interface MapData {
   markers?: MapMarkers;
 }
 
-/** One contiguous excavated span. Runs keep a sixteen-storey map small even for large rooms. */
+/** One contiguous authored span. Runs keep a multi-storey map small even for large rooms. */
 export interface UndergroundCellRun {
   col: number;
   row: number;
@@ -188,7 +190,7 @@ export interface UndergroundCellRun {
 }
 
 export interface UndergroundLevel {
-  /** 1 is immediately below the surface; 16 is the deepest supported storey. */
+  /** 1..16 are basements; -1..-16 are upper floors on interior maps. */
   depth: number;
   /** Reuses the established interior coating language and its existing assets. */
   style: InteriorShellStyle;
@@ -209,9 +211,9 @@ export interface UndergroundContentDepth {
 }
 
 export interface UndergroundStair {
-  /** Lower destination storey reached by this flight. */
+  /** Lower endpoint. It may be zero for a flight rising from the ground floor. */
   depth: number;
-  /** Upper departure storey. Zero is the surface; absent keeps legacy one-storey flights. */
+  /** Upper endpoint. Zero is the surface; absent keeps legacy one-storey basement flights. */
   fromDepth?: number;
   /** Minimum cell of the rectangular flight footprint. */
   col: number;
@@ -834,13 +836,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
     const offsetY = parseOffsetStep(item.offsetY);
     if (offsetX === null || offsetY === null) return null;
     const undergroundDepth = item.undergroundDepth;
-    if (
-      undergroundDepth !== undefined &&
-      (!Number.isSafeInteger(undergroundDepth) ||
-        (undergroundDepth as number) < 1 ||
-        (undergroundDepth as number) > 16)
-    )
-      return null;
+    if (undergroundDepth !== undefined && !validVerticalDepth(undergroundDepth)) return null;
     let assetId: EditorAssetId;
     if (isEditorAssetId(item.assetId)) assetId = item.assetId;
     else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
@@ -944,6 +940,7 @@ export function parseMapData(value: unknown): MapData | null {
       ? undefined
       : parseUnderground(record.underground, Math.max(width, height));
   if (record.underground !== undefined && !underground) return null;
+  if (environment !== "interior" && hasUpperStoreys(underground ?? undefined)) return null;
   if (
     underground?.levels.some((level) =>
       [...level.cells, ...(level.terrain ?? [])].some(

@@ -145,6 +145,43 @@ describe("multi-storey underground", () => {
     );
   });
 
+  it("keeps the ground floor and an upper floor independently solid at the same cell", () => {
+    const upper = {
+      levels: [
+        {
+          depth: -1,
+          style: "timber" as const,
+          cells: [{ col: 2, row: 2, length: 3 }],
+        },
+      ],
+      stairs: [],
+    };
+    const platforms = undergroundColliders(upper, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const x = 3.5 - 4;
+    const z = 2.5 - 4;
+
+    expect(query.surfaceAt?.(x, z, 0.02)).toBeCloseTo(0);
+    expect(query.surfaceAt?.(x, z, undergroundFloorHeight(-1) + 0.02)).toBeCloseTo(
+      undergroundFloorHeight(-1),
+    );
+    const groundHero = createHeroState(x, z + 0.35, 0, 10, 2.2);
+    const upperHero = createHeroState(x, z + 0.35, undergroundFloorHeight(-1), 10, 2.2);
+    stepHero(groundHero, immobile, 1 / 60, { ...depsPlates(), query, colliders });
+    stepHero(upperHero, immobile, 1 / 60, { ...depsPlates(), query, colliders });
+    expect(groundHero.y).toBeCloseTo(0);
+    expect(upperHero.y).toBeCloseTo(undergroundFloorHeight(-1));
+  });
+
   it("makes a direct shaft dry, removes its surface support and keeps its bottom floor", () => {
     const shaftUnderground = {
       ...underground,
@@ -368,6 +405,9 @@ describe("multi-storey underground", () => {
     expect(undergroundVisibleDepthsAtElevation(-1.2)).toEqual([null, 1]);
     expect(undergroundVisibleDepthsAtElevation(-2.4)).toEqual([1]);
     expect(undergroundVisibleDepthsAtElevation(-3.6)).toEqual([1, 2]);
+    expect(undergroundVisibleDepthsAtElevation(1.2)).toEqual([-1, null]);
+    expect(undergroundVisibleDepthsAtElevation(2.4)).toEqual([-1]);
+    expect(undergroundVisibleDepthsAtElevation(3.6)).toEqual([-2, -1]);
   });
 
   it("descends onto the excavated landing without snapping back to the surface", () => {
@@ -415,11 +455,11 @@ describe("multi-storey underground", () => {
     });
   });
 
-  it("walks from one excavated storey to the next through an adjacent-storey flight", () => {
+  it("walks down from basement -2 to -3 and back up without jumping", () => {
     const size = 30;
     const stair = {
-      depth: 2,
-      fromDepth: 1,
+      depth: 3,
+      fromDepth: 2,
       col: 18,
       row: 19,
       direction: "east" as const,
@@ -428,8 +468,8 @@ describe("multi-storey underground", () => {
     };
     const levels = [
       {
-        depth: 1,
-        style: "cave" as const,
+        depth: 2,
+        style: "timber" as const,
         cells: Array.from({ length: 16 }, (_unused, row) => ({
           col: 6,
           row: row + 8,
@@ -437,8 +477,8 @@ describe("multi-storey underground", () => {
         })),
       },
       {
-        depth: 2,
-        style: "cave" as const,
+        depth: 3,
+        style: "timber" as const,
         cells: Array.from({ length: 20 }, (_unused, row) => ({
           col: 4,
           row: row + 6,
@@ -467,16 +507,27 @@ describe("multi-storey underground", () => {
     });
     const colliders = createColliderIndex();
     for (const collider of platforms) colliders.add(collider);
-    const state = createHeroState(ramp.x + ramp.width + 1.58, ramp.z + 1.31, -2.4, 10, 2.2);
+    const state = createHeroState(
+      ramp.x + ramp.width + 1.58,
+      ramp.z + 1.31,
+      undergroundFloorHeight(2),
+      10,
+      2.2,
+    );
     state.groundY = state.y;
     const entranceX = ramp.x + ramp.width - 0.02;
     const footprintZ = state.z - 0.35;
     expect(
       query.canTraverseRamp(ramp.x + ramp.width + 0.013, footprintZ, entranceX, footprintZ, 0.3),
     ).toBe(true);
-    expect(query.surfaceAt?.(entranceX, footprintZ, -2.38)).toBeCloseTo(-2.4, 1);
-    expect(query.maxHeightAround(entranceX, footprintZ, 0.3, -2.38)).toBeCloseTo(-2.4);
-    expect(colliders.blocked(entranceX, footprintZ, 0.3, -2.4)).toBe(false);
+    expect(query.surfaceAt?.(entranceX, footprintZ, -4.78)).toBeCloseTo(
+      undergroundFloorHeight(2),
+      1,
+    );
+    expect(query.maxHeightAround(entranceX, footprintZ, 0.3, -4.78)).toBeCloseTo(
+      undergroundFloorHeight(2),
+    );
+    expect(colliders.blocked(entranceX, footprintZ, 0.3, undergroundFloorHeight(2))).toBe(false);
     const elevations = [state.y];
     for (let frame = 0; frame < 360; frame += 1) {
       stepHero(state, { ...immobile, x: -1 }, 1 / 60, {
@@ -488,8 +539,8 @@ describe("multi-storey underground", () => {
     }
 
     expect(state.x).toBeLessThan(ramp.x);
-    expect(state.y).toBeCloseTo(undergroundFloorHeight(2));
-    expect(Math.min(...elevations)).toBeCloseTo(undergroundFloorHeight(2));
+    expect(state.y).toBeCloseTo(undergroundFloorHeight(3));
+    expect(Math.min(...elevations)).toBeCloseTo(undergroundFloorHeight(3));
 
     for (let frame = 0; frame < 360; frame += 1) {
       stepHero(state, { ...immobile, x: 1 }, 1 / 60, {
@@ -500,7 +551,7 @@ describe("multi-storey underground", () => {
     }
 
     expect(state.x).toBeGreaterThan(ramp.x + ramp.width);
-    expect(state.y).toBeCloseTo(undergroundFloorHeight(1));
+    expect(state.y).toBeCloseTo(undergroundFloorHeight(2));
     expect(state.airborne).toBe(false);
   });
 
@@ -716,6 +767,216 @@ describe("multi-storey underground", () => {
       });
     },
   );
+
+  it.each(["east", "west", "south", "north"] as const)(
+    "walks both ways on a %s-facing interior stair from floor 0 to +1",
+    (direction) => {
+      const size = 16;
+      const alongX = direction === "east" || direction === "west";
+      const stair = {
+        depth: 0,
+        fromDepth: -1,
+        col: 5,
+        row: 5,
+        direction,
+        length: 3,
+        width: 2,
+      };
+      const authored = {
+        levels: [
+          {
+            depth: -1,
+            style: "timber" as const,
+            cells: Array.from({ length: alongX ? 4 : 5 }, (_unused, row) => ({
+              col: 4,
+              row: 4 + row,
+              length: alongX ? 5 : 4,
+            })),
+          },
+        ],
+        stairs: [stair],
+      };
+      const platforms = undergroundColliders(authored, size);
+      const ramp = undergroundRamp(stair, size);
+      const query = createTerrainQuery({
+        size,
+        levelHeight: 0.9,
+        waterLevel: -0.05,
+        at: () => 0,
+        kindAt: () => "herbe",
+        ramps: [ramp],
+        platforms,
+      });
+      const colliders = createColliderIndex();
+      for (const collider of platforms) colliders.add(collider);
+      const climbsPositive = direction === "east" || direction === "south";
+      const lowFootX = alongX
+        ? climbsPositive
+          ? ramp.x + 0.05
+          : ramp.x + ramp.width - 0.05
+        : ramp.x + ramp.width / 2;
+      const lowFootZ = alongX
+        ? ramp.z + ramp.depth / 2
+        : climbsPositive
+          ? ramp.z + 0.05
+          : ramp.z + ramp.depth - 0.05;
+      const state = createHeroState(lowFootX, lowFootZ + 0.35, 0, 10, 2.2);
+      state.groundY = 0;
+      const climb = {
+        ...immobile,
+        x: alongX ? (climbsPositive ? 1 : -1) : 0,
+        z: alongX ? 0 : climbsPositive ? 1 : -1,
+      };
+      for (let frame = 0; frame < 360; frame += 1) {
+        stepHero(state, climb, 1 / 60, { ...depsPlates(), query, colliders });
+      }
+
+      expect(state.y).toBeCloseTo(undergroundFloorHeight(-1));
+      expect(state.airborne).toBe(false);
+      expect(undergroundDepthAtElevation(state.y)).toBe(-1);
+
+      const descend = { ...climb, x: -climb.x, z: -climb.z };
+      for (let frame = 0; frame < 360; frame += 1) {
+        stepHero(state, descend, 1 / 60, { ...depsPlates(), query, colliders });
+      }
+
+      expect(state.y).toBeCloseTo(0);
+      expect(state.airborne).toBe(false);
+      expect(undergroundDepthAtElevation(state.y)).toBeNull();
+    },
+  );
+
+  it.each([1, 2, 6, 16])(
+    "climbs continuously from the ground floor to interior floor +%i without jumping",
+    (storeys) => {
+      const size = 64;
+      const length = storeys * 3;
+      const stair = {
+        depth: 0,
+        fromDepth: -storeys,
+        col: 6,
+        row: 10,
+        direction: "east" as const,
+        length,
+        width: 2,
+      };
+      const authored = {
+        levels: Array.from({ length: storeys }, (_unused, index) => ({
+          depth: -(index + 1),
+          style: "timber" as const,
+          cells: [
+            { col: 5, row: 9, length: length + 2 },
+            { col: 5, row: 10, length: length + 2 },
+            { col: 5, row: 11, length: length + 2 },
+            { col: 5, row: 12, length: length + 2 },
+          ],
+        })),
+        stairs: [stair],
+      };
+      const platforms = undergroundColliders(authored, size);
+      const ramp = undergroundRamp(stair, size);
+      const query = createTerrainQuery({
+        size,
+        levelHeight: 0.9,
+        waterLevel: -0.05,
+        at: () => 0,
+        kindAt: () => "herbe",
+        ramps: [ramp],
+        platforms,
+      });
+      const colliders = createColliderIndex();
+      for (const collider of platforms) colliders.add(collider);
+      const state = createHeroState(ramp.x + 0.05, ramp.z + 1.35, 0, 10, 2.2);
+      state.groundY = 0;
+      const elevations = [state.y];
+      for (let frame = 0; frame < length * 45 + 240; frame += 1) {
+        stepHero(state, { ...immobile, x: 1 }, 1 / 60, {
+          ...depsPlates(),
+          query,
+          colliders,
+        });
+        elevations.push(state.y);
+      }
+
+      expect({
+        clearedLanding: state.x > ramp.x + ramp.width,
+        x: state.x,
+        highEdge: ramp.x + ramp.width,
+        y: state.y,
+        airborne: state.airborne,
+      }).toEqual({
+        clearedLanding: true,
+        x: expect.any(Number),
+        highEdge: expect.any(Number),
+        y: expect.closeTo(undergroundFloorHeight(-storeys)),
+        airborne: false,
+      });
+      expect(
+        Math.max(
+          ...elevations
+            .slice(1)
+            .map((elevation, index) => Math.abs(elevation - (elevations[index] ?? elevation))),
+        ),
+      ).toBeLessThan(0.15);
+    },
+  );
+
+  it("walks between two adjacent upper floors without an invisible wall", () => {
+    const size = 20;
+    const stair = {
+      depth: -1,
+      fromDepth: -2,
+      col: 6,
+      row: 7,
+      direction: "east" as const,
+      length: 3,
+      width: 2,
+    };
+    const authored = {
+      levels: [-1, -2].map((depth) => ({
+        depth,
+        style: "timber" as const,
+        cells: Array.from({ length: 4 }, (_unused, row) => ({
+          col: 5,
+          row: 6 + row,
+          length: 6,
+        })),
+      })),
+      stairs: [stair],
+    };
+    const platforms = undergroundColliders(authored, size);
+    const ramp = undergroundRamp(stair, size);
+    const query = createTerrainQuery({
+      size,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      ramps: [ramp],
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const state = createHeroState(
+      ramp.x + 0.05,
+      ramp.z + ramp.depth / 2 + 0.35,
+      undergroundFloorHeight(-1),
+      10,
+      2.2,
+    );
+    state.groundY = state.y;
+    for (let frame = 0; frame < 360; frame += 1) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, {
+        ...depsPlates(),
+        query,
+        colliders,
+      });
+    }
+
+    expect(state.x).toBeGreaterThan(ramp.x + ramp.width);
+    expect(state.y).toBeCloseTo(undergroundFloorHeight(-2));
+    expect(state.airborne).toBe(false);
+  });
 
   it("falls continuously through every elevation down to depth 16", () => {
     const deep = {

@@ -226,18 +226,22 @@ round-trip through both stored map formats. Unlike camera cutaways, they filter 
 runs before rendering and collider compilation, so the visible gap is genuinely traversable for
 both movement authorities.
 
-True underground space is authored separately from the surface heightfield. A map may contain
-sixteen storeys (`-1` through `-16`), each 2.4 world units below the previous one. Excavated cells
-are stored as compact row runs with one of the existing interior styles; sand, water and grass are
-not underground coatings. The Field palette can excavate a rectangular room/block or long narrow
-tunnel, cut a true vertical shaft from the surface through every storey down to its selected bottom,
-refill a volume, and place a multi-cell stair flight between the selected storey and the one above.
-These operations are single undo entries. The depth selector also selects the storey rendered by the
-editor, with the surface retained as a translucent alignment reference instead of leaving the author
-to work over an empty background.
+True vertical space is authored separately from the surface heightfield. Every map may contain
+sixteen basement storeys (`-1` through `-16` in the UI), each 2.4 world units below the previous one;
+interior maps may additionally contain sixteen upper floors (`+1` through `+16`). Upper floors are
+rejected on exterior maps by the editor, wire decoder and server authoring boundary. Cells are stored
+as compact row runs with one of the existing interior styles; sand, water and grass are ordinary
+terrain painted over that structural coating, not coatings themselves. The Field palette can
+excavate a rectangular room/block or long narrow tunnel, cut a true vertical shaft from the surface
+through every basement down to its selected bottom, refill a volume, and place a proportional
+multi-cell stair flight between any two selected storeys. The interior-only **Ascending stairs**
+control targets `+1..+16`; from an already selected upper floor it connects that floor to the target
+instead of returning to ground. These operations are single undo entries. The compact selector also
+selects the storey rendered by the editor, with the adjacent reference retained only where a real
+stair or opening connects it.
 
-The compact Surface/`-N` bar is the editing context for every normal palette mode, not a separate
-underground editor. At a selected storey, the pencil, rectangle and flood-fill tools paint any
+The compact Surface/`-N`/`+N` bar is the editing context for every normal palette mode, not a separate
+vertical editor. At a selected storey, the pencil, rectangle and flood-fill tools paint any
 terrain material or water and excavate new cells as they grow; the cave Fill operation remains the
 explicit way to close rock again. Scenery, buildings, native resources and every event kind use the
 same placement, selection, resize, rotation, eraser and event-dialog workflows as the surface.
@@ -261,20 +265,24 @@ schema migration is required for existing maps.
 
 Compilation turns each run into finite floor and ceiling slabs plus merged perimeter-wall segments.
 The original level-zero terrain remains above ordinary excavated volumes and is still a walkable
-surface. A surface stair or shaft is different: its footprint cuts the terrain top visibly, while a
-shaft also removes surface support without being misread as water. Floor and ceiling spans open
-under connecting stairs and through every intermediate shaft storey, retaining only the shaft's
-bottom floor. A direct shaft starts as one cell and reuses the toolbar's pencil, rectangle and flood
-shapes; its surface view renders the connected storeys and their content through the aperture rather
-than covering it with a black proxy plane. Stair endpoints span the full 2.4-unit storey rather than
-one 0.9-unit terrain tier.
+surface; an upper floor is likewise a separate solid platform without replacing or blocking the
+ground-floor support below it. A surface stair or shaft is different: its footprint cuts the terrain
+top visibly, while a shaft also removes surface support without being misread as water. Floor and
+ceiling spans open under connecting stairs and through every intermediate shaft storey, retaining
+only the shaft's bottom floor. A direct shaft starts as one cell and reuses the toolbar's pencil,
+rectangle and flood shapes; its surface view renders the connected storeys and their content through
+the aperture rather than covering it with a black proxy plane. Stair endpoints span the full
+2.4-unit storey rather than one 0.9-unit terrain tier, their length grows by three cells per crossed
+floor, and their collision reaches a flat landing before the next slab so both basement and upper
+flights are traversable without a jump.
 Shared terrain queries filter the surface terrain by the moving body's vertical ceiling before
 considering underground platforms, so a hero below the map cannot be snapped back onto the ground
 above. Saved hero positions use the same body-bounded lookup on restore. Renderer and collision both
 consume the compiled underground document; visual walls use the same stair-mouth rule as collision,
-and surface scenery/actors from another storey are culled during descent. Gameplay selects the
-visible storey from the local hero's reported `y` while the body occupies a stair or shaft, so the
-camera follows the sampled elevation continuously instead of teleporting between views. Elsewhere,
+and surface scenery/actors from another storey are culled during vertical travel. Gameplay selects
+the visible signed storey from the local hero's reported `y` while the body occupies a stair or
+shaft, so the camera follows both descents and ascents continuously instead of teleporting between
+views. Elsewhere,
 an airborne body retains its last grounded storey: an ordinary jump inside a basement cannot reveal
 the ceiling above or put its billboard into an in-between visibility state. The editor can address a
 storey directly without altering gameplay state. Canvas padding/cropping shifts underground runs,

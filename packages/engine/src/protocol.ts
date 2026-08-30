@@ -123,6 +123,7 @@ import {
   type EditorAssetId,
   isEditorAssetId,
 } from "./tiny-swords-catalog.js";
+import { validVerticalDepth } from "./underground.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /**
@@ -2111,10 +2112,7 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     Number.isSafeInteger(value.row) &&
     (value.row as number) >= 0 &&
     (value.y === undefined || isFiniteNumber(value.y)) &&
-    (value.undergroundDepth === undefined ||
-      (Number.isSafeInteger(value.undergroundDepth) &&
-        (value.undergroundDepth as number) >= 1 &&
-        (value.undergroundDepth as number) <= 16)) &&
+    (value.undergroundDepth === undefined || validVerticalDepth(value.undergroundDepth)) &&
     (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
     (value.graphicTint === undefined ||
       (Number.isSafeInteger(value.graphicTint) &&

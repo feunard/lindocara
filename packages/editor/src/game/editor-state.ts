@@ -172,7 +172,7 @@ export interface EditorMap {
   environment?: MapEnvironment;
   /** World-space room/corridor envelope. Absent preserves legacy open interiors. */
   interiorShell?: InteriorShell;
-  /** True multi-storey volumes below the surface. */
+  /** True vertical storeys: positive depths below, negative depths above on interior maps. */
   underground?: UndergroundMap;
   /** The authored weather. Missing reads as a clear sky, which is every map written before it. */
   weather?: MapWeather;
@@ -2236,6 +2236,14 @@ function openWaterAt(map: EditorMap, col: number, row: number): boolean {
   return id === EMPTY_TILE || waterLevelOfTileId(id) !== null;
 }
 
+function clampVerticalDepth(value: number): number {
+  const depth = Math.max(
+    -MAX_UNDERGROUND_DEPTH,
+    Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(value)),
+  );
+  return depth === 0 ? (value < 0 ? -1 : 1) : depth;
+}
+
 /** The asset a placement actually writes. Everything places what the palette selected, except a
  *  bridge: one card is offered and the crossing under the cursor decides which of the two decks it
  *  becomes (the inspector switches it afterwards). */
@@ -2329,10 +2337,9 @@ export function undergroundStairRequiredLength(
   tool: Extract<EditorTool, { kind: "underground" }>,
   startDepth: number | null = null,
 ): number {
-  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
-  const fromDepth =
-    startDepth === null ? 0 : Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(startDepth)));
-  const storeys = Math.max(1, depth - fromDepth);
+  const depth = clampVerticalDepth(tool.depth);
+  const fromDepth = startDepth === null ? 0 : clampVerticalDepth(startDepth);
+  const storeys = Math.max(1, Math.abs(depth - fromDepth));
   return Math.max(
     2,
     Math.trunc(tool.length || DEFAULT_UNDERGROUND_STAIR_LENGTH),
@@ -2350,19 +2357,34 @@ export function undergroundStairPlacement(
 ): UndergroundStair | null {
   if (tool.operation !== "stairs") return null;
   const { cols, rows } = editorMapSize(map);
-  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
-  const fromDepth =
-    startDepth === null ? 0 : Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(startDepth)));
-  if (fromDepth >= depth) return null;
+  const targetDepth = clampVerticalDepth(tool.depth);
+  const start = startDepth === null ? 0 : clampVerticalDepth(startDepth);
+  if (start === targetDepth) return null;
+  const depth = Math.max(start, targetDepth);
+  const fromDepth = Math.min(start, targetDepth);
   const alongX = tool.direction === "east" || tool.direction === "west";
   const requestedLength = undergroundStairRequiredLength(tool, startDepth);
   const requestedWidth = Math.max(1, Math.trunc(tool.width || DEFAULT_UNDERGROUND_STAIR_WIDTH));
-  // Le pointeur désigne toujours la bouche HAUTE, celle que l'auteur voit sur l'étage courant.
-  // Sans cette convention, une montée vers l'est/sud partait du clic par son pied profond : un
-  // escalier de seize étages ressemblait alors à un grand rectangle noir et sa vraie entrée se
-  // retrouvait quarante-huit cases plus loin, souvent hors écran.
-  const c0 = tool.direction === "east" ? col - requestedLength + 1 : col;
-  const r0 = tool.direction === "south" ? row - requestedLength + 1 : row;
+  // Le pointeur désigne la bouche située sur l'étage actuellement visible : la bouche haute pour
+  // une descente, la bouche basse pour une montée. Les deux versions s'accrochent ainsi exactement
+  // sous le curseur, sans demander à l'auteur d'anticiper l'extrémité distante.
+  const clickAtHighMouth = start === fromDepth;
+  const c0 =
+    tool.direction === "east"
+      ? clickAtHighMouth
+        ? col - requestedLength + 1
+        : col
+      : tool.direction === "west" && !clickAtHighMouth
+        ? col - requestedLength + 1
+        : col;
+  const r0 =
+    tool.direction === "south"
+      ? clickAtHighMouth
+        ? row - requestedLength + 1
+        : row
+      : tool.direction === "north" && !clickAtHighMouth
+        ? row - requestedLength + 1
+        : row;
   const footprintCols = alongX ? requestedLength : requestedWidth;
   const footprintRows = alongX ? requestedWidth : requestedLength;
   if (c0 < 0 || r0 < 0 || c0 + footprintCols > cols || r0 + footprintRows > rows) return null;
@@ -2385,7 +2407,7 @@ function applyUndergroundTool(
   startDepth: number | null = null,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
-  const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  const depth = clampVerticalDepth(tool.depth);
   const alongX = tool.direction === "east" || tool.direction === "west";
   const stairPlacement =
     tool.operation === "stairs" ? undergroundStairPlacement(map, tool, col, row, startDepth) : null;
@@ -2421,12 +2443,13 @@ function applyUndergroundTool(
   const source: UndergroundMap = map.underground ?? { levels: [], stairs: [] };
   const byDepth = new Map(source.levels.map((level) => [level.depth, level]));
   const stairUpperDepth = stairPlacement?.fromDepth ?? depth - 1;
+  const stairLowerDepth = stairPlacement?.depth ?? depth;
   const touchedDepths =
     tool.operation === "stairs"
       ? Array.from(
-          { length: depth - Math.max(1, stairUpperDepth) + 1 },
-          (_unused, index) => Math.max(1, stairUpperDepth) + index,
-        )
+          { length: stairLowerDepth - stairUpperDepth + 1 },
+          (_unused, index) => stairUpperDepth + index,
+        ).filter((candidate) => candidate !== 0)
       : [depth];
   for (const touchedDepth of touchedDepths) {
     const previous = byDepth.get(touchedDepth);
@@ -2437,7 +2460,7 @@ function applyUndergroundTool(
         excavation.push({ col: cellCol, row: cellRow });
     }
     if (tool.operation === "stairs") {
-      const lowLanding = touchedDepth === depth;
+      const lowLanding = touchedDepth === stairLowerDepth;
       const highLanding = touchedDepth === stairUpperDepth;
       const landing = lowLanding
         ? tool.direction === "east"
@@ -2499,6 +2522,7 @@ function applyUndergroundTool(
   });
   let shafts = (source.shafts ?? []).filter((shaft) => {
     if (tool.operation !== "fill") return true;
+    if (depth < 1 || depth > shaft.depth) return true;
     return (
       shaft.col + shaft.width <= c0 ||
       shaft.col >= c1 ||
@@ -2509,7 +2533,9 @@ function applyUndergroundTool(
   if (tool.operation === "stairs") {
     if (!stairPlacement) return null;
     stairs = [
-      ...stairs.filter((stair) => stair.depth !== depth || stair.col !== c0 || stair.row !== r0),
+      ...stairs.filter(
+        (stair) => stair.depth !== stairPlacement.depth || stair.col !== c0 || stair.row !== r0,
+      ),
       stairPlacement,
     ];
   }
@@ -2585,7 +2611,11 @@ function paintUndergroundTerrain(
     const compactTerrain = compactUndergroundTerrain(terrain, size, elevations);
     levels.set(depth, {
       depth,
-      style: previous?.style ?? "cave",
+      style:
+        previous?.style ??
+        (depth < 0 && map.environment === "interior"
+          ? (map.interiorShell?.style ?? "cave")
+          : "cave"),
       cells: compactCells,
       ...(compactTerrain.length > 0 ? { terrain: compactTerrain } : {}),
     });
@@ -2661,6 +2691,8 @@ export function applyTool(
 
   const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+  const requestedVerticalDepth = tool.kind === "underground" ? tool.depth : (undergroundDepth ?? 0);
+  if (requestedVerticalDepth < 0 && map.environment !== "interior") return null;
 
   switch (tool.kind) {
     case "underground": {

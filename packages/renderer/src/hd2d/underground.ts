@@ -59,7 +59,15 @@ function terrainTextureFor(material: string, textures: TextureRegistry): THREE.T
       ? `${TINY_TERRAIN_ROOT}/Tilemap_color1.png`
       : material === "sable"
         ? `${TINY_TERRAIN_ROOT}/Tilemap_Flat.png`
-        : `${HD2D_ROOT}/tileset-${material}.png`;
+        : material === "parquet"
+          ? `${HD2D_ROOT}/interior-floor-atlas.png`
+          : material === "lino-gris"
+            ? `${HD2D_ROOT}/floor-lino-gray-atlas.png`
+            : material === "lino-jaune"
+              ? `${HD2D_ROOT}/floor-lino-yellow-atlas.png`
+              : material === "carrelage-beige"
+                ? `${HD2D_ROOT}/floor-beige-tile-atlas.png`
+                : `${HD2D_ROOT}/tileset-${material}.png`;
   const texture = textures.get(url).clone();
   const cols = material === "sable" ? 10 : 9;
   const rows = material === "sable" ? 4 : 6;
@@ -572,7 +580,8 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       level.group.visible = visibleDepths.has(depth) || previewing;
       for (const tinted of level.tintedMaterials) {
         tinted.material.color.copy(tinted.color);
-        if (previewing) tinted.material.color.multiplyScalar(0.38 / Math.sqrt(depth));
+        if (previewing)
+          tinted.material.color.multiplyScalar(0.38 / Math.sqrt(Math.max(1, Math.abs(depth))));
       }
       for (const [side, wall] of level.walls) wall.visible = side !== near;
     }

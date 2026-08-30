@@ -18,6 +18,7 @@ import type {
 import { INTERIOR_SHELL_STYLES, type InteriorShellStyle } from "./map-environment.js";
 
 export const MAX_UNDERGROUND_DEPTH = 16;
+export const MAX_UPPER_STOREY = 16;
 export const UNDERGROUND_STOREY_HEIGHT = 2.4;
 export const UNDERGROUND_SLAB_THICKNESS = 0.18;
 export const DEFAULT_UNDERGROUND_STAIR_LENGTH = 3;
@@ -29,6 +30,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export function undergroundFloorHeight(depth: number): number {
   return depth === 0 ? 0 : -depth * UNDERGROUND_STOREY_HEIGHT;
+}
+
+/** A persisted vertical level: positive below ground, negative above it, never zero. */
+export function validVerticalDepth(depth: unknown): depth is number {
+  return (
+    Number.isSafeInteger(depth) &&
+    (depth as number) !== 0 &&
+    (depth as number) >= -MAX_UPPER_STOREY &&
+    (depth as number) <= MAX_UNDERGROUND_DEPTH
+  );
 }
 
 export function undergroundStyleMaterial(style: InteriorShellStyle): TerrainMaterial {
@@ -69,9 +80,7 @@ function parseRun(value: unknown, size: number): UndergroundCellRun | null {
 function parseLevel(value: unknown, size: number): UndergroundLevel | null {
   if (!isRecord(value) || !Array.isArray(value.cells)) return null;
   if (
-    !Number.isSafeInteger(value.depth) ||
-    (value.depth as number) < 1 ||
-    (value.depth as number) > MAX_UNDERGROUND_DEPTH ||
+    !validVerticalDepth(value.depth) ||
     typeof value.style !== "string" ||
     !(INTERIOR_SHELL_STYLES as readonly string[]).includes(value.style)
   ) {
@@ -97,6 +106,10 @@ function parseLevel(value: unknown, size: number): UndergroundLevel | null {
         "montagne",
         "volcan",
         "lave",
+        "parquet",
+        "lino-gris",
+        "lino-jaune",
+        "carrelage-beige",
         "water",
       ].includes(material)
     )
@@ -133,9 +146,7 @@ function parseContentDepths(value: unknown): UndergroundContentDepth[] | null {
       !isRecord(entry) ||
       !isUuid(entry.id) ||
       ids.has(entry.id) ||
-      !Number.isSafeInteger(entry.depth) ||
-      (entry.depth as number) < 1 ||
-      (entry.depth as number) > MAX_UNDERGROUND_DEPTH
+      !validVerticalDepth(entry.depth)
     )
       return null;
     ids.add(entry.id);
@@ -155,11 +166,13 @@ function parseStair(value: unknown, size: number): UndergroundStair | null {
   const { depth, fromDepth, col, row, direction, length, width } = value;
   if (
     !Number.isSafeInteger(depth) ||
-    (depth as number) < 1 ||
+    (depth as number) <= -MAX_UPPER_STOREY ||
     (depth as number) > MAX_UNDERGROUND_DEPTH ||
+    ((depth as number) === 0 && fromDepth === undefined) ||
     (fromDepth !== undefined &&
       (!Number.isSafeInteger(fromDepth) ||
-        (fromDepth as number) < 0 ||
+        (fromDepth as number) < -MAX_UPPER_STOREY ||
+        (fromDepth as number) > MAX_UNDERGROUND_DEPTH ||
         (fromDepth as number) >= (depth as number))) ||
     !Number.isSafeInteger(col) ||
     !Number.isSafeInteger(row) ||
@@ -221,7 +234,7 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
   const shaftValues = value.shafts ?? [];
   if (!Array.isArray(shaftValues)) return null;
   if (
-    value.levels.length > MAX_UNDERGROUND_DEPTH ||
+    value.levels.length > MAX_UNDERGROUND_DEPTH + MAX_UPPER_STOREY ||
     value.stairs.length > 512 ||
     shaftValues.length > 512
   )
@@ -243,7 +256,7 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
   if (new Set(decodedLevels.map((level) => level.depth)).size !== decodedLevels.length) return null;
   if (
     decodedLevels.reduce((total, level) => total + level.cells.length, 0) >
-    size * MAX_UNDERGROUND_DEPTH
+    size * (MAX_UNDERGROUND_DEPTH + MAX_UPPER_STOREY)
   )
     return null;
   return {
@@ -253,6 +266,20 @@ export function parseUnderground(value: unknown, size: number): UndergroundMap |
     ...(value.elementDepths === undefined ? {} : { elementDepths }),
     ...(value.eventDepths === undefined ? {} : { eventDepths }),
   };
+}
+
+/** Upper floors are valid only for authored interiors. Kept separate from the storage parser so
+ * legacy heightfields can still be decoded before their map environment is checked. */
+export function hasUpperStoreys(underground: UndergroundMap | undefined): boolean {
+  return Boolean(
+    underground &&
+    (underground.levels.some((level) => level.depth < 0) ||
+      underground.stairs.some(
+        (stair) => stair.depth < 0 || undergroundStairUpperDepth(stair) < 0,
+      ) ||
+      underground.elementDepths?.some((entry) => entry.depth < 0) ||
+      underground.eventDepths?.some((entry) => entry.depth < 0)),
+  );
 }
 
 export function undergroundTerrainCells(
@@ -362,10 +389,11 @@ export function undergroundRamp(stair: UndergroundStair, size: number): TerrainR
     lowLevel: -stair.depth,
     lowHeight: undergroundFloorHeight(stair.depth),
     highHeight: undergroundFloorHeight(undergroundStairUpperDepth(stair)),
-    // The rendered flight's highest tread is flat for one third of a cell. Reaching the landing
-    // height over that same distance keeps the hero's circular footprint from meeting the upper
-    // floor slab while their feet are still slightly below it.
-    highLanding: 1 / 3,
+    // The rendered flight's highest tread is flat for one third of a cell. Collision reaches the
+    // exact landing a little earlier: the extra sixth absorbs both the hero's circular footprint
+    // and floating-point convergence on very tall flights, which could otherwise leave their feet
+    // 0.001 below the slab and require a jump at the top.
+    highLanding: 1 / 2,
   };
 }
 
@@ -421,7 +449,8 @@ export function undergroundStairMouth(
     // flight therefore opens on `fromDepth` itself; only the surface has no room/wall of its own,
     // so its opening is represented by level 1. Using `fromDepth + 1` made every -N -> -(N + 1)
     // stair keep the upper room's end wall and behave like an invisible barrier.
-    const upperVolumeDepth = Math.max(1, undergroundStairUpperDepth(stair));
+    const upperDepth = undergroundStairUpperDepth(stair);
+    const upperVolumeDepth = upperDepth === 0 ? 1 : upperDepth;
     const lowDepth = stair.depth;
     if (rampAlongX(stair.direction)) {
       const west = col === stair.col && dx === -1;
@@ -480,11 +509,10 @@ export function undergroundSurfaceOpenings(
 }
 
 export function undergroundDepthAtElevation(elevation: number): number | null {
-  if (!Number.isFinite(elevation) || elevation >= -0.6) return null;
-  return Math.max(
-    1,
-    Math.min(MAX_UNDERGROUND_DEPTH, Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT)),
-  );
+  if (!Number.isFinite(elevation) || Math.abs(elevation) < 0.6) return null;
+  const rounded = Math.round(-elevation / UNDERGROUND_STOREY_HEIGHT);
+  const nonZero = rounded === 0 ? (elevation > 0 ? -1 : 1) : rounded;
+  return Math.max(-MAX_UPPER_STOREY, Math.min(MAX_UNDERGROUND_DEPTH, nonZero));
 }
 
 /** Storeys visible while a body crosses vertically between them. Exact floor elevations select one
@@ -494,16 +522,19 @@ export function undergroundVisibleDepthsAtElevation(elevation: number): readonly
   // Keep the renderer on the same surface/underground boundary as collision. In particular the
   // conventional waterline is y=-0.05: treating every negative value as depth 1 made a swimmer
   // reveal the basement below and visually replaced the water with its floor.
-  if (!Number.isFinite(elevation) || elevation >= -0.6) return [null];
+  if (!Number.isFinite(elevation) || Math.abs(elevation) < 0.6) return [null];
   const storey = Math.max(
-    0,
+    -MAX_UPPER_STOREY,
     Math.min(MAX_UNDERGROUND_DEPTH, -elevation / UNDERGROUND_STOREY_HEIGHT),
   );
   const nearest = Math.round(storey);
-  if (Math.abs(storey - nearest) <= 0.04) return [Math.max(1, nearest)];
-  const shallow = Math.floor(storey);
-  const deep = Math.min(MAX_UNDERGROUND_DEPTH, Math.ceil(storey));
-  return shallow <= 0 ? [null, deep] : shallow === deep ? [deep] : [shallow, deep];
+  if (Math.abs(storey - nearest) <= 0.04)
+    return [nearest === 0 ? null : Math.max(-MAX_UPPER_STOREY, nearest)];
+  const first = Math.floor(storey);
+  const second = Math.ceil(storey);
+  return first === second
+    ? [first === 0 ? null : first]
+    : [first === 0 ? null : first, second === 0 ? null : second];
 }
 
 /** The two finite trench flanks every underground flight needs independently of room boundaries. */
@@ -610,8 +641,11 @@ export function undergroundAccessVisibleDepths(
       }
       for (const stair of underground.stairs) {
         const upper = undergroundStairUpperDepth(stair);
-        if (current < upper || current >= stair.depth) continue;
-        for (let next = Math.max(1, current + 1); next <= stair.depth; next += 1) {
+        if (current < upper || current > stair.depth) continue;
+        const start = current < 0 ? upper : current > 0 ? current + 1 : upper;
+        const end = current < 0 ? current - 1 : stair.depth;
+        for (let next = start; next <= end; next += 1) {
+          if (next === 0) continue;
           if (!visible.has(next)) changed = true;
           visible.add(next);
           reached.add(next);

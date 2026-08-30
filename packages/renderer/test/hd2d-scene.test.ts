@@ -59,6 +59,15 @@ describe("underground stair visibility", () => {
     expect(undergroundStairVisible(8, 3, [6])).toBe(true);
     expect(undergroundStairVisible(8, 3, [9])).toBe(false);
   });
+
+  it("keeps a ground-to-upper-floor flight visible only across its signed storeys", () => {
+    expect(undergroundStairVisible(0, -4, [null])).toBe(true);
+    for (let depth = -1; depth >= -4; depth -= 1) {
+      expect(undergroundStairVisible(0, -4, [depth])).toBe(true);
+    }
+    expect(undergroundStairVisible(0, -4, [-5])).toBe(false);
+    expect(undergroundStairVisible(0, -4, [1])).toBe(false);
+  });
 });
 
 describe("heightFieldFor liquids", () => {

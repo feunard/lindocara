@@ -1528,7 +1528,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.underground.depth": "Profondeur cible (−1 à −16)",
   "editor.level.label": "Niveau",
   "editor.level.surface": "Surface",
+  "editor.level.storey": "Niveau vertical (−16 à +16)",
   "editor.level.hint": "Terrain, Décors et Événements agissent sur ce niveau.",
+  "editor.upperStorey.heading": "Étages intérieurs",
+  "editor.upperStorey.stairs": "Escalier montant",
+  "editor.upperStorey.target": "Étage cible (+1 à +16)",
+  "editor.upperStorey.hint":
+    "Place un escalier physique vers l’étage choisi. Sélectionnez ensuite +N pour y peindre le sol, les terrains, l’eau, la lave, les décors et les événements.",
   "editor.underground.style": "Revêtement",
   "editor.underground.width": "Largeur",
   "editor.underground.length": "Longueur",

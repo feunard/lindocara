@@ -85,6 +85,8 @@ interface TerrainPaletteProps {
   undergroundWidth: number;
   undergroundLength: number;
   undergroundDirection: RampDirection;
+  upperStorey: number;
+  upperStairsActive: boolean;
   onPickContent(content: RectFillContent): void;
   onSelectStairs(): void;
   onSelectSpawn(): void;
@@ -94,6 +96,8 @@ interface TerrainPaletteProps {
   onUndergroundStyleChange(style: InteriorShellStyle): void;
   onUndergroundSizeChange(width: number, length: number): void;
   onUndergroundDirectionChange(direction: RampDirection): void;
+  onSelectUpperStairs(): void;
+  onUpperStoreyChange(storey: number): void;
 }
 
 /**
@@ -121,6 +125,8 @@ export function TerrainPalette({
   undergroundWidth,
   undergroundLength,
   undergroundDirection,
+  upperStorey,
+  upperStairsActive,
   onPickContent,
   onSelectStairs,
   onSelectSpawn,
@@ -130,6 +136,8 @@ export function TerrainPalette({
   onUndergroundStyleChange,
   onUndergroundSizeChange,
   onUndergroundDirectionChange,
+  onSelectUpperStairs,
+  onUpperStoreyChange,
 }: TerrainPaletteProps) {
   useLocale();
 
@@ -383,6 +391,35 @@ export function TerrainPalette({
             {t(`editor.underground.hint.${undergroundOperation ?? "dig"}`)}
           </p>
         </div>
+        {interior ? (
+          <div
+            data-testid="terrain-upper-storeys"
+            className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"
+          >
+            <span className="px-1 text-[11.5px] font-medium text-zinc-600">
+              {t("editor.upperStorey.heading")}
+            </span>
+            <SwatchButton
+              label={t("editor.upperStorey.stairs")}
+              active={upperStairsActive}
+              onClick={onSelectUpperStairs}
+            />
+            <label className="grid grid-cols-[1fr_4.5rem] items-center gap-2 text-[10.5px] text-zinc-500">
+              <span>{t("editor.upperStorey.target")}</span>
+              <input
+                className="h-7 rounded border border-zinc-200 px-2"
+                type="number"
+                min={1}
+                max={16}
+                value={upperStorey}
+                onChange={(event) => onUpperStoreyChange(Number(event.currentTarget.value))}
+              />
+            </label>
+            <p className="px-1 text-[10.5px] leading-snug text-zinc-500">
+              {t("editor.upperStorey.hint")}
+            </p>
+          </div>
+        ) : null}
         <SwatchButton
           label={t("editor.tool.spawn")}
           active={spawnActive}

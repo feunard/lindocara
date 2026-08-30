@@ -1512,7 +1512,13 @@ export const en = {
   "editor.underground.depth": "Target depth (−1 to −16)",
   "editor.level.label": "Level",
   "editor.level.surface": "Surface",
+  "editor.level.storey": "Vertical level (−16 to +16)",
   "editor.level.hint": "Terrain, Scenery and Event tools act on this level.",
+  "editor.upperStorey.heading": "Interior upper floors",
+  "editor.upperStorey.stairs": "Up stairs",
+  "editor.upperStorey.target": "Target floor (+1 to +16)",
+  "editor.upperStorey.hint":
+    "Places a physical staircase to the selected floor. Then select +N to paint its floor, terrain, water, lava, scenery and events.",
   "editor.underground.style": "Coating",
   "editor.underground.width": "Width",
   "editor.underground.length": "Length",

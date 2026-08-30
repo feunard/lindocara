@@ -595,6 +595,7 @@ function AdventureEditorInner({
   const [linkPending, setLinkPending] = useState(false);
   const [wallOpeningPending, setWallOpeningPending] = useState(false);
   const [undergroundDepth, setUndergroundDepth] = useState(1);
+  const [upperStorey, setUpperStorey] = useState(1);
   const [editingDepth, setEditingDepth] = useState<number | null>(null);
   const pendingEditingDepthRef = useRef<number | null>(null);
   const [undergroundStyle, setUndergroundStyle] = useState<InteriorShellStyle>("cave");
@@ -989,10 +990,14 @@ function AdventureEditorInner({
   }
 
   function chooseEditingDepth(depth: number | null): void {
-    const next = depth === null ? null : Math.max(1, Math.min(16, Math.trunc(depth) || 1));
+    const next =
+      depth === null
+        ? null
+        : Math.max(-16, Math.min(16, Math.trunc(depth) || (depth < 0 ? -1 : 1)));
     pendingEditingDepthRef.current = next;
     setEditingDepth(next);
-    if (next !== null) setUndergroundDepth(next);
+    if (next !== null && next > 0) setUndergroundDepth(next);
+    if (next !== null && next < 0) setUpperStorey(-next);
     handleRef.current?.setEditingDepth?.(next);
   }
 
@@ -1054,25 +1059,73 @@ function AdventureEditorInner({
     setToolKey("underground");
     setUndergroundOperation(operation);
     setSelectedAsset(null);
+    const currentUpperFloor = editingDepth !== null && editingDepth < 0 ? editingDepth : null;
+    const targetDepth =
+      currentUpperFloor !== null && operation !== "shaft" && operation !== "stairs"
+        ? currentUpperFloor
+        : undergroundDepth;
+    const targetStyle =
+      currentUpperFloor !== null
+        ? (currentMap?.underground?.levels.find((level) => level.depth === currentUpperFloor)
+            ?.style ??
+          currentMap?.interiorShell?.style ??
+          undergroundStyle)
+        : undergroundStyle;
     // A shaft is authored FROM the surface: keeping that view makes its open aperture immediately
     // distinct from a room excavated on one selected storey.
     if (operation === "shaft") chooseEditingDepth(null);
-    else if (operation !== "stairs") chooseEditingDepth(undergroundDepth);
+    else if (operation !== "stairs") chooseEditingDepth(targetDepth);
     if (operation === "shaft" || operation === "fill") {
       setUndergroundShape("pencil");
       setUndergroundWidth(1);
       setUndergroundLength(1);
-      pushTool(undergroundTool(operation, { shape: "pencil", width: 1, length: 1 }));
+      pushTool(
+        undergroundTool(operation, {
+          depth: targetDepth,
+          style: targetStyle,
+          shape: "pencil",
+          width: 1,
+          length: 1,
+        }),
+      );
     } else if (operation === "tunnel") {
       setUndergroundWidth(2);
-      pushTool(undergroundTool(operation, { width: 2 }));
+      pushTool(undergroundTool(operation, { depth: targetDepth, style: targetStyle, width: 2 }));
     } else {
-      pushTool(undergroundTool(operation));
+      pushTool(undergroundTool(operation, { depth: targetDepth, style: targetStyle }));
     }
   }
 
+  function selectUpperStairs(): void {
+    if (currentMap?.environment !== "interior") return;
+    setToolKey("underground");
+    setUndergroundOperation("stairs");
+    setSelectedAsset(null);
+    const style = currentMap.interiorShell?.style ?? undergroundStyle;
+    setUndergroundStyle(style);
+    pushTool(undergroundTool("stairs", { depth: -upperStorey, style }));
+  }
+
   function updateUndergroundTool(overrides: Parameters<typeof undergroundTool>[1]): void {
-    if (toolKey === "underground") pushTool(undergroundTool(undergroundOperation, overrides));
+    if (toolKey !== "underground") return;
+    const current = pendingToolRef.current;
+    pushTool(
+      undergroundTool(undergroundOperation, {
+        ...(current.kind === "underground"
+          ? {
+              depth: current.depth,
+              style: current.style,
+              width: current.width,
+              length: current.length,
+              direction: current.direction,
+              ...(current.operation === "shaft" || current.operation === "fill"
+                ? { shape: current.shape }
+                : {}),
+            }
+          : {}),
+        ...overrides,
+      }),
+    );
   }
 
   function selectAsset(assetId: EditorAssetId): void {
@@ -2072,21 +2125,33 @@ function AdventureEditorInner({
           </button>
           <button
             type="button"
-            aria-pressed={editingDepth !== null}
+            aria-pressed={editingDepth !== null && editingDepth > 0}
             onClick={() => chooseEditingDepth(undergroundDepth)}
-            className={`h-6 rounded px-2 ${editingDepth !== null ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
+            className={`h-6 rounded px-2 ${editingDepth !== null && editingDepth > 0 ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
           >
-            {editingDepth === null ? `−${undergroundDepth}` : `−${editingDepth}`}
+            {editingDepth !== null && editingDepth > 0
+              ? `−${editingDepth}`
+              : `−${undergroundDepth}`}
           </button>
+          {currentMap?.environment === "interior" ? (
+            <button
+              type="button"
+              aria-pressed={editingDepth !== null && editingDepth < 0}
+              onClick={() => chooseEditingDepth(-upperStorey)}
+              className={`h-6 rounded px-2 ${editingDepth !== null && editingDepth < 0 ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"}`}
+            >
+              {editingDepth !== null && editingDepth < 0 ? `+${-editingDepth}` : `+${upperStorey}`}
+            </button>
+          ) : null}
           {editingDepth === null ? null : (
             <input
-              aria-label={t("editor.underground.depth")}
+              aria-label={t("editor.level.storey")}
               className="h-6 w-14 rounded border border-zinc-200 px-1.5"
               type="number"
-              min={1}
+              min={-16}
               max={16}
-              value={editingDepth}
-              onChange={(event) => chooseEditingDepth(Number(event.currentTarget.value))}
+              value={-editingDepth}
+              onChange={(event) => chooseEditingDepth(-Number(event.currentTarget.value))}
             />
           )}
           <span className="ml-1 truncate text-zinc-400">{t("editor.level.hint")}</span>
@@ -2116,6 +2181,12 @@ function AdventureEditorInner({
                 undergroundWidth,
                 undergroundLength,
                 undergroundDirection,
+                upperStorey,
+                upperStairsActive:
+                  toolKey === "underground" &&
+                  undergroundOperation === "stairs" &&
+                  pendingToolRef.current.kind === "underground" &&
+                  pendingToolRef.current.depth < 0,
                 onPickContent: pickContent,
                 onSelectStairs: () => selectTool("stairs"),
                 onSelectSpawn: selectSpawn,
@@ -2145,6 +2216,19 @@ function AdventureEditorInner({
                 onUndergroundDirectionChange: (direction) => {
                   setUndergroundDirection(direction);
                   updateUndergroundTool({ direction });
+                },
+                onSelectUpperStairs: selectUpperStairs,
+                onUpperStoreyChange: (storey) => {
+                  const next = Math.max(1, Math.min(16, Math.trunc(storey) || 1));
+                  setUpperStorey(next);
+                  if (
+                    toolKey === "underground" &&
+                    undergroundOperation === "stairs" &&
+                    pendingToolRef.current.kind === "underground" &&
+                    pendingToolRef.current.depth < 0
+                  ) {
+                    updateUndergroundTool({ depth: -next });
+                  }
                 },
               }}
               element={{
