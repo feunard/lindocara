@@ -499,6 +499,88 @@ export function undergroundVisibleDepthsAtElevation(elevation: number): readonly
   return shallow <= 0 ? [null, deep] : shallow === deep ? [deep] : [shallow, deep];
 }
 
+/** The two finite trench flanks every underground flight needs independently of room boundaries. */
+export function undergroundStairSideColliders(
+  underground: UndergroundMap,
+  size: number,
+): ColliderRect[] {
+  const colliders: ColliderRect[] = [];
+  const wallThickness = 0.16;
+  for (const stair of underground.stairs) {
+    const ramp = undergroundRamp(stair, size);
+    const bottom = ramp.lowHeight ?? undergroundFloorHeight(stair.depth);
+    const upperDepth = undergroundStairUpperDepth(stair);
+    // The visible flank continues above the upper landing to that room's ceiling. Ending it at
+    // the landing elevation let a jumping body's feet clear the collider while its torso was still
+    // inside the trench, after which it could move sideways into solid rock. A surface departure
+    // has no upper room, so y=0 remains its natural cap.
+    const top = upperDepth === 0 ? 0 : undergroundFloorHeight(upperDepth - 1);
+    if (rampAlongX(stair.direction)) {
+      colliders.push(
+        {
+          x: ramp.x,
+          z: ramp.z,
+          w: ramp.width,
+          h: wallThickness,
+          bottom,
+          top,
+        },
+        {
+          x: ramp.x,
+          z: ramp.z + ramp.depth - wallThickness,
+          w: ramp.width,
+          h: wallThickness,
+          bottom,
+          top,
+        },
+      );
+    } else {
+      colliders.push(
+        {
+          x: ramp.x,
+          z: ramp.z,
+          w: wallThickness,
+          h: ramp.depth,
+          bottom,
+          top,
+        },
+        {
+          x: ramp.x + ramp.width - wallThickness,
+          z: ramp.z,
+          w: wallThickness,
+          h: ramp.depth,
+          bottom,
+          top,
+        },
+      );
+    }
+  }
+  return colliders;
+}
+
+/** Adds the stair flanks missing from heightfields saved before they became collision geometry. */
+export function withUndergroundStairSideColliders(
+  colliders: readonly ColliderRect[],
+  underground: UndergroundMap | undefined,
+  size: number,
+): ColliderRect[] {
+  if (!underground) return [...colliders];
+  const result = [...colliders];
+  for (const side of undergroundStairSideColliders(underground, size)) {
+    const present = result.some(
+      (candidate) =>
+        candidate.x === side.x &&
+        candidate.z === side.z &&
+        candidate.w === side.w &&
+        candidate.h === side.h &&
+        candidate.bottom === side.bottom &&
+        candidate.top === side.top,
+    );
+    if (!present) result.push(side);
+  }
+  return result;
+}
+
 /** Storeys visible through every stair or shaft that continues below the currently viewed floor. */
 export function undergroundAccessVisibleDepths(
   underground: UndergroundMap | undefined,
@@ -564,6 +646,7 @@ export function undergroundColliders(
   levelHeight = 0.9,
 ): ColliderRect[] {
   const colliders: ColliderRect[] = [];
+  const wallThickness = 0.16;
   for (const level of underground.levels) {
     const cells = undergroundCells(level, size);
     const floorY = undergroundFloorHeight(level.depth);
@@ -614,7 +697,6 @@ export function undergroundColliders(
     }
     const occupied = (col: number, row: number): boolean =>
       col >= 0 && row >= 0 && col < size && row < size && cells[row * size + col] !== 0;
-    const thickness = 0.16;
     for (const side of ["north", "south"] as const) {
       const dz = side === "north" ? -1 : 1;
       for (let row = 0; row < size; row += 1) {
@@ -629,9 +711,9 @@ export function undergroundColliders(
           if (!exposed && start >= 0) {
             colliders.push({
               x: start - size / 2,
-              z: row - size / 2 + (dz > 0 ? 1 - thickness : 0),
+              z: row - size / 2 + (dz > 0 ? 1 - wallThickness : 0),
               w: col - start,
-              h: thickness,
+              h: wallThickness,
               bottom: floorY,
               top: level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
             });
@@ -653,9 +735,9 @@ export function undergroundColliders(
           if (exposed && start < 0) start = row;
           if (!exposed && start >= 0) {
             colliders.push({
-              x: col - size / 2 + (dx > 0 ? 1 - thickness : 0),
+              x: col - size / 2 + (dx > 0 ? 1 - wallThickness : 0),
               z: start - size / 2,
-              w: thickness,
+              w: wallThickness,
               h: row - start,
               bottom: floorY,
               top: level.depth === 1 ? ceilingY - UNDERGROUND_SLAB_THICKNESS : ceilingY,
@@ -666,5 +748,11 @@ export function undergroundColliders(
       }
     }
   }
+  // Excavation walls protect a room's perimeter, but a stair cut through occupied cells has no
+  // exposed room edge along either side. The renderer still draws those trench flanks; matching
+  // finite colliders keep a jumping body from slipping sideways through the visible wall and into
+  // an unexcavated column. They stop at the upper room's ceiling, so both forward-facing mouths
+  // remain walkable and unrelated storeys at the same X/Z stay untouched.
+  colliders.push(...undergroundStairSideColliders(underground, size));
   return colliders;
 }

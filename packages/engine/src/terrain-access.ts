@@ -57,7 +57,7 @@ import {
 import type { WorldEventCollider } from "./protocol.js";
 import { PLAYER_SIZE } from "./simulation.js";
 import { TILE_SIZE } from "./tilemap.js";
-import { undergroundFloorHeight } from "./underground.js";
+import { undergroundFloorHeight, withUndergroundStairSideColliders } from "./underground.js";
 import type { ZoneTerrain } from "./zones.js";
 
 export type { ZoneTerrain };
@@ -107,7 +107,8 @@ export function standingCeiling(terrain: ZoneTerrain, groundY: number): number {
  */
 export function zoneTerrainFromHeightfield(map: MapData): ZoneTerrain {
   const colliders = createColliderIndex();
-  for (const rect of map.colliders) colliders.add(rect);
+  for (const rect of withUndergroundStairSideColliders(map.colliders, map.underground, map.size))
+    colliders.add(rect);
   return {
     query: createTerrainQuery(mapToQuerySource(map)),
     colliders,

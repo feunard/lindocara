@@ -15,6 +15,7 @@ import {
   undergroundTerrainHeightAt,
   undergroundTransitionAt,
   undergroundVisibleDepthsAtElevation,
+  withUndergroundStairSideColliders,
 } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
@@ -317,26 +318,23 @@ describe("multi-storey underground", () => {
     expect(undergroundStairMouth(underground.stairs, 1, 3, 2, 0, -1)).toBe(false);
   });
 
-  it.each([1, 2, 8, 15])(
-    "opens an adjacent-storey flight on both level %i mouths",
-    (fromDepth) => {
-      const stair = {
-        depth: fromDepth + 1,
-        fromDepth,
-        col: 2,
-        row: 2,
-        direction: "east" as const,
-        length: 3,
-        width: 1,
-      };
+  it.each([1, 2, 8, 15])("opens an adjacent-storey flight on both level %i mouths", (fromDepth) => {
+    const stair = {
+      depth: fromDepth + 1,
+      fromDepth,
+      col: 2,
+      row: 2,
+      direction: "east" as const,
+      length: 3,
+      width: 1,
+    };
 
-      // East is the high mouth of an east-facing flight; west is its low mouth.
-      expect(undergroundStairMouth([stair], fromDepth, 4, 2, 1, 0)).toBe(true);
-      expect(undergroundStairMouth([stair], fromDepth + 1, 2, 2, -1, 0)).toBe(true);
-      expect(undergroundStairMouth([stair], fromDepth + 1, 4, 2, 1, 0)).toBe(false);
-      expect(undergroundStairMouth([stair], fromDepth, 2, 2, -1, 0)).toBe(false);
-    },
-  );
+    // East is the high mouth of an east-facing flight; west is its low mouth.
+    expect(undergroundStairMouth([stair], fromDepth, 4, 2, 1, 0)).toBe(true);
+    expect(undergroundStairMouth([stair], fromDepth + 1, 2, 2, -1, 0)).toBe(true);
+    expect(undergroundStairMouth([stair], fromDepth + 1, 4, 2, 1, 0)).toBe(false);
+    expect(undergroundStairMouth([stair], fromDepth, 2, 2, -1, 0)).toBe(false);
+  });
 
   it("distinguishes a real vertical access from a jump elsewhere in the room", () => {
     expect(undergroundTransitionAt(underground, 8, -1.5, -1.5)).toBe(true);
@@ -443,6 +441,13 @@ describe("multi-storey underground", () => {
     ];
     const authored = { levels, stairs: [stair] };
     const platforms = undergroundColliders(authored, size);
+    const legacyPlatforms = platforms.slice(0, -2);
+    expect(withUndergroundStairSideColliders(legacyPlatforms, authored, size)).toHaveLength(
+      platforms.length,
+    );
+    expect(withUndergroundStairSideColliders(platforms, authored, size)).toHaveLength(
+      platforms.length,
+    );
     const ramp = undergroundRamp(stair, size);
     const query = createTerrainQuery({
       size,
@@ -478,6 +483,65 @@ describe("multi-storey underground", () => {
     expect(state.x).toBeLessThan(ramp.x);
     expect(state.y).toBeCloseTo(undergroundFloorHeight(2));
     expect(Math.min(...elevations)).toBeCloseTo(undergroundFloorHeight(2));
+  });
+
+  it("keeps a jumping hero inside the lateral walls of a descending stair", () => {
+    const size = 12;
+    const stair = {
+      depth: 2,
+      fromDepth: 1,
+      col: 3,
+      row: 5,
+      direction: "east" as const,
+      length: 6,
+      width: 1,
+    };
+    const authored = {
+      levels: [1, 2].map((depth) => ({
+        depth,
+        style: "cave" as const,
+        cells: Array.from({ length: 5 }, (_unused, row) => ({
+          col: 2,
+          row: row + 3,
+          length: 8,
+        })),
+      })),
+      stairs: [stair],
+    };
+    const platforms = undergroundColliders(authored, size);
+    const ramp = undergroundRamp(stair, size);
+    const query = createTerrainQuery({
+      size,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      ramps: [ramp],
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const footprintZ = ramp.z + ramp.depth / 2;
+    const rampProgress = 0.8;
+    const state = createHeroState(
+      ramp.x + ramp.width * rampProgress,
+      footprintZ + 0.35,
+      undergroundFloorHeight(2) +
+        rampProgress * (undergroundFloorHeight(1) - undergroundFloorHeight(2)),
+      10,
+      2.2,
+    );
+    state.groundY = state.y;
+    for (let frame = 0; frame < 120; frame += 1) {
+      stepHero(state, { ...immobile, z: -1, jump: frame === 0 }, 1 / 60, {
+        ...depsPlates(),
+        query,
+        colliders,
+      });
+    }
+
+    expect(state.z - 0.35).toBeGreaterThanOrEqual(ramp.z + 0.16 + 0.3 - 0.02);
+    expect(state.y).toBeGreaterThanOrEqual(undergroundFloorHeight(2));
   });
 
   it.each([2, 6, 16])(

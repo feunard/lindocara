@@ -40,6 +40,7 @@ import {
   undergroundStyleMaterial,
   undergroundTerrainCells,
   undergroundTerrainElevationCells,
+  withUndergroundStairSideColliders,
 } from "../underground.js";
 import type { ColliderRect, ColliderRoofSurface } from "./collider-index.js";
 import {
@@ -513,6 +514,7 @@ export function decodeMap(s: string): MapData | null {
  *  accessors as `HeightField` (`island.ts`), read from the serialized grid instead of computed by
  *  procedural noise. */
 export function mapToQuerySource(m: MapData): TerrainQuerySource {
+  const effectiveColliders = withUndergroundStairSideColliders(m.colliders, m.underground, m.size);
   const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
   const indexOf = (i: number, j: number): number => j * m.size + i;
   const liquidAt = (i: number, j: number): TerrainLiquid | null => {
@@ -597,7 +599,7 @@ export function mapToQuerySource(m: MapData): TerrainQuerySource {
       return terrain?.material === "water" || terrain?.material === "lave" ? terrain.surface : null;
     },
     ramps: m.ramps ?? [],
-    platforms: m.colliders.flatMap((collider) =>
+    platforms: effectiveColliders.flatMap((collider) =>
       collider.top === undefined && collider.surface === undefined ? [] : [collider],
     ),
   };
