@@ -413,7 +413,11 @@ export function undergroundStairMouth(
       row >= stair.row + footprint.rows
     )
       return false;
-    const upperVolumeDepth = undergroundStairUpperDepth(stair) + 1;
+    // A wall belongs to the room whose floor it rises from. The high mouth of an underground
+    // flight therefore opens on `fromDepth` itself; only the surface has no room/wall of its own,
+    // so its opening is represented by level 1. Using `fromDepth + 1` made every -N -> -(N + 1)
+    // stair keep the upper room's end wall and behave like an invisible barrier.
+    const upperVolumeDepth = Math.max(1, undergroundStairUpperDepth(stair));
     const lowDepth = stair.depth;
     if (rampAlongX(stair.direction)) {
       const west = col === stair.col && dx === -1;

@@ -317,6 +317,27 @@ describe("multi-storey underground", () => {
     expect(undergroundStairMouth(underground.stairs, 1, 3, 2, 0, -1)).toBe(false);
   });
 
+  it.each([1, 2, 8, 15])(
+    "opens an adjacent-storey flight on both level %i mouths",
+    (fromDepth) => {
+      const stair = {
+        depth: fromDepth + 1,
+        fromDepth,
+        col: 2,
+        row: 2,
+        direction: "east" as const,
+        length: 3,
+        width: 1,
+      };
+
+      // East is the high mouth of an east-facing flight; west is its low mouth.
+      expect(undergroundStairMouth([stair], fromDepth, 4, 2, 1, 0)).toBe(true);
+      expect(undergroundStairMouth([stair], fromDepth + 1, 2, 2, -1, 0)).toBe(true);
+      expect(undergroundStairMouth([stair], fromDepth + 1, 4, 2, 1, 0)).toBe(false);
+      expect(undergroundStairMouth([stair], fromDepth, 2, 2, -1, 0)).toBe(false);
+    },
+  );
+
   it("distinguishes a real vertical access from a jump elsewhere in the room", () => {
     expect(undergroundTransitionAt(underground, 8, -1.5, -1.5)).toBe(true);
     expect(undergroundTransitionAt(underground, 8, 2.5, 1.5)).toBe(true);
@@ -387,6 +408,76 @@ describe("multi-storey underground", () => {
       y: expect.closeTo(undergroundFloorHeight(1)),
       minimum: expect.closeTo(undergroundFloorHeight(1)),
     });
+  });
+
+  it("walks from one excavated storey to the next through an adjacent-storey flight", () => {
+    const size = 30;
+    const stair = {
+      depth: 2,
+      fromDepth: 1,
+      col: 18,
+      row: 19,
+      direction: "east" as const,
+      length: 6,
+      width: 3,
+    };
+    const levels = [
+      {
+        depth: 1,
+        style: "cave" as const,
+        cells: Array.from({ length: 16 }, (_unused, row) => ({
+          col: 6,
+          row: row + 8,
+          length: 20,
+        })),
+      },
+      {
+        depth: 2,
+        style: "cave" as const,
+        cells: Array.from({ length: 20 }, (_unused, row) => ({
+          col: 4,
+          row: row + 6,
+          length: 24,
+        })),
+      },
+    ];
+    const authored = { levels, stairs: [stair] };
+    const platforms = undergroundColliders(authored, size);
+    const ramp = undergroundRamp(stair, size);
+    const query = createTerrainQuery({
+      size,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      ramps: [ramp],
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const state = createHeroState(ramp.x + ramp.width + 1.58, ramp.z + 1.31, -2.4, 10, 2.2);
+    state.groundY = state.y;
+    const entranceX = ramp.x + ramp.width - 0.02;
+    const footprintZ = state.z - 0.35;
+    expect(
+      query.canTraverseRamp(ramp.x + ramp.width + 0.013, footprintZ, entranceX, footprintZ, 0.3),
+    ).toBe(true);
+    expect(query.surfaceAt?.(entranceX, footprintZ, -2.38)).toBeCloseTo(-2.4, 1);
+    expect(query.maxHeightAround(entranceX, footprintZ, 0.3, -2.38)).toBeCloseTo(-2.4);
+    expect(colliders.blocked(entranceX, footprintZ, 0.3, -2.4)).toBe(false);
+    const elevations = [state.y];
+    for (let frame = 0; frame < 360; frame += 1) {
+      stepHero(state, { ...immobile, x: -1 }, 1 / 60, {
+        ...depsPlates(),
+        query,
+        colliders,
+      });
+      elevations.push(state.y);
+    }
+
+    expect(state.x).toBeLessThan(ramp.x);
+    expect(state.y).toBeCloseTo(undergroundFloorHeight(2));
+    expect(Math.min(...elevations)).toBeCloseTo(undergroundFloorHeight(2));
   });
 
   it.each([2, 6, 16])(

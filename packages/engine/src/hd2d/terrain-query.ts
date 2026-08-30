@@ -299,11 +299,22 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
     },
     maxHeightAround(wx, wz, r, ceilingY) {
       let max = Number.NEGATIVE_INFINITY;
-      const centreGround = ceilingY === undefined ? null : groundHeightAt(wx, wz);
+      const centreCol = toCell(wx);
+      const centreRow = toCell(wz);
+      const centreTerrain =
+        ceilingY === undefined || voidAt(centreCol, centreRow)
+          ? null
+          : at(centreCol, centreRow);
+      const centreRamp = ceilingY === undefined ? null : rampSampleAt(ramps, levelHeight, wx, wz);
+      // `groundHeightAt` deliberately returns the ramp while the body is on one. It therefore
+      // cannot tell us whether the original surface heightfield is still overhead. Compare the
+      // raw terrain cell instead, and treat the ramp itself as the support that proves this is an
+      // underground query. Otherwise the surface at y=0 enters the footprint maximum and becomes
+      // an invisible wall at every stair joining two underground storeys.
       const beneathSurface =
         ceilingY !== undefined &&
-        platformAt(wx, wz, ceilingY) !== null &&
-        (centreGround === null || centreGround > ceilingY + 1e-3);
+        (platformAt(wx, wz, ceilingY) !== null || centreRamp !== null) &&
+        (centreTerrain === null || centreTerrain * levelHeight > ceilingY + 1e-3);
       for (let j = toCell(wz - r); j <= toCell(wz + r); j++) {
         for (let i = toCell(wx - r); i <= toCell(wx + r); i++) {
           // Point of the cell closest to the center: a cell only grazed by the corner of the
