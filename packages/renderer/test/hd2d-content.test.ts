@@ -468,6 +468,17 @@ describe("static map content", () => {
  * a tree in the ground fails here rather than on screen.
  */
 describe("staticAssetSpec", () => {
+  it("keeps doors and wall lighting fixed to their authored wall", () => {
+    expect(staticAssetSpec("decoration.lindocara-interior.door-timber")).toMatchObject({
+      url: "/assets/lindocara/hd2d/interiors/door-timber.png",
+      renderMode: "wall-card",
+    });
+    expect(staticAssetSpec("decoration.lindocara-interior.torch-wall")).toMatchObject({
+      renderMode: "wall-card",
+      fireLight: { color: 0xff9a45 },
+    });
+  });
+
   it("renders high-resolution movement pickups at collectible scale", () => {
     const bonus = staticAssetSpec("resource.lindocara-pickup.speed-boost");
     const malus = staticAssetSpec("resource.lindocara-pickup.speed-slow");

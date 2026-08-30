@@ -12,6 +12,7 @@ import {
   editorAsset,
   editorAssetCollisionElevation,
   LINDOCARA_BUILDING_ASSET_IDS,
+  LINDOCARA_INTERIOR_ASSET_IDS,
   LINDOCARA_RUNNER_ASSET_IDS,
   LINDOCARA_STRUCTURE_ASSET_IDS,
   PLACEABLE_EDITOR_ASSETS,
@@ -118,6 +119,18 @@ describe("catalogue colliders", () => {
       width: 2.75,
       depth: 1.125,
     });
+  });
+
+  it("offers the complete interior set and marks wall-mounted art explicitly", () => {
+    const interior = PLACEABLE_EDITOR_ASSETS.filter(
+      (asset) => asset.editor.category === "interior-furniture",
+    );
+    expect(interior.map((asset) => asset.id)).toEqual(
+      expect.arrayContaining(Object.values(LINDOCARA_INTERIOR_ASSET_IDS)),
+    );
+    expect(editorAsset(LINDOCARA_INTERIOR_ASSET_IDS.doorTimber)?.editor.wallMounted).toBe(true);
+    expect(editorAsset(LINDOCARA_INTERIOR_ASSET_IDS.wallTapestry)?.editor.wallMounted).toBe(true);
+    expect(editorAsset(LINDOCARA_INTERIOR_ASSET_IDS.sofa)?.editor.collider).toBeDefined();
   });
 
   it("offers all cave, castle, and timber walls and ceilings as architecture", () => {

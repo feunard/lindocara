@@ -411,7 +411,7 @@ export interface CardVolumeOptions {
   height: number;
   aspect?: number;
   foot?: number;
-  mode: "cloud" | "vertical";
+  mode: "cloud" | "vertical" | "wall";
   graftCloudShadow?: CloudShadowGraft;
 }
 
@@ -446,7 +446,7 @@ export function makeCardVolume(ctx: Hd2dContext, opts: CardVolumeOptions): CardV
     const side = new THREE.PlaneGeometry(height, thickness);
     side.rotateY(Math.PI / 2);
     parts.push(side);
-  } else {
+  } else if (mode === "vertical") {
     const front = new THREE.PlaneGeometry(width, height);
     front.translate(0, height / 2, 0);
     parts.push(front);
@@ -454,6 +454,12 @@ export function makeCardVolume(ctx: Hd2dContext, opts: CardVolumeOptions): CardV
     side.rotateY(Math.PI / 2);
     side.translate(0, height / 2, 0);
     parts.push(side);
+  } else {
+    // Une porte ou une tapisserie appartient au mur : une seule carte orientée garde sa face dans
+    // le plan du mur, alors que le croisement des volumes libres inventerait une seconde porte à 90°.
+    const front = new THREE.PlaneGeometry(width, height);
+    front.translate(0, height / 2, 0);
+    parts.push(front);
   }
 
   const geometry = mergeGeometries(parts, false);

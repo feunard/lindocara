@@ -29,7 +29,11 @@
 
 import type { BridgeDimensions } from "@lindocara/engine/bridges.js";
 import type { BuildingDimensions } from "@lindocara/engine/buildings.js";
-import type { ElementOrientation, ElementRotation } from "@lindocara/engine/element-orientation.js";
+import {
+  elementRotationDegrees,
+  type ElementOrientation,
+  type ElementRotation,
+} from "@lindocara/engine/element-orientation.js";
 import type {
   HeightfieldElement,
   HeightfieldEvent,
@@ -103,7 +107,7 @@ export interface StaticSpriteArt {
   twinkle?: { durationMs: number; minOpacity: number; scaleAmplitude: number };
   /** Sky art is a horizontal world-space plane, never a camera-facing billboard. */
   renderLayer?: "object" | "canopy" | "sky";
-  renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume";
+  renderMode?: "billboard" | "flat" | "cloud-volume" | "fixed-volume" | "wall-card";
   flatSize?: number;
   lit?: boolean;
   fireLight?: {
@@ -299,7 +303,9 @@ export function placeStaticContent(
             : null;
     const volume =
       native === null &&
-      (sprite.renderMode === "cloud-volume" || sprite.renderMode === "fixed-volume")
+      (sprite.renderMode === "cloud-volume" ||
+        sprite.renderMode === "fixed-volume" ||
+        sprite.renderMode === "wall-card")
         ? makeCardVolume(ctx, {
             texture: sprite.texture,
             cols: sprite.cols ?? 1,
@@ -307,7 +313,12 @@ export function placeStaticContent(
             height: sprite.height,
             aspect: sprite.aspect ?? 1,
             foot: sprite.foot ?? 0,
-            mode: sprite.renderMode === "cloud-volume" ? "cloud" : "vertical",
+            mode:
+              sprite.renderMode === "cloud-volume"
+                ? "cloud"
+                : sprite.renderMode === "wall-card"
+                  ? "wall"
+                  : "vertical",
             ...(sky ? { graftCloudShadow: () => undefined } : {}),
           })
         : null;
@@ -362,6 +373,14 @@ export function placeStaticContent(
     } else if (flat || sprite.renderMode === "cloud-volume") {
       billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
     } else (billboard as Billboard | CardVolume).placeAt(x, anchorY, z);
+    if (sprite.renderMode === "wall-card") {
+      billboard.mesh.rotation.y = THREE.MathUtils.degToRad(
+        -elementRotationDegrees({
+          orientation,
+          ...(rotation === undefined ? {} : { rotation }),
+        }),
+      );
+    }
     if (scale !== 1) {
       const anchorDelta = anchorY - billboard.mesh.position.y;
       billboard.mesh.scale.multiplyScalar(scale);

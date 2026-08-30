@@ -156,4 +156,21 @@ describe("makeCardVolume", () => {
     expect(volume.mesh.rotation.y).toBe(0);
     volume.dispose();
   });
+
+  it("construit une décoration murale avec une seule face fixe", () => {
+    const ctx = createHd2dContext();
+    const volume = makeCardVolume(ctx, {
+      texture: new THREE.Texture(),
+      height: 2,
+      aspect: 0.75,
+      mode: "wall",
+      graftCloudShadow: () => undefined,
+    });
+
+    expect(volume.mesh.geometry.getAttribute("position").count).toBe(4);
+    expect(ctx.billboards()).toHaveLength(0);
+    ctx.setYaw(Math.PI / 2);
+    expect(volume.mesh.rotation.y).toBe(0);
+    volume.dispose();
+  });
 });

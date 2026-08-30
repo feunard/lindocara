@@ -142,10 +142,12 @@ export const MAP_LAYERS = 3;
 
 /** Native world geometry that may be freely rotated without turning a billboard sideways. */
 export function isRotatable3dElementAsset(assetId: string): boolean {
+  const asset = editorAsset(assetId);
   return (
     isStandingBuildingAsset(assetId) ||
     bridgeOrientation(assetId) !== null ||
-    isNativeSceneryAsset(assetId)
+    isNativeSceneryAsset(assetId) ||
+    asset?.editor.wallMounted === true
   );
 }
 

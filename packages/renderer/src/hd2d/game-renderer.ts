@@ -902,6 +902,7 @@ export function staticAssetSpec(assetId: string): StaticAssetSpec | null {
     foot: definition.footOffset / framePx.height + (1 - definition.anchor.y),
     renderLayer:
       definition.editor.renderLayer === "ground" ? "object" : definition.editor.renderLayer,
+    ...(definition.editor.wallMounted ? { renderMode: "wall-card" as const } : {}),
     ...(definition.nature === "animated" && !crop && count > 1
       ? {
           animationDurationMs: nativeTreeStrip

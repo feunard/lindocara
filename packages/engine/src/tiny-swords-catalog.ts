@@ -94,6 +94,9 @@ export interface EditorPlacementMetadata {
    * front edge, matching buildings, so every future native prop inherits the same rotation and
    * proportional-resize tools without an asset-specific editor branch. */
   native3d?: { readonly width: number; readonly depth: number };
+  /** Vertical card authored against a wall. Unlike an ordinary billboard it keeps its world
+   * orientation while the camera orbits, and therefore exposes the rotation control. */
+  wallMounted?: boolean;
   /** Authored cave/castle shell. The collider compiler and native renderer share these dimensions;
    * a ceiling is a raised slab, while a wall rises from the terrain. */
   architecturalVolume?: {
@@ -239,6 +242,21 @@ export const LINDOCARA_INTERIOR_ASSET_IDS = {
   table: "decoration.lindocara-interior.table",
   cupboard: "decoration.lindocara-interior.cupboard",
   rug: "decoration.lindocara-interior.rug",
+  doubleBed: "decoration.lindocara-interior.double-bed",
+  wardrobe: "decoration.lindocara-interior.wardrobe",
+  diningTable: "decoration.lindocara-interior.dining-table",
+  chair: "decoration.lindocara-interior.chair",
+  sofa: "decoration.lindocara-interior.sofa",
+  coffeeTable: "decoration.lindocara-interior.coffee-table",
+  bar: "decoration.lindocara-interior.bar",
+  fireplace: "decoration.lindocara-interior.fireplace",
+  wallTapestry: "decoration.lindocara-interior.wall-tapestry",
+  oilLampTable: "decoration.lindocara-interior.oil-lamp-table",
+  oilLampWall: "decoration.lindocara-interior.oil-lamp-wall",
+  torchFloor: "decoration.lindocara-interior.torch-floor",
+  torchWall: "decoration.lindocara-interior.torch-wall",
+  doorTimber: "decoration.lindocara-interior.door-timber",
+  doorStone: "decoration.lindocara-interior.door-stone",
 } as const;
 export const LINDOCARA_RUNNER_ASSET_IDS = {
   spikeTrap: "decoration.lindocara-runner.spike-trap",
@@ -400,6 +418,7 @@ function lindocaraInteriorProp<const Id extends string>(
   width: number,
   height: number,
   collider?: Rect,
+  options: { wallMounted?: boolean; tags?: readonly string[] } = {},
 ) {
   return {
     id,
@@ -408,7 +427,7 @@ function lindocaraInteriorProp<const Id extends string>(
     domain: "decoration",
     category: "Lindocara/Interiors",
     role: "interior-decoration",
-    tags: ["interior", "generated", "furniture"],
+    tags: ["interior", "generated", "furniture", ...(options.tags ?? [])],
     width,
     height,
     nature: "static",
@@ -420,6 +439,7 @@ function lindocaraInteriorProp<const Id extends string>(
       renderLayer: "object",
       visualFootprint: [{ col: 0, row: 0 }],
       ...(collider ? { collider } : {}),
+      ...(options.wallMounted ? { wallMounted: true } : {}),
     },
   } as const satisfies EditorAssetDefinition;
 }
@@ -857,6 +877,112 @@ const LINDOCARA_LAB_EDITOR_ASSETS = [
     height: 32,
   }),
   lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.rug, "rug.png", 98, 99),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.doubleBed, "double-bed.png", 90, 92, {
+    x: -43,
+    y: -66,
+    width: 86,
+    height: 66,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.wardrobe, "wardrobe.png", 65, 102, {
+    x: -29,
+    y: -32,
+    width: 58,
+    height: 32,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.diningTable, "dining-table.png", 97, 82, {
+    x: -44,
+    y: -44,
+    width: 88,
+    height: 44,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.chair, "chair.png", 50, 84, {
+    x: -20,
+    y: -27,
+    width: 40,
+    height: 27,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.sofa, "sofa.png", 84, 88, {
+    x: -38,
+    y: -42,
+    width: 76,
+    height: 42,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.coffeeTable, "coffee-table.png", 70, 64, {
+    x: -31,
+    y: -31,
+    width: 62,
+    height: 31,
+  }),
+  lindocaraInteriorProp(LINDOCARA_INTERIOR_ASSET_IDS.bar, "bar.png", 81, 90, {
+    x: -37,
+    y: -45,
+    width: 74,
+    height: 45,
+  }),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.fireplace,
+    "fireplace.png",
+    101,
+    110,
+    { x: -44, y: -34, width: 88, height: 34 },
+    { tags: ["fire"] },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.wallTapestry,
+    "wall-tapestry.png",
+    84,
+    102,
+    undefined,
+    { wallMounted: true },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.oilLampTable,
+    "oil-lamp-table.png",
+    36,
+    60,
+    undefined,
+    { tags: ["torch"] },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.oilLampWall,
+    "oil-lamp-wall.png",
+    45,
+    74,
+    undefined,
+    { wallMounted: true, tags: ["torch"] },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.torchFloor,
+    "torch-floor.png",
+    62,
+    100,
+    { x: -13, y: -14, width: 26, height: 14 },
+    { tags: ["torch"] },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.torchWall,
+    "torch-wall.png",
+    62,
+    94,
+    undefined,
+    { wallMounted: true, tags: ["torch"] },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.doorTimber,
+    "door-timber.png",
+    75,
+    108,
+    undefined,
+    { wallMounted: true },
+  ),
+  lindocaraInteriorProp(
+    LINDOCARA_INTERIOR_ASSET_IDS.doorStone,
+    "door-stone.png",
+    176,
+    114,
+    undefined,
+    { wallMounted: true },
+  ),
 ] as const satisfies readonly EditorAssetDefinition[];
 
 export const EDITOR_ASSETS = [...GENERATED_EDITOR_ASSETS, ...LINDOCARA_LAB_EDITOR_ASSETS] as const;
