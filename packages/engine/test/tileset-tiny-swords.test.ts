@@ -2,6 +2,7 @@ import {
   CLIFF_WALL_SLOT,
   elevationOfSlot,
   fixedTerrainDescriptor,
+  FIXED_TERRAIN_LEVEL_COUNT,
   GRASS_SLOTS,
   HOUSE_TERRAIN_FIXED_BASE,
   isGroundElevation,
@@ -132,7 +133,7 @@ describe("the Tiny Swords tileset", () => {
     expect(GRASS_SLOTS).toHaveLength(TERRAIN_LEVELS);
   });
 
-  it("appends the house floor after every historical fixed id", () => {
+  it("appends every house floor after every historical fixed id", () => {
     expect(terrainFixedIndex("parquet", -3)).toBe(HOUSE_TERRAIN_FIXED_BASE);
     expect(fixedTerrainDescriptor(terrainFixedIndex("parquet", 0))).toEqual({
       material: "parquet",
@@ -143,5 +144,21 @@ describe("the Tiny Swords tileset", () => {
       level: 10,
     });
     expect(TINY_SWORDS_TILESET.fixed[terrainFixedIndex("parquet", 0)]?.passable).toBe(true);
+    expect(terrainFixedIndex("lino-gris", -3)).toBe(
+      HOUSE_TERRAIN_FIXED_BASE + FIXED_TERRAIN_LEVEL_COUNT,
+    );
+    expect(terrainFixedIndex("lino-jaune", -3)).toBe(
+      HOUSE_TERRAIN_FIXED_BASE + FIXED_TERRAIN_LEVEL_COUNT * 2,
+    );
+    expect(terrainFixedIndex("carrelage-beige", -3)).toBe(
+      HOUSE_TERRAIN_FIXED_BASE + FIXED_TERRAIN_LEVEL_COUNT * 3,
+    );
+    for (const material of ["lino-gris", "lino-jaune", "carrelage-beige"] as const) {
+      expect(fixedTerrainDescriptor(terrainFixedIndex(material, 0))).toEqual({
+        material,
+        level: 0,
+      });
+      expect(TINY_SWORDS_TILESET.fixed[terrainFixedIndex(material, 0)]?.passable).toBe(true);
+    }
   });
 });

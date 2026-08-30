@@ -134,6 +134,9 @@ const MATERIAL_COLORS: Record<TerrainMaterial, number> = {
   volcan: 0x403b3a,
   lave: 0xe85b21,
   parquet: 0x8a5838,
+  "lino-gris": 0x666b70,
+  "lino-jaune": 0xc69b48,
+  "carrelage-beige": 0xc8b48f,
 };
 
 export interface BakedTerrain {

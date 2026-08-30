@@ -458,6 +458,9 @@ describe("the HD-2D scene's terrain", () => {
     expect(terrainAtlasKey("herbe", 3)).toBe("lvl3");
     expect(terrainAtlasKey("sable", 0)).toBe("sable");
     expect(terrainAtlasKey("parquet", 0)).toBe("parquet");
+    expect(terrainAtlasKey("lino-gris", 0)).toBe("lino-gris");
+    expect(terrainAtlasKey("lino-jaune", 4)).toBe("lino-jaune");
+    expect(terrainAtlasKey("carrelage-beige", -3)).toBe("carrelage-beige");
     // A pit floor takes a RAISED sheet: level 0's group carries the painted shore line, because
     // level 0 is what borders the sea, and a dry pit borders its own walls on every side.
     expect(terrainAtlasKey("herbe", -1)).toBe("lvl1");

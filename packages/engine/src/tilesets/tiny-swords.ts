@@ -122,7 +122,12 @@ export const GRASS_SLOTS: TerrainLevelSlots = [0, 1, 2, 19, 24, 28, 32, 36, 40, 
 export const LEGACY_AUTOTILE_TERRAIN_MATERIALS = ["herbe", "sable", "neige", "glace"] as const;
 export type LegacyAutotileTerrainMaterial = (typeof LEGACY_AUTOTILE_TERRAIN_MATERIALS)[number];
 export const FIXED_TERRAIN_MATERIALS = ["grotte", "montagne", "volcan", "lave"] as const;
-export const HOUSE_TERRAIN_MATERIALS = ["parquet"] as const;
+export const HOUSE_TERRAIN_MATERIALS = [
+  "parquet",
+  "lino-gris",
+  "lino-jaune",
+  "carrelage-beige",
+] as const;
 export const AUTHORED_TERRAIN_MATERIALS = [
   ...LEGACY_AUTOTILE_TERRAIN_MATERIALS,
   ...FIXED_TERRAIN_MATERIALS,

@@ -10,7 +10,7 @@ import {
   colliderSurfaceHeightNear,
 } from "./collider-index.js";
 
-/** The four ground materials — two warm (the tropical island), two cold (the northern island). An
+/** Every authored ground material, including natural, underground and interior surfaces. An
  *  exported union rather than `string`: `engine` is the future server authority for this, and a
  *  stringly-typed material would be a liability from the first silent typo — the compiler must be
  *  able to reject `"herb"` outright.
@@ -28,7 +28,10 @@ export type TerrainMaterial =
   | "montagne"
   | "volcan"
   | "lave"
-  | "parquet";
+  | "parquet"
+  | "lino-gris"
+  | "lino-jaune"
+  | "carrelage-beige";
 
 export type TerrainLiquid = "water" | "lava";
 

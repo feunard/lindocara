@@ -91,6 +91,9 @@ export function frictionPour(m: TerrainMaterial | null, hero: HeroSettings): num
     case "volcan":
     case "lave":
     case "parquet":
+    case "lino-gris":
+    case "lino-jaune":
+    case "carrelage-beige":
     case null:
       return hero.friction.herbe;
   }
@@ -112,6 +115,9 @@ export function vitesseMaxPour(m: TerrainMaterial | null, hero: HeroSettings): n
     case "volcan":
     case "lave":
     case "parquet":
+    case "lino-gris":
+    case "lino-jaune":
+    case "carrelage-beige":
     case null:
       return hero.speed * hero.vitesseSol.herbe;
   }

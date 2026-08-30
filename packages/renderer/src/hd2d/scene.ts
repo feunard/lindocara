@@ -106,6 +106,9 @@ export const HD2D_TEXTURE_URLS: readonly TextureSpec[] = [
   { url: `${HD2D_TERRAIN_ROOT}/tileset-lave.png`, atlas: true },
   { url: `${HD2D_TERRAIN_ROOT}/lava-surface.png` },
   { url: `${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/floor-lino-gray-atlas.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/floor-lino-yellow-atlas.png`, atlas: true },
+  { url: `${HD2D_TERRAIN_ROOT}/floor-beige-tile-atlas.png`, atlas: true },
   { url: `${TERRAIN_ROOT}/Water.png` },
   { url: `${TERRAIN_ROOT}/Foam.png`, atlas: true },
   ...INTERIOR_SHELL_TEXTURES,
@@ -130,7 +133,14 @@ export function setHd2dGroundPalette(palette: string): boolean {
  * and ice read theirs from the material instead; their identity is the material, not the height.
  */
 export function terrainAtlasKey(material: string, level: number): string {
-  if (material === "parquet") return material;
+  if (
+    material === "parquet" ||
+    material === "lino-gris" ||
+    material === "lino-jaune" ||
+    material === "carrelage-beige"
+  ) {
+    return material;
+  }
   if (material === "sable" || material === "neige") return material;
   if (material === "glace") return "glace";
   if (
@@ -216,6 +226,18 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     parquet: {
       ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
       texture: textures.get(`${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`),
+    },
+    "lino-gris": {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/floor-lino-gray-atlas.png`),
+    },
+    "lino-jaune": {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/floor-lino-yellow-atlas.png`),
+    },
+    "carrelage-beige": {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/floor-beige-tile-atlas.png`),
     },
   };
 }

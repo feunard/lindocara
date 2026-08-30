@@ -1,0 +1,31 @@
+{
+  "generator": "OpenAI imagegen",
+  "generatedAt": "2026-08-30",
+  "sourceSheets": [
+    "01a049a7-f223-79d2-a039-896a64be35e4/exec-7d8d2148-4cbf-4c46-9990-f643d9259fe8.png",
+    "01a049a7-f223-79d2-a039-896a64be35e4/exec-d8388a76-fd4a-4b5c-b330-1b04d9965910.png",
+    "01a049a7-f223-79d2-a039-896a64be35e4/exec-7b1480ba-7666-45ed-bf6c-385a2c7a7f31.png"
+  ],
+  "artDirection": "Crisp HD-2D pixel art, warm-brown outlines, honey oak, muted stone, burgundy fabric and restrained teal accents.",
+  "processing": "Equal-cell extraction, largest connected subject isolation, apps/lab/scripts/sprite.py at 32 colours; flooring cropped and quantized to 48 colours at 576x384.",
+  "assets": [
+    "double-bed",
+    "wardrobe",
+    "dining-table",
+    "chair",
+    "sofa",
+    "coffee-table",
+    "bar",
+    "fireplace",
+    "wall-tapestry",
+    "oil-lamp-table",
+    "oil-lamp-wall",
+    "torch-floor",
+    "torch-wall",
+    "door-timber",
+    "door-stone",
+    "floor-lino-gray-atlas",
+    "floor-lino-yellow-atlas",
+    "floor-beige-tile-atlas"
+  ]
+}

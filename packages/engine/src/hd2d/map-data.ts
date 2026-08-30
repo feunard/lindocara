@@ -52,7 +52,7 @@ import {
   type TerrainRamp,
 } from "./terrain-query.js";
 
-/** The four materials of `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
+/** Every `TerrainMaterial`, as a RUNTIME enumeration — the type alone is not
  *  enough to validate a string coming from the network, it vanishes at compile time. */
 const TERRAIN_MATERIALS: readonly TerrainMaterial[] = [
   "sable",
@@ -64,6 +64,9 @@ const TERRAIN_MATERIALS: readonly TerrainMaterial[] = [
   "volcan",
   "lave",
   "parquet",
+  "lino-gris",
+  "lino-jaune",
+  "carrelage-beige",
 ];
 
 /**
