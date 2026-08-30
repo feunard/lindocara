@@ -97,6 +97,27 @@ describe("parseEventCommands: good payloads", () => {
     ).toBeNull();
   });
 
+  it("keeps a bounded destination storey for coordinate-addressed teleports", () => {
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, undergroundDepth: -4 }]),
+    ).toEqual([
+      {
+        t: "teleport",
+        mapId: UUID,
+        col: 1,
+        row: 2,
+        undergroundDepth: -4,
+        category: "geographic",
+      },
+    ]);
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, undergroundDepth: 0 }]),
+    ).toBeNull();
+    expect(
+      parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, undergroundDepth: 17 }]),
+    ).toBeNull();
+  });
+
   it("accepts bounded teleporter uses and an optional hero-paid currency cost", () => {
     expect(
       parseEventCommands([

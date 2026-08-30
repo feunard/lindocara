@@ -27,6 +27,7 @@ import {
   validMovementEffectPower,
 } from "./movement-effects.js";
 import { isSoundEffectId } from "./sfx-catalog.js";
+import { validVerticalDepth } from "./underground.js";
 
 /**
  * The command-model limits, the single source for every consumer (the parser here, the interpreter,
@@ -178,6 +179,8 @@ export type EventCommand =
       readonly mapId: string;
       readonly col: number;
       readonly row: number;
+      /** Destination storey for a coordinate fallback. Absent means the surface. */
+      readonly undergroundDepth?: number;
       /** Absent only on legacy in-memory fixtures; the parser normalizes it to `geographic`. */
       readonly category?: TransitionCategory;
       /**
@@ -427,6 +430,8 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       const col = record.col as number;
       const row = record.row as number;
       if (col < 0 || row < 0) return null;
+      if (record.undergroundDepth !== undefined && !validVerticalDepth(record.undergroundDepth))
+        return null;
       // Old authored maps predate transition categories. Treat them as ordinary geographic travel
       // at the parsing boundary so imports remain compatible while every newly saved command is
       // explicit.
@@ -467,6 +472,9 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
         col,
         row,
         category,
+        ...(record.undergroundDepth === undefined
+          ? {}
+          : { undergroundDepth: record.undergroundDepth as number }),
         ...(record.eventId === undefined ? {} : { eventId: record.eventId as string }),
         ...(useLimit === undefined ? {} : { useLimit: useLimit as number }),
         ...(costCurrency === undefined

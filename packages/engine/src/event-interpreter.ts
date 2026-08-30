@@ -251,6 +251,8 @@ export type EventEffect =
       readonly mapId: string;
       readonly col: number;
       readonly row: number;
+      /** Destination storey when the coordinate fallback is used. */
+      readonly undergroundDepth?: number;
       readonly category: TransitionCategory;
       /** An event on the destination map to arrive at, resolved by the room. See the command. */
       readonly eventId?: string;
@@ -546,6 +548,9 @@ function executeCommand(
             col: command.col,
             row: command.row,
             category: command.category ?? "geographic",
+            ...(command.undergroundDepth === undefined
+              ? {}
+              : { undergroundDepth: command.undergroundDepth }),
             // Passed through, never resolved here: this module is pure and has no map catalogue.
             // Turning an event id into a cell needs the DESTINATION map's events, which only the
             // room holds.

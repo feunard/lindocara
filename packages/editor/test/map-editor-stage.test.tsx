@@ -376,7 +376,10 @@ describe("HD-2D map editor stage", () => {
     expect(stage.current().events).toHaveLength(0);
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
-      expect.objectContaining({ dirty: false, linkAnchor: { col: 3, row: 3 } }),
+      expect.objectContaining({
+        dirty: false,
+        linkAnchor: { col: 3, row: 3, undergroundDepth: null },
+      }),
     );
 
     click(8, 6);
@@ -390,6 +393,61 @@ describe("HD-2D map editor stage", () => {
     // would be the tell that the first click had quietly become a history step of its own.
     stage.undo();
     expect(stage.current().events).toHaveLength(0);
+    stage.dispose();
+  });
+
+  it("keeps a pending door while switching from the surface to a basement", async () => {
+    const map = applyTool(
+      blankMap("Cross-storey doors", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 1,
+        style: "cave",
+        width: 8,
+        length: 8,
+        direction: "east",
+      },
+      0,
+      0,
+    );
+    if (!map) throw new Error("cross-storey door fixture was refused");
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(map, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: 0, z: 0 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const click = (col: number, row: number): void => {
+      point.x = col + 0.5 - 10;
+      point.z = row + 0.5 - 10;
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }),
+      );
+      window.dispatchEvent(new PointerEvent("pointerup"));
+    };
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "link",
+      selfMapId: "aaaaaaaa-0000-4000-8000-00000000abcd",
+      name: "Door",
+    });
+
+    click(3, 3);
+    stage.setEditingDepth(1);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        linkAnchor: { col: 3, row: 3, undergroundDepth: null },
+      }),
+    );
+    click(5, 5);
+
+    const [surfaceDoor, basementDoor] = stage.current().events;
+    expect(surfaceDoor?.undergroundDepth).toBeUndefined();
+    expect(basementDoor?.undergroundDepth).toBe(1);
+    expect(surfaceDoor?.pages[0]?.commands[0]).toMatchObject({ undergroundDepth: 1 });
+    expect(basementDoor?.pages[0]?.commands[0]).not.toHaveProperty("undergroundDepth");
     stage.dispose();
   });
 
@@ -410,7 +468,7 @@ describe("HD-2D map editor stage", () => {
     window.dispatchEvent(new PointerEvent("pointerup"));
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
-      expect.objectContaining({ linkAnchor: { col: 3, row: 3 } }),
+      expect.objectContaining({ linkAnchor: { col: 3, row: 3, undergroundDepth: null } }),
     );
 
     // A door picked under the link tool means nothing under any other tool; keeping it would pair
@@ -1029,7 +1087,10 @@ describe("HD-2D map editor stage", () => {
     expect(stage.current().events).toEqual([]);
     expect(changes).toHaveBeenLastCalledWith(
       expect.any(Object),
-      expect.objectContaining({ pendingTeleportOrigin: { col: 1, row: 2 }, canUndo: false }),
+      expect.objectContaining({
+        pendingTeleportOrigin: { col: 1, row: 2, undergroundDepth: null },
+        canUndo: false,
+      }),
     );
 
     point.x = -4.5;
@@ -1093,6 +1154,70 @@ describe("HD-2D map editor stage", () => {
 
     expect(stage.current().events).toHaveLength(2);
     expect(stage.current().events.map((event) => event.undergroundDepth)).toEqual([2, 2]);
+    stage.dispose();
+  });
+
+  it("retains a teleporter entrance while switching to its destination storey", async () => {
+    const map = applyTool(
+      blankMap("Cross-storey teleporters", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 2,
+        style: "cave",
+        width: 8,
+        length: 8,
+        direction: "east",
+      },
+      0,
+      0,
+    );
+    if (!map) throw new Error("cross-storey teleporter fixture was refused");
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(map, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    const point = { x: -8.5, z: -7.5 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const mapId = crypto.randomUUID();
+    stage.setActiveMode("event");
+    stage.setTool({
+      kind: "event",
+      eventKind: "normal",
+      preset: "teleporter",
+      selfMapId: mapId,
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    stage.setEditingDepth(2);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        pendingTeleportOrigin: { col: 1, row: 2, undergroundDepth: null },
+      }),
+    );
+
+    point.x = -4.5;
+    point.z = -3.5;
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    const [surface, basement] = stage.current().events;
+    expect(surface).toMatchObject({ col: 1, row: 2, linkedEventId: basement?.id });
+    expect(surface?.undergroundDepth).toBeUndefined();
+    expect(basement).toMatchObject({
+      col: 5,
+      row: 6,
+      undergroundDepth: 2,
+      linkedEventId: surface?.id,
+    });
+    expect(surface?.pages[0]?.commands[0]).toMatchObject({
+      t: "teleport",
+      eventId: basement?.id,
+      undergroundDepth: 2,
+    });
+    expect(basement?.pages[0]?.commands[0]).not.toHaveProperty("undergroundDepth");
     stage.dispose();
   });
 

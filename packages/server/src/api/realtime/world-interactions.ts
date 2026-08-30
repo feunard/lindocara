@@ -690,9 +690,14 @@ export function cheatRevive(w: WorldGlue, player: PlayerRuntime): void {
  */
 export function authoredTeleportTarget(
   events: readonly MapEvent[] | undefined,
-  effect: { col: number; row: number; eventId?: string },
+  effect: { col: number; row: number; eventId?: string; undergroundDepth?: number },
 ): { col: number; row: number; undergroundDepth?: number } {
-  if (effect.eventId === undefined) return { col: effect.col, row: effect.row };
+  const fallback = {
+    col: effect.col,
+    row: effect.row,
+    ...(effect.undergroundDepth === undefined ? {} : { undergroundDepth: effect.undergroundDepth }),
+  };
+  if (effect.eventId === undefined) return fallback;
   const target = events?.find((candidate) => candidate.id === effect.eventId);
   return target
     ? {
@@ -702,7 +707,7 @@ export function authoredTeleportTarget(
           ? {}
           : { undergroundDepth: target.undergroundDepth }),
       }
-    : { col: effect.col, row: effect.row };
+    : fallback;
 }
 
 export function teleportSameMap(

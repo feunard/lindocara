@@ -620,6 +620,7 @@ function AdventureEditorInner({
   const [pendingTeleportOrigin, setPendingTeleportOrigin] = useState<{
     col: number;
     row: number;
+    undergroundDepth: number | null;
   } | null>(null);
   const lastRejectionRef = useRef<number | null>(null);
   const placementHintTimeoutRef = useRef<number | null>(null);

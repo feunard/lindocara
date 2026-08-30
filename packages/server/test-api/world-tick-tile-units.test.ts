@@ -220,6 +220,14 @@ describe("an authored teleport's destination", () => {
       row: 5,
     });
     expect(authoredTeleportTarget(undefined, { col: 3, row: 5 })).toEqual({ col: 3, row: 5 });
+    expect(
+      authoredTeleportTarget([], {
+        col: 3,
+        row: 5,
+        eventId: EVENT,
+        undergroundDepth: -2,
+      }),
+    ).toEqual({ col: 3, row: 5, undergroundDepth: -2 });
   });
 });
 

@@ -87,6 +87,7 @@ import {
   MAX_RUNTIME_EVENTS_PER_MAP,
   type MapEvent,
   type MapEventPage,
+  authoredCellCentreGround,
   runtimeEventCount,
 } from "@lindocara/engine/map-events.js";
 import {
@@ -329,7 +330,7 @@ export type EditorTool =
   | {
       kind: "link";
       selfMapId: string;
-      from?: { col: number; row: number };
+      from?: { col: number; row: number; undergroundDepth?: number | null };
       /** The pair's display name, localized by the palette exactly as `presetName` is: an event name
        *  is authored DATA in the author's own language, never a message key. */
       name?: string;
@@ -1862,14 +1863,24 @@ export function eventCellAvailableAtDepth(
  * both clicks before calling this function, so neither history nor persistence can ever observe a
  * half-authored link.
  */
-function linkedTeleportEvent(event: MapEvent, linkedEventId: string): MapEvent {
+function linkedTeleportEvent(
+  event: MapEvent,
+  linkedEventId: string,
+  destinationDepth: number | null,
+): MapEvent {
   return {
     ...event,
     linkedEventId,
     pages: event.pages.map((page) => ({
       ...page,
       commands: page.commands.map((command) =>
-        command.t === "teleport" ? { ...command, eventId: linkedEventId } : command,
+        command.t === "teleport"
+          ? {
+              ...command,
+              eventId: linkedEventId,
+              ...(destinationDepth === null ? {} : { undergroundDepth: destinationDepth }),
+            }
+          : command,
       ),
     })),
   };
@@ -1878,26 +1889,34 @@ function linkedTeleportEvent(event: MapEvent, linkedEventId: string): MapEvent {
 export function placeLinkedTeleporters(
   map: EditorMap,
   tool: EditorEventTool,
-  source: { col: number; row: number },
-  destination: { col: number; row: number },
+  source: { col: number; row: number; undergroundDepth?: number | null },
+  destination: { col: number; row: number; undergroundDepth?: number | null },
   undergroundDepth: number | null = null,
 ): EditorMap | null {
   if (tool.eventKind !== "normal" || tool.preset !== "teleporter") return null;
-  if (source.col === destination.col && source.row === destination.row) return null;
+  const sourceDepth =
+    source.undergroundDepth === undefined ? undergroundDepth : source.undergroundDepth;
+  const destinationDepth =
+    destination.undergroundDepth === undefined ? undergroundDepth : destination.undergroundDepth;
+  if (
+    source.col === destination.col &&
+    source.row === destination.row &&
+    sourceDepth === destinationDepth
+  )
+    return null;
   if (map.events.length > MAX_EVENTS_PER_MAP - 2) return null;
   if (runtimeEventCount(map.events) > MAX_RUNTIME_EVENTS_PER_MAP - 2) return null;
-  for (const point of [source, destination]) {
-    if (!eventCellAvailableAtDepth(map, point.col, point.row, undergroundDepth)) return null;
-    if (
-      undergroundDepth === null &&
-      !functionalEventPlacementOk(map, "normal", point.col, point.row)
-    )
+  for (const [point, depth] of [
+    [source, sourceDepth],
+    [destination, destinationDepth],
+  ] as const) {
+    if (!eventCellAvailableAtDepth(map, point.col, point.row, depth)) return null;
+    if (depth === null && !functionalEventPlacementOk(map, "normal", point.col, point.row))
       return null;
   }
   const sourceId = crypto.randomUUID();
   const destinationId = crypto.randomUUID();
   const ordinal = nextEventOrdinal(map.events);
-  const eventDepth = undergroundDepth === null ? {} : { undergroundDepth };
   const name =
     tool.presetName === undefined ? undefined : numberedPresetName(tool.presetName, map.events);
   const sourceEvent = linkedTeleportEvent(
@@ -1911,6 +1930,7 @@ export function placeLinkedTeleporters(
       ...(name === undefined ? {} : { name }),
     }),
     destinationId,
+    destinationDepth,
   );
   const destinationEvent = linkedTeleportEvent(
     presetEvent({
@@ -1923,13 +1943,17 @@ export function placeLinkedTeleporters(
       ...(name === undefined ? {} : { name }),
     }),
     sourceId,
+    sourceDepth,
   );
   return {
     ...map,
     events: [
       ...map.events,
-      { ...sourceEvent, ...eventDepth },
-      { ...destinationEvent, ...eventDepth },
+      { ...sourceEvent, ...(sourceDepth === null ? {} : { undergroundDepth: sourceDepth }) },
+      {
+        ...destinationEvent,
+        ...(destinationDepth === null ? {} : { undergroundDepth: destinationDepth }),
+      },
     ],
   };
 }
@@ -2187,12 +2211,30 @@ function doorLandingCell(
   map: EditorMap,
   col: number,
   row: number,
+  undergroundDepth: number | null = null,
 ): { col: number; row: number } | null {
   const { cols, rows } = editorMapSize(map);
   // A visible raised surface is a deliberate destination, not a blocked ground cell inside the
   // building. This is what lets a roof click stay on the roof for both door links and teleporters.
   const heightfield = compileAuthoredMap(toMapData(map), map.events);
   const terrain = zoneTerrainFromHeightfield(heightfield);
+  if (undergroundDepth !== null) {
+    const size = Math.max(cols, rows);
+    const candidates = [
+      { col, row: row + 1 },
+      { col: col + 1, row },
+      { col: col - 1, row },
+      { col, row: row - 1 },
+    ];
+    for (const candidate of candidates) {
+      if (!eventCellAvailableAtDepth(map, candidate.col, candidate.row, undergroundDepth)) continue;
+      const destination = authoredCellCentreGround({ ...candidate, undergroundDepth }, size);
+      if (canStand(terrain, destination.x, destination.z, BODY_RADIUS, destination.y)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
   const [x, z] = terrain.query.cellCenter(col, row);
   const base = terrain.query.heightAt(x, z) ?? terrain.waterLevel;
   const landing = groundUnder(terrain, x, z, Number.POSITIVE_INFINITY);
@@ -2216,12 +2258,27 @@ function doorLandingCell(
  * May this cell be one end of a door link? Shared by the commit and by the stage's hover preview, so
  * the ghost and the click cannot disagree about which cells are refused.
  */
-export function canLinkDoorAt(map: EditorMap, col: number, row: number): boolean {
+export function canLinkDoorAt(
+  map: EditorMap,
+  col: number,
+  row: number,
+  undergroundDepth: number | null = null,
+): boolean {
   const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
   // One event per cell is the placement rule everywhere else; a link may not quietly break it.
-  if (map.events.some((event) => event.col === col && event.row === row)) return false;
-  return doorLandingCell(map, col, row) !== null;
+  if (
+    map.events.some(
+      (event) =>
+        event.col === col &&
+        event.row === row &&
+        (event.undergroundDepth ?? null) === undergroundDepth,
+    )
+  )
+    return false;
+  if (undergroundDepth !== null && !eventCellAvailableAtDepth(map, col, row, undergroundDepth))
+    return false;
+  return doorLandingCell(map, col, row, undergroundDepth) !== null;
 }
 
 /** One end of a door link: the `teleporter` preset aimed at the far door's landing cell, and marked
@@ -2236,6 +2293,8 @@ function doorLinkEvent(params: {
   ordinal: number;
   selfMapId: string;
   destination: { col: number; row: number };
+  undergroundDepth: number | null;
+  destinationDepth: number | null;
   name: string;
 }): MapEvent {
   const event = presetEvent({
@@ -2250,6 +2309,7 @@ function doorLinkEvent(params: {
   });
   return {
     ...event,
+    ...(params.undergroundDepth === null ? {} : { undergroundDepth: params.undergroundDepth }),
     linkedEventId: params.linkedEventId,
     pages: event.pages.map((page) => ({
       ...page,
@@ -2258,6 +2318,9 @@ function doorLinkEvent(params: {
           ? {
               ...command,
               category: "shortcut" as const,
+              ...(params.destinationDepth === null
+                ? {}
+                : { undergroundDepth: params.destinationDepth }),
             }
           : command,
       ),
@@ -3037,14 +3100,19 @@ export function applyTool(
     case "link": {
       const from = tool.from;
       if (!from) return null;
+      const fromDepth = from.undergroundDepth ?? null;
       // The wire parser `isUuid`-checks a teleport's destination map, so a link authored on a map
       // with no id yet would write a command the server rejects on save. The palette gates the tool
       // the way the Teleporter preset is gated; this is the rule behind that gate.
       if (!tool.selfMapId) return null;
-      if (from.col === col && from.row === row) return null;
-      if (!canLinkDoorAt(map, from.col, from.row) || !canLinkDoorAt(map, col, row)) return null;
-      const fromLanding = doorLandingCell(map, from.col, from.row);
-      const toLanding = doorLandingCell(map, col, row);
+      if (from.col === col && from.row === row && fromDepth === undergroundDepth) return null;
+      if (
+        !canLinkDoorAt(map, from.col, from.row, fromDepth) ||
+        !canLinkDoorAt(map, col, row, undergroundDepth)
+      )
+        return null;
+      const fromLanding = doorLandingCell(map, from.col, from.row, fromDepth);
+      const toLanding = doorLandingCell(map, col, row, undergroundDepth);
       if (!fromLanding || !toLanding) return null;
       if (map.events.length + 2 > MAX_EVENTS_PER_MAP) return null;
       const ordinal = nextEventOrdinal(map.events);
@@ -3065,6 +3133,8 @@ export function applyTool(
             ordinal,
             selfMapId: tool.selfMapId,
             destination: toLanding,
+            undergroundDepth: fromDepth,
+            destinationDepth: undergroundDepth,
             name,
           }),
           doorLinkEvent({
@@ -3075,6 +3145,8 @@ export function applyTool(
             ordinal: ordinal + 1,
             selfMapId: tool.selfMapId,
             destination: fromLanding,
+            undergroundDepth,
+            destinationDepth: fromDepth,
             name,
           }),
         ],

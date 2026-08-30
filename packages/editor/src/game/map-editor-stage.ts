@@ -206,9 +206,13 @@ export interface MapEditorStageState {
   /** The first door of a door link, while the author is between its two clicks. Published so the
    *  palette can say which step it is on rather than leaving the author to guess whether the first
    *  click registered. */
-  linkAnchor: { col: number; row: number } | null;
+  linkAnchor: { col: number; row: number; undergroundDepth: number | null } | null;
   /** First cell of an in-progress reciprocal teleporter placement. */
-  pendingTeleportOrigin?: { col: number; row: number } | null;
+  pendingTeleportOrigin?: {
+    col: number;
+    row: number;
+    undergroundDepth: number | null;
+  } | null;
   /** First wall edge of an in-progress variable-width opening. */
   wallOpeningAnchor?: InteriorShellOpeningRun | null;
 }
@@ -745,7 +749,11 @@ export function openMapEditorStage(
     let zoom = 100;
     let revision = 0;
     let placementRejections = 0;
-    let pendingTeleportOrigin: { col: number; row: number } | null = null;
+    let pendingTeleportOrigin: {
+      col: number;
+      row: number;
+      undergroundDepth: number | null;
+    } | null = null;
     let wallOpeningFrom: InteriorShellOpeningRun | null = null;
     let hover: { col: number; row: number; offsetX: number; offsetY: number } | null = null;
     let painting = false;
@@ -757,7 +765,11 @@ export function openMapEditorStage(
     // The first door of a pending link. Held here rather than on the map so the completed pair is
     // ONE `applyTool` call and therefore one undo step, and so a half-finished link can never be
     // serialized or make the map read as dirty. Cleared whenever the tool changes.
-    let linkFrom: { col: number; row: number } | null = null;
+    let linkFrom: {
+      col: number;
+      row: number;
+      undergroundDepth: number | null;
+    } | null = null;
     let resizeDrag:
       | {
           kind: "building";
@@ -1028,12 +1040,14 @@ export function openMapEditorStage(
       // A pending link owns the selection highlight: the first door IS what the author has picked,
       // and there is no element or event selection worth showing in the middle of the two clicks.
       const pendingLink = pendingTeleportOrigin ?? linkFrom;
+      const visiblePendingLink =
+        pendingLink?.undergroundDepth === editingDepth ? pendingLink : null;
       const focusSelection = wallOpeningFrom
         ? wallOpeningPoint(wallOpeningFrom, size)
-        : pendingLink
+        : visiblePendingLink
           ? {
-              x: pendingLink.col + 0.5 - size / 2,
-              z: pendingLink.row + 0.5 - size / 2,
+              x: visiblePendingLink.col + 0.5 - size / 2,
+              z: visiblePendingLink.row + 0.5 - size / 2,
             }
           : highlightedEventId
             ? selectionPoint(map, { kind: "event", id: highlightedEventId })
@@ -1483,14 +1497,18 @@ export function openMapEditorStage(
             notify();
             return;
           }
-          pendingTeleportOrigin = { col, row };
+          pendingTeleportOrigin = { col, row, undergroundDepth: editingDepth };
           selected = null;
           drawOverlay();
           notify();
           return;
         }
         const source = pendingTeleportOrigin;
-        const next = placeLinkedTeleporters(map, tool, source, { col, row }, editingDepth);
+        const next = placeLinkedTeleporters(map, tool, source, {
+          col,
+          row,
+          undergroundDepth: editingDepth,
+        });
         if (!next) {
           placementRejections += 1;
           notify();
@@ -1503,7 +1521,7 @@ export function openMapEditorStage(
           (event) =>
             event.col === source.col &&
             event.row === source.row &&
-            (event.undergroundDepth ?? null) === editingDepth,
+            (event.undergroundDepth ?? null) === source.undergroundDepth,
         );
         if (placed) selected = { kind: "event", id: placed.id };
         strokeRedraw(previous);
@@ -1585,19 +1603,24 @@ export function openMapEditorStage(
       // the second click is one map change and one undo step. Clicking the same door again is how
       // an author changes their mind without leaving the tool.
       if (tool.kind === "link" && isStrokeStart) {
-        if (linkFrom && linkFrom.col === col && linkFrom.row === row) {
+        if (
+          linkFrom &&
+          linkFrom.col === col &&
+          linkFrom.row === row &&
+          linkFrom.undergroundDepth === editingDepth
+        ) {
           linkFrom = null;
           drawOverlay();
           notify();
           return;
         }
         if (!linkFrom) {
-          if (!canLinkDoorAt(map, col, row)) {
+          if (!canLinkDoorAt(map, col, row, editingDepth)) {
             placementRejections += 1;
             notify();
             return;
           }
-          linkFrom = { col, row };
+          linkFrom = { col, row, undergroundDepth: editingDepth };
           drawOverlay();
           notify();
           return;
@@ -2078,10 +2101,9 @@ export function openMapEditorStage(
         notify();
       },
       setEditingDepth(depth) {
-        // A two-click placement may never bridge two vertical planes accidentally. Changing the
-        // viewed storey cancels its first endpoint just like changing tools or modes does.
-        pendingTeleportOrigin = null;
-        linkFrom = null;
+        // Teleporters and door links deliberately retain their first endpoint while the author
+        // changes storeys: that is how a surface entrance can lead to a basement or upper floor.
+        // The pending overlay is only drawn on the endpoint's own storey.
         editingDepth =
           depth === null
             ? null
@@ -2102,6 +2124,7 @@ export function openMapEditorStage(
       },
       setActiveMode(mode) {
         pendingTeleportOrigin = null;
+        if (mode !== "event") linkFrom = null;
         if (mode !== "field") wallOpeningFrom = null;
         history = setActiveMode(history, mode);
         const matches =
@@ -2210,8 +2233,10 @@ export function openMapEditorStage(
       },
       undo() {
         stopStroke();
-        const cancelledTeleport = pendingTeleportOrigin !== null || wallOpeningFrom !== null;
+        const cancelledTeleport =
+          pendingTeleportOrigin !== null || linkFrom !== null || wallOpeningFrom !== null;
         pendingTeleportOrigin = null;
+        linkFrom = null;
         wallOpeningFrom = null;
         const previousRect = derivedRect();
         const next = undoEditorHistory(history);
@@ -2236,8 +2261,10 @@ export function openMapEditorStage(
       },
       redo() {
         stopStroke();
-        const cancelledTeleport = pendingTeleportOrigin !== null || wallOpeningFrom !== null;
+        const cancelledTeleport =
+          pendingTeleportOrigin !== null || linkFrom !== null || wallOpeningFrom !== null;
         pendingTeleportOrigin = null;
+        linkFrom = null;
         wallOpeningFrom = null;
         const previousRect = derivedRect();
         const next = redoEditorHistory(history);

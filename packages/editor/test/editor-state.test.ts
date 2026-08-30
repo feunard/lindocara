@@ -2430,7 +2430,7 @@ describe("bridge placement reads the crossing", () => {
 describe("door links", () => {
   const MAP_ID = "aaaaaaaa-0000-4000-8000-00000000abcd";
 
-  function linkTool(from?: { col: number; row: number }) {
+  function linkTool(from?: { col: number; row: number; undergroundDepth?: number | null }) {
     return { kind: "link", selfMapId: MAP_ID, name: "Door", ...(from ? { from } : {}) } as const;
   }
 
@@ -2494,6 +2494,41 @@ describe("door links", () => {
 
     const linked = applyTool(withHouse, linkTool({ col: 3, row: 3 }), 8, 8, true, "event");
     expect(teleportOf(linked?.events[0])).toMatchObject({ col: 8, row: 8 });
+  });
+
+  it("links doors across storeys and preserves each safe landing floor", () => {
+    const basement = applyTool(
+      blankMap("m", 20, 20),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 1,
+        style: "cave",
+        width: 8,
+        length: 8,
+        direction: "east",
+      },
+      0,
+      0,
+    );
+    if (!basement) throw new Error("door basement fixture was refused");
+    const linked = applyTool(
+      basement,
+      linkTool({ col: 3, row: 3, undergroundDepth: null }),
+      5,
+      5,
+      true,
+      "event",
+      0,
+      0,
+      1,
+    );
+    expect(linked?.events).toHaveLength(2);
+    const [surfaceDoor, basementDoor] = linked?.events ?? [];
+    expect(surfaceDoor?.undergroundDepth).toBeUndefined();
+    expect(basementDoor?.undergroundDepth).toBe(1);
+    expect(teleportOf(surfaceDoor)).toMatchObject({ undergroundDepth: 1 });
+    expect(teleportOf(basementDoor)).not.toHaveProperty("undergroundDepth");
   });
 
   it("refuses both ends together rather than authoring half a link", () => {
