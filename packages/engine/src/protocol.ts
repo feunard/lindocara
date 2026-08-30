@@ -64,6 +64,7 @@ import {
 } from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
 import { isLifeState, type LifeState } from "./death.js";
+import { parseElementScale } from "./element-scale.js";
 import {
   COMMAND_TEXT_MAX,
   ITEM_ID_MAX,
@@ -686,6 +687,8 @@ export interface WorldEventSnapshot {
   /** Editor/runtime visibility storey. Omitted for surface content. */
   undergroundDepth?: number;
   graphicAssetId: string | null;
+  /** Uniform visual/collider scale inherited by native harvest scenery. */
+  scale?: number;
   graphicTint?: number;
   onTop: boolean;
   moveSpeed: number;
@@ -2117,6 +2120,7 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     (value.y === undefined || isFiniteNumber(value.y)) &&
     (value.undergroundDepth === undefined || validVerticalDepth(value.undergroundDepth)) &&
     (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
+    (value.scale === undefined || parseElementScale(value.scale) !== null) &&
     (value.graphicTint === undefined ||
       (Number.isSafeInteger(value.graphicTint) &&
         (value.graphicTint as number) >= 0 &&

@@ -43,4 +43,12 @@ describe("small harvest scenery collision", () => {
     expect(harvestCollisionElevation(profile, preset.intactAssetId, "intact")).toBe(3);
     expect(harvestCollisionElevation(profile, profile.exhaustedAssetId, "depleted")).toBe(1);
   });
+
+  it("scales a resized rock's finite collision height with its visible size", () => {
+    const preset = harvestPreset("stone_deco_large");
+    const profile = harvestProfileFromPreset("stone_deco_large");
+
+    expect(harvestCollisionElevation(profile, preset.intactAssetId, "intact", 2)).toBe(2);
+    expect(harvestCollisionElevation(profile, preset.intactAssetId, "intact", 0.5)).toBe(1);
+  });
 });

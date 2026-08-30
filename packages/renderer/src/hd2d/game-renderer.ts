@@ -1047,7 +1047,7 @@ export function worldEventContentVisualKey(
       const presentation = worldEventStaticPresentation(event);
       return authoredActorSheet(assetId, "idle")
         ? `event:${event.id}:actor:${assetId ?? ""}`
-        : `event:${event.id}:${event.col}:${event.row}:${event.y ?? ""}:${event.undergroundDepth ?? ""}:${assetId ?? ""}:${event.presentation ?? "marker"}:${presentation.elevationOffset ?? 0}:${presentation.floating ? 1 : 0}`;
+        : `event:${event.id}:${event.col}:${event.row}:${event.y ?? ""}:${event.undergroundDepth ?? ""}:${assetId ?? ""}:${event.presentation ?? "marker"}:${event.scale ?? 1}:${presentation.elevationOffset ?? 0}:${presentation.floating ? 1 : 0}`;
     }),
     ...buildings.map(
       (building) =>
@@ -1586,6 +1586,7 @@ export class Hd2dRenderer implements RendererLike {
                 ? {}
                 : { undergroundDepth: event.undergroundDepth }),
               graphicAssetId: assetId,
+              ...(event.scale === undefined ? {} : { scale: event.scale }),
               ...(presentation.elevationOffset === undefined
                 ? {}
                 : { elevationOffset: presentation.elevationOffset }),

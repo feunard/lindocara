@@ -41,9 +41,11 @@ export function nativeHarvestEventForElement(
     harvestProfile: profile,
     graphicAssetId: element.assetId,
   });
-  return element.undergroundDepth
-    ? { ...event, undergroundDepth: element.undergroundDepth }
-    : event;
+  return {
+    ...event,
+    ...(element.undergroundDepth ? { undergroundDepth: element.undergroundDepth } : {}),
+    ...(element.scale === undefined ? {} : { graphicScale: element.scale }),
+  };
 }
 
 export function nativeHarvestEvents(elements: readonly MapElement[], ordinalStart = 1): MapEvent[] {

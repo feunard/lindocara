@@ -315,6 +315,12 @@ describe("events on the wire", () => {
     expect(parseServerMessage(JSON.stringify(welcome([event({ col: "5" })])))).toBeNull();
   });
 
+  it("accepts bounded scenery scale and rejects malformed event scale", () => {
+    expect(parseServerMessage(JSON.stringify(welcome([event({ scale: 2.25 })])))).not.toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ scale: 0.1 })])))).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ scale: "2" })])))).toBeNull();
+  });
+
   it("validates authoritative harvest progress, collision and native presentation", () => {
     const intact = {
       state: "intact",

@@ -43,6 +43,7 @@ export function authoredEventPreviewSnapshots(
             }
           : {}),
         graphicAssetId: page.graphicAssetId ?? null,
+        ...(event.graphicScale === undefined ? {} : { scale: event.graphicScale }),
         graphicTint: page.graphicTint ?? 0xffffff,
         onTop: page.optOnTop,
         moveSpeed: page.moveSpeed,

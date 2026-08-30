@@ -149,6 +149,16 @@ export interface Hd2dEditorOverlay {
     activeAxis?: "width" | "depth" | null;
     valid: boolean;
   } | null;
+  /** Uniform direct-manipulation gizmo for ordinary billboard/card scenery. */
+  sceneryResize?: {
+    anchor: GroundVector;
+    outline: readonly GroundVector[];
+    handle: GroundVector;
+    scale: number;
+    hovered: boolean;
+    active: boolean;
+    valid: boolean;
+  } | null;
   /** Direct-manipulation gizmo for a selected native bridge. */
   bridgeResize?: {
     anchor: GroundVector;
@@ -2074,6 +2084,75 @@ export class Hd2dVisualLayer {
         transparentMaterial(resize.valid ? 0xffffff : 0xef5350, 0.95),
       );
       anchor.name = "editor-building-resize-anchor";
+      anchor.rotation.x = -Math.PI / 2;
+      anchor.rotation.z = Math.PI / 4;
+      anchor.position.set(
+        resize.anchor.x,
+        this.#groundY(resize.anchor.x, resize.anchor.z, 0.205),
+        resize.anchor.z,
+      );
+      anchor.renderOrder = 43;
+      (anchor.material as THREE.MeshBasicMaterial).depthTest = false;
+      group.add(anchor);
+      this.#editorRoot.add(group);
+    }
+    if (overlay.sceneryResize) {
+      const resize = overlay.sceneryResize;
+      const color = resize.valid ? 0x7de7ff : 0xef5350;
+      const group = new THREE.Group();
+      group.name = "editor-scenery-resize";
+      const positions: number[] = [];
+      for (let index = 0; index < resize.outline.length; index += 1) {
+        const from = resize.outline[index];
+        const to = resize.outline[(index + 1) % resize.outline.length];
+        if (!from || !to) continue;
+        positions.push(
+          from.x,
+          this.#groundY(from.x, from.z, 0.19),
+          from.z,
+          to.x,
+          this.#groundY(to.x, to.z, 0.19),
+          to.z,
+        );
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      const outline = new THREE.LineSegments(
+        geometry,
+        new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.95,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+        }),
+      );
+      outline.name = "editor-scenery-resize-outline";
+      outline.renderOrder = 42;
+      group.add(outline);
+
+      const highlighted = resize.hovered || resize.active;
+      const handle = new THREE.Mesh(
+        new THREE.CircleGeometry(highlighted ? 0.28 : 0.23, 24),
+        transparentMaterial(color, highlighted ? 1 : 0.92),
+      );
+      handle.name = "editor-scenery-resize-handle";
+      handle.rotation.x = -Math.PI / 2;
+      handle.position.set(
+        resize.handle.x,
+        this.#groundY(resize.handle.x, resize.handle.z, 0.205),
+        resize.handle.z,
+      );
+      handle.renderOrder = 43;
+      (handle.material as THREE.MeshBasicMaterial).depthTest = false;
+      group.add(handle);
+
+      const anchor = new THREE.Mesh(
+        new THREE.RingGeometry(0.08, 0.14, 4),
+        transparentMaterial(color, 0.95),
+      );
+      anchor.name = "editor-scenery-resize-anchor";
       anchor.rotation.x = -Math.PI / 2;
       anchor.rotation.z = Math.PI / 4;
       anchor.position.set(

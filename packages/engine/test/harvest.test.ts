@@ -119,6 +119,22 @@ describe("harvest profile", () => {
     expect(ground.h).toBeCloseTo(pixel.height / TILE_SIZE, 10);
   });
 
+  it("scales both harvest collision projections around the authored foot", () => {
+    const pixel = harvestColliderAt(WOOD_PROFILE, 2, 3, "intact", 2);
+    const ground = harvestGroundColliderAt(WOOD_PROFILE, 2, 3, "intact", 16, 2);
+    const box = WOOD_PROFILE.collision?.intact;
+    if (!pixel || !ground || !box) throw new Error("scaled harvest footprints must exist");
+    const footX = 2 * TILE_SIZE + TILE_SIZE / 2;
+    const footY = (3 + 1) * TILE_SIZE;
+
+    expect(pixel.width).toBe(box.width * 2);
+    expect(pixel.height).toBe(box.height * 2);
+    expect(pixel.x - footX).toBe(box.offsetX * 2);
+    expect(pixel.y - footY).toBe(box.offsetY * 2);
+    expect(ground.w).toBeCloseTo(pixel.width / TILE_SIZE, 10);
+    expect(ground.h).toBeCloseTo(pixel.height / TILE_SIZE, 10);
+  });
+
   it("has no depleted ground footprint when exhaustion is not a replacement", () => {
     // Fade and hide REMOVE collision; a hidden collider would be an invisible wall. The ground
     // projection has to inherit that rule, not re-derive it.

@@ -43,6 +43,21 @@ describe("native harvest scenery", () => {
     });
   });
 
+  it("preserves a resized rock's visual scale in its runtime event", () => {
+    const [event] = nativeHarvestEvents([
+      {
+        col: 2,
+        row: 3,
+        offsetX: 0,
+        offsetY: 0,
+        assetId: "decoration.terrain-decorations-rocks.rock1",
+        scale: 2.25,
+      },
+    ]);
+
+    expect(event).toMatchObject({ kind: "harvestable", graphicScale: 2.25 });
+  });
+
   it("ignores ordinary scenery", () => {
     expect(
       nativeHarvestEvents([

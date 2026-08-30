@@ -140,6 +140,8 @@ export interface StaticContentEvent extends HeightfieldEvent {
   elevationOffset?: number;
   /** Gives collectible art a gentle presentation-only vertical motion. */
   floating?: boolean;
+  /** Uniform scale used by native harvest scenery projected as an event. */
+  scale?: number;
 }
 
 export interface StaticContent {
@@ -606,7 +608,7 @@ export function placeStaticContent(
     const staticEvent = event as StaticContentEvent;
     const health = staticEvent.health;
     const orientation = staticEvent.orientation ?? 0;
-    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${health?.value ?? ""}:${health?.max ?? ""}:${staticEvent.elevationOffset ?? 0}:${staticEvent.floating ? 1 : 0}`;
+    const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${orientation}:${staticEvent.rotation ?? ""}:${staticEvent.building?.width ?? ""}:${staticEvent.building?.depth ?? ""}:${staticEvent.scale ?? 1}:${health?.value ?? ""}:${health?.max ?? ""}:${staticEvent.elevationOffset ?? 0}:${staticEvent.floating ? 1 : 0}`;
     eventVisuals.set(event.id, visual);
     if (event.graphicAssetId === null) continue;
     place(
@@ -624,6 +626,7 @@ export function placeStaticContent(
       staticEvent.floating,
       event.y,
       event.undergroundDepth,
+      staticEvent.scale ?? 1,
     );
   }
   function flushSkipped(): void {
@@ -730,7 +733,7 @@ export function placeStaticContent(
         eventVisuals.delete(id);
       }
       for (const event of events) {
-        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.health?.value ?? ""}:${event.health?.max ?? ""}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
+        const visual = `${event.graphicAssetId ?? ""}:${event.x}:${event.y ?? ""}:${event.z}:${event.undergroundDepth ?? ""}:${event.orientation ?? 0}:${event.rotation ?? ""}:${event.building?.width ?? ""}:${event.building?.depth ?? ""}:${event.scale ?? 1}:${event.health?.value ?? ""}:${event.health?.max ?? ""}:${event.elevationOffset ?? 0}:${event.floating ? 1 : 0}`;
         if (eventVisuals.get(event.id) === visual) continue;
         dropContentKey(`event:${event.id}`);
         eventVisuals.set(event.id, visual);
@@ -750,6 +753,7 @@ export function placeStaticContent(
             event.floating,
             event.y,
             event.undergroundDepth,
+            event.scale ?? 1,
           );
         }
       }

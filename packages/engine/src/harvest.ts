@@ -1,3 +1,4 @@
+import { parseElementScale } from "./element-scale.js";
 import type { MonsterRespawnMode, MonsterSpecies, Rect } from "./game.js";
 import { TILE_SIZE } from "./tilemap.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
@@ -424,16 +425,18 @@ export function harvestColliderAt(
   col: number,
   row: number,
   state: "intact" | "depleted",
+  scale = 1,
 ): Rect | null {
   const box = harvestCollisionBoxAt(profile, state);
   if (!box) return null;
+  const authoredScale = parseElementScale(scale) ?? 1;
   const footX = col * TILE_SIZE + TILE_SIZE / 2;
   const footY = (row + 1) * TILE_SIZE;
   return {
-    x: footX + box.offsetX,
-    y: footY + box.offsetY,
-    width: box.width,
-    height: box.height,
+    x: footX + box.offsetX * authoredScale,
+    y: footY + box.offsetY * authoredScale,
+    width: box.width * authoredScale,
+    height: box.height * authoredScale,
   };
 }
 
@@ -458,19 +461,21 @@ export function harvestGroundColliderAt(
   row: number,
   state: "intact" | "depleted",
   gridSize: number,
+  scale = 1,
 ): { x: number; z: number; w: number; h: number } | null {
   const box = harvestCollisionBoxAt(profile, state);
   if (!box) return null;
+  const authoredScale = parseElementScale(scale) ?? 1;
   const half = gridSize / 2;
   // The authored box is anchored at the event's FOOT: the cell's horizontal centre and its far
   // edge, which is `col + 0.5` and `row + 1` once a cell is one unit wide.
   const footX = col + 0.5 - half;
   const footZ = row + 1 - half;
   return {
-    x: footX + box.offsetX / TILE_SIZE,
-    z: footZ + box.offsetY / TILE_SIZE,
-    w: box.width / TILE_SIZE,
-    h: box.height / TILE_SIZE,
+    x: footX + (box.offsetX * authoredScale) / TILE_SIZE,
+    z: footZ + (box.offsetY * authoredScale) / TILE_SIZE,
+    w: (box.width * authoredScale) / TILE_SIZE,
+    h: (box.height * authoredScale) / TILE_SIZE,
   };
 }
 

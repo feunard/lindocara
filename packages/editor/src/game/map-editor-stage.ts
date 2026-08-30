@@ -28,6 +28,11 @@ import {
   elementRotationDegrees,
 } from "@lindocara/engine/element-orientation.js";
 import {
+  MAX_ELEMENT_SCALE,
+  MIN_ELEMENT_SCALE,
+  parseElementScale,
+} from "@lindocara/engine/element-scale.js";
+import {
   authoredBridgeTop,
   authoredElementGroundPoint,
   authoredOneCellRamp,
@@ -299,6 +304,80 @@ export interface ElementRotationGuide {
   anchor: { x: number; z: number };
   handle: { x: number; z: number };
   angle: number;
+}
+
+export interface SceneryResizeGuide {
+  anchor: { x: number; z: number };
+  outline: readonly { x: number; z: number }[];
+  handle: { x: number; z: number };
+  scale: number;
+}
+
+/** Uniform resize guide for ordinary scenery. Its outline is the real scaled collider when one
+ * exists; walkable decorations use a one-cell visual proxy so every decoration still has a direct
+ * manipulation handle. */
+export function sceneryResizeGuide(
+  element: MapElement,
+  mapSize: number,
+  overrideScale?: number,
+): SceneryResizeGuide | null {
+  if (nativeSceneryDimensionsOrDefault(element.assetId) || bridgeOrientation(element.assetId)) {
+    return null;
+  }
+  const scale = parseElementScale(overrideScale ?? element.scale ?? 1);
+  if (scale === null) return null;
+  const resized = { ...element, ...(scale === 1 ? {} : { scale }) };
+  if (scale === 1) delete resized.scale;
+  const anchor = authoredElementGroundPoint(element, mapSize);
+  const geometry = elementWorldColliderGeometry(resized);
+  let outline: { x: number; z: number }[];
+  if (geometry) {
+    const centreX = geometry.x + geometry.width / 2;
+    const centreZ = geometry.y + geometry.height / 2;
+    const cos = Math.cos(geometry.rotation);
+    const sin = Math.sin(geometry.rotation);
+    outline = [
+      [-geometry.width / 2, -geometry.height / 2],
+      [geometry.width / 2, -geometry.height / 2],
+      [geometry.width / 2, geometry.height / 2],
+      [-geometry.width / 2, geometry.height / 2],
+    ].map(([x = 0, z = 0]) => ({
+      x: (centreX + x * cos - z * sin) / TILE_SIZE - mapSize / 2,
+      z: (centreZ + x * sin + z * cos) / TILE_SIZE - mapSize / 2,
+    }));
+  } else {
+    outline = [
+      { x: anchor.x - scale / 2, z: anchor.z - scale },
+      { x: anchor.x + scale / 2, z: anchor.z - scale },
+      { x: anchor.x + scale / 2, z: anchor.z },
+      { x: anchor.x - scale / 2, z: anchor.z },
+    ];
+  }
+  const handle = outline.reduce((farthest, point) =>
+    Math.hypot(point.x - anchor.x, point.z - anchor.z) >
+    Math.hypot(farthest.x - anchor.x, farthest.z - anchor.z)
+      ? point
+      : farthest,
+  );
+  return { anchor, outline, handle, scale };
+}
+
+/** Convert a dragged uniform-scale handle back into the persisted 25%-400% scale. */
+export function sceneryScaleAtPoint(
+  element: MapElement,
+  mapSize: number,
+  world: { x: number; z: number },
+): number | null {
+  const { scale: _scale, ...unscaled } = element;
+  const baseline = sceneryResizeGuide(unscaled, mapSize, 1);
+  if (!baseline) return null;
+  const radius = Math.hypot(
+    baseline.handle.x - baseline.anchor.x,
+    baseline.handle.z - baseline.anchor.z,
+  );
+  if (radius <= 1e-6) return null;
+  const raw = Math.hypot(world.x - baseline.anchor.x, world.z - baseline.anchor.z) / radius;
+  return parseElementScale(Math.max(MIN_ELEMENT_SCALE, Math.min(MAX_ELEMENT_SCALE, raw)));
 }
 
 /** World-space footprint and handles for one native building. The front threshold remains fixed:
@@ -694,10 +773,15 @@ export function openMapEditorStage(
           startPoint: { x: number; z: number };
           outward: { x: number; z: number };
         }
+      | {
+          kind: "scenery";
+          selection: Extract<EditorSelection, { kind: "element" }>;
+        }
       | null = null;
     let resizePreview:
       | { kind: "building"; dimensions: BuildingDimensions; valid: boolean }
       | { kind: "bridge"; dimensions: BridgeDimensions; valid: boolean }
+      | { kind: "scenery"; scale: number; valid: boolean }
       | null = null;
     let rotationDrag: {
       selection: Extract<EditorSelection, { kind: "element" }>;
@@ -708,6 +792,7 @@ export function openMapEditorStage(
     let hoverResize:
       | { kind: "building"; axis: BuildingResizeAxis }
       | { kind: "bridge"; axis: BridgeResizeAxis; side: BridgeResizeSide }
+      | { kind: "scenery" }
       | null = null;
     let lastPaintedKey = "";
     // Terrain spray still remeshes the ground (12-45ms measured on a light canvas), so a fast drag
@@ -791,6 +876,14 @@ export function openMapEditorStage(
       const element = selectedElement();
       return element && bridgeOrientation(element.assetId) ? element : null;
     };
+    const selectedSceneryElement = (): MapElement | null => {
+      const element = selectedElement();
+      return element &&
+        !nativeSceneryDimensionsOrDefault(element.assetId) &&
+        !bridgeOrientation(element.assetId)
+        ? element
+        : null;
+    };
     const selectedBuildingGuide = (): BuildingResizeGuide | null => {
       const element = selectedBuildingElement();
       if (!element) return null;
@@ -809,6 +902,16 @@ export function openMapEditorStage(
         element,
         Math.max(cols, rows),
         resizePreview?.kind === "bridge" ? resizePreview.dimensions : undefined,
+      );
+    };
+    const selectedSceneryGuide = (): SceneryResizeGuide | null => {
+      const element = selectedSceneryElement();
+      if (!element) return null;
+      const { cols, rows } = dimensions();
+      return sceneryResizeGuide(
+        element,
+        Math.max(cols, rows),
+        resizePreview?.kind === "scenery" ? resizePreview.scale : undefined,
       );
     };
     const selectedRotationGuide = (): ElementRotationGuide | null => {
@@ -836,6 +939,7 @@ export function openMapEditorStage(
           side: BridgeResizeSide;
           outward: { x: number; z: number };
         }
+      | { kind: "scenery" }
       | null => {
       const distance = (handle: { x: number; z: number }): number =>
         Math.hypot(point.x - handle.x, point.z - handle.z);
@@ -849,17 +953,22 @@ export function openMapEditorStage(
           : null;
       }
       const bridge = selectedBridgeGuide();
-      if (!bridge) return null;
-      const closest = [...bridge.handles].sort(
-        (left, right) => distance(left.point) - distance(right.point),
-      )[0];
-      return closest && distance(closest.point) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
-        ? {
-            kind: "bridge",
-            axis: closest.axis,
-            side: closest.side,
-            outward: closest.outward,
-          }
+      if (bridge) {
+        const closest = [...bridge.handles].sort(
+          (left, right) => distance(left.point) - distance(right.point),
+        )[0];
+        return closest && distance(closest.point) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
+          ? {
+              kind: "bridge",
+              axis: closest.axis,
+              side: closest.side,
+              outward: closest.outward,
+            }
+          : null;
+      }
+      const scenery = selectedSceneryGuide();
+      return scenery && distance(scenery.handle) <= BUILDING_RESIZE_HANDLE_HIT_RADIUS
+        ? { kind: "scenery" }
         : null;
     };
     const refreshCursor = (): void => {
@@ -869,7 +978,9 @@ export function openMapEditorStage(
           : hoverRotation
             ? "rotate"
             : hoverResize
-              ? `resize-${hoverResize.axis}`
+              ? hoverResize.kind === "scenery"
+                ? "resize-uniform"
+                : `resize-${hoverResize.axis}`
               : tool.kind === "pan"
                 ? "move"
                 : tool.kind === "select"
@@ -961,6 +1072,7 @@ export function openMapEditorStage(
           : null;
       const buildingResize = selectedBuildingGuide();
       const bridgeResize = selectedBridgeGuide();
+      const sceneryResize = selectedSceneryGuide();
       const rotation = selectedRotationGuide();
       const rect = derivedRect();
       const undergroundStamp =
@@ -1041,6 +1153,14 @@ export function openMapEditorStage(
               hoverSide: hoverResize?.kind === "bridge" ? hoverResize.side : null,
               activeSide: resizeDrag?.kind === "bridge" ? resizeDrag.side : null,
               valid: resizePreview?.kind === "bridge" ? resizePreview.valid : true,
+            }
+          : null,
+        sceneryResize: sceneryResize
+          ? {
+              ...sceneryResize,
+              hovered: hoverResize?.kind === "scenery",
+              active: resizeDrag?.kind === "scenery",
+              valid: resizePreview?.kind === "scenery" ? resizePreview.valid : true,
             }
           : null,
         elementRotation: rotation
@@ -1568,7 +1688,7 @@ export function openMapEditorStage(
           dimensions: nextDimensions,
           valid: next !== null,
         };
-      } else {
+      } else if (drag.kind === "bridge") {
         const worldDx = point.x - drag.startPoint.x;
         const worldDz = point.z - drag.startPoint.z;
         const delta = worldDx * drag.outward.x + worldDz * drag.outward.z;
@@ -1592,6 +1712,17 @@ export function openMapEditorStage(
         );
         resizePreview = { kind: "bridge", dimensions: nextDimensions, valid: next !== null };
         if (next) selected = { kind: "element", ...result.placement };
+      } else {
+        const { cols, rows } = dimensions();
+        const scale = sceneryScaleAtPoint(sourceElement, Math.max(cols, rows), point);
+        if (
+          scale === null ||
+          (resizePreview?.kind === "scenery" && resizePreview.scale === scale)
+        ) {
+          return;
+        }
+        next = updateSelectedElementScale(map, drag.selection, scale);
+        resizePreview = { kind: "scenery", scale, valid: next !== null };
       }
       if (!next || next === map) {
         drawOverlay();
@@ -1650,6 +1781,7 @@ export function openMapEditorStage(
       const resize = point ? resizeAt(point) : null;
       const building = selectedBuildingElement();
       const bridge = selectedBridgeElement();
+      const scenery = selectedSceneryElement();
       const currentDimensions = building
         ? nativeSceneryDimensionsOrDefault(
             building.assetId,
@@ -1700,6 +1832,16 @@ export function openMapEditorStage(
           outward: resize.outward,
         };
         resizePreview = { kind: "bridge", dimensions: bridgeDimensions, valid: true };
+        hoverResize = resize;
+        strokeStart = map;
+        refreshCursor();
+        drawOverlay();
+        return;
+      }
+      if (resize?.kind === "scenery" && selected?.kind === "element" && scenery) {
+        const scale = scenery.scale ?? 1;
+        resizeDrag = { kind: "scenery", selection: selected };
+        resizePreview = { kind: "scenery", scale, valid: true };
         hoverResize = resize;
         strokeStart = map;
         refreshCursor();

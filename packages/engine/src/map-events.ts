@@ -278,6 +278,8 @@ export interface MapEvent {
   linkedEventId?: string;
   /** Whether the renderer draws the small authored-event ground marker. Legacy omission means on. */
   showMarker?: boolean;
+  /** Runtime-only scale inherited by native harvest scenery projected from a map element. */
+  graphicScale?: number;
   /** `normal` and `npc` are scripted world events; the other kinds have dedicated runtime roles. */
   kind: EventKind;
   /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */

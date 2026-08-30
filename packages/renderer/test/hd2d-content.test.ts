@@ -144,6 +144,7 @@ describe("world-event texture loading", () => {
     expect(worldEventContentVisualKey([{ ...pickup, elevationOffset: 0.9 }], [])).not.toBe(
       defaultKey,
     );
+    expect(worldEventContentVisualKey([{ ...pickup, scale: 2 }], [])).not.toBe(defaultKey);
   });
 });
 
@@ -204,6 +205,22 @@ describe("static map content", () => {
     expect(placed?.scale.x).toBeCloseTo(1.75);
     expect(placed?.scale.y).toBeCloseTo(1.75);
     expect((placed?.position.y ?? 0) + footOffsetOf(ctx, tree) * 1.75).toBeCloseTo(0);
+  });
+
+  it("scales native harvest scenery when it is rendered through the event pass", () => {
+    const rock = art();
+    const map = flatMap(4);
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const content = placeStaticContent(ctx, scene, map, resolverFor({ rock }));
+
+    content.syncEvents([{ id: "rock", x: 0.5, z: 0.5, graphicAssetId: "rock", scale: 2.25 }]);
+
+    const placed = meshes(scene.root)[0];
+    expect(placed?.scale.x).toBeCloseTo(2.25);
+    expect(placed?.scale.y).toBeCloseTo(2.25);
+    expect((placed?.position.y ?? 0) + footOffsetOf(ctx, rock) * 2.25).toBeCloseTo(0);
+    content.dispose();
   });
 
   it("shows a proportional health bar as soon as a destructible building is damaged", () => {

@@ -215,17 +215,20 @@ export function harvestCollisionElevation(
   profile: HarvestProfile,
   graphicAssetId: string | null,
   harvestState: "intact" | "depleted",
+  scale = 1,
 ): CollisionElevation {
   const assetElevation = graphicAssetId ? editorAssetCollisionElevation(graphicAssetId) : null;
-  if (assetElevation !== null) return assetElevation;
   // Compatibility for authored profiles whose appearance was removed or is no longer catalogued:
   // replacement-style wood nodes are trees, while caches, rocks, ore and every other small node
   // retain the stump's one-level top. The harvest profile itself is untouched.
-  return profile.resource === "wood" &&
+  const base =
+    assetElevation ??
+    (profile.resource === "wood" &&
     profile.exhaustionBehavior === "replace" &&
     harvestState === "intact"
-    ? 3
-    : 1;
+      ? 3
+      : 1);
+  return Math.max(1, Math.min(3, Math.round(base * scale))) as CollisionElevation;
 }
 
 /**
@@ -310,20 +313,21 @@ function projectHarvestCollider(
   graphicAssetId: string | null,
   now: number,
   authoredY: number,
+  scale = 1,
 ): {
   collider: WorldEventCollider | null;
   collisionPending?: true;
 } {
   // The wire tuple stays the authored PIXEL rectangle; the occupancy test is the room's own
   // collision and is therefore asked on the ground plane.
-  const collider = harvestColliderAt(profile, col, row, harvestState);
-  const elevation = harvestCollisionElevation(profile, graphicAssetId, harvestState);
+  const collider = harvestColliderAt(profile, col, row, harvestState, scale);
+  const elevation = harvestCollisionElevation(profile, graphicAssetId, harvestState, scale);
   // Wandering harvest actors still advertise their moving body for directional tool selection,
   // but `syncHarvestColliders` keeps that body out of terrain so it cannot block its own next cell.
   if (harvestActorBehavior(profile) === "wander") {
     return { collider: colliderTuple(collider, elevation) };
   }
-  const ground = harvestGroundColliderAt(profile, col, row, harvestState, gridSize(state));
+  const ground = harvestGroundColliderAt(profile, col, row, harvestState, gridSize(state), scale);
   if (
     harvestState === "intact" &&
     ground &&
@@ -465,6 +469,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
           }
         : {}),
       graphicAssetId,
+      ...(event.graphicScale === undefined ? {} : { scale: event.graphicScale }),
       graphicTint: page.graphicTint ?? 0xffffff,
       onTop: page.optOnTop,
       moveSpeed: wanderingHarvest ? 2 : page.moveSpeed,
@@ -499,6 +504,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
                 graphicAssetId,
                 now,
                 authoredCellCentreGround(event, definition.terrain.size).y,
+                event.graphicScale,
               ),
             },
           }
@@ -573,6 +579,7 @@ export function refreshHarvestEventVisuals(state: WorldRoomState, now: number): 
         graphicAssetId,
         now,
         active.y ?? 0,
+        event.graphicScale,
       ),
     };
     if (

@@ -17,6 +17,8 @@ import {
   elementRotationAtPoint,
   elementRotationGuide,
   openMapEditorStage,
+  sceneryResizeGuide,
+  sceneryScaleAtPoint,
 } from "@lindocara/editor/game/map-editor-stage.js";
 import {
   authoredElementGroundPoint,
@@ -34,6 +36,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const HOUSE = "building.buildings-blue-buildings.house1" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+const ROCK = "decoration.terrain-decorations-rocks.rock1" as const;
 
 const mock = vi.hoisted(() => {
   let frame: ((now: number) => void) | null = null;
@@ -1117,6 +1120,69 @@ describe("HD-2D map editor stage", () => {
     });
     mock.renderer.screenToWorld.mockImplementation(() => ({ x: -8.5, z: -7.5 }));
     stage.dispose();
+  });
+
+  it("draws and drags a uniform resize handle for ordinary rock scenery", async () => {
+    const point = { x: 0.5, z: 1 };
+    mock.renderer.screenToWorld.mockImplementation(() => ({ ...point }));
+    const rock = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: ROCK,
+    } as const;
+    const map = { ...blankMap("Quarry", 20, 15), elements: [rock] };
+    const changes = vi.fn();
+    const stage = await openMapEditorStage(map, changes);
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+
+    stage.setActiveMode("element");
+    stage.setTool({ kind: "select" });
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    const guide = mock.renderer.setEditorOverlay.mock.lastCall?.[0].sceneryResize;
+    expect(guide).toMatchObject({
+      handle: expect.any(Object),
+      outline: expect.any(Array),
+      scale: 1,
+      valid: true,
+    });
+
+    Object.assign(point, guide.handle);
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 20, clientY: 20 }));
+    point.x = guide.anchor.x + (guide.handle.x - guide.anchor.x) * 2;
+    point.z = guide.anchor.z + (guide.handle.z - guide.anchor.z) * 2;
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 30, clientY: 30 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+
+    expect(stage.current().elements[0]?.scale).toBe(2);
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ canUndo: true, dirty: true }),
+    );
+    stage.undo();
+    expect(stage.current().elements[0]?.scale).toBeUndefined();
+    stage.dispose();
+  });
+
+  it("maps the ordinary scenery resize guide to a bounded persisted scale", () => {
+    const rock = {
+      col: 10,
+      row: 10,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: ROCK,
+    } as const;
+    const guide = sceneryResizeGuide(rock, 20);
+    if (!guide) throw new Error("rock resize guide missing");
+    expect(
+      sceneryScaleAtPoint(rock, 20, {
+        x: guide.anchor.x + (guide.handle.x - guide.anchor.x) * 3,
+        z: guide.anchor.z + (guide.handle.z - guide.anchor.z) * 3,
+      }),
+    ).toBe(3);
   });
 
   it("selects the shifted deck and drags one bridge edge without moving its opposite", async () => {
