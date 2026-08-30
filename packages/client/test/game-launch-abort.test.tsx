@@ -135,6 +135,20 @@ describe("aborting a game launch mid-flight", () => {
     expect(nav.toGame).toHaveBeenCalledTimes(1);
   });
 
+  it("publishes launch ownership before the game route is requested", async () => {
+    rendererMock.create.mockResolvedValue(fakeRenderer());
+    let loadingWhenRouted = null;
+    vi.mocked(nav.toGame).mockImplementationOnce(() => {
+      loadingWhenRouted = useUiStore.getState().heroLoading;
+    });
+
+    await startGameAsHero(HERO, PARTY);
+
+    expect(loadingWhenRouted).toEqual(
+      expect.objectContaining({ name: HERO.name, phase: "preparing", progress: 8 }),
+    );
+  });
+
   it("keeps a further launch's game handle and active party when an earlier stuck launch resolves after an intervening stop", async () => {
     // The exact chain the review traced: A gets stuck loading its renderer; B (a hero switch)
     // supersedes and completes; BACK stops B; C (another hero switch) launches and completes; only

@@ -454,6 +454,11 @@ async function startGameIdentity(
     phase: "preparing",
     progress: 8,
   });
+  // The `/game` loader accepts only a launch that already owns `game` or `heroLoading`. Publish
+  // that ownership BEFORE asking the router to enter the route: router transitions are allowed to
+  // evaluate their loader synchronously, so relying on a later line in this calling turn made an
+  // editor playtest intermittently bounce back out and cancel itself without throwing.
+  getGameNavigation()?.toGame();
   setStatus("status.connecting", { name: identity.name });
   // Acquire before building the renderer, release wherever that renderer is destroyed — the two
   // `renderer.destroy()` sites below are the launch-race abort and the real teardown.
@@ -1633,7 +1638,6 @@ async function launchGameIdentity(
   const launchId = ++activeLaunchId;
   stopCurrentSession();
   stopActiveSession = null;
-  getGameNavigation()?.toGame();
   try {
     await startGameIdentity(identity, persistentParty, launchId);
   } catch (error) {

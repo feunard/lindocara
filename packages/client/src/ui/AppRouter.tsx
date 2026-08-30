@@ -679,13 +679,11 @@ export class AppRouter {
    * on a fresh client, always) and redirects to `/menu` BEFORE the game shell ever mounts — no
    * flash, since a loader-thrown `Redirection` is resolved ahead of rendering
    * (`$page.ts`'s sanctioned shape; server-side it becomes a real `Location` redirect,
-   * `ReactServerProvider.ts`). A real launch (`game/session.ts`'s `launchGameIdentity`) reads
-   * through clean: `nav.toGame()` fires first, but `router.push()` awaits two event-bus emits
-   * before it ever reaches this loader (`ReactBrowserRouterProvider.transition`), and `startGameIdentity`
-   * sets `heroLoading` synchronously in the very next line of the SAME calling script turn — so by
-   * the time this loader's continuation resumes, `heroLoading` is already set. See the Task 5
-   * report for the full ordering proof. `game` alone covers the reconnect window once the handle
-   * exists (a network drop never clears it — only `endGame` does, which also navigates away).
+   * `ReactServerProvider.ts`). A real launch (`game/session.ts`'s `startGameIdentity`) publishes
+   * `heroLoading` BEFORE calling `nav.toGame()`, so this guard is correct whether the browser router
+   * evaluates loaders synchronously or after an event-bus turn. `game` alone covers the reconnect
+   * window once the handle exists (a network drop never clears it — only `endGame` does, which also
+   * navigates away).
    */
   game = $page({
     path: "/game",

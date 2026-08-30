@@ -292,9 +292,9 @@ describe("launch screens (loader-driven routes)", () => {
 
 /**
  * Hero creation reaches the game through the SAME `state/navigation.ts` seam Task 2 wired
- * `game/session.ts` onto — `startGameAsHero` calls `getGameNavigation()?.toGame()` as the very
- * first thing it does (`game/session.ts`'s `launchGameIdentity`), before it ever touches a canvas
- * or a socket. This renders `HeroCreate` standalone (no `AppRouter`/`Alepha` instance at all, same
+ * `game/session.ts` onto — `startGameAsHero` publishes its loading ownership, then calls
+ * `getGameNavigation()?.toGame()` before it ever touches a canvas or a socket. This renders
+ * `HeroCreate` standalone (no `AppRouter`/`Alepha` instance at all, same
  * as the pre-existing `hero-create.test.tsx`) with a plain, test-installed `GameNavigation` fake —
  * the "test-installed nav holder" the task brief asks for — so the assertion is exact (`toGame`
  * fired) without booting the real renderer/WebSocket stack `startGameIdentity` reaches for next
