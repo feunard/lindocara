@@ -17,11 +17,13 @@
  * `maps.test.ts` pins `MapService`'s identical, deliberate brief/code divergence. Only DELETE is
  * ownership-fenced, exactly like legacy.
  */
+import { parseServerMessage } from "@lindocara/engine/protocol.js";
 import { createAuthoredQuestDefinition } from "@lindocara/engine/quests.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { WebSocket } from "ws";
 
 import { adventures } from "../src/api/entities/adventures.ts";
 import { adventureTestSessions } from "../src/api/entities/adventureTestSessions.ts";
@@ -43,15 +45,18 @@ let alepha: ReturnType<typeof createTestApp>;
 let probe: SeedProbe;
 let hostname: string;
 let userCount = 0;
+let openSockets: WebSocket[];
 
 beforeEach(async () => {
   alepha = createTestApp();
   probe = alepha.inject(SeedProbe);
   await alepha.start();
   hostname = alepha.inject(ServerProvider).hostname;
+  openSockets = [];
 });
 
 afterEach(async () => {
+  for (const socket of openSockets) socket.close();
   await alepha.stop();
 });
 
@@ -156,6 +161,62 @@ describe("session gate", () => {
 });
 
 describe("createTestSession", () => {
+  test("a playtest of the editor's untouched default map reaches the world welcome", async () => {
+    const owner = await registerAndLogin("tswelcome");
+    const adventureResponse = await authedFetch("/api/adventures", owner.token, {
+      method: "POST",
+      body: JSON.stringify({ title: "Souterrain", maxPlayers: 4 }),
+    });
+    expect(adventureResponse.status).toBe(201);
+    const adventure = (await adventureResponse.json()) as {
+      id: string;
+      defaultMap: { id: string };
+    };
+    const response = await authedFetch(
+      `/api/adventures/${adventure.id}/test-sessions`,
+      owner.token,
+      {
+        method: "POST",
+        body: JSON.stringify({ startMapId: null, heroClass: "warrior" }),
+      },
+    );
+    expect(response.status).toBe(201);
+    const created = (await response.json()) as {
+      party: { id: string };
+      hero: { id: string; mapId: string };
+    };
+    expect(created.hero.mapId).toBe(adventure.defaultMap.id);
+
+    const join = await authedFetch(
+      `/api/join?party=${created.party.id}&hero=${created.hero.id}`,
+      owner.token,
+    );
+    expect(join.status).toBe(200);
+    const target = (await join.json()) as { roomId: string; channelPath: string };
+    const socket = new WebSocket(
+      `${hostname.replace(/^http/, "ws")}${target.channelPath}?roomId=${target.roomId}&hero=${created.hero.id}`,
+      { headers: { authorization: `Bearer ${owner.token}` } },
+    );
+    openSockets.push(socket);
+
+    const outcome = await new Promise<{ kind: "welcome" } | { kind: "close"; code: number }>(
+      (resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("playtest world timed out")), 5_000);
+        socket.on("message", (data) => {
+          const message = parseServerMessage(data.toString());
+          if (message?.t !== "welcome") return;
+          clearTimeout(timer);
+          resolve({ kind: "welcome" });
+        });
+        socket.on("close", (code) => {
+          clearTimeout(timer);
+          resolve({ kind: "close", code });
+        });
+      },
+    );
+    expect(outcome).toEqual({ kind: "welcome" });
+  });
+
   test("creates a hidden real-runtime party+hero on the chosen map, for the AUTHOR", async () => {
     const owner = await registerAndLogin("tsowner");
     const adventure = await newAdventureWithTwoMaps(owner.token);
