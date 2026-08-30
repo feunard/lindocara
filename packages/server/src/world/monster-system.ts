@@ -75,8 +75,26 @@ const RAIDER_PATROL_OFFSET = { x: -40 / 64, z: 100 / 64 };
 
 /** Surface plateaus share one traversable world even when their elevations differ. Underground
  * storeys do not: actors at the same X/Z on two authored floors must never acquire each other. */
-function sameAuthoredStorey(firstY: number, secondY: number): boolean {
-  return undergroundDepthAtElevation(firstY) === undergroundDepthAtElevation(secondY);
+function authoredStoreyAt(
+  terrain: ZoneTerrain,
+  actor: GroundVector & { y: number },
+): number | null {
+  const depth = undergroundDepthAtElevation(actor.y);
+  if (depth === null || depth > 0) return depth;
+  // Positive Y is ambiguous: it can be an interior upper floor or ordinary raised surface
+  // terrain. Only a real platform at the body's feet proves that this is an authored storey.
+  const platform = terrain.query.platformSurfaceAround?.(actor.x, actor.z, 1e-4, actor.y + 1e-3);
+  return platform !== null && platform !== undefined && Math.abs(platform - actor.y) <= 0.04
+    ? depth
+    : null;
+}
+
+function sameAuthoredStorey(
+  terrain: ZoneTerrain,
+  first: GroundVector & { y: number },
+  second: GroundVector & { y: number },
+): boolean {
+  return authoredStoreyAt(terrain, first) === authoredStoreyAt(terrain, second);
 }
 
 /**
@@ -216,7 +234,8 @@ function targetOutOfReach(
   monster: MonsterRuntime,
   target: GroundVector & { y?: number },
 ): boolean {
-  if (target.y !== undefined && !sameAuthoredStorey(monster.y, target.y)) return true;
+  if (target.y !== undefined && !sameAuthoredStorey(terrain, monster, { ...target, y: target.y }))
+    return true;
   const targetGround =
     terrain.query.surfaceAt?.(target.x, target.z, standingCeiling(terrain, monster.y)) ??
     terrain.query.heightAt(target.x, target.z);
@@ -298,7 +317,7 @@ export function advanceMonsters<TSocket>(
     const relentless = monster.pursuitMode === "relentless";
     const runnerPursuer = relentless && monster.oneHitKill;
     const players = (relentless ? allLivingPlayers : visiblePlayers).filter(([, player]) =>
-      sameAuthoredStorey(player.y, monster.y),
+      sameAuthoredStorey(terrain, player, monster),
     );
 
     if (monster.runnerLeap) {
@@ -320,7 +339,7 @@ export function advanceMonsters<TSocket>(
       if (
         !player?.authorized ||
         player.life !== "alive" ||
-        !sameAuthoredStorey(player.y, monster.y) ||
+        !sameAuthoredStorey(terrain, player, monster) ||
         player.forgottenUntil > now ||
         ((player.invisibleUntil > now || isRogueStealthed(player, now)) && !activeSilhouette) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||

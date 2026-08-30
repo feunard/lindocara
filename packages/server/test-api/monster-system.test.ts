@@ -695,6 +695,40 @@ describe("monster navigation on the heightfield", () => {
     expect(monster.threat.has(player.id)).toBe(true);
   });
 
+  it("isolates a real upper floor without mistaking raised surface terrain for one", () => {
+    const upperFloorTerrain = zoneTerrainFromHeightfield({
+      version: 1,
+      size: SIZE,
+      levelHeight: 0.5,
+      waterLevel: -0.25,
+      levels: new Array(SIZE * SIZE).fill(0),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [{ x: -1, z: -1, w: 2, h: 2, bottom: 2.22, top: 2.4 }],
+      spawns: [],
+      elements: [],
+      events: [],
+    });
+    const monster = chasingMonster();
+    monster.x = -0.5;
+    monster.y = 0;
+    monster.z = 0;
+    monster.pursuitMode = "relentless";
+    monster.oneHitKill = true;
+    const player = targetPlayer(0.5, 0);
+    player.y = 2.4;
+    const socket = { id: "runner-upper-floor-socket" } as unknown as WebSocket;
+    const context = monsterContext(
+      [monster],
+      new Map([[socket, player]]),
+      zoneWith(upperFloorTerrain),
+    );
+
+    advanceMonsters(context, 1_000);
+
+    expect(monster.threat.has(player.id)).toBe(false);
+    expect(monster.runnerLeap).toBeNull();
+  });
+
   it("starts a runner leap before collider sliding can steer it around an obstacle", () => {
     const obstacleMap: MapData = {
       version: 1,
