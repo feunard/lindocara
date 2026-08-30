@@ -236,7 +236,10 @@ excavate a rectangular room/block or long narrow tunnel, cut a true vertical sha
 through every basement down to its selected bottom, refill a volume, and place a proportional
 multi-cell stair flight between any two selected storeys. The interior-only **Ascending stairs**
 control targets `+1..+16`; from an already selected upper floor it connects that floor to the target
-instead of returning to ground. These operations are single undo entries. The compact selector also
+instead of returning to ground. On a selected basement, **Basement ascent** exposes only shallower
+destinations (`Surface`, `-1`, ...), anchors the low foot under the cursor and reverses the placement
+convention used by descending stairs; it may cross one or several storeys in one proportional flight.
+These operations are single undo entries. The compact selector also
 selects the storey rendered by the editor, with the adjacent reference retained only where a real
 stair or opening connects it.
 

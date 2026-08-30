@@ -85,6 +85,9 @@ interface TerrainPaletteProps {
   undergroundWidth: number;
   undergroundLength: number;
   undergroundDirection: RampDirection;
+  editingDepth: number | null;
+  basementAscentTarget: number;
+  basementUpStairsActive: boolean;
   upperStorey: number;
   upperStairsActive: boolean;
   onPickContent(content: RectFillContent): void;
@@ -96,6 +99,8 @@ interface TerrainPaletteProps {
   onUndergroundStyleChange(style: InteriorShellStyle): void;
   onUndergroundSizeChange(width: number, length: number): void;
   onUndergroundDirectionChange(direction: RampDirection): void;
+  onSelectBasementUpStairs(): void;
+  onBasementAscentTargetChange(depth: number): void;
   onSelectUpperStairs(): void;
   onUpperStoreyChange(storey: number): void;
 }
@@ -125,6 +130,9 @@ export function TerrainPalette({
   undergroundWidth,
   undergroundLength,
   undergroundDirection,
+  editingDepth,
+  basementAscentTarget,
+  basementUpStairsActive,
   upperStorey,
   upperStairsActive,
   onPickContent,
@@ -136,6 +144,8 @@ export function TerrainPalette({
   onUndergroundStyleChange,
   onUndergroundSizeChange,
   onUndergroundDirectionChange,
+  onSelectBasementUpStairs,
+  onBasementAscentTargetChange,
   onSelectUpperStairs,
   onUpperStoreyChange,
 }: TerrainPaletteProps) {
@@ -391,7 +401,41 @@ export function TerrainPalette({
             {t(`editor.underground.hint.${undergroundOperation ?? "dig"}`)}
           </p>
         </div>
-        {interior ? (
+        {editingDepth !== null && editingDepth > 0 ? (
+          <div
+            data-testid="terrain-basement-ascent"
+            className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"
+          >
+            <span className="px-1 text-[11.5px] font-medium text-zinc-600">
+              {t("editor.basementAscent.heading")}
+            </span>
+            <SwatchButton
+              label={t("editor.basementAscent.stairs")}
+              active={basementUpStairsActive}
+              onClick={onSelectBasementUpStairs}
+            />
+            <label className="grid grid-cols-[1fr_7rem] items-center gap-2 text-[10.5px] text-zinc-500">
+              <span>{t("editor.basementAscent.target")}</span>
+              <select
+                className="h-7 rounded border border-zinc-200 bg-white px-1"
+                value={basementAscentTarget}
+                onChange={(event) =>
+                  onBasementAscentTargetChange(Number(event.currentTarget.value))
+                }
+              >
+                {Array.from({ length: editingDepth }, (_unused, depth) => (
+                  <option key={depth} value={depth}>
+                    {depth === 0 ? t("editor.level.surface") : `−${depth}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="px-1 text-[10.5px] leading-snug text-zinc-500">
+              {t("editor.basementAscent.hint")}
+            </p>
+          </div>
+        ) : null}
+        {interior && (editingDepth === null || editingDepth < 0) ? (
           <div
             data-testid="terrain-upper-storeys"
             className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2"

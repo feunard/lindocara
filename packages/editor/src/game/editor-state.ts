@@ -2236,12 +2236,12 @@ function openWaterAt(map: EditorMap, col: number, row: number): boolean {
   return id === EMPTY_TILE || waterLevelOfTileId(id) !== null;
 }
 
-function clampVerticalDepth(value: number): number {
+function clampVerticalDepth(value: number, allowSurface = false): number {
   const depth = Math.max(
     -MAX_UNDERGROUND_DEPTH,
     Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(value)),
   );
-  return depth === 0 ? (value < 0 ? -1 : 1) : depth;
+  return depth === 0 ? (allowSurface ? 0 : value < 0 ? -1 : 1) : depth;
 }
 
 /** The asset a placement actually writes. Everything places what the palette selected, except a
@@ -2337,8 +2337,8 @@ export function undergroundStairRequiredLength(
   tool: Extract<EditorTool, { kind: "underground" }>,
   startDepth: number | null = null,
 ): number {
-  const depth = clampVerticalDepth(tool.depth);
-  const fromDepth = startDepth === null ? 0 : clampVerticalDepth(startDepth);
+  const depth = clampVerticalDepth(tool.depth, true);
+  const fromDepth = startDepth === null ? 0 : clampVerticalDepth(startDepth, true);
   const storeys = Math.max(1, Math.abs(depth - fromDepth));
   return Math.max(
     2,
@@ -2357,8 +2357,8 @@ export function undergroundStairPlacement(
 ): UndergroundStair | null {
   if (tool.operation !== "stairs") return null;
   const { cols, rows } = editorMapSize(map);
-  const targetDepth = clampVerticalDepth(tool.depth);
-  const start = startDepth === null ? 0 : clampVerticalDepth(startDepth);
+  const targetDepth = clampVerticalDepth(tool.depth, true);
+  const start = startDepth === null ? 0 : clampVerticalDepth(startDepth, true);
   if (start === targetDepth) return null;
   const depth = Math.max(start, targetDepth);
   const fromDepth = Math.min(start, targetDepth);
@@ -2407,7 +2407,7 @@ function applyUndergroundTool(
   startDepth: number | null = null,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
-  const depth = clampVerticalDepth(tool.depth);
+  const depth = clampVerticalDepth(tool.depth, tool.operation === "stairs");
   const alongX = tool.direction === "east" || tool.direction === "west";
   const stairPlacement =
     tool.operation === "stairs" ? undergroundStairPlacement(map, tool, col, row, startDepth) : null;

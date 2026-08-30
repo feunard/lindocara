@@ -1519,6 +1519,11 @@ export const en = {
   "editor.upperStorey.target": "Target floor (+1 to +16)",
   "editor.upperStorey.hint":
     "Places a physical staircase to the selected floor. Then select +N to paint its floor, terrain, water, lava, scenery and events.",
+  "editor.basementAscent.heading": "Basement ascent",
+  "editor.basementAscent.stairs": "Up stairs",
+  "editor.basementAscent.target": "Destination",
+  "editor.basementAscent.hint":
+    "Place the foot of the stairs on the viewed level; the flight rises to the selected destination and grows by 3 cells per floor.",
   "editor.underground.style": "Coating",
   "editor.underground.width": "Width",
   "editor.underground.length": "Length",

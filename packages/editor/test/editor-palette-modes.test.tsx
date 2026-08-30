@@ -26,6 +26,9 @@ function fieldBody() {
     undergroundWidth: 3,
     undergroundLength: 6,
     undergroundDirection: "east" as const,
+    editingDepth: null,
+    basementAscentTarget: 0,
+    basementUpStairsActive: false,
     upperStorey: 1,
     upperStairsActive: false,
     onPickContent: () => {},
@@ -39,6 +42,8 @@ function fieldBody() {
     onUndergroundStyleChange: () => {},
     onUndergroundSizeChange: () => {},
     onUndergroundDirectionChange: () => {},
+    onSelectBasementUpStairs: () => {},
+    onBasementAscentTargetChange: () => {},
     onSelectUpperStairs: () => {},
     onUpperStoreyChange: () => {},
   };
@@ -117,6 +122,31 @@ describe("mode-scoped palette", () => {
     ).toBeInTheDocument();
 
     rerender(<EditorPalette mode="field" {...props} field={{ ...props.field, interior: false }} />);
+    expect(screen.queryByTestId("terrain-upper-storeys")).toBeNull();
+  });
+
+  it("offers an inverse multi-floor ascent only while editing a basement", () => {
+    setLocale("en");
+    const props = fieldProps();
+    render(
+      <EditorPalette
+        mode="field"
+        {...props}
+        field={{
+          ...props.field,
+          editingDepth: 3,
+          basementAscentTarget: 1,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("terrain-basement-ascent")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: t("editor.basementAscent.stairs") }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: t("editor.level.surface") })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "−1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "−2" })).toBeInTheDocument();
     expect(screen.queryByTestId("terrain-upper-storeys")).toBeNull();
   });
 

@@ -188,6 +188,90 @@ describe("underground editor tools", () => {
     );
   });
 
+  it("places a basement ascent from its visible low foot over one or several storeys", () => {
+    const map = blankMap("Basement ascent", 24, 24);
+    const fromMinusThreeToMinusOne = applyTool(
+      map,
+      {
+        kind: "underground",
+        operation: "stairs",
+        depth: 1,
+        style: "castle",
+        width: 2,
+        length: 3,
+        direction: "east",
+      },
+      2,
+      5,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+    expect(fromMinusThreeToMinusOne?.underground?.stairs).toEqual([
+      {
+        depth: 3,
+        fromDepth: 1,
+        col: 2,
+        row: 5,
+        direction: "east",
+        length: 6,
+        width: 2,
+      },
+    ]);
+
+    const fromMinusThreeToSurface = applyTool(
+      map,
+      {
+        kind: "underground",
+        operation: "stairs",
+        depth: 0,
+        style: "castle",
+        width: 2,
+        length: 3,
+        direction: "east",
+      },
+      2,
+      9,
+      true,
+      "field",
+      0,
+      0,
+      3,
+    );
+    expect(fromMinusThreeToSurface?.underground?.stairs).toEqual([
+      {
+        depth: 3,
+        fromDepth: 0,
+        col: 2,
+        row: 9,
+        direction: "east",
+        length: 9,
+        width: 2,
+      },
+    ]);
+    expect(fromMinusThreeToSurface?.underground?.levels.map((level) => level.depth)).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it("anchors ascending and descending basement placements at opposite visible mouths", () => {
+    const map = blankMap("Inverse placement", 20, 20);
+    const common = {
+      kind: "underground" as const,
+      operation: "stairs" as const,
+      style: "cave" as const,
+      width: 2,
+      length: 3,
+      direction: "east" as const,
+    };
+    const descending = applyTool(map, { ...common, depth: 3 }, 7, 5, true, "field", 0, 0, 1);
+    const ascending = applyTool(map, { ...common, depth: 1 }, 2, 5, true, "field", 0, 0, 3);
+
+    expect(descending?.underground?.stairs[0]).toEqual(ascending?.underground?.stairs[0]);
+  });
+
   it("creates proportional upper-floor stairs only inside an interior map", () => {
     const exterior = blankMap("Exterior", 24, 24);
     const interior = {

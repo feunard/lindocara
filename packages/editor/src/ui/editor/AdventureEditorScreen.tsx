@@ -595,6 +595,7 @@ function AdventureEditorInner({
   const [linkPending, setLinkPending] = useState(false);
   const [wallOpeningPending, setWallOpeningPending] = useState(false);
   const [undergroundDepth, setUndergroundDepth] = useState(1);
+  const [basementAscentTarget, setBasementAscentTarget] = useState(0);
   const [upperStorey, setUpperStorey] = useState(1);
   const [editingDepth, setEditingDepth] = useState<number | null>(null);
   const pendingEditingDepthRef = useRef<number | null>(null);
@@ -997,6 +998,7 @@ function AdventureEditorInner({
     pendingEditingDepthRef.current = next;
     setEditingDepth(next);
     if (next !== null && next > 0) setUndergroundDepth(next);
+    if (next !== null && next > 0) setBasementAscentTarget(Math.max(0, next - 1));
     if (next !== null && next < 0) setUpperStorey(-next);
     handleRef.current?.setEditingDepth?.(next);
   }
@@ -1104,6 +1106,20 @@ function AdventureEditorInner({
     const style = currentMap.interiorShell?.style ?? undergroundStyle;
     setUndergroundStyle(style);
     pushTool(undergroundTool("stairs", { depth: -upperStorey, style }));
+  }
+
+  function selectBasementUpStairs(): void {
+    if (editingDepth === null || editingDepth <= 0) return;
+    const target = Math.max(0, Math.min(editingDepth - 1, basementAscentTarget));
+    const style =
+      currentMap?.underground?.levels.find((level) => level.depth === editingDepth)?.style ??
+      undergroundStyle;
+    setToolKey("underground");
+    setUndergroundOperation("stairs");
+    setSelectedAsset(null);
+    setUndergroundStyle(style);
+    setBasementAscentTarget(target);
+    pushTool(undergroundTool("stairs", { depth: target, style }));
   }
 
   function updateUndergroundTool(overrides: Parameters<typeof undergroundTool>[1]): void {
@@ -2181,6 +2197,16 @@ function AdventureEditorInner({
                 undergroundWidth,
                 undergroundLength,
                 undergroundDirection,
+                editingDepth,
+                basementAscentTarget,
+                basementUpStairsActive:
+                  editingDepth !== null &&
+                  editingDepth > 0 &&
+                  toolKey === "underground" &&
+                  undergroundOperation === "stairs" &&
+                  pendingToolRef.current.kind === "underground" &&
+                  pendingToolRef.current.depth >= 0 &&
+                  pendingToolRef.current.depth < editingDepth,
                 upperStorey,
                 upperStairsActive:
                   toolKey === "underground" &&
@@ -2216,6 +2242,21 @@ function AdventureEditorInner({
                 onUndergroundDirectionChange: (direction) => {
                   setUndergroundDirection(direction);
                   updateUndergroundTool({ direction });
+                },
+                onSelectBasementUpStairs: selectBasementUpStairs,
+                onBasementAscentTargetChange: (depth) => {
+                  if (editingDepth === null || editingDepth <= 0) return;
+                  const next = Math.max(0, Math.min(editingDepth - 1, Math.trunc(depth)));
+                  setBasementAscentTarget(next);
+                  if (
+                    toolKey === "underground" &&
+                    undergroundOperation === "stairs" &&
+                    pendingToolRef.current.kind === "underground" &&
+                    pendingToolRef.current.depth >= 0 &&
+                    pendingToolRef.current.depth < editingDepth
+                  ) {
+                    updateUndergroundTool({ depth: next });
+                  }
                 },
                 onSelectUpperStairs: selectUpperStairs,
                 onUpperStoreyChange: (storey) => {

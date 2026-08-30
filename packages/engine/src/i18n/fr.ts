@@ -1535,6 +1535,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.upperStorey.target": "Étage cible (+1 à +16)",
   "editor.upperStorey.hint":
     "Place un escalier physique vers l’étage choisi. Sélectionnez ensuite +N pour y peindre le sol, les terrains, l’eau, la lave, les décors et les événements.",
+  "editor.basementAscent.heading": "Remontée du sous-sol",
+  "editor.basementAscent.stairs": "Escalier montant",
+  "editor.basementAscent.target": "Arrivée",
+  "editor.basementAscent.hint":
+    "Placez le pied de l’escalier sur le niveau affiché ; la volée remonte vers l’arrivée choisie et s’allonge de 3 cases par étage.",
   "editor.underground.style": "Revêtement",
   "editor.underground.width": "Largeur",
   "editor.underground.length": "Longueur",
