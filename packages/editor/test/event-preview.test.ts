@@ -57,6 +57,17 @@ describe("authored event preview projection", () => {
     );
   });
 
+  it("keeps the authoring marker visible when gameplay hides the gold ring", () => {
+    const hiddenInGame = { ...event("entry"), showMarker: false };
+
+    expect(authoredEventPreviewSnapshots([hiddenInGame], "map-editor")).toMatchObject([
+      { id: hiddenInGame.id, showMarker: true },
+    ]);
+    expect(authoredEventPreviewSnapshots([hiddenInGame], "playable-preview")).toMatchObject([
+      { id: hiddenInGame.id, showMarker: false },
+    ]);
+  });
+
   it("preserves authored pickup height and visual levitation in the preview", () => {
     const pickup = event("normal");
     pickup.pages = [

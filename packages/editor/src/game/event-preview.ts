@@ -52,7 +52,10 @@ export function authoredEventPreviewSnapshots(
         ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),
         ...(page.optFloat === true ? { floating: true as const } : {}),
         presentation: event.kind === "harvestable" ? "native" : "marker",
-        showMarker: event.showMarker !== false,
+        // `showMarker` is a gameplay presentation choice, never permission to hide authoring data.
+        // An event with no graphic must remain selectable and understandable in the map editor even
+        // when its gold ring is deliberately disabled for players.
+        showMarker: scope === "map-editor" ? true : event.showMarker !== false,
         ...(profile
           ? {
               harvest: {
