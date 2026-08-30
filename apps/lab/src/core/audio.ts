@@ -527,6 +527,7 @@ function pasDe(sol: TerrainMaterial): { clef: BankKey; gain: number } {
     case "volcan":
       return { clef: "pasSable", gain: 0.82 };
     case "lave":
+    case "parquet":
     case "herbe":
       return { clef: "pasHerbe", gain: 0.9 };
   }

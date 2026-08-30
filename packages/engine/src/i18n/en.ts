@@ -1308,6 +1308,7 @@ export const en = {
   "editor.palette.terrain.montagne": "Mountain",
   "editor.palette.terrain.volcan": "Volcanic rock",
   "editor.palette.terrain.lave": "Lava",
+  "editor.palette.terrain.parquet": "Wood floor",
   "editor.palette.terrain.water": "Water",
   "editor.palette.showMore": "Show more ({shown}/{total})",
   "editor.palette.category.all": "All categories",

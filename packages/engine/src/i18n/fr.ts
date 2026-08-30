@@ -1323,6 +1323,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.palette.terrain.montagne": "Montagne",
   "editor.palette.terrain.volcan": "Roche volcanique",
   "editor.palette.terrain.lave": "Lave",
+  "editor.palette.terrain.parquet": "Parquet",
   "editor.palette.terrain.water": "Eau",
   "editor.palette.showMore": "Afficher plus ({shown}/{total})",
   "editor.palette.category.all": "Toutes les catégories",

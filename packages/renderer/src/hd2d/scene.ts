@@ -130,6 +130,7 @@ export function setHd2dGroundPalette(palette: string): boolean {
  * and ice read theirs from the material instead; their identity is the material, not the height.
  */
 export function terrainAtlasKey(material: string, level: number): string {
+  if (material === "parquet") return material;
   if (material === "sable" || material === "neige") return material;
   if (material === "glace") return "glace";
   if (
@@ -209,6 +210,10 @@ export function terrainAtlases(textures: TextureRegistry): Record<string, Terrai
     ...generated("volcan"),
     ...generated("lave"),
     interior: {
+      ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
+      texture: textures.get(`${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`),
+    },
+    parquet: {
       ...sheet("Tilemap_color1.png", "water-edge", 9, 6),
       texture: textures.get(`${HD2D_TERRAIN_ROOT}/interior-floor-atlas.png`),
     },

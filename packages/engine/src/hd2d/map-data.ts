@@ -63,6 +63,7 @@ const TERRAIN_MATERIALS: readonly TerrainMaterial[] = [
   "montagne",
   "volcan",
   "lave",
+  "parquet",
 ];
 
 /**

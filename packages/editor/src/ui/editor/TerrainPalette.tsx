@@ -34,6 +34,7 @@ const MATERIAL_OPTIONS: readonly TerrainMaterial[] = [
   "montagne",
   "volcan",
   "lave",
+  "parquet",
 ];
 const MATERIAL_SOURCES: Readonly<Record<Exclude<TerrainMaterial, "herbe">, string>> = {
   sable: "/assets/lindocara/tiny-swords/terrain/Tilemap_Flat.png",
@@ -43,6 +44,7 @@ const MATERIAL_SOURCES: Readonly<Record<Exclude<TerrainMaterial, "herbe">, strin
   montagne: "/assets/lindocara/hd2d/tileset-montagne.png",
   volcan: "/assets/lindocara/hd2d/tileset-volcan.png",
   lave: "/assets/lindocara/hd2d/tileset-lave.png",
+  parquet: "/assets/lindocara/hd2d/interior-floor-atlas.png",
 };
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its

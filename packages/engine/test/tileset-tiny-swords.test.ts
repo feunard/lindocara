@@ -1,7 +1,9 @@
 import {
   CLIFF_WALL_SLOT,
   elevationOfSlot,
+  fixedTerrainDescriptor,
   GRASS_SLOTS,
+  HOUSE_TERRAIN_FIXED_BASE,
   isGroundElevation,
   MIN_TERRAIN_LEVEL,
   materialOfSlot,
@@ -12,6 +14,7 @@ import {
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
   terrainSlot,
+  terrainFixedIndex,
   tilesetById,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
@@ -127,5 +130,18 @@ describe("the Tiny Swords tileset", () => {
     expect(TINY_SWORDS_TILESET.autotiles.length).toBe(64);
     expect(TINY_SWORDS_TILESET.autotiles.length).toBeLessThanOrEqual(64);
     expect(GRASS_SLOTS).toHaveLength(TERRAIN_LEVELS);
+  });
+
+  it("appends the house floor after every historical fixed id", () => {
+    expect(terrainFixedIndex("parquet", -3)).toBe(HOUSE_TERRAIN_FIXED_BASE);
+    expect(fixedTerrainDescriptor(terrainFixedIndex("parquet", 0))).toEqual({
+      material: "parquet",
+      level: 0,
+    });
+    expect(fixedTerrainDescriptor(terrainFixedIndex("parquet", 10))).toEqual({
+      material: "parquet",
+      level: 10,
+    });
+    expect(TINY_SWORDS_TILESET.fixed[terrainFixedIndex("parquet", 0)]?.passable).toBe(true);
   });
 });

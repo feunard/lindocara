@@ -27,7 +27,8 @@ export type TerrainMaterial =
   | "grotte"
   | "montagne"
   | "volcan"
-  | "lave";
+  | "lave"
+  | "parquet";
 
 export type TerrainLiquid = "water" | "lava";
 

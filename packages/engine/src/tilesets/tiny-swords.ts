@@ -122,9 +122,11 @@ export const GRASS_SLOTS: TerrainLevelSlots = [0, 1, 2, 19, 24, 28, 32, 36, 40, 
 export const LEGACY_AUTOTILE_TERRAIN_MATERIALS = ["herbe", "sable", "neige", "glace"] as const;
 export type LegacyAutotileTerrainMaterial = (typeof LEGACY_AUTOTILE_TERRAIN_MATERIALS)[number];
 export const FIXED_TERRAIN_MATERIALS = ["grotte", "montagne", "volcan", "lave"] as const;
+export const HOUSE_TERRAIN_MATERIALS = ["parquet"] as const;
 export const AUTHORED_TERRAIN_MATERIALS = [
   ...LEGACY_AUTOTILE_TERRAIN_MATERIALS,
   ...FIXED_TERRAIN_MATERIALS,
+  ...HOUSE_TERRAIN_MATERIALS,
 ] as const satisfies readonly TerrainMaterial[];
 const EXTRA_TERRAIN_MATERIALS = LEGACY_AUTOTILE_TERRAIN_MATERIALS.slice(1);
 export const TERRAIN_MATERIAL_SLOTS = {
@@ -251,39 +253,52 @@ export const RAMP_SUNKEN_ONE_CELL_LEVELS: readonly number[] = Array.from(
 export const RAMP_SUNKEN_ONE_CELL_FIXED_BASE = WATER_FIXED_BASE + WATER_FIXED_COUNT;
 export const RAMP_SUNKEN_ONE_CELL_FIXED_COUNT =
   RAMP_ONE_CELL_DIRECTIONS.length * RAMP_SUNKEN_ONE_CELL_LEVELS.length;
+export const HOUSE_TERRAIN_FIXED_BASE =
+  RAMP_SUNKEN_ONE_CELL_FIXED_BASE + RAMP_SUNKEN_ONE_CELL_FIXED_COUNT;
+export const HOUSE_TERRAIN_FIXED_COUNT = HOUSE_TERRAIN_MATERIALS.length * FIXED_TERRAIN_LEVEL_COUNT;
 
 export interface FixedTerrainDescriptor {
-  material: (typeof FIXED_TERRAIN_MATERIALS)[number];
+  material: (typeof FIXED_TERRAIN_MATERIALS)[number] | (typeof HOUSE_TERRAIN_MATERIALS)[number];
   level: number;
 }
 
 /** Stable fixed index for one generated material/elevation pair, or -1 outside that band. */
 export function terrainFixedIndex(material: TerrainMaterial, level: number): number {
   const materialIndex = (FIXED_TERRAIN_MATERIALS as readonly TerrainMaterial[]).indexOf(material);
+  const houseMaterialIndex = (HOUSE_TERRAIN_MATERIALS as readonly TerrainMaterial[]).indexOf(
+    material,
+  );
   if (
-    materialIndex < 0 ||
+    (materialIndex < 0 && houseMaterialIndex < 0) ||
     !Number.isSafeInteger(level) ||
     level < -SUNKEN_TERRAIN_LEVELS ||
     level >= TERRAIN_LEVELS
   ) {
     return -1;
   }
-  return (
-    FIXED_TERRAIN_BASE + materialIndex * FIXED_TERRAIN_LEVEL_COUNT + level + SUNKEN_TERRAIN_LEVELS
-  );
+  const base = materialIndex >= 0 ? FIXED_TERRAIN_BASE : HOUSE_TERRAIN_FIXED_BASE;
+  const index = materialIndex >= 0 ? materialIndex : houseMaterialIndex;
+  return base + index * FIXED_TERRAIN_LEVEL_COUNT + level + SUNKEN_TERRAIN_LEVELS;
 }
 
 /** Material and elevation encoded by the append-only fixed ground band. */
 export function fixedTerrainDescriptor(index: number): FixedTerrainDescriptor | null {
-  if (
-    !Number.isSafeInteger(index) ||
-    index < FIXED_TERRAIN_BASE ||
-    index >= FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT
+  if (!Number.isSafeInteger(index)) return null;
+  let offset: number;
+  let materials: readonly FixedTerrainDescriptor["material"][];
+  if (index >= FIXED_TERRAIN_BASE && index < FIXED_TERRAIN_BASE + FIXED_TERRAIN_COUNT) {
+    offset = index - FIXED_TERRAIN_BASE;
+    materials = FIXED_TERRAIN_MATERIALS;
+  } else if (
+    index >= HOUSE_TERRAIN_FIXED_BASE &&
+    index < HOUSE_TERRAIN_FIXED_BASE + HOUSE_TERRAIN_FIXED_COUNT
   ) {
+    offset = index - HOUSE_TERRAIN_FIXED_BASE;
+    materials = HOUSE_TERRAIN_MATERIALS;
+  } else {
     return null;
   }
-  const offset = index - FIXED_TERRAIN_BASE;
-  const material = FIXED_TERRAIN_MATERIALS[Math.floor(offset / FIXED_TERRAIN_LEVEL_COUNT)];
+  const material = materials[Math.floor(offset / FIXED_TERRAIN_LEVEL_COUNT)];
   if (!material) return null;
   return {
     material,
@@ -665,6 +680,23 @@ export const TINY_SWORDS_TILESET: Tileset = {
           | 1
           | 3,
       })),
+    ),
+    // House floors are appended after every historical fixed band. They use the dedicated HD-2D
+    // texture at runtime and a passable grass cell only as the retired 2D renderer's fallback.
+    ...HOUSE_TERRAIN_MATERIALS.flatMap(() =>
+      Array.from({ length: FIXED_TERRAIN_LEVEL_COUNT }, (_unused, index) => {
+        const level = index - SUNKEN_TERRAIN_LEVELS;
+        const tint = level < 0 ? sunkenTint(-level) : raisedTint(level);
+        return {
+          atlas: ATLAS,
+          col: level <= 0 ? 0 : 5,
+          row: 0,
+          passable: true,
+          priority: "below" as const,
+          renderLevel: Math.min(3, Math.max(0, level)) as 0 | 1 | 2 | 3,
+          ...(tint === undefined ? {} : { tint }),
+        };
+      }),
     ),
   ],
 };
