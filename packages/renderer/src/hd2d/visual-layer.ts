@@ -618,6 +618,17 @@ export class Hd2dVisualLayer {
     return (this.#scene.query.heightAt(x, z) ?? 0) + lift;
   }
 
+  /**
+   * Event snapshots already carry the exact floor their graphic is anchored to. Re-querying only
+   * `heightAt` here collapses a basement or upper-storey marker back onto the surface at the same
+   * X/Z column. Legacy surface snapshots omit `y` and keep the terrain-query fallback.
+   */
+  #eventGroundY(event: WorldEventSnapshot, x: number, z: number, lift: number): number {
+    return event.y !== undefined && Number.isFinite(event.y)
+      ? event.y + lift
+      : this.#groundY(x, z, lift);
+  }
+
   setEditorGroundElevation(elevation: number | null): void {
     if (this.#editorGroundElevation === elevation) return;
     this.#editorGroundElevation = elevation;
@@ -1300,7 +1311,7 @@ export class Hd2dVisualLayer {
         new THREE.OctahedronGeometry(0.22),
         transparentMaterial(colors[marker.kind]),
       );
-      mesh.position.set(x, this.#groundY(x, z, 1.55), z);
+      mesh.position.set(x, this.#eventGroundY(event, x, z, 1.55), z);
       this.#root.add(mesh);
       this.#questMarkers.set(marker.eventId, mesh);
     }
@@ -1316,7 +1327,7 @@ export class Hd2dVisualLayer {
     const questVisualKey = this.#questState
       .map((marker) => {
         const event = eventById.get(marker.eventId);
-        return `${marker.eventId}:${marker.kind}:${event?.col ?? ""}:${event?.row ?? ""}`;
+        return `${marker.eventId}:${marker.kind}:${event?.col ?? ""}:${event?.row ?? ""}:${event?.y ?? ""}:${event?.undergroundDepth ?? ""}`;
       })
       .join("|");
     if (questVisualKey !== this.#questVisualKey) {
@@ -1689,7 +1700,7 @@ export class Hd2dVisualLayer {
       }
       const x = event.col + 0.5 - this.#size / 2;
       const z = event.row + 0.5 - this.#size / 2;
-      object.position.set(x, this.#groundY(x, z, 0.06), z);
+      object.position.set(x, this.#eventGroundY(event, x, z, 0.06), z);
     }
     for (const [id, object] of this.#eventMarkers) {
       if (present.has(id)) continue;

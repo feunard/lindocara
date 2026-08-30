@@ -293,6 +293,25 @@ describe("Hd2dVisualLayer event marker dust", () => {
     layer.dispose();
   });
 
+  it("anchors rings to each event's real basement or upper-storey height", () => {
+    const { layer, root } = harness();
+    layer.sync(
+      {
+        ...empty,
+        events: [
+          { ...markerEvent, id: "basement", y: -4.8, undergroundDepth: 2 },
+          { ...markerEvent, id: "upper", col: 6, y: 4.8, undergroundDepth: -2 },
+        ],
+      },
+      0,
+    );
+
+    const [basement, upper] = markersIn(root);
+    expect(basement?.position.y).toBeCloseTo(-4.74);
+    expect(upper?.position.y).toBeCloseTo(4.86);
+    layer.dispose();
+  });
+
   it("turns the dust, and drops a marker without freeing the geometry its neighbours share", () => {
     const { layer, root } = harness();
     layer.sync(
