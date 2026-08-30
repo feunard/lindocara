@@ -302,9 +302,7 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
       const centreCol = toCell(wx);
       const centreRow = toCell(wz);
       const centreTerrain =
-        ceilingY === undefined || voidAt(centreCol, centreRow)
-          ? null
-          : at(centreCol, centreRow);
+        ceilingY === undefined || voidAt(centreCol, centreRow) ? null : at(centreCol, centreRow);
       const centreRamp = ceilingY === undefined ? null : rampSampleAt(ramps, levelHeight, wx, wz);
       // `groundHeightAt` deliberately returns the ramp while the body is on one. It therefore
       // cannot tell us whether the original surface heightfield is still overhead. Compare the
