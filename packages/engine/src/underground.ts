@@ -487,7 +487,10 @@ export function undergroundDepthAtElevation(elevation: number): number | null {
  * storey; every in-between elevation selects the shallower and deeper neighbours so camera and
  * actor visibility never switch halfway through a stair or fall. */
 export function undergroundVisibleDepthsAtElevation(elevation: number): readonly (number | null)[] {
-  if (!Number.isFinite(elevation) || elevation >= -0.02) return [null];
+  // Keep the renderer on the same surface/underground boundary as collision. In particular the
+  // conventional waterline is y=-0.05: treating every negative value as depth 1 made a swimmer
+  // reveal the basement below and visually replaced the water with its floor.
+  if (!Number.isFinite(elevation) || elevation >= -0.6) return [null];
   const storey = Math.max(
     0,
     Math.min(MAX_UNDERGROUND_DEPTH, -elevation / UNDERGROUND_STOREY_HEIGHT),

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { undergroundLevelOcclusionRuns } from "../src/hd2d/underground.js";
+import {
+  surfaceLiquidOcclusionRuns,
+  undergroundLevelOcclusionRuns,
+} from "../src/hd2d/underground.js";
 
 describe("underground storey visibility mask", () => {
   const map = {
@@ -47,5 +50,43 @@ describe("underground storey visibility mask", () => {
     expect(depthOne.has("1:1")).toBe(true);
     expect(depthOne.has("2:1")).toBe(true);
     expect(depthOne.has("4:4")).toBe(false);
+  });
+
+  it("occludes basements below water without closing real surface accesses", () => {
+    const size = 4;
+    const liquids = new Array<"water" | null>(size * size).fill("water");
+    const runs = surfaceLiquidOcclusionRuns({
+      size,
+      levels: new Array<null>(size * size).fill(null),
+      liquids,
+      liquidLevels: new Array<number | null>(size * size).fill(null),
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      underground: {
+        levels: [],
+        stairs: [
+          {
+            depth: 1,
+            fromDepth: 0,
+            col: 1,
+            row: 1,
+            direction: "east",
+            length: 1,
+            width: 1,
+          },
+        ],
+        shafts: [{ col: 2, row: 2, width: 1, length: 1, depth: 2 }],
+      },
+    });
+    const covered = new Set<string>();
+    for (const run of runs) {
+      expect(run.y).toBe(-0.05);
+      for (let col = run.col; col < run.col + run.length; col += 1)
+        covered.add(`${col}:${run.row}`);
+    }
+
+    expect(covered.size).toBe(14);
+    expect(covered.has("1:1")).toBe(false);
+    expect(covered.has("2:2")).toBe(false);
   });
 });

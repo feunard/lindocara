@@ -75,6 +75,46 @@ export interface UndergroundOcclusionRun {
   length: number;
 }
 
+export interface SurfaceLiquidOcclusionRun extends UndergroundOcclusionRun {
+  y: number;
+}
+
+/** Depth-only coverage immediately below surface liquids, excluding authored vertical accesses. */
+export function surfaceLiquidOcclusionRuns(
+  map: Pick<
+    MapData,
+    "size" | "levels" | "liquids" | "liquidLevels" | "levelHeight" | "waterLevel" | "underground"
+  >,
+): SurfaceLiquidOcclusionRun[] {
+  const openings = undergroundSurfaceOpenings(map.underground, map.size);
+  const liquidAt = (index: number): boolean =>
+    map.liquids ? map.liquids[index] !== null : map.levels[index] === null;
+  const runs: SurfaceLiquidOcclusionRun[] = [];
+  for (let row = 0; row < map.size; row += 1) {
+    let col = 0;
+    while (col < map.size) {
+      const index = row * map.size + col;
+      if (openings[index] !== 0 || !liquidAt(index)) {
+        col += 1;
+        continue;
+      }
+      const start = col;
+      const authoredLevel = map.liquidLevels?.[index] ?? null;
+      const y = authoredLevel === null ? map.waterLevel : authoredLevel * map.levelHeight;
+      col += 1;
+      while (col < map.size) {
+        const nextIndex = row * map.size + col;
+        const nextLevel = map.liquidLevels?.[nextIndex] ?? null;
+        const nextY = nextLevel === null ? map.waterLevel : nextLevel * map.levelHeight;
+        if (openings[nextIndex] !== 0 || !liquidAt(nextIndex) || nextY !== y) break;
+        col += 1;
+      }
+      runs.push({ col: start, row, length: col - start, y });
+    }
+  }
+  return runs;
+}
+
 /** Intact-rock coverage for one viewed storey. Only a real stair/shaft footprint stays transparent
  * to the next floor, so a larger lower room cannot leak around the current excavation. */
 export function undergroundLevelOcclusionRuns(
@@ -345,6 +385,33 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     col < map.size &&
     row < map.size &&
     openings[row * map.size + col] !== 0;
+  const surfaceOcclusionRuns = surfaceLiquidOcclusionRuns(map);
+  let surfaceLiquidOccluder: THREE.InstancedMesh | null = null;
+  if (surfaceOcclusionRuns.length > 0) {
+    const occluder = new THREE.InstancedMesh(box, occlusionMaterial, surfaceOcclusionRuns.length);
+    occluder.name = "underground-surface-liquid-occluder";
+    occluder.renderOrder = -1_100;
+    occluder.raycast = () => undefined;
+    surfaceOcclusionRuns.forEach((run, index) => {
+      matrix.compose(
+        new THREE.Vector3(
+          run.col + run.length / 2 - map.size / 2,
+          run.y - 0.04,
+          run.row + 0.5 - map.size / 2,
+        ),
+        new THREE.Quaternion(),
+        new THREE.Vector3(run.length, 0.02, 1),
+      );
+      occluder.setMatrixAt(index, matrix);
+    });
+    occluder.instanceMatrix.needsUpdate = true;
+    occluder.computeBoundingSphere();
+    // Unlike access rims, this guard must remain visible while the followed body is in water.
+    // Keeping it outside `surfaceAccess` prevents `surfaceAccessPreviewAt` from hiding it precisely
+    // on the transparent cells it exists to protect.
+    root.add(occluder);
+    surfaceLiquidOccluder = occluder;
+  }
   const levelOneStyle = map.underground?.levels.find((level) => level.depth === 1)?.style ?? "cave";
   if (openings.some((cell) => cell !== 0)) {
     const texture = textureFor(levelOneStyle, textures);
@@ -475,7 +542,13 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
   let surfaceAccessPreview = true;
   let cameraYaw = 0;
   const refresh = (): void => {
-    root.visible = visibleDepths.size > 0 || surfaceAccess.children.length > 0;
+    root.visible =
+      visibleDepths.size > 0 || surfaceAccess.children.length > 0 || surfaceLiquidOccluder !== null;
+    if (surfaceLiquidOccluder)
+      surfaceLiquidOccluder.visible =
+        activeElevation === null
+          ? activeDepth === null
+          : activeElevation > undergroundFloorHeight(1);
     surfaceAccess.visible =
       surfaceAccessPreview &&
       (activeElevation === null

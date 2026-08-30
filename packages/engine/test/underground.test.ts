@@ -358,6 +358,8 @@ describe("multi-storey underground", () => {
     expect(query.rampAt(ramp.x + ramp.width / 2, ramp.z)?.height).toBeCloseTo(-1.2);
     expect(query.rampAt(ramp.x + ramp.width, ramp.z)?.height).toBeCloseTo(0);
     expect(undergroundVisibleDepthsAtElevation(0)).toEqual([null]);
+    expect(undergroundVisibleDepthsAtElevation(-0.05)).toEqual([null]);
+    expect(undergroundVisibleDepthsAtElevation(-0.59)).toEqual([null]);
     expect(undergroundVisibleDepthsAtElevation(-1.2)).toEqual([null, 1]);
     expect(undergroundVisibleDepthsAtElevation(-2.4)).toEqual([1]);
     expect(undergroundVisibleDepthsAtElevation(-3.6)).toEqual([1, 2]);
