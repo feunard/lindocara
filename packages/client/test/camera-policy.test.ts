@@ -53,11 +53,13 @@ describe("adventure camera policy", () => {
     });
   });
 
-  it("adds a temporary stair pitch and returns to the manual baseline on a flat landing", () => {
+  it("tilts in opposite directions for ascent and descent, then returns to the manual baseline", () => {
     const climbing = cameraSlopePitchOffset(0, 0.25, 0.25, false, 1 / 30);
+    const descending = cameraSlopePitchOffset(0, -0.25, 0.25, false, 1 / 30);
     const landing = cameraSlopePitchOffset(climbing, 0, 0.25, false, 1);
 
     expect(climbing).toBeGreaterThan(0);
+    expect(descending).toBeLessThan(0);
     expect(landing).toBeLessThan(climbing);
     expect(cameraSlopePitchOffset(0, 0.25, 0.25, true, 1 / 30)).toBe(0);
   });
