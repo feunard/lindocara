@@ -69,6 +69,42 @@ function terrainTextureFor(material: string, textures: TextureRegistry): THREE.T
   return texture;
 }
 
+export interface UndergroundOcclusionRun {
+  col: number;
+  row: number;
+  length: number;
+}
+
+/** Intact-rock coverage for one viewed storey. Only a real stair/shaft footprint stays transparent
+ * to the next floor, so a larger lower room cannot leak around the current excavation. */
+export function undergroundLevelOcclusionRuns(
+  map: Pick<MapData, "size" | "underground">,
+  depth: number,
+): UndergroundOcclusionRun[] {
+  const opening = (col: number, row: number): boolean =>
+    (map.underground?.stairs ?? []).some((stair) => {
+      if (!undergroundStairCrossesBoundary(stair, depth + 1)) return false;
+      const footprint = undergroundStairFootprint(stair);
+      return (
+        col >= stair.col &&
+        col < stair.col + footprint.cols &&
+        row >= stair.row &&
+        row < stair.row + footprint.rows
+      );
+    }) || undergroundShaftCell(map.underground?.shafts, col, row, depth + 1);
+  const runs: UndergroundOcclusionRun[] = [];
+  for (let row = 0; row < map.size; row += 1) {
+    let col = 0;
+    while (col < map.size) {
+      while (col < map.size && opening(col, row)) col += 1;
+      const start = col;
+      while (col < map.size && !opening(col, row)) col += 1;
+      if (col > start) runs.push({ col: start, row, length: col - start });
+    }
+  }
+  return runs;
+}
+
 /** Instanced, level-addressable underground rooms built from the exact authored excavation mask. */
 export function createUnderground(map: MapData, textures: TextureRegistry): UndergroundVisual {
   const root = new THREE.Group();
@@ -97,6 +133,15 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
   const box = new THREE.BoxGeometry(1, 1, 1);
   const matrix = new THREE.Matrix4();
   geometries.push(box);
+  // Lower storeys may stay rendered so their landing can be seen through a real access. An
+  // invisible depth-only slab over intact rock prevents the rest of a larger lower room leaking
+  // around the current room. It writes no colour, so the void keeps the scene background instead
+  // of becoming a synthetic black tile.
+  const occlusionMaterial = new THREE.MeshBasicMaterial({
+    colorWrite: false,
+    depthWrite: true,
+  });
+  materials.push(occlusionMaterial);
 
   for (const level of map.underground?.levels ?? []) {
     const group = new THREE.Group();
@@ -137,6 +182,26 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
           row < stair.row + footprint.rows
         );
       }) || undergroundShaftCell(map.underground?.shafts, col, row, level.depth + 1);
+    const occlusionRuns = undergroundLevelOcclusionRuns(map, level.depth);
+    const occluder = new THREE.InstancedMesh(box, occlusionMaterial, occlusionRuns.length);
+    occluder.name = `underground-occluder-${level.depth}`;
+    occluder.renderOrder = -1_000 + level.depth;
+    occluder.raycast = () => undefined;
+    occlusionRuns.forEach((run, index) => {
+      matrix.compose(
+        new THREE.Vector3(
+          run.col + run.length / 2 - map.size / 2,
+          floorY - UNDERGROUND_SLAB_THICKNESS - 0.01,
+          run.row + 0.5 - map.size / 2,
+        ),
+        new THREE.Quaternion(),
+        new THREE.Vector3(run.length, 0.02, 1),
+      );
+      occluder.setMatrixAt(index, matrix);
+    });
+    occluder.instanceMatrix.needsUpdate = true;
+    occluder.computeBoundingSphere();
+    group.add(occluder);
     const terrainCells = undergroundTerrainCells(level, map.size);
     const terrainElevations = undergroundTerrainElevationCells(level, map.size);
     const visibleFloorCells = floorCells.filter(
