@@ -430,6 +430,22 @@ describe("Hd2dVisualLayer hero movement", () => {
     layer.dispose();
   });
 
+  it("places the landing ring on the hero's actual underground floor", () => {
+    const floorY = -7.2;
+    const { layer, root } = harness(20, floorY);
+    layer.playHeroMovement([{ t: "reception", force: 0.8 }], { ...hero, y: floorY });
+    const ring = root
+      .getObjectsByProperty("type", "Mesh")
+      .find(
+        (child): child is THREE.Mesh =>
+          child instanceof THREE.Mesh && child.geometry instanceof THREE.RingGeometry,
+      );
+    if (!ring) throw new Error("expected a landing ring");
+
+    expect(ring.position.y).toBeCloseTo(floorY + 0.04);
+    layer.dispose();
+  });
+
   it("draws swim ripples as the shared soft ring, unfogged, on their own cadence", () => {
     const { layer, root } = harness();
     const swimmer = { ...hero, swimming: true };

@@ -579,7 +579,7 @@ export class Hd2dVisualLayer {
     this.#root.add(this.#skid);
   }
 
-  #groundY(x: number, z: number, lift = 0.04): number {
+  #groundY(x: number, z: number, lift = 0.04, referenceElevation?: number): number {
     if (this.#editorGroundElevation !== null) {
       const liquid = this.#scene.query.liquidAtElevation?.(x, z, this.#editorGroundElevation);
       if (liquid)
@@ -590,6 +590,12 @@ export class Hd2dVisualLayer {
       return (
         (this.#scene.query.surfaceAt?.(x, z, this.#editorGroundElevation + 1.01) ??
           this.#editorGroundElevation) + lift
+      );
+    }
+    if (referenceElevation !== undefined && Number.isFinite(referenceElevation)) {
+      return (
+        (this.#scene.query.surfaceAt?.(x, z, referenceElevation + 0.02) ?? referenceElevation) +
+        lift
       );
     }
     return (this.#scene.query.heightAt(x, z) ?? 0) + lift;
@@ -621,10 +627,11 @@ export class Hd2dVisualLayer {
     radius = 1,
     durationMs = 480,
     startedAt = performance.now(),
+    referenceElevation?: number,
   ): void {
     const mesh = new THREE.Mesh(new THREE.RingGeometry(0.72, 1, 48), transparentMaterial(color));
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(x, this.#groundY(x, z), z);
+    mesh.position.set(x, this.#groundY(x, z, 0.04, referenceElevation), z);
     this.#root.add(mesh);
     this.#trackEffect({
       object: mesh,
@@ -914,7 +921,15 @@ export class Hd2dVisualLayer {
       )
         this.#splash(event.x, event.y, event.z, now);
       else if (event.t === "reception" && hero)
-        this.pulse(hero.x, hero.z, 0xd8c49c, Math.min(1.2, 0.45 + event.force * 0.04), 360, now);
+        this.pulse(
+          hero.x,
+          hero.z,
+          0xd8c49c,
+          Math.min(1.2, 0.45 + event.force * 0.04),
+          360,
+          now,
+          hero.y,
+        );
     }
     // Sliding is RECORDED here and drawn in `update()`: the decal has to keep fading after the
     // hero stops sending events, and it must not reappear at full strength the frame a slide ends.
