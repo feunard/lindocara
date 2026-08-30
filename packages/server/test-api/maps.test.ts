@@ -14,9 +14,10 @@
  */
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
 import { DEFAULT_HARVEST_COLLISIONS, type HarvestProfile } from "@lindocara/engine/harvest.js";
-import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
+import { MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
+import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
@@ -49,6 +50,7 @@ const STUMP_ASSET_ID = "resource.terrain-resources-wood-trees.stump-1";
 const HOUSE_ASSET_ID = "building.buildings-blue-buildings.house1";
 const BRIDGE_ASSET_ID = "terrain.bridge.wood.horizontal";
 const BARRICADE_ASSET_ID = "decoration.lindocara-runner.barricade";
+const LARGE_ROCK_ASSET_ID = "decoration.terrain-decorations-rocks.rock3";
 const HARVEST_PROFILE: HarvestProfile = {
   resource: "wood",
   tool: "axe",
@@ -916,6 +918,41 @@ describe("list, get, update, delete", () => {
 
     const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
     expect(rows[0]?.variant).toBeGreaterThan(3);
+  });
+
+  test("round-trips an enlarged blocking rock through editor reload and gameplay data", async () => {
+    const { userId, token } = await registerAndLogin("mapscaledrock");
+    const id = await newMapId(await newAdventure(userId), token, "Quarry");
+    const rock = {
+      col: 8,
+      row: 8,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: LARGE_ROCK_ASSET_ID,
+      scale: 2.4,
+    } as const;
+
+    expect(
+      (await putMap(id, token, mapBody({ elements: [rock], heightfield: undefined }))).status,
+    ).toBe(200);
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { elements: MapElement[]; heightfield: string };
+    expect(payload.elements).toEqual([expect.objectContaining(rock)]);
+    expect(nativeHarvestEvents(payload.elements, 1)[0]?.graphicScale).toBe(2.4);
+
+    const rows = await probe.mapElements.findMany({ where: { mapId: { eq: id } } });
+    expect(rows[0]?.variant).toBeGreaterThan(3);
+
+    // The GET payload is exactly what reopening the editor saves next. A second round trip must not
+    // collapse the scale back to the legacy default before play or the next editor session.
+    expect((await putMap(id, token, payload)).status).toBe(200);
+    const reloaded = (await (await authedFetch(`/api/maps/${id}`, token)).json()) as {
+      elements: { scale?: number }[];
+      heightfield: string;
+    };
+    expect(reloaded.elements[0]?.scale).toBe(2.4);
+    expect(nativeHarvestEvents(reloaded.elements as MapElement[], 1)[0]?.graphicScale).toBe(2.4);
   });
 
   test("round-trips native prop rotation and dimensions through the existing transform column", async () => {

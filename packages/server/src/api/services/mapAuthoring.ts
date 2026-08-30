@@ -28,10 +28,8 @@ import {
   isStandingBuildingAsset,
   parseBuildingSettings,
 } from "@lindocara/engine/buildings.js";
-import {
-  decodeElementTransform,
-  isElementOrientation,
-} from "@lindocara/engine/element-orientation.js";
+import { decodeElementTransform } from "@lindocara/engine/element-orientation.js";
+import { decodeElementScaleTransform } from "@lindocara/engine/element-scale.js";
 import { isAuthoredWaterCell } from "@lindocara/engine/hd2d/authored-map.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
@@ -599,7 +597,9 @@ export function elementToWire(row: {
         ...(transform.dimensions ? { dimensions: transform.dimensions } : {}),
       };
     }
-    if (!isElementOrientation(stored.baseCode) || stored.rotation !== undefined) return null;
+    if (stored.rotation !== undefined) return null;
+    const scale = decodeElementScaleTransform(stored.baseCode);
+    if (scale === null) return null;
     return {
       id: row.id,
       col: row.col,
@@ -607,7 +607,7 @@ export function elementToWire(row: {
       offsetX: row.offsetX,
       offsetY: row.offsetY,
       assetId: row.kind,
-      ...(stored.baseCode === 0 ? {} : { orientation: stored.baseCode }),
+      ...(scale === 1 ? {} : { scale }),
     };
   }
   if (isElementKind(row.kind)) {

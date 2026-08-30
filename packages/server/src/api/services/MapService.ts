@@ -22,6 +22,7 @@ import { bridgeOrientation, encodeBridgeDimensions } from "@lindocara/engine/bri
 import { createBuildingInteriorInput } from "@lindocara/engine/building-interior.js";
 import { encodeBuildingTransform, isStandingBuildingAsset } from "@lindocara/engine/buildings.js";
 import { encodeElementTransform } from "@lindocara/engine/element-orientation.js";
+import { encodeElementScaleTransform } from "@lindocara/engine/element-scale.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   defaultMonsterTuning,
@@ -838,7 +839,7 @@ export class MapService {
               ? encodeBuildingTransform(element.orientation, element.building?.dimensions)
               : isNativeSceneryAsset(element.assetId)
                 ? encodeBuildingTransform(element.orientation, element.dimensions)
-                : (element.orientation ?? 0),
+                : (encodeElementScaleTransform(element.scale ?? 1) ?? 0),
           element.rotation,
         ),
         buildingDestructible: element.building?.destructible,
