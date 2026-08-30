@@ -126,6 +126,7 @@ import {
   updateSelectedElementOffset,
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
+  updateSelectedElementScale,
   updateSelectedNativeSceneryDimensions,
   undergroundStairRequiredLength,
   undergroundStairPlacement,
@@ -169,6 +170,7 @@ export interface MapEditorStageHandle {
   setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
   setSelectedElementOrientation(orientation: ElementOrientation): boolean;
   setSelectedElementRotation(rotation: number): boolean;
+  setSelectedElementScale(scale: number): boolean;
   setSelectedBridgeDimensions(dimensions: BridgeDimensions): boolean;
   setSelectedBuildingSettings(settings: BuildingSettings): boolean;
   setSelectedNativeSceneryDimensions(dimensions: BuildingDimensions): boolean;
@@ -2137,6 +2139,10 @@ export function openMapEditorStage(
       setSelectedElementRotation(rotation) {
         if (selected?.kind !== "element") return false;
         return commitInspectorChange(updateSelectedElementRotation(map, selected, rotation));
+      },
+      setSelectedElementScale(scale) {
+        if (selected?.kind !== "element") return false;
+        return commitInspectorChange(updateSelectedElementScale(map, selected, scale));
       },
       setSelectedBridgeDimensions(dimensions) {
         if (selected?.kind !== "element") return false;

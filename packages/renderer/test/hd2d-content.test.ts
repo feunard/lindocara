@@ -191,6 +191,21 @@ describe("static map content", () => {
     expect(high.position.y + foot).toBeCloseTo(map.levelHeight);
   });
 
+  it("scales ordinary scenery around its grounded foot", () => {
+    const tree = art();
+    const map = flatMap(4, {
+      elements: [{ assetId: "tree", x: 0.5, z: 0.5, scale: 1.75 }],
+    });
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    placeStaticContent(ctx, scene, map, resolverFor({ tree }));
+
+    const placed = meshes(scene.root)[0];
+    expect(placed?.scale.x).toBeCloseTo(1.75);
+    expect(placed?.scale.y).toBeCloseTo(1.75);
+    expect((placed?.position.y ?? 0) + footOffsetOf(ctx, tree) * 1.75).toBeCloseTo(0);
+  });
+
   it("shows a proportional health bar as soon as a destructible building is damaged", () => {
     const map = flatMap(4, {
       events: [

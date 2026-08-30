@@ -38,6 +38,7 @@ import {
   updateSelectedBuildingSettings,
   updateSelectedElementOrientation,
   updateSelectedElementRotation,
+  updateSelectedElementScale,
   updateSelectedNativeSceneryDimensions,
 } from "@lindocara/editor/game/editor-state.js";
 import { harvestPreset, harvestProfileFromPreset } from "@lindocara/engine/harvest-presets.js";
@@ -1989,6 +1990,24 @@ describe("native 3D prop settings", () => {
       dimensions: { width: 3, depth: 3 },
     });
     expect(placed.elements[0]?.dimensions).toEqual({ width: 1.5, depth: 1.5 });
+  });
+});
+
+describe("ordinary scenery sizing", () => {
+  it("resizes and moves a 2D prop while preserving its persisted scale", () => {
+    const placed = applyTool(
+      blankMap("decor", 30, 30),
+      { kind: "element", assetId: TREE },
+      10,
+      10,
+      true,
+      "element",
+    ) as EditorMap;
+    const selection = { kind: "element", col: 10, row: 10, offsetX: 0, offsetY: 0 } as const;
+    const resized = updateSelectedElementScale(placed, selection, 1.75);
+    const moved = resized && moveSelection(resized, selection, 22, 22);
+    expect(moved?.elements[0]).toMatchObject({ col: 22, row: 22, scale: 1.75 });
+    expect(updateSelectedElementScale(placed, selection, 5)).toBeNull();
   });
 });
 

@@ -778,6 +778,7 @@ function authoredContent(
           : {}),
         ...(element.building?.dimensions ? { building: element.building.dimensions } : {}),
         ...(element.dimensions ? { dimensions: element.dimensions } : {}),
+        ...(element.scale === undefined ? {} : { scale: element.scale }),
       };
     }),
     events: events.map((event) => ({

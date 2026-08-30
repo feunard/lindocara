@@ -21,6 +21,7 @@ import {
   parseElementOrientation,
   parseElementRotation,
 } from "../element-orientation.js";
+import { parseElementScale } from "../element-scale.js";
 import type { UndergroundMap } from "../map-data.js";
 import {
   DEFAULT_MAP_ENVIRONMENT,
@@ -164,6 +165,8 @@ export interface HeightfieldElement {
   building?: BuildingDimensions;
   /** Custom footprint for native 3D scenery that is not a building. */
   dimensions?: BuildingDimensions;
+  /** Uniform visual scale for ordinary authored scenery. */
+  scale?: number;
 }
 
 /** An authored event's active page, appearance only. Mirrors `WorldInfo.events`. */
@@ -295,6 +298,16 @@ function toElement(value: unknown): HeightfieldElement | null {
   if (dimensions === null || (dimensions !== undefined && !isNativeSceneryAsset(value.assetId))) {
     return null;
   }
+  const scale = value.scale === undefined ? undefined : parseElementScale(value.scale);
+  if (
+    scale === null ||
+    (scale !== undefined &&
+      (bridgeOrientation(value.assetId) ||
+        buildingArchetype(value.assetId) ||
+        isNativeSceneryAsset(value.assetId)))
+  ) {
+    return null;
+  }
   return {
     assetId: value.assetId,
     x: value.x,
@@ -306,6 +319,7 @@ function toElement(value: unknown): HeightfieldElement | null {
     ...(bridge ? { bridge } : {}),
     ...(building ? { building } : {}),
     ...(dimensions ? { dimensions } : {}),
+    ...(scale === undefined || scale === 1 ? {} : { scale }),
   };
 }
 

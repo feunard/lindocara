@@ -25,6 +25,7 @@ import {
   type ElementOrientation,
   parseElementRotation,
 } from "@lindocara/engine/element-orientation.js";
+import { parseElementScale } from "@lindocara/engine/element-scale.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
@@ -671,6 +672,7 @@ export function moveSelection(
                 ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
                 ...(element.bridge ? { bridge: element.bridge } : {}),
                 ...(element.dimensions ? { dimensions: element.dimensions } : {}),
+                ...(element.scale === undefined ? {} : { scale: element.scale }),
               }
             : candidate,
         ),
@@ -760,6 +762,12 @@ export function updateSelectedElementAsset(
             ...(isNativeSceneryAsset(assetId) && existing.dimensions
               ? { dimensions: existing.dimensions }
               : {}),
+            ...(!isStandingBuildingAsset(assetId) &&
+            !bridgeOrientation(assetId) &&
+            !isNativeSceneryAsset(assetId) &&
+            existing.scale !== undefined
+              ? { scale: existing.scale }
+              : {}),
           }
         : candidate,
     ),
@@ -811,6 +819,7 @@ export function updateSelectedElementOffset(
             ...(element.rotation === undefined ? {} : { rotation: element.rotation }),
             ...(element.bridge ? { bridge: element.bridge } : {}),
             ...(element.dimensions ? { dimensions: element.dimensions } : {}),
+            ...(element.scale === undefined ? {} : { scale: element.scale }),
           }
         : candidate,
     ),
@@ -868,6 +877,35 @@ export function updateSelectedElementRotation(
   };
   const rotated = next.elements.find((candidate) => sameElementSlot(candidate, selection));
   return rotated && placementFitsMap(next, rotated) && keepsSpawnClear(next) ? next : null;
+}
+
+/** Resize ordinary scenery uniformly around its authored foot and revalidate its real collider. */
+export function updateSelectedElementScale(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  scale: number,
+): EditorMap | null {
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (
+    !element ||
+    isStandingBuildingAsset(element.assetId) ||
+    bridgeOrientation(element.assetId) ||
+    isNativeSceneryAsset(element.assetId)
+  ) {
+    return null;
+  }
+  const parsed = parseElementScale(scale);
+  if (parsed === null) return null;
+  const { scale: _previousScale, ...withoutScale } = element;
+  const resized = parsed === 1 ? withoutScale : { ...withoutScale, scale: parsed };
+  if (!placementFitsMap(map, resized)) return null;
+  const next: EditorMap = {
+    ...map,
+    elements: map.elements.map((candidate) =>
+      sameElementSlot(candidate, selection) ? resized : candidate,
+    ),
+  };
+  return keepsSpawnClear(next) ? next : null;
 }
 
 /** Resize one selected bridge in whole cells while preserving its authored anchor and identity. */
@@ -2997,6 +3035,9 @@ export function applyTool(
                   ? replaced.dimensions
                   : nativeDimensions,
             }
+          : {}),
+        ...(replaced?.assetId === assetId && replaced.scale !== undefined
+          ? { scale: replaced.scale }
           : {}),
       };
       if (!placementFitsMap(map, placed)) return null;

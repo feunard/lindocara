@@ -1217,6 +1217,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.element.size": "Dimensions de l’objet 3D",
   "editor.inspector.element.sizeHint":
     "Proportions liées ; la hauteur du modèle et sa collision suivent.",
+  "editor.inspector.element.scale": "Taille du décor",
+  "editor.inspector.element.scaleHint":
+    "Échelle uniforme ; l’image et sa collision sont redimensionnées ensemble.",
   "editor.inspector.building.color": "Coloris",
   "editor.inspector.building.color.blue": "Bleu",
   "editor.inspector.building.color.red": "Rouge",

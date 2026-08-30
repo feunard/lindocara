@@ -1203,6 +1203,9 @@ export const en = {
   "editor.inspector.element.size": "3D object size",
   "editor.inspector.element.sizeHint":
     "Linked proportions; the model height and collision resize together.",
+  "editor.inspector.element.scale": "Scenery size",
+  "editor.inspector.element.scaleHint":
+    "Uniform scale; the artwork and its collision resize together.",
   "editor.inspector.building.color": "Colour",
   "editor.inspector.building.color.blue": "Blue",
   "editor.inspector.building.color.red": "Red",

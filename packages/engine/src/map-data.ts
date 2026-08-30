@@ -31,6 +31,7 @@ import {
   parseElementOrientation,
   parseElementRotation,
 } from "./element-orientation.js";
+import { parseElementScale } from "./element-scale.js";
 import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import type { TerrainMaterial } from "./hd2d/terrain-query.js";
@@ -59,7 +60,6 @@ export type ElementKind = (typeof ELEMENT_KINDS)[number];
  *  neighbours — so every sub-cell position has exactly one `(col, offset)` encoding. */
 export const ELEMENT_OFFSET_STEPS = 4;
 export const ELEMENT_OFFSET_PX = TILE_SIZE / ELEMENT_OFFSET_STEPS;
-
 export interface MapElement {
   /** Durable row identity; optional only while opening payloads written by older clients. */
   id?: string;
@@ -82,6 +82,8 @@ export interface MapElement {
   building?: BuildingSettings;
   /** Optional footprint for native 3D scenery that is not a building. */
   dimensions?: BuildingDimensions;
+  /** Uniform visual and collider scale for ordinary scenery. Native 3D uses real dimensions. */
+  scale?: number;
 }
 
 export interface LegacyMapElement {
@@ -483,6 +485,10 @@ export function elementCells(element: MapElement): { col: number; row: number }[
     const collider = elementWorldCollider(element);
     return collider ? rectCells(collider) : [];
   }
+  if (element.scale !== undefined) {
+    const collider = elementWorldCollider(element);
+    if (collider) return rectCells(collider);
+  }
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
   const orientation = element.orientation ?? 0;
@@ -532,19 +538,28 @@ export function elementWorldColliderGeometry(
       }
     : editorAsset(element.assetId)?.editor.collider;
   if (!collider) return null;
+  const scale = element.scale ?? 1;
+  const scaledCollider = dimensions
+    ? collider
+    : {
+        x: collider.x * scale,
+        y: collider.y * scale,
+        width: collider.width * scale,
+        height: collider.height * scale,
+      };
   const { x: footX, y: footY } = elementFootPixel(element);
   const rotation = (elementRotationDegrees(element) * Math.PI) / 180;
-  const localCentreX = collider.x + collider.width / 2;
-  const localCentreY = collider.y + collider.height / 2;
+  const localCentreX = scaledCollider.x + scaledCollider.width / 2;
+  const localCentreY = scaledCollider.y + scaledCollider.height / 2;
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
   const centreX = footX + localCentreX * cos - localCentreY * sin;
   const centreY = footY + localCentreX * sin + localCentreY * cos;
   return {
-    x: centreX - collider.width / 2,
-    y: centreY - collider.height / 2,
-    width: collider.width,
-    height: collider.height,
+    x: centreX - scaledCollider.width / 2,
+    y: centreY - scaledCollider.height / 2,
+    width: scaledCollider.width,
+    height: scaledCollider.height,
     rotation,
   };
 }
@@ -662,6 +677,17 @@ export function elementFitsMap(element: MapElement, cols: number, rows: number):
       collider.x + collider.width <= cols * TILE_SIZE &&
       collider.y + collider.height <= rows * TILE_SIZE,
     );
+  }
+  if (element.scale !== undefined) {
+    const collider = elementWorldCollider(element);
+    if (collider) {
+      return (
+        collider.x >= 0 &&
+        collider.y >= 0 &&
+        collider.x + collider.width <= cols * TILE_SIZE &&
+        collider.y + collider.height <= rows * TILE_SIZE
+      );
+    }
   }
   // The authored foot is the placement. Art may overhang any map edge: clouds, crowns and large
   // buildings must remain placeable on the first/last row without pretending their transparent
@@ -855,6 +881,10 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       return null;
     const bridge = item.bridge === undefined ? undefined : parseBridgeDimensions(item.bridge);
     if (bridge === null || (!bridgeAsset && bridge !== undefined)) return null;
+    const scale = item.scale === undefined ? undefined : parseElementScale(item.scale);
+    if (scale === null || (scale !== undefined && (bridgeAsset || building || nativeScenery))) {
+      return null;
+    }
     parsed.push({
       ...(typeof id === "string" ? { id } : {}),
       col: col as number,
@@ -868,6 +898,7 @@ export function parseMapElements(value: unknown, cols: number, rows: number): Ma
       ...(bridge ? { bridge } : {}),
       ...(building ? { building } : {}),
       ...(dimensions ? { dimensions } : {}),
+      ...(scale === undefined || scale === 1 ? {} : { scale }),
     });
   }
   return parsed;

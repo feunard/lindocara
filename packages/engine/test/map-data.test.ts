@@ -11,6 +11,7 @@ import {
   type MapData,
   mapSpawnPoint,
   parseMapData,
+  parseMapElements,
   parseMapMarkers,
   terrainFromMap,
 } from "@lindocara/engine/map-data.js";
@@ -81,6 +82,25 @@ describe("baking a map's collision", () => {
     bakeCollision(source);
     expect(source.layers).toEqual(MAP.layers);
     expect(source.elements).toEqual(elements);
+  });
+
+  it("round-trips ordinary scenery scale into a collider centred on the same foot", () => {
+    const original = { col: 2, row: 2, offsetX: 0, offsetY: 0, assetId: TREE } as const;
+    const parsed = parseMapElements([{ ...original, scale: 2 }], 10, 10)?.[0];
+    expect(parsed?.scale).toBe(2);
+    if (!parsed) return;
+    const baseline = elementWorldCollider(original);
+    const scaled = elementWorldCollider(parsed);
+    expect(baseline).not.toBeNull();
+    expect(scaled).not.toBeNull();
+    if (!baseline || !scaled) return;
+    const footX = (original.col + 0.5) * TILE_SIZE;
+    const footY = (original.row + 1) * TILE_SIZE;
+    expect(scaled.width).toBeCloseTo(baseline.width * 2);
+    expect(scaled.height).toBeCloseTo(baseline.height * 2);
+    expect(scaled.x - footX).toBeCloseTo((baseline.x - footX) * 2);
+    expect(scaled.y - footY).toBeCloseTo((baseline.y - footY) * 2);
+    expect(parseMapElements([{ ...original, scale: 0.1 }], 10, 10)).toBeNull();
   });
 });
 

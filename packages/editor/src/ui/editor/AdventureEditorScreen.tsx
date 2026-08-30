@@ -58,6 +58,11 @@ import {
   MAX_BUILDING_DIMENSION,
   MIN_BUILDING_DIMENSION,
 } from "@lindocara/engine/buildings.js";
+import {
+  ELEMENT_SCALE_STEP,
+  MAX_ELEMENT_SCALE,
+  MIN_ELEMENT_SCALE,
+} from "@lindocara/engine/element-scale.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -2256,6 +2261,7 @@ function AdventureEditorInner({
                     onSetRotation={(rotation) =>
                       handleRef.current?.setSelectedElementRotation(rotation)
                     }
+                    onSetScale={(scale) => handleRef.current?.setSelectedElementScale(scale)}
                     onSetElementAsset={(assetId) =>
                       handleRef.current?.setSelectedElementAsset(assetId)
                     }
@@ -2563,6 +2569,7 @@ function SelectionInspector({
   onMove,
   onSetOffset,
   onSetRotation,
+  onSetScale,
   onSetElementAsset,
   onSetBridgeDimensions,
   onSetBuilding,
@@ -2578,6 +2585,7 @@ function SelectionInspector({
   onMove(col: number, row: number): void;
   onSetOffset(offsetX: number, offsetY: number): void;
   onSetRotation(rotation: number): void;
+  onSetScale(scale: number): void;
   onSetElementAsset(assetId: EditorAssetId): void;
   onSetBridgeDimensions(dimensions: BridgeDimensions): void;
   onSetBuilding(settings: BuildingSettings): void;
@@ -2715,6 +2723,40 @@ function SelectionInspector({
             <span className="text-xs text-zinc-500">°</span>
           </div>
           <p className="text-[10px] text-zinc-500">{t("editor.inspector.element.rotation.hint")}</p>
+        </div>
+      )}
+
+      {selectedElement && !selectedNativeDimensions && !selectedBridge && (
+        <div className="flex flex-col gap-1 rounded-md border border-zinc-200 p-2">
+          <Label htmlFor="inspector-element-scale" className="text-[11px] text-zinc-600">
+            {t("editor.inspector.element.scale")}
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="inspector-element-scale"
+              key={`scale:${selectedElement.scale ?? 1}`}
+              type="number"
+              className="h-7 flex-1 text-xs"
+              min={MIN_ELEMENT_SCALE * 100}
+              max={MAX_ELEMENT_SCALE * 100}
+              step={ELEMENT_SCALE_STEP * 100}
+              defaultValue={(selectedElement.scale ?? 1) * 100}
+              onBlur={(event) => {
+                const percent = Number(event.currentTarget.value);
+                const scale = Number.isFinite(percent)
+                  ? Math.max(MIN_ELEMENT_SCALE, Math.min(MAX_ELEMENT_SCALE, percent / 100))
+                  : (selectedElement.scale ?? 1);
+                onSetScale(scale);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+            />
+            <span className="text-xs text-zinc-500">%</span>
+          </div>
+          <p className="text-muted-foreground text-[10.5px]">
+            {t("editor.inspector.element.scaleHint")}
+          </p>
         </div>
       )}
 

@@ -278,6 +278,7 @@ export function placeStaticContent(
     floating = false,
     authoredY?: number,
     undergroundDepth?: number,
+    scale = 1,
   ): void {
     const sky = sprite.renderLayer === "sky";
     const flat = sky || sprite.renderMode === "flat";
@@ -361,6 +362,11 @@ export function placeStaticContent(
     } else if (flat || sprite.renderMode === "cloud-volume") {
       billboard.mesh.position.set(x, anchorY + (sky ? 0 : 0.03), z);
     } else (billboard as Billboard | CardVolume).placeAt(x, anchorY, z);
+    if (scale !== 1) {
+      const anchorDelta = anchorY - billboard.mesh.position.y;
+      billboard.mesh.scale.multiplyScalar(scale);
+      if (!flat && !sky) billboard.mesh.position.y = anchorY - anchorDelta * scale;
+    }
     billboard.mesh.userData.undergroundDepth = undergroundDepth ?? null;
     const depthKey = z.toFixed(6);
     const depthLayer = depthLayers.get(depthKey) ?? 0;
@@ -405,8 +411,8 @@ export function placeStaticContent(
     });
     if (sprite.fireLight) {
       const source = sprite.fireLight;
-      const light = new THREE.PointLight(source.color, 1, source.distance, source.decay);
-      light.position.set(x, anchorY + source.lift, z);
+      const light = new THREE.PointLight(source.color, 1, source.distance * scale, source.decay);
+      light.position.set(x, anchorY + source.lift * scale, z);
       light.shadow.mapSize.set(256, 256);
       light.shadow.camera.far = Math.min(9, source.distance);
       light.shadow.bias = -0.005;
@@ -425,7 +431,7 @@ export function placeStaticContent(
         x,
         y: anchorY,
         z,
-        lift: source.lift,
+        lift: source.lift * scale,
         phase: placementPhase(assetId, x, z, 10_000) / 1_000,
         // One point shadow is already six scene renders. Keep the nearest authored group bounded.
         shadow: fireSources.length === 0,
@@ -447,6 +453,7 @@ export function placeStaticContent(
         floating,
         authoredY,
         undergroundDepth,
+        scale,
       );
     }
   }
@@ -499,6 +506,7 @@ export function placeStaticContent(
     floating = false,
     authoredY?: number,
     undergroundDepth?: number,
+    scale = 1,
   ): void {
     const resolved = resolve(assetId);
     if (!resolved) {
@@ -524,6 +532,7 @@ export function placeStaticContent(
       floating,
       authoredY,
       undergroundDepth,
+      scale,
     );
     if (contentKey && health) {
       const anchorY = authoredY ?? scene.query.heightAt(x, z) ?? scene.waterLevel;
@@ -549,7 +558,7 @@ export function placeStaticContent(
 
   const elementKey = (index: number): string => `element:${index}`;
   const elementVisual = (element: HeightfieldElement): string =>
-    `${element.assetId}:${element.x}:${element.y ?? ""}:${element.z}:${element.undergroundDepth ?? ""}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}:${element.dimensions?.width ?? ""}:${element.dimensions?.depth ?? ""}`;
+    `${element.assetId}:${element.x}:${element.y ?? ""}:${element.z}:${element.undergroundDepth ?? ""}:${element.orientation ?? 0}:${element.rotation ?? ""}:${element.bridge?.length ?? ""}:${element.bridge?.width ?? ""}:${element.building?.width ?? ""}:${element.building?.depth ?? ""}:${element.dimensions?.width ?? ""}:${element.dimensions?.depth ?? ""}:${element.scale ?? 1}`;
 
   for (const [index, element] of map.elements.entries()) {
     const key = elementKey(index);
@@ -569,6 +578,7 @@ export function placeStaticContent(
       false,
       element.y,
       element.undergroundDepth,
+      element.scale ?? 1,
     );
   }
   for (const event of map.events) {
@@ -688,6 +698,7 @@ export function placeStaticContent(
           false,
           element.y,
           element.undergroundDepth,
+          element.scale ?? 1,
         );
       }
       flushSkipped();
