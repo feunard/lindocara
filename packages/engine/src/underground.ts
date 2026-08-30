@@ -362,6 +362,10 @@ export function undergroundRamp(stair: UndergroundStair, size: number): TerrainR
     lowLevel: -stair.depth,
     lowHeight: undergroundFloorHeight(stair.depth),
     highHeight: undergroundFloorHeight(undergroundStairUpperDepth(stair)),
+    // The rendered flight's highest tread is flat for one third of a cell. Reaching the landing
+    // height over that same distance keeps the hero's circular footprint from meeting the upper
+    // floor slab while their feet are still slightly below it.
+    highLanding: 1 / 3,
   };
 }
 

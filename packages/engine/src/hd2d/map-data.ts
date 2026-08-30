@@ -372,11 +372,16 @@ function toRamp(value: unknown): TerrainRamp | null {
   }
   const lowHeight = value.lowHeight;
   const highHeight = value.highHeight;
+  const highLanding = value.highLanding;
+  const alongSpan =
+    value.direction === "east" || value.direction === "west" ? value.width : value.depth;
   if (
     (lowHeight !== undefined && !isFiniteNumber(lowHeight)) ||
     (highHeight !== undefined && !isFiniteNumber(highHeight)) ||
     (lowHeight === undefined) !== (highHeight === undefined) ||
-    (isFiniteNumber(lowHeight) && isFiniteNumber(highHeight) && lowHeight >= highHeight)
+    (isFiniteNumber(lowHeight) && isFiniteNumber(highHeight) && lowHeight >= highHeight) ||
+    (highLanding !== undefined &&
+      (!isFiniteNumber(highLanding) || highLanding < 0 || highLanding >= alongSpan))
   ) {
     return null;
   }
@@ -388,6 +393,7 @@ function toRamp(value: unknown): TerrainRamp | null {
     direction: value.direction,
     lowLevel: value.lowLevel as number,
     ...(isFiniteNumber(lowHeight) && isFiniteNumber(highHeight) ? { lowHeight, highHeight } : {}),
+    ...(isFiniteNumber(highLanding) ? { highLanding } : {}),
   };
 }
 

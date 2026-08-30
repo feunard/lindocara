@@ -74,6 +74,9 @@ export interface TerrainRamp {
   /** Absolute endpoints for multi-storey ramps. Legacy terrain stairs derive them from lowLevel. */
   lowHeight?: number;
   highHeight?: number;
+  /** Flat distance at the high mouth. It lets the body reach the landing height before its disc
+   * meets the upper slab, and mirrors the highest rendered tread. */
+  highLanding?: number;
 }
 
 export interface TerrainRampSample extends TerrainRamp {
@@ -192,7 +195,13 @@ function rampSampleAt(
     const along = alongX
       ? THREELESS_CLAMP((wx - ramp.x) / ramp.width)
       : THREELESS_CLAMP((wz - ramp.z) / ramp.depth);
-    const progress = ramp.direction === "east" || ramp.direction === "south" ? along : 1 - along;
+    const rawProgress = ramp.direction === "east" || ramp.direction === "south" ? along : 1 - along;
+    const alongSpan = alongX ? ramp.width : ramp.depth;
+    const landingFraction = Math.min(
+      0.95,
+      Math.max(0, (ramp.highLanding ?? 0) / Math.max(alongSpan, 1e-9)),
+    );
+    const progress = THREELESS_CLAMP(rawProgress / Math.max(1e-9, 1 - landingFraction));
     const lowHeight = ramp.lowHeight ?? ramp.lowLevel * levelHeight;
     const highHeight = ramp.highHeight ?? (ramp.lowLevel + 1) * levelHeight;
     return {

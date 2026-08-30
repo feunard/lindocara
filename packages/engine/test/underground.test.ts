@@ -342,7 +342,7 @@ describe("multi-storey underground", () => {
     expect(undergroundTransitionAt(underground, 8, 1.5, -1.5)).toBe(false);
   });
 
-  it("samples a continuous 2.4-unit stair instead of one terrain tier", () => {
+  it("samples a continuous 2.4-unit stair with a flush upper landing", () => {
     const stair = underground.stairs[0];
     if (!stair) throw new Error("fixture stair missing");
     const ramp = undergroundRamp(stair, 8);
@@ -355,7 +355,12 @@ describe("multi-storey underground", () => {
       ramps: [ramp],
     });
     expect(query.rampAt(ramp.x, ramp.z)?.height).toBeCloseTo(undergroundFloorHeight(1));
-    expect(query.rampAt(ramp.x + ramp.width / 2, ramp.z)?.height).toBeCloseTo(-1.2);
+    const slopeSpan = ramp.width - (ramp.highLanding ?? 0);
+    const middleProgress = ramp.width / 2 / slopeSpan;
+    expect(query.rampAt(ramp.x + ramp.width / 2, ramp.z)?.height).toBeCloseTo(
+      undergroundFloorHeight(1) * (1 - middleProgress),
+    );
+    expect(query.rampAt(ramp.x + slopeSpan, ramp.z)?.height).toBeCloseTo(0);
     expect(query.rampAt(ramp.x + ramp.width, ramp.z)?.height).toBeCloseTo(0);
     expect(undergroundVisibleDepthsAtElevation(0)).toEqual([null]);
     expect(undergroundVisibleDepthsAtElevation(-0.05)).toEqual([null]);
@@ -485,6 +490,18 @@ describe("multi-storey underground", () => {
     expect(state.x).toBeLessThan(ramp.x);
     expect(state.y).toBeCloseTo(undergroundFloorHeight(2));
     expect(Math.min(...elevations)).toBeCloseTo(undergroundFloorHeight(2));
+
+    for (let frame = 0; frame < 360; frame += 1) {
+      stepHero(state, { ...immobile, x: 1 }, 1 / 60, {
+        ...depsPlates(),
+        query,
+        colliders,
+      });
+    }
+
+    expect(state.x).toBeGreaterThan(ramp.x + ramp.width);
+    expect(state.y).toBeCloseTo(undergroundFloorHeight(1));
+    expect(state.airborne).toBe(false);
   });
 
   it("keeps a jumping hero inside the lateral walls of a descending stair", () => {
@@ -604,6 +621,99 @@ describe("multi-storey underground", () => {
             .map((elevation, index) => Math.abs(elevation - (elevations[index] ?? elevation))),
         ),
       ).toBeLessThan(0.15);
+    },
+  );
+
+  it.each([
+    ["east", 1],
+    ["west", 2],
+    ["south", 6],
+    ["north", 16],
+  ] as const)(
+    "walks up a %s-facing surface flight from depth %i without jumping",
+    (direction, depth) => {
+      const size = 64;
+      const length = depth * 3;
+      const alongX = direction === "east" || direction === "west";
+      const stair = {
+        depth,
+        fromDepth: 0,
+        col: 6,
+        row: 6,
+        direction,
+        length,
+        width: 2,
+      };
+      const footprintCols = alongX ? length : 2;
+      const footprintRows = alongX ? 2 : length;
+      const authored = {
+        levels: Array.from({ length: depth }, (_unused, index) => ({
+          depth: index + 1,
+          style: "cave" as const,
+          cells: Array.from({ length: footprintRows + 2 }, (_row, row) => ({
+            col: stair.col - 1,
+            row: stair.row - 1 + row,
+            length: footprintCols + 2,
+          })),
+        })),
+        stairs: [stair],
+      };
+      const platforms = undergroundColliders(authored, size);
+      const ramp = undergroundRamp(stair, size);
+      const query = createTerrainQuery({
+        size,
+        levelHeight: 0.9,
+        waterLevel: -0.05,
+        at: () => 0,
+        kindAt: () => "herbe",
+        ramps: [ramp],
+        platforms,
+      });
+      const colliders = createColliderIndex();
+      for (const collider of platforms) colliders.add(collider);
+      const climbsPositive = direction === "east" || direction === "south";
+      const footX = alongX
+        ? climbsPositive
+          ? ramp.x + 0.05
+          : ramp.x + ramp.width - 0.05
+        : ramp.x + ramp.width / 2;
+      const footZ = alongX
+        ? ramp.z + ramp.depth / 2
+        : climbsPositive
+          ? ramp.z + 0.05
+          : ramp.z + ramp.depth - 0.05;
+      const state = createHeroState(footX, footZ + 0.35, undergroundFloorHeight(depth), 10, 2.2);
+      state.groundY = state.y;
+      const input = {
+        ...immobile,
+        x: alongX ? (climbsPositive ? 1 : -1) : 0,
+        z: alongX ? 0 : climbsPositive ? 1 : -1,
+      };
+      for (let frame = 0; frame < length * 45 + 240; frame += 1) {
+        stepHero(state, input, 1 / 60, { ...depsPlates(), query, colliders });
+      }
+
+      const along = alongX ? state.x : state.z - 0.35;
+      const highEdge = alongX
+        ? climbsPositive
+          ? ramp.x + ramp.width
+          : ramp.x
+        : climbsPositive
+          ? ramp.z + ramp.depth
+          : ramp.z;
+      expect({
+        clearedLanding: climbsPositive ? along > highEdge + 0.5 : along < highEdge - 0.5,
+        airborne: state.airborne,
+        y: state.y,
+        along,
+        highEdge,
+      }).toEqual({
+        clearedLanding: true,
+        airborne: false,
+        y: expect.closeTo(0),
+        along: expect.any(Number),
+        highEdge: expect.any(Number),
+      });
     },
   );
 
