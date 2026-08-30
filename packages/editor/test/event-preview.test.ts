@@ -84,6 +84,25 @@ describe("authored event preview projection", () => {
     ]);
   });
 
+  it("uses the compiled underground terrain top for an NPC preview", () => {
+    const npc = { ...event("npc"), undergroundDepth: 1 };
+    const compiled = heightfield();
+    compiled.events = [
+      {
+        id: npc.id,
+        x: -6.5,
+        y: -1.5,
+        z: -5.5,
+        undergroundDepth: 1,
+        graphicAssetId: null,
+      },
+    ];
+
+    expect(authoredEventPreviewSnapshots([npc], "map-editor", compiled)).toMatchObject([
+      { id: npc.id, y: -1.5, undergroundDepth: 1 },
+    ]);
+  });
+
   it("uses the gameplay monster actor in the editor instead of a separate event sprite", () => {
     const pursuer = {
       ...event("monster"),

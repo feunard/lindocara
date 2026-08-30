@@ -1955,6 +1955,9 @@ export class Hd2dRenderer implements RendererLike {
         x: movement.col + 0.5 - mapSize / 2,
         y: event.y ?? 0,
         z: movement.row + 0.5 - mapSize / 2,
+        ...(event.undergroundDepth === undefined
+          ? {}
+          : { undergroundDepth: event.undergroundDepth }),
         ...GROUNDED,
         vy: 0,
         facing:

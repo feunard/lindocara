@@ -22,6 +22,7 @@ export type AuthoredEventPreviewScope = "map-editor" | "playable-preview";
 export function authoredEventPreviewSnapshots(
   events: readonly MapEvent[],
   scope: AuthoredEventPreviewScope,
+  heightfield?: Pick<MapData, "events">,
 ): WorldEventSnapshot[] {
   return events.flatMap((event) => {
     if (event.kind === "sea-guardian" || event.kind === "monster") return [];
@@ -31,6 +32,7 @@ export function authoredEventPreviewSnapshots(
     const page = event.pages[0];
     if (!page) return [];
     const profile = event.kind === "harvestable" ? event.harvestProfile : undefined;
+    const compiledY = heightfield?.events.find((candidate) => candidate.id === event.id)?.y;
     return [
       {
         id: event.id,
@@ -38,7 +40,7 @@ export function authoredEventPreviewSnapshots(
         row: event.row,
         ...(event.undergroundDepth
           ? {
-              y: undergroundFloorHeight(event.undergroundDepth),
+              y: compiledY ?? undergroundFloorHeight(event.undergroundDepth),
               undergroundDepth: event.undergroundDepth,
             }
           : {}),
@@ -100,6 +102,7 @@ export function authoredMonsterPreviewSnapshots(
     };
     const x = event.col + 0.5 - heightfield.size / 2;
     const z = event.row + 0.5 - heightfield.size / 2;
+    const compiledY = heightfield.events.find((candidate) => candidate.id === event.id)?.y;
     return [
       {
         id: `preview-monster-${event.id}`,
@@ -109,9 +112,11 @@ export function authoredMonsterPreviewSnapshots(
         rank: tuning.rank,
         specialTechnique: tuning.specialTechnique,
         x,
-        y: event.undergroundDepth
-          ? undergroundFloorHeight(event.undergroundDepth)
-          : (query.heightAt(x, z) ?? heightfield.waterLevel),
+        y:
+          compiledY ??
+          (event.undergroundDepth
+            ? undergroundFloorHeight(event.undergroundDepth)
+            : (query.heightAt(x, z) ?? heightfield.waterLevel)),
         z,
         hp: tuning.maxHp,
         maxHp: tuning.maxHp,

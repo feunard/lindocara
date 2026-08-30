@@ -235,6 +235,46 @@ describe("the billboard registry", () => {
     expect(highMesh.position.y + foot).toBeCloseTo(map.levelHeight);
   });
 
+  it("keeps an underground NPC on its authored floor instead of snapping it to the surface", () => {
+    const map = flatMap(4);
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
+    const npc: ActorView = {
+      ...actor("basement-npc", 0, 0),
+      kind: "event",
+      y: -2.4,
+      undergroundDepth: 1,
+    };
+
+    registry.sync([npc]);
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("expected an underground NPC billboard");
+    const foot =
+      ACTOR_FOOT.event *
+      billboardHeight({
+        height: LAB_UNIT_HEIGHT,
+        pitch: HD2D_CAMERA.pitch,
+        stretch: ctx.config.spriteStretch,
+      });
+    expect(mesh.position.y + foot).toBeCloseTo(-2.4);
+
+    const raised = mapOf(
+      4,
+      Array.from({ length: 16 }, () => 1),
+    );
+    const raisedScene = sceneFor(raised);
+    const raisedRegistry = createBillboardRegistry(
+      createHd2dContext(),
+      raisedScene,
+      textureRegistryOf(),
+    );
+    raisedRegistry.sync([{ ...actor("surface-npc", 0, 0), kind: "event" }]);
+    const raisedMesh = meshes(raisedScene.root)[0];
+    if (!raisedMesh) throw new Error("expected a surface NPC billboard");
+    expect(raisedMesh.position.y + foot).toBeCloseTo(raised.levelHeight);
+  });
+
   it.each([
     { surface: "building roof", terrainLevel: 0, platformTop: 1.3 },
     { surface: "bridge deck", terrainLevel: null, platformTop: 0 },

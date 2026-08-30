@@ -1243,7 +1243,7 @@ export function openMapEditorStage(
 
     const redraw = (contentOnly = false): void => {
       const heightfield = compiled();
-      renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
+      renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor", heightfield);
       renderedMonsters = authoredMonsterPreviewSnapshots(visualEvents(), heightfield);
       renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
         visualEvents(),
@@ -2087,8 +2087,8 @@ export function openMapEditorStage(
             ? null
             : Math.max(-16, Math.min(16, Math.trunc(depth) || (depth < 0 ? -1 : 1)));
         selected = null;
-        renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor");
         const heightfield = compiled();
+        renderedEvents = authoredEventPreviewSnapshots(visualEvents(), "map-editor", heightfield);
         renderedMonsters = authoredMonsterPreviewSnapshots(visualEvents(), heightfield);
         renderedSeaGuardians = authoredSeaGuardianPreviewSnapshots(
           visualEvents(),

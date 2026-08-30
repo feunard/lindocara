@@ -39,6 +39,8 @@ export interface ActorView {
    * grounded players use it to select a finite platform (roof, bridge or prop top) before the
    * terrain fallback. */
   y: number;
+  /** Authored vertical plane for event actors. Its presence makes `y` the exact supporting floor. */
+  undergroundDepth?: number;
   /** The other GROUND axis. */
   z: number;
   /**
@@ -199,7 +201,11 @@ function elevationOf(actor: ActorView, scene: BillboardScene): number {
   if (actor.swimming) return scene.query.waterLevelAt(actor.x, actor.z);
   if (actor.airborne || actor.gliding) return actor.y;
   const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
-  if (actor.kind !== "player") return terrain;
+  // Monsters, guards and corpses already carry their authoritative server elevation. Authored event
+  // actors do too on a selected vertical storey; surface events intentionally keep terrain snapping
+  // so a page graphic without an explicit y still follows an ordinary raised surface.
+  if (actor.kind !== "player")
+    return actor.kind === "event" && actor.undergroundDepth === undefined ? terrain : actor.y;
 
   const footprintZ = actor.z - HERO_FOOTPRINT_OFFSET;
   const ceiling = actor.y + 0.08;

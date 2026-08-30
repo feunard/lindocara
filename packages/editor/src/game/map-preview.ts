@@ -189,7 +189,10 @@ export async function startMapPreview(
       {
         id: `preview-guard-${event.id}`,
         x,
-        y: terrain.query.heightAt(x, z) ?? heightfield.waterLevel,
+        y:
+          heightfield.events.find((candidate) => candidate.id === event.id)?.y ??
+          terrain.query.heightAt(x, z) ??
+          heightfield.waterLevel,
         z,
         hp: GUARD_MAX_HP,
         maxHp: GUARD_MAX_HP,
@@ -201,7 +204,7 @@ export async function startMapPreview(
       },
     ];
   });
-  const worldEvents = authoredEventPreviewSnapshots(runtimeEvents, "playable-preview");
+  const worldEvents = authoredEventPreviewSnapshots(runtimeEvents, "playable-preview", heightfield);
   const previewSeaGuardians = authoredSeaGuardianPreviewSnapshots(
     events,
     heightfield.size,
