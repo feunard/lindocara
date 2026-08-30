@@ -529,6 +529,52 @@ describe("HD-2D map editor stage", () => {
     stage.dispose();
   });
 
+  it("previews and places a direct hole from the selected basement", async () => {
+    const basement = applyTool(
+      blankMap("Map", 20, 15),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 1,
+        style: "cave",
+        width: 4,
+        length: 4,
+        direction: "east",
+      },
+      4,
+      4,
+    );
+    if (!basement) throw new Error("basement fixture was refused");
+    const stage = await openMapEditorStage(basement, vi.fn());
+    const canvas = document.querySelector<HTMLCanvasElement>("#stage");
+    if (!canvas) throw new Error("fixture canvas missing");
+    mock.renderer.screenToWorld.mockImplementation(() => ({ x: -4.5, z: -4.5 }));
+    stage.setEditingDepth(1);
+    stage.setTool({
+      kind: "underground",
+      operation: "shaft",
+      depth: 2,
+      style: "cave",
+      width: 1,
+      length: 1,
+      direction: "east",
+      shape: "pencil",
+    });
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 10, clientY: 10 }));
+    expect(mock.renderer.setEditorOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        undergroundStamp: expect.objectContaining({ elevation: -2.4, operation: "shaft" }),
+      }),
+    );
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 10, clientY: 10 }));
+    window.dispatchEvent(new PointerEvent("pointerup"));
+    expect(stage.current().underground?.shafts).toEqual([
+      { col: 5, row: 5, width: 1, length: 1, fromDepth: 1, depth: 2 },
+    ]);
+    stage.dispose();
+  });
+
   it("places underground scenery at the cursor on the selected terrain top", async () => {
     let map = applyTool(
       blankMap("Map", 20, 15),

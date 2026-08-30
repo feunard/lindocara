@@ -102,6 +102,7 @@ import {
   type EditorAssetId,
   editorAsset,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { MAX_UNDERGROUND_DEPTH } from "@lindocara/engine/underground.js";
 import { useAlepha, useStore } from "alepha/react";
 import { useRouter } from "alepha/react/router";
 import { XIcon } from "lucide-react";
@@ -1010,7 +1011,7 @@ function AdventureEditorInner({
       (key === "pencil" || key === "rect" || key === "fill")
     ) {
       setUndergroundShape(key);
-      pushTool(undergroundTool("shaft", { shape: key, width: 1, length: 1 }));
+      pushTool(undergroundTool(undergroundOperation, { shape: key, width: 1, length: 1 }));
       return;
     }
     setToolKey(key);
@@ -1062,10 +1063,13 @@ function AdventureEditorInner({
     setUndergroundOperation(operation);
     setSelectedAsset(null);
     const currentUpperFloor = editingDepth !== null && editingDepth < 0 ? editingDepth : null;
+    const currentBasement = editingDepth !== null && editingDepth > 0 ? editingDepth : null;
     const targetDepth =
-      currentUpperFloor !== null && operation !== "shaft" && operation !== "stairs"
-        ? currentUpperFloor
-        : undergroundDepth;
+      operation === "shaft" && currentBasement !== null
+        ? Math.min(MAX_UNDERGROUND_DEPTH, Math.max(undergroundDepth, currentBasement + 1))
+        : currentUpperFloor !== null && operation !== "shaft" && operation !== "stairs"
+          ? currentUpperFloor
+          : undergroundDepth;
     const targetStyle =
       currentUpperFloor !== null
         ? (currentMap?.underground?.levels.find((level) => level.depth === currentUpperFloor)
@@ -1073,9 +1077,10 @@ function AdventureEditorInner({
           currentMap?.interiorShell?.style ??
           undergroundStyle)
         : undergroundStyle;
-    // A shaft is authored FROM the surface: keeping that view makes its open aperture immediately
-    // distinct from a room excavated on one selected storey.
-    if (operation === "shaft") chooseEditingDepth(null);
+    // A direct opening starts on the storey currently shown. Its target defaults to the next lower
+    // basement and the view stays at the upper mouth so the author sees exactly what will be cut.
+    if (operation === "shaft" && currentBasement !== null) setUndergroundDepth(targetDepth);
+    else if (operation === "shaft") chooseEditingDepth(null);
     else if (operation !== "stairs") chooseEditingDepth(targetDepth);
     if (operation === "shaft" || operation === "fill") {
       setUndergroundShape("pencil");
@@ -2223,7 +2228,10 @@ function AdventureEditorInner({
                   setUndergroundDepth(next);
                   if (
                     editingDepth !== null &&
-                    !(toolKey === "underground" && undergroundOperation === "stairs")
+                    !(
+                      toolKey === "underground" &&
+                      (undergroundOperation === "stairs" || undergroundOperation === "shaft")
+                    )
                   )
                     chooseEditingDepth(next);
                   updateUndergroundTool({ depth: next });

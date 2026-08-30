@@ -1746,6 +1746,32 @@ describe("AdventureEditorScreen shell", () => {
     expect(within(screen.getByTestId("terrain-stairs")).getAllByRole("button")).toHaveLength(1);
   });
 
+  it("keeps a direct hole anchored to the selected basement and preserves fill shapes", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+
+    await userEvent.click(screen.getByRole("button", { name: "−1" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.underground.shaft") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "underground", operation: "shaft", depth: 2 }),
+    );
+    expect(screen.getByRole("button", { name: "−1" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.change(screen.getByLabelText(t("editor.underground.depth")), {
+      target: { value: "4" },
+    });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "underground", operation: "shaft", depth: 4 }),
+    );
+    expect(screen.getByRole("button", { name: "−1" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.underground.fill") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.rect") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "underground", operation: "fill", shape: "rect" }),
+    );
+  });
+
   it("supports raised water with fill regardless of selection order", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady(alepha);

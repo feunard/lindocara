@@ -53,6 +53,29 @@ describe("underground storey visibility mask", () => {
     expect(depthOne.has("4:4")).toBe(false);
   });
 
+  it("reveals a lower shaft only from its authored starting basement", () => {
+    const lowerMap = {
+      size: 5,
+      underground: {
+        levels: [],
+        stairs: [],
+        shafts: [{ col: 3, row: 3, width: 1, length: 1, fromDepth: 1, depth: 2 }],
+      },
+    };
+    const surface = new Set(
+      undergroundLevelOcclusionRuns(lowerMap, 0).flatMap((run) =>
+        Array.from({ length: run.length }, (_unused, offset) => `${run.col + offset}:${run.row}`),
+      ),
+    );
+    const basement = new Set(
+      undergroundLevelOcclusionRuns(lowerMap, 1).flatMap((run) =>
+        Array.from({ length: run.length }, (_unused, offset) => `${run.col + offset}:${run.row}`),
+      ),
+    );
+    expect(surface.has("3:3")).toBe(true);
+    expect(basement.has("3:3")).toBe(false);
+  });
+
   it("opens an upper floor only above its real staircase footprint", () => {
     const upperMap = {
       size: 5,

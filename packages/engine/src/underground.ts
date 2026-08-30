@@ -201,13 +201,17 @@ function parseStair(value: unknown, size: number): UndergroundStair | null {
 
 function parseShaft(value: unknown, size: number): UndergroundShaft | null {
   if (!isRecord(value)) return null;
-  const { col, row, width, length, depth } = value;
+  const { col, row, width, length, fromDepth, depth } = value;
   if (
     !Number.isSafeInteger(col) ||
     !Number.isSafeInteger(row) ||
     !Number.isSafeInteger(width) ||
     !Number.isSafeInteger(length) ||
     !Number.isSafeInteger(depth) ||
+    (fromDepth !== undefined &&
+      (!Number.isSafeInteger(fromDepth) ||
+        (fromDepth as number) < 0 ||
+        (fromDepth as number) >= (depth as number))) ||
     (col as number) < 0 ||
     (row as number) < 0 ||
     (width as number) < 1 ||
@@ -224,6 +228,7 @@ function parseShaft(value: unknown, size: number): UndergroundShaft | null {
     row: row as number,
     width: width as number,
     length: length as number,
+    ...(fromDepth === undefined || fromDepth === 0 ? {} : { fromDepth: fromDepth as number }),
     depth: depth as number,
   };
 }
@@ -471,11 +476,12 @@ export function undergroundShaftCell(
   shafts: readonly UndergroundShaft[] | undefined,
   col: number,
   row: number,
-  minimumDepth = 1,
+  boundaryDepth = 1,
 ): boolean {
   return (shafts ?? []).some(
     (shaft) =>
-      shaft.depth >= minimumDepth &&
+      (shaft.fromDepth ?? 0) < boundaryDepth &&
+      shaft.depth >= boundaryDepth &&
       col >= shaft.col &&
       col < shaft.col + shaft.width &&
       row >= shaft.row &&
@@ -499,6 +505,7 @@ export function undergroundSurfaceOpenings(
     }
   }
   for (const shaft of underground?.shafts ?? []) {
+    if ((shaft.fromDepth ?? 0) !== 0) continue;
     for (let row = shaft.row; row < shaft.row + shaft.length; row += 1) {
       for (let col = shaft.col; col < shaft.col + shaft.width; col += 1) {
         cells[row * size + col] = 1;
@@ -632,8 +639,9 @@ export function undergroundAccessVisibleDepths(
     changed = false;
     for (const current of [...reached]) {
       for (const shaft of underground.shafts ?? []) {
-        if (current < 0 || current >= shaft.depth) continue;
-        for (let next = Math.max(1, current + 1); next <= shaft.depth; next += 1) {
+        const fromDepth = shaft.fromDepth ?? 0;
+        if (current < fromDepth || current >= shaft.depth) continue;
+        for (let next = Math.max(fromDepth + 1, current + 1); next <= shaft.depth; next += 1) {
           if (!visible.has(next)) changed = true;
           visible.add(next);
           reached.add(next);
@@ -668,7 +676,16 @@ export function undergroundTransitionAt(
   if (!underground) return false;
   const col = Math.floor(x + size / 2);
   const row = Math.floor(z + size / 2);
-  if (undergroundShaftCell(underground.shafts, col, row)) return true;
+  if (
+    (underground.shafts ?? []).some(
+      (shaft) =>
+        col >= shaft.col &&
+        col < shaft.col + shaft.width &&
+        row >= shaft.row &&
+        row < shaft.row + shaft.length,
+    )
+  )
+    return true;
   return underground.stairs.some((stair) => {
     const footprint = undergroundStairFootprint(stair);
     return (

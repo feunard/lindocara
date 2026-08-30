@@ -226,12 +226,14 @@ export interface UndergroundStair {
   width: number;
 }
 
-/** A vertical opening from the surface through every storey above its bottom. */
+/** A vertical opening through every storey boundary above its bottom. */
 export interface UndergroundShaft {
   col: number;
   row: number;
   width: number;
   length: number;
+  /** Upper endpoint. Zero/absent is the surface; a positive value starts on that basement floor. */
+  fromDepth?: number;
   /** Deepest excavated storey; its floor closes the bottom of the shaft. */
   depth: number;
 }

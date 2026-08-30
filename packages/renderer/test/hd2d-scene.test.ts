@@ -515,7 +515,10 @@ describe("the HD-2D scene's terrain", () => {
       underground: {
         levels: [{ depth: 1, style: "cave", cells: [{ col: 0, row: 0, length: 4 }] }],
         stairs: [{ depth: 1, col: 0, row: 0, direction: "east", length: 2, width: 1 }],
-        shafts: [{ col: 3, row: 3, width: 1, length: 1, depth: 1 }],
+        shafts: [
+          { col: 3, row: 3, width: 1, length: 1, depth: 1 },
+          { col: 2, row: 2, width: 1, length: 1, fromDepth: 1, depth: 2 },
+        ],
       },
     };
     const cut = terrainGroupFor(ctx, map, allAtlases());

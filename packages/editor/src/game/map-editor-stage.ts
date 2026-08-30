@@ -1110,7 +1110,7 @@ export function openMapEditorStage(
                 rows: shaftRect
                   ? shaftRect.r1 - shaftRect.r0 + 1
                   : Math.min(rows - hover.row, Math.max(1, Math.trunc(requestedRows))),
-                elevation: undergroundFloorHeight(tool.depth),
+                elevation: undergroundFloorHeight(editingDepth ?? 0),
                 operation: tool.operation,
               };
             })()

@@ -10,7 +10,9 @@ import {
   undergroundDepthAtElevation,
   undergroundFloorHeight,
   undergroundRamp,
+  undergroundShaftCell,
   undergroundStairMouth,
+  undergroundSurfaceOpenings,
   undergroundTerrainElevationCells,
   undergroundTerrainHeightAt,
   undergroundTransitionAt,
@@ -121,6 +123,24 @@ describe("multi-storey underground", () => {
     expect(undergroundAccessVisibleDepths(parsed ?? undefined, 8)).toEqual(
       Array.from({ length: 9 }, (_unused, index) => index + 8),
     );
+  });
+
+  it("keeps a basement-to-basement shaft closed at the surface", () => {
+    const lowerShaft = {
+      ...underground,
+      stairs: [],
+      shafts: [{ col: 6, row: 5, width: 1, length: 1, fromDepth: 1, depth: 2 }],
+    };
+    expect(parseUnderground(lowerShaft, 8)).toEqual(lowerShaft);
+    expect(
+      parseUnderground({ ...lowerShaft, shafts: [{ ...lowerShaft.shafts[0], fromDepth: 2 }] }, 8),
+    ).toBeNull();
+    expect(undergroundSurfaceOpenings(lowerShaft, 8)[5 * 8 + 6]).toBe(0);
+    expect(undergroundShaftCell(lowerShaft.shafts, 6, 5, 1)).toBe(false);
+    expect(undergroundShaftCell(lowerShaft.shafts, 6, 5, 2)).toBe(true);
+    expect(undergroundShaftCell(lowerShaft.shafts, 6, 5, 3)).toBe(false);
+    expect(undergroundAccessVisibleDepths(lowerShaft, null)).toEqual([]);
+    expect(undergroundAccessVisibleDepths(lowerShaft, 1)).toEqual([1, 2]);
   });
 
   it("keeps surface terrain above a reachable underground floor", () => {

@@ -479,6 +479,106 @@ describe("underground editor tools", () => {
     expect(filled?.underground?.shafts).toBeUndefined();
   });
 
+  it("authors direct holes and tunnels relative to the selected basement", () => {
+    const firstBasement = applyTool(
+      blankMap("Relative basement tools", 12, 12),
+      {
+        kind: "underground",
+        operation: "dig",
+        depth: 1,
+        style: "cave",
+        width: 6,
+        length: 6,
+        direction: "east",
+      },
+      3,
+      3,
+    );
+    const hole = firstBasement
+      ? applyTool(
+          firstBasement,
+          {
+            kind: "underground",
+            operation: "shaft",
+            depth: 2,
+            style: "castle",
+            width: 1,
+            length: 1,
+            direction: "east",
+            shape: "pencil",
+          },
+          5,
+          5,
+          true,
+          "field",
+          0,
+          0,
+          1,
+        )
+      : null;
+
+    expect(hole?.underground?.shafts).toEqual([
+      { col: 5, row: 5, width: 1, length: 1, fromDepth: 1, depth: 2 },
+    ]);
+    expect(hole?.underground?.levels.map((level) => level.depth)).toEqual([1, 2]);
+    expect(hole ? decodeMap(toSaveInput(hole).heightfield)?.underground?.shafts : null).toEqual(
+      hole?.underground?.shafts,
+    );
+
+    const tunnel = hole
+      ? applyTool(
+          hole,
+          {
+            kind: "underground",
+            operation: "tunnel",
+            depth: 2,
+            style: "castle",
+            width: 2,
+            length: 4,
+            direction: "south",
+          },
+          6,
+          5,
+          true,
+          "field",
+          0,
+          0,
+          2,
+        )
+      : null;
+    const secondLevel = tunnel?.underground?.levels.find((level) => level.depth === 2);
+    expect(secondLevel?.cells).toEqual([
+      { col: 5, row: 5, length: 3 },
+      { col: 6, row: 6, length: 2 },
+      { col: 6, row: 7, length: 2 },
+      { col: 6, row: 8, length: 2 },
+    ]);
+
+    const filled = tunnel
+      ? applyTool(
+          tunnel,
+          {
+            kind: "underground",
+            operation: "fill",
+            depth: 1,
+            style: "cave",
+            width: 1,
+            length: 1,
+            direction: "east",
+            shape: "pencil",
+          },
+          5,
+          5,
+          true,
+          "field",
+          0,
+          0,
+          1,
+        )
+      : null;
+    expect(filled?.underground?.shafts).toBeUndefined();
+  });
+
   it("uses one cell by default and supports rectangle and fill shapes for direct holes", () => {
     const tool = {
       kind: "underground" as const,

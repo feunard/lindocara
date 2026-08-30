@@ -2307,10 +2307,13 @@ function applyUndergroundShaftCells(
   map: EditorMap,
   tool: Extract<EditorTool, { kind: "underground" }>,
   selectedCells: readonly { col: number; row: number }[],
+  startDepth: number | null = null,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
   const size = Math.max(cols, rows);
+  const fromDepth = startDepth === null ? 0 : clampVerticalDepth(startDepth);
   const depth = Math.max(1, Math.min(MAX_UNDERGROUND_DEPTH, Math.trunc(tool.depth)));
+  if (fromDepth < 0 || fromDepth >= depth) return null;
   const mask = new Uint8Array(size * size);
   for (const cell of selectedCells) {
     if (cell.col < 0 || cell.row < 0 || cell.col >= cols || cell.row >= rows) continue;
@@ -2325,12 +2328,20 @@ function applyUndergroundShaftCells(
         shaft.col === run.col && shaft.width === run.length && shaft.row + shaft.length === run.row,
     );
     if (previous) previous.length += 1;
-    else shaftRects.push({ col: run.col, row: run.row, width: run.length, length: 1, depth });
+    else
+      shaftRects.push({
+        col: run.col,
+        row: run.row,
+        width: run.length,
+        length: 1,
+        ...(fromDepth === 0 ? {} : { fromDepth }),
+        depth,
+      });
   }
 
   const source: UndergroundMap = map.underground ?? { levels: [], stairs: [] };
   const byDepth = new Map(source.levels.map((level) => [level.depth, level]));
-  for (let touchedDepth = 1; touchedDepth <= depth; touchedDepth += 1) {
+  for (let touchedDepth = Math.max(1, fromDepth); touchedDepth <= depth; touchedDepth += 1) {
     const previous = byDepth.get(touchedDepth);
     const excavated = undergroundCells(previous, size);
     const terrainCells = undergroundTerrainCells(previous, size);
@@ -2356,7 +2367,11 @@ function applyUndergroundShaftCells(
     return false;
   };
   const shafts = [
-    ...(source.shafts ?? []).filter((shaft) => !overlapsSelection(shaft)),
+    ...(source.shafts ?? []).filter((shaft) => {
+      const shaftFromDepth = shaft.fromDepth ?? 0;
+      const crossesSameBoundary = shaftFromDepth < depth && fromDepth < shaft.depth;
+      return !crossesSameBoundary || !overlapsSelection(shaft);
+    }),
     ...shaftRects,
   ];
   return {
@@ -2476,7 +2491,7 @@ function applyUndergroundTool(
         selectedCells.push({ col: cellCol, row: cellRow });
       }
     }
-    return applyUndergroundShaftCells(map, tool, selectedCells);
+    return applyUndergroundShaftCells(map, tool, selectedCells, startDepth);
   }
 
   const source: UndergroundMap = map.underground ?? { levels: [], stairs: [] };
@@ -2561,7 +2576,7 @@ function applyUndergroundTool(
   });
   let shafts = (source.shafts ?? []).filter((shaft) => {
     if (tool.operation !== "fill") return true;
-    if (depth < 1 || depth > shaft.depth) return true;
+    if (depth < (shaft.fromDepth ?? 0) || depth > shaft.depth) return true;
     return (
       shaft.col + shaft.width <= c0 ||
       shaft.col >= c1 ||
@@ -2761,7 +2776,8 @@ export function applyTool(
             cells.push({ col: cellCol, row: cellRow });
           }
         }
-        if (tool.operation === "shaft") return applyUndergroundShaftCells(anchoredMap, tool, cells);
+        if (tool.operation === "shaft")
+          return applyUndergroundShaftCells(anchoredMap, tool, cells, undergroundDepth);
         return applyUndergroundTool(
           anchoredMap,
           {
@@ -2777,9 +2793,14 @@ export function applyTool(
       }
       if (tool.operation === "shaft" && tool.shape === "fill") {
         if (!isStrokeStart) return null;
-        const ground = map.layers[GROUND_LAYER];
-        if (!ground) return null;
-        return applyUndergroundShaftCells(map, tool, terrainFloodRegion(ground, col, row));
+        const region =
+          undergroundDepth === null
+            ? (() => {
+                const ground = map.layers[GROUND_LAYER];
+                return ground ? terrainFloodRegion(ground, col, row) : null;
+              })()
+            : undergroundFloodRegion(map, undergroundDepth, col, row);
+        return region ? applyUndergroundShaftCells(map, tool, region, undergroundDepth) : null;
       }
       if (tool.operation === "fill" && tool.shape === "fill") {
         if (!isStrokeStart) return null;
