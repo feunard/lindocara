@@ -16,6 +16,7 @@ import {
   BODY_RADIUS,
   canStand,
   groundUnder,
+  groundUnderBody,
   type ZoneTerrain,
 } from "@lindocara/engine/terrain-access.js";
 
@@ -362,7 +363,12 @@ export function advanceNpcEvents(params: {
     } else {
       occupied.delete(eventCellKey(event));
       occupied.add(`${event.undergroundDepth ?? 0}:${candidate.cell.col}:${candidate.cell.row}`);
-      nextEvent = { ...event, ...candidate.cell };
+      const destination = cellCentre(params.terrain, candidate.cell);
+      nextEvent = {
+        ...event,
+        ...candidate.cell,
+        y: groundUnderBody(params.terrain, destination.x, destination.z, event.y ?? 0),
+      };
     }
     if (runtime.movementStyle === "sheep") {
       runtime.sheepStepsRemaining = Math.max(0, (runtime.sheepStepsRemaining ?? 1) - 1);

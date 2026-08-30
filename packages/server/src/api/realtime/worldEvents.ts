@@ -452,6 +452,11 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
         : page.graphicAssetId;
     const eventCol = current?.col ?? event.col;
     const eventRow = current?.row ?? event.row;
+    const [eventX, eventZ] = definition.terrain.query.cellCenter(eventCol, eventRow);
+    const eventY =
+      event.undergroundDepth === undefined
+        ? (definition.terrain.query.heightAt(eventX, eventZ) ?? definition.terrain.waterLevel)
+        : authoredCellCentreGround(event, definition.terrain.size).y;
     const collider = hazardColliderTuple(page, eventCol, eventRow);
     const harvestState = depleted ? ("depleted" as const) : ("intact" as const);
     const projectedHits = depleted
@@ -462,9 +467,9 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       id: event.id,
       col: eventCol,
       row: eventRow,
+      y: eventY,
       ...(event.undergroundDepth
         ? {
-            y: authoredCellCentreGround(event, definition.terrain.size).y,
             undergroundDepth: event.undergroundDepth,
           }
         : {}),
@@ -650,7 +655,10 @@ export function activeEventCentre(
     );
     if (guard) return { x: guard.x, y: guard.y, z: guard.z };
   }
-  return authoredCellCentreGround(activeEventCell(state, event), gridSize(state));
+  const cell = activeEventCell(state, event);
+  const active = state.activeEvents.find((candidate) => candidate.id === event.id);
+  const centre = authoredCellCentreGround(cell, gridSize(state));
+  return active?.y === undefined ? centre : { ...centre, y: active.y };
 }
 
 /** Port of `#touchesEventCell` (`world.ts:1562`): whether an actor-sized authoritative body
@@ -856,18 +864,13 @@ export function detectPlayerTouch(
       const verticalContact = (position: WorldPosition): boolean => {
         const terrain = state.location?.definition.terrain;
         if (!terrain) return false;
-        if (
-          event.undergroundDepth !== undefined &&
-          Math.abs(position.y - activeEventCentre(state, event).y) > 0.85
-        )
-          return false;
+        const centre = activeEventCentre(state, event);
         if (activeCollider) {
           const active = state.activeEvents.find((candidate) => candidate.id === event.id);
           const top = worldEventColliderRect(terrain, activeCollider, active?.y).top;
-          if (top !== undefined) return position.y <= top + 1e-3;
+          if (top !== undefined) return position.y >= centre.y - 0.85 && position.y <= top + 1e-3;
         }
-        if (!movementPickup) return true;
-        const centre = activeEventCentre(state, event);
+        if (!movementPickup) return Math.abs(position.y - centre.y) <= 0.85;
         const surface = terrain.query.heightAt(centre.x, centre.z) ?? terrain.waterLevel;
         const targetY = surface + (page.graphicElevation ?? 0);
         return Math.abs(position.y - targetY) <= 0.85;

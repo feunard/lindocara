@@ -87,6 +87,24 @@ describe("authoritative automatic authored-event triggers", () => {
     expect(detectEventTouch(state)).toBe(0);
   });
 
+  it("does not fire a surface contact event for a hero moving on the basement below", () => {
+    const event = { ...authoredEvent("surface-touch", "player-touch"), col: 1 };
+    const state = stateFor([event]);
+    const player = state.players.get("connection-a");
+    if (!player) throw new Error("hero fixture missing");
+    Object.assign(player, { x: -0.5, y: -2.4, z: -1.5 });
+    state.activeEvents = [
+      { id: event.id, col: 1, row: 0, y: 0 },
+    ] as unknown as typeof state.activeEvents;
+
+    detectPlayerTouch(state, player, { x: -1.5, y: -2.4, z: -1.5 });
+    expect(state.eventRuns.contexts.has(event.id)).toBe(false);
+
+    player.y = 0;
+    detectPlayerTouch(state, player, { x: -1.5, y: 0, z: -1.5 });
+    expect(state.eventRuns.contexts.get(event.id)?.heroId).toBe("hero-a");
+  });
+
   it("fires an elevated pickup when the hero crosses its stable capture height", () => {
     const pickup: MapEvent = {
       ...authoredEvent("pickup", "player-touch"),

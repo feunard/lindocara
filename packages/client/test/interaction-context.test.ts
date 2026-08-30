@@ -120,6 +120,21 @@ describe("contextual controller interaction", () => {
     expect(nearestInteractiveEvent(undefined, [near], 10)).toBeUndefined();
   });
 
+  it("ignores interactive events on another vertical storey", () => {
+    const surfaceEvent = { ...event, interactive: true as const, y: 0 };
+    const basementEvent = {
+      ...event,
+      id: "basement",
+      interactive: true as const,
+      y: -2.4,
+      undergroundDepth: 1,
+    };
+
+    expect(nearestInteractiveEvent({ ...self, y: -2.4 }, [surfaceEvent], 10)).toBeUndefined();
+    expect(nearestInteractiveEvent(self, [basementEvent], 10)).toBeUndefined();
+    expect(nearestInteractiveEvent({ ...self, y: -2.4 }, [basementEvent], 10)?.id).toBe("basement");
+  });
+
   it("recognizes an intact building only at its visible doorway", () => {
     const building: WorldBuildingSnapshot = {
       id: "building",

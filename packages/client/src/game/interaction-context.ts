@@ -88,7 +88,10 @@ export function nearestInteractiveEvent(
   let shortest = INTERACTION_RANGE;
   for (const event of events) {
     if (event.interactive !== true) continue;
-    const distance = groundDistance(self, authoredCellCentreGround(event, worldSize));
+    const centre = authoredCellCentreGround(event, worldSize);
+    const eventY = event.y ?? centre.y;
+    if (Math.abs(self.y - eventY) > 0.85) continue;
+    const distance = groundDistance(self, centre);
     if (distance <= shortest) {
       nearest = event;
       shortest = distance;

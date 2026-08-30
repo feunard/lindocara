@@ -1794,6 +1794,33 @@ describe("world room events (FakeClock)", () => {
     engine.dispose();
   });
 
+  test("an action event cannot be triggered from the storey directly below it", async () => {
+    const surfaceEvent = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [
+      { t: "say", text: "Surface only." },
+    ]);
+    const fixture = await newPlayableParty("eventstorey", [surfaceEvent]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+    const centre = authoredCellCentreGround(surfaceEvent, gridSizeOf(state));
+    Object.assign(player, { x: centre.x, y: -2.4, z: centre.z });
+
+    await engine.message(socket.id, { t: "interact" });
+    expect(state.eventRuns.contexts.has(surfaceEvent.id)).toBe(false);
+
+    player.y = 0;
+    await engine.message(socket.id, { t: "interact" });
+    expect(state.eventRuns.contexts.get(surfaceEvent.id)?.heroId).toBe(fixture.heroId);
+    await advanceTickSettled(clock);
+    expect(messagesOf(socket).find((message) => message.t === "event.say")).toMatchObject({
+      text: "Surface only.",
+    });
+    engine.dispose();
+  });
+
   test("an authored lethal damage action kills only the hero who triggered it", async () => {
     const trap = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [
       { t: "damage", amount: 25, lethal: true },
