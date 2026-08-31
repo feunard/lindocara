@@ -43,6 +43,7 @@ import { type SegmentImpact, segmentBoxEntry, sweptRectEntry } from "./direction
 import type { GroundVector, WorldPosition } from "./ground.js";
 import {
   colliderContainsPoint,
+  colliderBlocksAtElevation,
   colliderOverlapsDisc,
   colliderSurfaceHeightAt,
   colliderSurfaceHeightNear,
@@ -565,7 +566,10 @@ export function sweptGroundTerrainImpact(
   for (let j = minJ; j <= maxJ; j++) {
     for (let i = minI; i <= maxI; i++) {
       const [centreX, centreZ] = terrain.query.cellCenter(i, j);
-      const surface = terrain.query.heightAt(centreX, centreZ);
+      // `heightAt` is deliberately the topmost authored heightfield and therefore sees the
+      // surface above every basement. The footprint query uses the shooter's elevation to select
+      // its actual storey while still returning relief above a surface-level shot.
+      const surface = terrain.query.maxHeightAround(centreX, centreZ, 0, limit);
       if (surface === null || surface <= limit) continue;
       consider(
         segmentBoxEntry(
@@ -592,7 +596,12 @@ export function sweptGroundTerrainImpact(
   for (let index = 0; index < candidates.length; index++) {
     const rect = candidates[index];
     if (!rect) continue;
-    consider(sweptRectEntry(from, to, rect, radius), `c${index}`);
+    const fraction = sweptRectEntry(from, to, rect, radius);
+    if (fraction === null) continue;
+    const impactX = from.x + dx * fraction;
+    const impactZ = from.z + dz * fraction;
+    if (!colliderBlocksAtElevation(rect, impactX, impactZ, ceiling)) continue;
+    consider(fraction, `c${index}`);
   }
   // Earliest contact wins; equal fractions fall back to the stable id so two cells met at exactly
   // the same instant resolve the same way on every tick and in every room.

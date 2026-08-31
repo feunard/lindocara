@@ -12,6 +12,7 @@ import { functionalEvent } from "@lindocara/engine/map-events.js";
 import { resolvePeasantHarvestPlan } from "@lindocara/engine/peasant.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { undergroundColliders } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
 import { playerSnapshot } from "../src/world/interest-system.ts";
@@ -21,6 +22,7 @@ import {
   expirePeasantCarry,
   grantPeasantCarry,
   hasPeasantHarvestLineOfSight,
+  peasantHarvestTargets,
   peasantCarryKindForReward,
   revalidatePeasantHarvestTarget,
   rollPeasantHarvestReward,
@@ -58,7 +60,24 @@ const WOOD: HarvestProfile = {
 const SIZE = 16;
 const a = (pixels: number): number => pixels / TILE_SIZE - SIZE / 2;
 
-function terrain(obstacles: readonly ColliderRect[] = []): ZoneTerrain {
+function terrain(obstacles: readonly ColliderRect[] = [], undergroundDepth?: number): ZoneTerrain {
+  const underground =
+    undergroundDepth === undefined
+      ? undefined
+      : {
+          levels: [
+            {
+              depth: undergroundDepth,
+              style: "cave" as const,
+              cells: [
+                { col: 0, row: 0, length: 4 },
+                { col: 0, row: 1, length: 4 },
+              ],
+            },
+          ],
+          stairs: [],
+          shafts: [],
+        };
   const map: MapData = {
     version: 1,
     size: SIZE,
@@ -66,10 +85,11 @@ function terrain(obstacles: readonly ColliderRect[] = []): ZoneTerrain {
     waterLevel: -0.25,
     levels: new Array(SIZE * SIZE).fill(0),
     materials: new Array(SIZE * SIZE).fill("herbe"),
-    colliders: [...obstacles],
+    colliders: [...obstacles, ...(underground ? undergroundColliders(underground, SIZE, 0.5) : [])],
     spawns: [],
     elements: [],
     events: [],
+    ...(underground ? { underground } : {}),
   };
   return zoneTerrainFromHeightfield(map);
 }
@@ -116,6 +136,7 @@ function activeEvent(
   col = 1,
   row = 0,
   profile: HarvestProfile = WOOD,
+  y = 0,
 ): ActiveWorldEvent {
   const collider = harvestColliderAt(profile, col, row, "intact");
   if (!collider) throw new Error("intact harvest collider missing");
@@ -123,6 +144,7 @@ function activeEvent(
     id,
     col,
     row,
+    y,
     graphicAssetId: TREE_ASSET_ID,
     onTop: false,
     moveSpeed: 0,
@@ -167,6 +189,56 @@ function mapView(profile: HarvestProfile = WOOD, worldTerrain = terrain()) {
 }
 
 describe("Peasant harvest target selection", () => {
+  it("keeps underground resources on their authored storey", () => {
+    const undergroundY = -4.8;
+    const view = mapView(WOOD, terrain([], 2));
+    view.activeEvents = [activeEvent(EVENT_ID, 1, 0, WOOD, undergroundY)];
+    const undergroundPeasant = player();
+    undergroundPeasant.y = undergroundY;
+    const target = peasantHarvestTargets(view, NOW)[0];
+    if (!target) throw new Error("underground target missing");
+    expect(target.position.y).toBe(undergroundY);
+    expect(hasPeasantHarvestLineOfSight(undergroundPeasant, target, view, undergroundY)).toBe(true);
+    const select = (hero: ReturnType<typeof player>) =>
+      selectPeasantHarvestTarget({
+        player: hero,
+        slot: 1,
+        direction: { x: 1, z: 0 },
+        skillRange: 54 / TILE_SIZE,
+        halfAngleRadians: Math.PI / 3,
+        view,
+        now: NOW,
+      });
+
+    expect(select(undergroundPeasant)).toMatchObject({ position: { y: undergroundY } });
+    expect(select(player())).toBeNull();
+
+    const blockerId = "22222222-2222-4222-8222-222222222222";
+    view.activeEvents = [
+      activeEvent(EVENT_ID, 1, 0, WOOD, undergroundY),
+      activeEvent(blockerId, 1, 0, WOOD, 0),
+    ];
+    expect(select(undergroundPeasant)?.nodeId).toBe(EVENT_ID);
+    view.activeEvents = [
+      activeEvent(EVENT_ID, 1, 0, WOOD, undergroundY),
+      activeEvent(blockerId, 1, 0, WOOD, undergroundY),
+    ];
+    expect(select(undergroundPeasant)).toBeNull();
+
+    const surfaceView = mapView();
+    expect(
+      selectPeasantHarvestTarget({
+        player: undergroundPeasant,
+        slot: 1,
+        direction: { x: 1, z: 0 },
+        skillRange: 54 / TILE_SIZE,
+        halfAngleRadians: Math.PI / 3,
+        view: surfaceView,
+        now: NOW,
+      }),
+    ).toBeNull();
+  });
+
   it("rolls native resource ranges at both inclusive bounds on the server", () => {
     for (const [presetId, low, high] of [
       ["tree", { wood: 1 }, { wood: 3 }],

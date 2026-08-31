@@ -5,7 +5,7 @@ import {
   segmentIntersectsRect,
 } from "@lindocara/engine/directional-combat.js";
 import { monsterBodyHitbox } from "@lindocara/engine/game.js";
-import { type GroundVector, groundDistance } from "@lindocara/engine/ground.js";
+import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
 import {
   animalCarcassHarvestProfile,
   HARVEST_PROFILE_LIMITS,
@@ -81,7 +81,7 @@ export interface PeasantHarvestTarget {
   runtimeId: string;
   nodeId: string;
   generation: number;
-  position: GroundVector;
+  position: WorldPosition;
   radius: number;
   /** Explicit gameplay footprint for authored nodes; animal bodies use their combat radius. */
   collider: ColliderRect | null;
@@ -89,6 +89,9 @@ export interface PeasantHarvestTarget {
   respawnAt: number | null;
   profile: HarvestProfile;
 }
+
+/** Same-storey tolerance shared by authored interactions and world actor targeting. */
+const HARVEST_STOREY_TOLERANCE = 0.85;
 
 export interface PlannedPeasantHarvestTarget extends PeasantHarvestTarget {
   primary: boolean;
@@ -258,15 +261,20 @@ function mapTargets(view: PeasantHarvestView, now: number): PeasantHarvestTarget
     }
     const collider = authoredRect(activeCollider, view.terrain.size);
     const foot = authoredCellFoot(active, view.terrain.size);
+    const ground = collider
+      ? { x: collider.x + collider.w / 2, z: collider.z + collider.h / 2 }
+      : foot;
+    const y =
+      typeof active.y === "number" && Number.isFinite(active.y)
+        ? active.y
+        : (view.terrain.query.heightAt(ground.x, ground.z) ?? view.terrain.waterLevel);
     return [
       {
         kind: "map_event" as const,
         runtimeId: event.id,
         nodeId: event.id,
         generation: node.generation,
-        position: collider
-          ? { x: collider.x + collider.w / 2, z: collider.z + collider.h / 2 }
-          : foot,
+        position: { ...ground, y },
         radius: collider ? Math.hypot(collider.w, collider.h) / 2 : 0.5,
         collider,
         respawnAt: null,
@@ -296,7 +304,7 @@ function carcassTargets(view: PeasantHarvestView, now: number): PeasantHarvestTa
         runtimeId: monster.id,
         nodeId,
         generation: node.generation,
-        position: hitbox.center,
+        position: { ...hitbox.center, y: monster.y },
         radius: hitbox.radius,
         collider: null,
         respawnAt: monster.respawnMode === "never" ? null : monster.deadUntil,
@@ -325,6 +333,7 @@ export function hasPeasantHarvestLineOfSight(
    */
   groundY: number,
 ): boolean {
+  if (Math.abs(target.position.y - groundY) > HARVEST_STOREY_TOLERANCE) return false;
   if (
     sweptGroundTerrainImpact(
       { ...view.terrain, colliders: view.staticColliderIndex },
@@ -339,9 +348,17 @@ export function hasPeasantHarvestLineOfSight(
   return !view.activeEvents.some((event) => {
     if (target.kind === "map_event" && event.id === target.runtimeId) return false;
     const tuple = event.harvest?.collider;
-    return tuple
-      ? segmentIntersectsRect(from, target.position, authoredRect(tuple, view.terrain.size))
-      : false;
+    if (!tuple) return false;
+    const rect = authoredRect(tuple, view.terrain.size);
+    const eventY =
+      typeof event.y === "number" && Number.isFinite(event.y)
+        ? event.y
+        : (view.terrain.query.heightAt(rect.x + rect.w / 2, rect.z + rect.h / 2) ??
+          view.terrain.waterLevel);
+    return (
+      Math.abs(eventY - groundY) <= HARVEST_STOREY_TOLERANCE &&
+      segmentIntersectsRect(from, target.position, rect)
+    );
   });
 }
 

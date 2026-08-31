@@ -20,6 +20,7 @@ import {
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
 const LEVEL_HEIGHT = 0.5;
@@ -146,6 +147,41 @@ function shootingRange(): ZoneTerrain {
 }
 
 describe("sweptGroundTerrainImpact", () => {
+  it("does not treat the surface as a wall across an authored basement", () => {
+    const size = 4;
+    const underground = {
+      levels: [
+        {
+          depth: 2,
+          style: "cave" as const,
+          cells: [
+            { col: 0, row: 1, length: 4 },
+            { col: 0, row: 2, length: 4 },
+          ],
+        },
+      ],
+      stairs: [],
+      shafts: [],
+    };
+    const basement = zoneTerrainFromHeightfield({
+      version: 1,
+      size,
+      levelHeight: LEVEL_HEIGHT,
+      waterLevel: WATER_LEVEL,
+      levels: new Array(size * size).fill(0),
+      materials: new Array(size * size).fill("herbe"),
+      colliders: undergroundColliders(underground, size, LEVEL_HEIGHT),
+      spawns: [],
+      elements: [],
+      events: [],
+      underground,
+    });
+
+    expect(
+      sweptGroundTerrainImpact(basement, { x: -1.5, z: -0.5 }, { x: 1.5, z: -0.5 }, 0, -4.8),
+    ).toBeNull();
+  });
+
   it("cannot be tunnelled through by a single tick longer than the obstacle", () => {
     // One segment, -7 -> -0.5 on `z = -0.05`: it starts and ends on flat level-0 ground and is
     // 6.5 tiles long. Nothing about its ENDPOINTS says "blocked"; only the sweep does. The raised

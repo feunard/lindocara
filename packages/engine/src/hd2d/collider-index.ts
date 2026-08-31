@@ -244,7 +244,12 @@ export const BODY_CLEARANCE = 0.8;
  * ramp traversal and its escape test) and they mean "is anything here at all", which must stay the
  * conservative answer rather than quietly gain a clearance they never asked for.
  */
-function blocksAt(rect: ColliderRect, x: number, z: number, y: number | undefined): boolean {
+export function colliderBlocksAtElevation(
+  rect: ColliderRect,
+  x: number,
+  z: number,
+  y: number | undefined,
+): boolean {
   if (y === undefined) return true;
   const surface = colliderSurfaceHeightNear(rect, x, z);
   const underTop = surface === null || y < surface - 1e-3;
@@ -314,15 +319,15 @@ export function createColliderIndex(): ColliderIndex {
     },
     blocked(x, z, r, y) {
       return candidates(x, z, r).some(
-        (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
+        (rect) => colliderOverlapsDisc(rect, x, z, r) && colliderBlocksAtElevation(rect, x, z, y),
       );
     },
     allowsEscape(fromX, fromZ, x, z, r, y) {
       const destinationBlockers = candidates(x, z, r).filter(
-        (rect) => colliderOverlapsDisc(rect, x, z, r) && blocksAt(rect, x, z, y),
+        (rect) => colliderOverlapsDisc(rect, x, z, r) && colliderBlocksAtElevation(rect, x, z, y),
       );
       return destinationBlockers.every((rect) => {
-        if (!blocksAt(rect, fromX, fromZ, y)) return false;
+        if (!colliderBlocksAtElevation(rect, fromX, fromZ, y)) return false;
         const before = overlapDepth(rect, fromX, fromZ, r);
         return before > 0 && overlapDepth(rect, x, z, r) <= before + 1e-9;
       });
