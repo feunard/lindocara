@@ -19,6 +19,7 @@ import {
 const GAMEPAD_AXIS_DEADZONE = 0.2;
 const CAMERA_MOUSE_RADIANS_PER_PIXEL = 0.006;
 const CAMERA_GAMEPAD_RADIANS_PER_SECOND = 1.8;
+const CAMERA_KEYBOARD_RADIANS_PER_SECOND = 1.8;
 const CAMERA_WHEEL_PERCENT_PER_PIXEL = 0.1;
 const CAMERA_DRAG_AXIS_THRESHOLD = 4;
 export const CAMERA_PITCH_DEFAULT = 38 * (Math.PI / 180);
@@ -152,6 +153,30 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   let mousePixelsX = 0;
   let mousePixelsY = 0;
   let wheelPixels = 0;
+  const keyboardYawControls = new Set<"moveLeft" | "moveRight">();
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement ||
+      event.target instanceof HTMLSelectElement ||
+      (event.target instanceof HTMLElement && event.target.isContentEditable) ||
+      event.repeat
+    )
+      return;
+    const control = keyboardControlForCode(event.code);
+    if (control !== "moveLeft" && control !== "moveRight") return;
+    keyboardYawControls.add(control);
+    setInputMode("keyboard");
+    event.preventDefault();
+  };
+  const onKeyUp = (event: KeyboardEvent): void => {
+    const control = keyboardControlForCode(event.code);
+    if (control !== "moveLeft" && control !== "moveRight") return;
+    keyboardYawControls.delete(control);
+    setInputMode("keyboard");
+    event.preventDefault();
+  };
 
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 2) return;
@@ -213,6 +238,7 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
     mousePixelsX = 0;
     mousePixelsY = 0;
     wheelPixels = 0;
+    keyboardYawControls.clear();
   };
 
   element.addEventListener("pointerdown", onPointerDown);
@@ -222,6 +248,8 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
   element.addEventListener("contextmenu", onContextMenu);
   element.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("blur", onBlur);
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
 
   return {
     takeSample(dt) {
@@ -242,6 +270,8 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       const yawAxis = Math.abs(axisX) >= Math.abs(axisY) ? axisX : 0;
       const pitchAxis = Math.abs(axisY) > Math.abs(axisX) ? axisY : 0;
       const sensitivity = getCameraSettings();
+      const keyboardYaw =
+        Number(keyboardYawControls.has("moveLeft")) - Number(keyboardYawControls.has("moveRight"));
       // A standard stick reports left/up as negative values. The camera orbits from the opposite
       // side of its focus, so gamepad axes use the opposite pointer-drag sign: the view follows the
       // physical direction in which the player pushes the stick.
@@ -249,7 +279,10 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
         (-cameraOrbitDelta(mouseY, 0, dt) + cameraOrbitDelta(0, pitchAxis, dt)) *
         sensitivity.verticalSensitivity;
       return {
-        yawDelta: cameraOrbitDelta(mouseX, -yawAxis, dt) * sensitivity.horizontalSensitivity,
+        yawDelta:
+          (cameraOrbitDelta(mouseX, -yawAxis, dt) +
+            keyboardYaw * CAMERA_KEYBOARD_RADIANS_PER_SECOND * Math.max(0, Math.min(dt, 0.1))) *
+          sensitivity.horizontalSensitivity,
         pitchDelta: pitchDelta === 0 ? 0 : pitchDelta,
         wheelPixels: wheel,
       };
@@ -262,6 +295,8 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       element.removeEventListener("contextmenu", onContextMenu);
       element.removeEventListener("wheel", onWheel);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
     },
   };
 }
@@ -295,6 +330,9 @@ export function trackInput(suppressGamepadJump: () => boolean = () => false): In
     const control = keyboardControlForCode(code);
     const action = control ? MOVEMENT_CONTROLS[control] : undefined;
     if (!action) return false;
+    // Keyboard left/right are camera-turn controls. Lateral locomotion remains analogue on the
+    // gamepad's left stick, while A/D can change the view without sliding the hero across a tile.
+    if (action === "left" || action === "right") return false;
     keyboard = { ...keyboard, [action]: pressed };
     return true;
   };

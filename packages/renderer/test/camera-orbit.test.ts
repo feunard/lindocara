@@ -91,6 +91,19 @@ describe("camera orbit input", () => {
     Object.defineProperty(navigator, "getGamepads", { configurable: true, value: original });
   });
 
+  it("turns the camera with keyboard left/right controls without requiring movement", () => {
+    const tracker = trackCameraOrbit(document.createElement("canvas"));
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", cancelable: true }));
+    expect(tracker.takeSample(0.1).yawDelta).toBeGreaterThan(0);
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyA", cancelable: true }));
+    expect(tracker.takeSample(0.1).yawDelta).toBe(0);
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD", cancelable: true }));
+    expect(tracker.takeSample(0.1).yawDelta).toBeLessThan(0);
+
+    tracker.stop();
+  });
+
   it("keeps a full horizontal orbit instead of returning to the default heading", () => {
     expect(cameraYawAfterDelta(0, Math.PI)).toBeCloseTo(Math.PI);
     expect(cameraYawAfterDelta(Math.PI, Math.PI / 2)).toBeCloseTo(-Math.PI / 2);

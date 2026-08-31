@@ -150,6 +150,18 @@ describe("input remapping", () => {
     tracker.stop();
   });
 
+  it("never turns keyboard camera keys into lateral hero movement", () => {
+    const tracker = trackInput();
+
+    fireEvent.keyDown(window, { code: "KeyA" });
+    expect(tracker.current()).toMatchObject({ left: false, right: false, axisX: 0 });
+    fireEvent.keyUp(window, { code: "KeyA" });
+    fireEvent.keyDown(window, { code: "KeyD" });
+    expect(tracker.current()).toMatchObject({ left: false, right: false, axisX: 0 });
+
+    tracker.stop();
+  });
+
   it("swaps a conflicting key instead of hiding either action", () => {
     setKeyboardBinding("interact", { code: "KeyW" });
 
