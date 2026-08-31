@@ -160,6 +160,8 @@ describe("EventDialoguePanel", () => {
     try {
       expect(screen.getByRole("button", { name: /1 Forest/ }).parentElement).toHaveFocus();
 
+      // The first neutral sample arms the newly mounted menu.
+      poll();
       axes[1] = 1;
       poll();
       expect(screen.getByRole("button", { name: /2 Cave/ }).parentElement).toHaveFocus();
@@ -182,6 +184,69 @@ describe("EventDialoguePanel", () => {
       setButton(2, true);
       poll();
       expect(eventChoose).toHaveBeenCalledWith("run-gamepad", 1);
+    } finally {
+      unmount();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: originalGetGamepads,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
+  });
+
+  it("waits for the opening A press to be released before advancing dialogue", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test Xbox controller",
+    } as unknown as Gamepad;
+    const originalGetGamepads = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const setA = (pressed: boolean) => {
+      const button = buttons[0];
+      if (!button) throw new Error("Missing Xbox A button");
+      button.pressed = pressed;
+      button.touched = pressed;
+      button.value = Number(pressed);
+    };
+    const poll = () => {
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      act(() => callback(0));
+    };
+
+    setA(true);
+    useUiStore.setState({
+      eventDialogue: { kind: "say", runId: "run-held-a", text: "Still here." },
+    });
+    const { unmount } = render(<EventDialoguePanel />);
+
+    try {
+      poll();
+      expect(eventAdvance).not.toHaveBeenCalled();
+      setA(false);
+      poll();
+      setA(true);
+      poll();
+      expect(eventAdvance).toHaveBeenCalledWith("run-held-a");
     } finally {
       unmount();
       Object.defineProperty(navigator, "getGamepads", {

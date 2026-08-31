@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
@@ -33,9 +33,12 @@ export function QuestDialoguePanel() {
   const game = useUiStore((state) => state.game);
   const [choices, setChoices] = useState<Record<string, string>>({});
   const { mode, settings } = useInputModeSettings();
+  const conversationId = dialogue?.conversationId;
+  const close = useCallback(() => {
+    if (conversationId) game?.questAction?.(conversationId, "close");
+  }, [conversationId, game]);
   if (!dialogue) return null;
 
-  const close = () => game?.questAction?.(dialogue.conversationId, "close");
   const confirmBinding = controlBindingLabel("interact", mode, settings);
   return (
     <MenuNav orientation="vertical" confirmControl="interact" onBack={close}>

@@ -1,7 +1,7 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { QuestDialoguePanel } from "@lindocara/client/ui/hud/QuestDialoguePanel.js";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const questAction = vi.fn();
@@ -80,5 +80,100 @@ describe("QuestDialoguePanel", () => {
     expect(turnIn).toBeEnabled();
     fireEvent.click(turnIn);
     expect(questAction).toHaveBeenCalledWith("conversation-2", "turn-in", "0002", "0007");
+  });
+
+  it("ignores the held opening A press, then navigates with the D-pad and confirms with A", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test Xbox controller",
+    } as unknown as Gamepad;
+    const originalGetGamepads = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const setButton = (index: number, pressed: boolean) => {
+      const button = buttons[index];
+      if (!button) throw new Error(`Missing test gamepad button ${index}`);
+      button.pressed = pressed;
+      button.touched = pressed;
+      button.value = Number(pressed);
+    };
+    const poll = () => {
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      act(() => callback(0));
+    };
+
+    setButton(0, true);
+    useUiStore.setState({
+      questDialogue: {
+        kind: "open",
+        conversationId: "conversation-pad",
+        entries: [
+          {
+            questId: "pad-quest",
+            speakerName: "Warden Mira",
+            title: "Controller quest",
+            text: "Will you help?",
+            category: "side",
+            region: "Old road",
+            landmark: "Eastern gate",
+            giverName: "Warden Mira",
+            phase: "offer",
+            canAccept: true,
+            canTurnIn: false,
+            rewardChoices: [],
+          },
+        ],
+      },
+    });
+    const { unmount } = render(<QuestDialoguePanel />);
+
+    try {
+      expect(screen.getByRole("button", { name: "Decline" }).parentElement).toHaveFocus();
+      poll();
+      expect(questAction).not.toHaveBeenCalled();
+
+      setButton(0, false);
+      poll();
+      setButton(13, true);
+      poll();
+      expect(screen.getByRole("button", { name: "Accept" }).parentElement).toHaveFocus();
+      setButton(13, false);
+      poll();
+      setButton(0, true);
+      poll();
+
+      expect(questAction).toHaveBeenCalledWith(
+        "conversation-pad",
+        "accept",
+        "pad-quest",
+        undefined,
+      );
+    } finally {
+      unmount();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: originalGetGamepads,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
   });
 });

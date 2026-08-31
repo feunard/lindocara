@@ -175,6 +175,7 @@ export function MenuNav({
     let repeatIn = 0;
     let prevConfirm = false;
     let prevBack = false;
+    let gamepadSampled = false;
     const axis = orientation === "vertical" ? AXIS_Y : AXIS_X;
     const negBtn = orientation === "vertical" ? DPAD.up : DPAD.left;
     const posBtn = orientation === "vertical" ? DPAD.down : DPAD.right;
@@ -186,7 +187,14 @@ export function MenuNav({
           pad.buttons[negBtn]?.pressed === true || (pad.axes[axis] ?? 0) < -STICK_DEADZONE;
         const pos = pad.buttons[posBtn]?.pressed === true || (pad.axes[axis] ?? 0) > STICK_DEADZONE;
         const dir: 1 | -1 | 0 = pos ? 1 : neg ? -1 : 0;
-        if (dir !== 0 && dir !== heldDir) {
+        if (!gamepadSampled) {
+          // A panel can mount while the button which opened it is still physically held. The first
+          // sample establishes that held baseline; only a release followed by a new press may
+          // activate, go back, or move focus. Without this arming step, A opened a dialogue and
+          // immediately activated its first Continue/Refuse/Close item on the next animation frame.
+          heldDir = dir;
+          repeatIn = REPEAT_FIRST;
+        } else if (dir !== 0 && dir !== heldDir) {
           move(dir);
           heldDir = dir;
           repeatIn = REPEAT_FIRST;
@@ -210,10 +218,18 @@ export function MenuNav({
         if (dir !== 0 || confirmPressed || backPressed) {
           setInputMode("gamepad");
         }
-        if (confirmPressed && !prevConfirm && focusedRef.current) activate(focusedRef.current);
+        if (gamepadSampled && confirmPressed && !prevConfirm && focusedRef.current)
+          activate(focusedRef.current);
         prevConfirm = confirmPressed;
-        if (backPressed && !prevBack) triggerBack();
+        if (gamepadSampled && backPressed && !prevBack) triggerBack();
         prevBack = backPressed;
+        gamepadSampled = true;
+      } else {
+        gamepadSampled = false;
+        heldDir = 0;
+        repeatIn = 0;
+        prevConfirm = false;
+        prevBack = false;
       }
       raf = requestAnimationFrame(poll);
     };
