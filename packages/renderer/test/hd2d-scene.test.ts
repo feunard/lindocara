@@ -2,6 +2,7 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { mapToQuerySource } from "@lindocara/engine/hd2d/map-data.js";
 import type { TerrainMaterial } from "@lindocara/engine/hd2d/terrain-query.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
+import { undergroundColliders } from "@lindocara/engine/underground.js";
 import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TerrainAtlas } from "@lindocara/hd2d/terrain/atlas.js";
 import * as THREE from "three";
@@ -41,6 +42,57 @@ describe("surface access preview", () => {
     expect(surfaceAccessPreviewAt(map("lava"), 0, 0)).toBe(false);
     expect(surfaceAccessPreviewAt(map(null, null), 0, 0)).toBe(false);
     expect(surfaceAccessPreviewAt(map(null), 0, 0)).toBe(true);
+  });
+});
+
+describe("camera focus over underground rooms", () => {
+  it.each([
+    { label: "level-zero", liquidLevel: 0 },
+    { label: "raised", liquidLevel: 3 },
+  ])("keeps the camera on a $label surface liquid above a basement", ({ liquidLevel }) => {
+    const underground = {
+      levels: [
+        {
+          depth: 1,
+          style: "cave" as const,
+          cells: [{ col: 1, row: 1, length: 1 }],
+        },
+      ],
+      stairs: [],
+    };
+    const platforms = undergroundColliders(underground, 3);
+    const query = createTerrainQuery({
+      size: 3,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => null,
+      kindAt: () => null,
+      liquidAt: () => "water",
+      liquidLevelAt: () => liquidLevel,
+      liquidAtElevation: (_col, _row, elevation) => (elevation > -0.6 ? "water" : null),
+      waterLevelAtElevation: (_col, _row, elevation) =>
+        elevation > -0.6 ? liquidLevel * 0.9 : null,
+      platforms,
+    });
+    const liquidSurface = liquidLevel * 0.9;
+
+    expect(query.surfaceAt?.(0, 0, liquidSurface + 0.02)).not.toBe(liquidSurface);
+    expect(cameraFocusSurface(query, -0.05, 0, 0, liquidSurface)).toBeCloseTo(liquidSurface);
+  });
+
+  it("still follows a finite platform above the same liquid column", () => {
+    const query = createTerrainQuery({
+      size: 1,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => null,
+      kindAt: () => null,
+      liquidAt: () => "water",
+      liquidLevelAt: () => 0,
+      platforms: [{ x: -0.5, z: -0.5, w: 1, h: 1, bottom: 1.62, top: 1.8 }],
+    });
+
+    expect(cameraFocusSurface(query, -0.05, 0, 0, 1.8)).toBeCloseTo(1.8);
   });
 });
 

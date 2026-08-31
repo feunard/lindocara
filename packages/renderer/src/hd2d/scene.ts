@@ -529,6 +529,18 @@ export function cameraFocusSurface(
     // While jumping, the body is its own camera reference. Looking up the surface below here made
     // the camera plunge into every crevasse even though the hero remained high above it.
     if (airborne) return elevation;
+    // A swimmer is supported by the liquid, not by the highest finite platform below it. Once
+    // underground floors became real slabs, `surfaceAt` could select a basement floor through a
+    // surface lake and make the camera dive underground while the hero was still visibly swimming.
+    // The elevation-aware lookup keeps an underground pool on its own storey as well.
+    const liquid = query.liquidAtElevation?.(x, z, elevation);
+    if (liquid !== null && liquid !== undefined) {
+      const liquidSurface =
+        query.waterLevelAtElevation?.(x, z, elevation) ?? query.waterLevelAt(x, z);
+      // `liquidAtElevation` names the liquid in this vertical column. The height comparison is what
+      // distinguishes a swimmer pinned to its surface from a grounded hero on a bridge above it.
+      if (Math.abs(liquidSurface - elevation) <= 0.1) return liquidSurface;
+    }
     return (
       query.surfaceAt?.(x, z, elevation + CAMERA_SURFACE_CEILING_EPSILON) ??
       query.heightAt(x, z) ??
