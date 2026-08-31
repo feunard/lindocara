@@ -93,8 +93,8 @@ never duplicate the message variants in zod.
   `/ws/world?roomId=…&party=…&hero=…`; the room re-validates everything against the database in
   `onJoin` — no query parameter selects an outcome. `conn` carries only `userId` (resolved at the
   upgrade from the bearer token or, for browsers, the encrypted session cookie, since a browser
-  WebSocket cannot send an `Authorization` header). Close codes are the 4001-4008 vocabulary
-  (`engine/close-codes.ts`).
+  WebSocket cannot send an `Authorization` header). Close codes are the 4001-4009 vocabulary
+  (`engine/close-codes.ts`); 4009 is the browser-only malformed-server-frame signal.
 - **`PartyRoom`** (headless, roomId `partyId`) — the party coordinator: room directory, party
   chat/victory fan-out, single writer of adventure state (switches/variables/self-switches, a
   monotone version, write-through persistence via `AdventureStateService`). Its room directory

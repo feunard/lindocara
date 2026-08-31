@@ -1,4 +1,5 @@
 import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { encodeMap } from "@lindocara/engine/hd2d/map-data.js";
 import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
@@ -23,6 +24,14 @@ class FakeWebSocket extends EventTarget {
   }
 
   close(code = 1000, reason = ""): void {
+    if (this.readyState !== FakeWebSocket.OPEN) return;
+    if (code !== 1000 && (code < 3000 || code > 4999)) {
+      throw new DOMException("Invalid WebSocket close code", "InvalidAccessError");
+    }
+    this.serverClose(code, reason);
+  }
+
+  serverClose(code: number, reason = ""): void {
     if (this.readyState !== FakeWebSocket.OPEN) return;
     this.readyState = 3;
     this.closeCode = code;
@@ -700,7 +709,7 @@ describe("WorldClient lifecycle", () => {
     const socket = FakeWebSocket.instances[0];
 
     socket?.dispatchEvent(new Event("error"));
-    socket?.close(1006, "closed after error");
+    socket?.serverClose(1006, "closed after error");
 
     expect(callbacks.onClose).toHaveBeenCalledOnce();
     expect(callbacks.onClose).toHaveBeenCalledWith(1006, "connection error");
@@ -716,8 +725,11 @@ describe("WorldClient lifecycle", () => {
 
     socket?.message({ t: "not-a-welcome" });
 
-    expect(socket?.closeCode).toBe(1002);
-    expect(callbacks.onClose).toHaveBeenCalledWith(1002, "invalid welcome");
+    expect(socket?.closeCode).toBe(WS_CLOSE.INVALID_SERVER_MESSAGE);
+    expect(callbacks.onClose).toHaveBeenCalledWith(
+      WS_CLOSE.INVALID_SERVER_MESSAGE,
+      "invalid welcome",
+    );
     expect(socket?.sent).toEqual([]);
   });
 });

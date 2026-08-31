@@ -8,4 +8,6 @@ export const WS_CLOSE = Object.freeze({
   ROOM_FULL: 4006,
   INVALID_LOCATION: 4007,
   ZONE_TRANSITION: 4008,
+  /** Browser-detected malformed server frame. Retryable; the server never emits this code. */
+  INVALID_SERVER_MESSAGE: 4009,
 });

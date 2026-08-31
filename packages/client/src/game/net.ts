@@ -1,4 +1,5 @@
 import type { AmbienceState } from "@lindocara/engine/ambience.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, speedForLife } from "@lindocara/engine/death.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
@@ -363,11 +364,11 @@ export class WorldClient {
           this.#handle(message, handlers);
           return;
         }
-        // There is no baseline to resynchronise before welcome. Closing with the WebSocket
-        // protocol error code makes the normal reconnect path start a fresh handshake instead of
+        // There is no baseline to resynchronise before welcome. Start a fresh handshake instead of
         // leaving the loading screen behind a resync request the server cannot satisfy for this
-        // client state.
-        if (this.#selfId === null) ws.close(1002, "invalid welcome");
+        // client state. Browsers forbid callers from passing the protocol-reserved code 1002 to
+        // `WebSocket.close()`; use the application's retryable malformed-server-frame code.
+        if (this.#selfId === null) ws.close(WS_CLOSE.INVALID_SERVER_MESSAGE, "invalid welcome");
         else this.#requestResync();
       });
 
@@ -380,7 +381,7 @@ export class WorldClient {
     // Alepha ships its own `WebSocketClient`/`WebSocketChannelConnection`
     // (`.vendor/alepha/src/websocket/services/WebSocketClient.ts`), but it swallows the close
     // event's code and reason and reconnects on a fixed timer of its own. `session.ts`'s
-    // reconnect table needs the exact 4001-4008 vocabulary to tell a zone transition from a
+    // reconnect table needs the exact 4001-4009 vocabulary to tell a zone transition from a
     // lost presence lease from a terminal kick, so we open the raw WebSocket ourselves and
     // replicate only the wire envelope. Filed as an upstream feature request: surface the close
     // code/reason on the channel connection and let the caller own retry policy.

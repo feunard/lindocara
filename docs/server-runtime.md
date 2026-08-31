@@ -101,7 +101,8 @@ Admission is two steps: the client calls `GET /api/join?party=<partyId>&hero=<he
 `/ws/world?roomId=â€¦&party=â€¦&hero=â€¦`. The room re-validates account, membership, hero ownership
 and adventure-map membership against the database in `onJoin` and reads the authoritative map and
 position there â€” no query parameter or client message may select a destination map or position.
-Close codes keep the 4001-4008 vocabulary (`engine/close-codes.ts`).
+Close codes keep the 4001-4009 vocabulary (`engine/close-codes.ts`); 4009 is the browser-only,
+retryable signal for a malformed server frame.
 
 `PartyRoom` (headless, roomId `partyId`) coordinates the room directory and party-wide
 broadcasts. Simulation is sharded into `WorldRoom` instances addressed by `partyId:mapId`; each
