@@ -67,6 +67,27 @@ describe("contextual controller interaction", () => {
     ).toBe(false);
   });
 
+  it("never presents a harvest node as an interaction, even from a stale marked snapshot", () => {
+    const harvest = {
+      state: "intact" as const,
+      generation: 0,
+      hits: 0,
+      hitsRequired: 2,
+      lastHitAt: null,
+      depletedAt: null,
+      respawnAt: null,
+      exhaustionBehavior: "hide" as const,
+      exhaustedAssetId: null,
+      fadeDurationMs: 250,
+      collider: [0, 0, 32, 32] as const,
+    };
+    const resource = { ...event, interactive: true as const, harvest };
+
+    expect(nearestInteractiveEvent(self, [resource], 10)).toBeUndefined();
+    expect(nearestInteractiveEvent({ ...self, class: "peasant" }, [resource], 10)).toBeUndefined();
+    expect(hasNearbyInteraction(context({ events: [resource] }))).toBe(false);
+  });
+
   it("covers prompts, nearby bodies and live camp chests", () => {
     expect(hasNearbyInteraction(context({ promptKey: "prompt.speak" }))).toBe(true);
     expect(hasNearbyInteraction(context({ promptKey: "prompt.approach" }))).toBe(false);

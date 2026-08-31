@@ -87,7 +87,9 @@ export function nearestInteractiveEvent(
   let nearest: WorldEventSnapshot | undefined;
   let shortest = INTERACTION_RANGE;
   for (const event of events) {
-    if (event.interactive !== true) continue;
+    // Harvest nodes use the Peasant's contextual basic attack. They never consume the shared
+    // interact/jump button, even if an older room snapshot incorrectly advertised the bit.
+    if (event.interactive !== true || event.harvest) continue;
     const centre = authoredCellCentreGround(event, worldSize);
     const eventY = event.y ?? centre.y;
     if (Math.abs(self.y - eventY) > 0.85) continue;

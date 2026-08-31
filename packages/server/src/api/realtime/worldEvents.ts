@@ -481,7 +481,9 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       moveFrequency: wanderingHarvest ? 2 : page.moveFreq,
       moveAnimation: page.optMoveAnim,
       directionFixed: page.optDirFix,
-      ...(page.trigger === "action" ? { interactive: true as const } : {}),
+      ...(isInteractiveWorldEventKind(event.kind) && page.trigger === "action"
+        ? { interactive: true as const }
+        : {}),
       presentation: event.kind === "harvestable" ? "native" : "marker",
       showMarker: event.showMarker !== false,
       ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),

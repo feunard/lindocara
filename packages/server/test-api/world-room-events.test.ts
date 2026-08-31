@@ -966,7 +966,6 @@ describe("world room events (FakeClock)", () => {
       col: 5,
       row: 5,
       graphicAssetId: PAGE2_GRAPHIC,
-      interactive: true,
       harvest: {
         state: "intact",
         generation: 0,
@@ -977,6 +976,9 @@ describe("world room events (FakeClock)", () => {
         collider: expect.any(Array),
       },
     });
+    expect(state.activeEvents.find((event) => event.id === resource.id)).not.toHaveProperty(
+      "interactive",
+    );
     const intactCollider = state.activeEvents.find((event) => event.id === resource.id)?.harvest
       ?.collider;
     if (!intactCollider) throw new Error("intact harvest collider missing");
