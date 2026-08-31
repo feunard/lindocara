@@ -3291,6 +3291,7 @@ export function applyTool(
           ordinal,
           preset: tool.preset ?? "raw",
           selfMapId: tool.selfMapId ?? "",
+          ...(undergroundDepth === null ? {} : { undergroundDepth }),
           // The map's own spawn is the walkable placeholder a fresh `teleporter` aims at, and the
           // preset label names the event so five presets do not all list as "Custom event".
           selfSpawn: map.spawn,

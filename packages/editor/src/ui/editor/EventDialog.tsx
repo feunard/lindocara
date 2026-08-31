@@ -1160,6 +1160,8 @@ interface EventDialogProps {
   /** The adventure's member maps, for a `teleport` command's destination Select (with its dims for
    *  the client-side cell clamp). Empty disables the teleport command in the insert palette. */
   maps: readonly TeleportMap[];
+  /** Map containing this event; checkpoints are intentionally local to it. */
+  currentMapId?: string | undefined;
   /** Commit and persist the edited draft. The dialog stays busy until persistence settles. */
   onCommit(draft: MapEvent): void | Promise<void>;
   /** Delete the event (its own history entry). */
@@ -1185,6 +1187,7 @@ export function EventDialog({
   event,
   registry,
   maps,
+  currentMapId,
   onCommit,
   onDelete,
   onCancel,
@@ -1359,6 +1362,7 @@ export function EventDialog({
                 variables={registry.variables}
                 quests={registry.quests ?? []}
                 maps={maps}
+                currentMapId={currentMapId}
                 defaultSpeakerName={draft.name}
                 onChange={(commands) => update({ commands })}
               />
@@ -1832,6 +1836,7 @@ export function EventDialog({
                     variables={registry.variables}
                     quests={registry.quests ?? []}
                     maps={maps}
+                    currentMapId={currentMapId}
                     defaultSpeakerName={draft.name}
                     onChange={(commands) => update({ commands })}
                   />

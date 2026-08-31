@@ -2621,6 +2621,7 @@ function AdventureEditorInner({
             event={eventDraft}
             registry={registry}
             maps={liveTeleportMaps}
+            currentMapId={map?.id}
             onOpenHelp={() => openHelp("story")}
             onCommit={async (draft) => {
               const handle = handleRef.current;

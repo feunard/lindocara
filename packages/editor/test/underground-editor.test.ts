@@ -696,7 +696,12 @@ describe("underground editor tools", () => {
     map = applyTool(map, { kind: "event", eventKind: "normal" }, 5, 5, true, "event") as typeof map;
     map = applyTool(
       map,
-      { kind: "event", eventKind: "normal" },
+      {
+        kind: "event",
+        eventKind: "normal",
+        preset: "checkpoint",
+        selfMapId: "11111111-1111-4111-8111-111111111111",
+      },
       5,
       5,
       true,
@@ -711,6 +716,15 @@ describe("underground editor tools", () => {
     ]);
     expect(map.elements.map((element) => element.undergroundDepth ?? 0)).toEqual([0, 3]);
     expect(map.events.map((event) => event.undergroundDepth ?? 0)).toEqual([0, 3]);
+    expect(map.events[1]?.pages[0]?.commands).toEqual([
+      {
+        t: "setCheckpoint",
+        mapId: "11111111-1111-4111-8111-111111111111",
+        col: 5,
+        row: 5,
+        undergroundDepth: 3,
+      },
+    ]);
     expect(map.elements[0]?.id).toBeUndefined();
     expect(map.elements[1]?.id).toBeDefined();
 

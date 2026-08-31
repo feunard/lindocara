@@ -303,7 +303,7 @@ export function killPlayer(w: WorldGlue, connectionId: string, player: PlayerRun
   });
 }
 
-/** Temporary release policy: resurrect immediately at the current map's authored entry point.
+/** Resurrect at the last valid checkpoint on this map, or at the authored entry point.
  * Ghost/corpse-run types remain for persisted compatibility, but ordinary release bypasses them.
  * `mapEntryPosition` provides the same standable fallback used by room admission. */
 export function handleRelease(w: WorldGlue, connectionId: string, player: PlayerRuntime): void {
@@ -311,7 +311,10 @@ export function handleRelease(w: WorldGlue, connectionId: string, player: Player
   player.resurrectionAt = 0;
   const definition = zone(w.state);
   const terrain = definition.terrain;
-  const entry = mapEntryPosition(terrain, definition.spawns?.[0]);
+  const entry =
+    player.respawnAnchor?.mapId === w.state.mapId
+      ? player.respawnAnchor.position
+      : mapEntryPosition(terrain, definition.spawns?.[0]);
   const previousPosition = { x: player.x, y: player.y, z: player.z };
   const now = w.deps.now();
   player.life = "alive";

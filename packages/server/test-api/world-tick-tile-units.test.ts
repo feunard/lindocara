@@ -43,6 +43,7 @@ import { startPlayerAction } from "../src/api/realtime/world-actions.ts";
 import type { WorldGlue, WorldTickDeps } from "../src/api/realtime/world-glue.ts";
 import {
   authoredTeleportTarget,
+  dispatchCheckpoint,
   dispatchTeleport,
   dispatchMovementEffect,
   teleportSameMap,
@@ -539,6 +540,58 @@ describe("a hero put down ON a player-touch event by a teleport", () => {
 });
 
 describe("releasing a spirit", () => {
+  it("returns to the latest valid checkpoint on the current map", () => {
+    const built = terrain();
+    const player = hero(2.5, -3.5);
+    const spawn = { x: -1.5, z: -1.5 };
+    const w = glue(built, player, spawn);
+    const target = atCell(4, 5);
+
+    const effect = { kind: "setCheckpoint" as const, mapId: MAP_ID, col: 4, row: 5 };
+    dispatchCheckpoint(
+      w,
+      {
+        heroId: HERO_ID,
+        runId: "checkpoint-run",
+        eventId: "checkpoint",
+        effect,
+      },
+      effect,
+    );
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(player).toMatchObject({
+      life: "alive",
+      x: target.x,
+      y: groundUnder(built, target.x, target.z),
+      z: target.z,
+    });
+  });
+
+  it("refuses a checkpoint outside the current map instead of replacing the entry", () => {
+    const built = terrain();
+    const player = hero(2.5, -3.5);
+    const spawn = { x: -1.5, z: -1.5 };
+    const w = glue(built, player, spawn);
+
+    const effect = { kind: "setCheckpoint" as const, mapId: "another-map", col: 4, row: 5 };
+    dispatchCheckpoint(
+      w,
+      {
+        heroId: HERO_ID,
+        runId: "checkpoint-run",
+        eventId: "checkpoint",
+        effect,
+      },
+      effect,
+    );
+    killPlayer(w, "connection", player);
+    handleRelease(w, "connection", player);
+
+    expect(player).toMatchObject({ x: spawn.x, z: spawn.z });
+  });
+
   it("leaves the body where it fell until release, with all three axes", () => {
     const built = terrain();
     const player = hero(2.25, -3.5);

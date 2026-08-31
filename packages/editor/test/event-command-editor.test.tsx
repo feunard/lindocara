@@ -10,6 +10,8 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+const MAP_ID = "11111111-1111-4111-8111-111111111111";
+
 /** A controlled harness: the editor is controlled, so the parent must feed each `onChange` back as
  *  the next `commands`. `latest` captures the current tree for assertions. */
 function Harness({
@@ -17,6 +19,7 @@ function Harness({
   switches = [],
   variables = [],
   maps = [],
+  currentMapId,
   defaultSpeakerName,
   latest,
 }: {
@@ -24,6 +27,7 @@ function Harness({
   switches?: readonly RegistryEntry[];
   variables?: readonly RegistryEntry[];
   maps?: readonly TeleportMap[];
+  currentMapId?: string;
   defaultSpeakerName?: string;
   latest: { current: readonly EventCommand[] };
 }) {
@@ -35,6 +39,7 @@ function Harness({
       switches={switches}
       variables={variables}
       maps={maps}
+      currentMapId={currentMapId}
       defaultSpeakerName={defaultSpeakerName}
       onChange={(next) => {
         latest.current = next;
@@ -161,6 +166,25 @@ describe("EventCommandEditor", () => {
     );
     expect(latest.current).toEqual([
       { t: "movementEffect", effect: "double_jump", durationMs: 9_000, power: 1 },
+    ]);
+  });
+
+  it("authors a checkpoint on the current map and chosen floor", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    const maps: TeleportMap[] = [
+      { mapId: MAP_ID, name: "Farm", cols: 12, rows: 10, destinations: [] },
+    ];
+    render(<Harness maps={maps} currentMapId={MAP_ID} latest={latest} />);
+
+    await insertVia(user, "setCheckpoint")();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cmd.field.checkpointLevel") }),
+      "-3",
+    );
+
+    expect(latest.current).toEqual([
+      { t: "setCheckpoint", mapId: MAP_ID, col: 0, row: 0, undergroundDepth: 3 },
     ]);
   });
 
@@ -449,9 +473,10 @@ describe("EventCommandEditor", () => {
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
     // The core event language plus the authored quest/fact commands, the endAdventure beat, the
-    // `openShop` counter, reusable damage/impulse traps and movement modifiers, the authored cue and
-    // the three ambience commands; deferred common-event and screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(28);
+    // `openShop` counter, reusable damage/impulse traps and movement modifiers, checkpoints, the
+    // authored cue and the three ambience commands; deferred common-event and screen commands
+    // remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(29);
     expect(
       within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
     ).toBeEnabled();

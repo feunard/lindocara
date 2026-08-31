@@ -118,6 +118,7 @@ describe("EventPalette (D13/D14)", () => {
     render(<EventPalette {...baseProps()} />);
     expect(screen.getByTestId("event-presets")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("editor.event.preset.teleporter") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: t("editor.event.preset.checkpoint") })).toBeEnabled();
     // The graphic picker (D13) is gone from the sidebar.
     expect(screen.queryByTestId("catalogue-picker")).toBeNull();
   });

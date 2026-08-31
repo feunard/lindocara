@@ -36,6 +36,7 @@ import {
   SOUND_EFFECTS,
   soundEffect,
 } from "@lindocara/engine/sfx-catalog.js";
+import { MAX_UNDERGROUND_DEPTH, MAX_UPPER_STOREY } from "@lindocara/engine/underground.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 
@@ -79,6 +80,8 @@ interface EventCommandEditorProps {
   quests?: readonly AuthoredQuestDefinition[];
   /** The adventure's maps, for a `teleport` destination Select. */
   maps: readonly TeleportMap[];
+  /** Map containing the edited event, used by a newly inserted checkpoint command. */
+  currentMapId?: string | undefined;
   /** New dialogue lines start with this visible event/person name; clearing it means narration. */
   defaultSpeakerName?: string | undefined;
   onChange(commands: readonly EventCommand[]): void;
@@ -108,7 +111,7 @@ const COMMAND_CATEGORIES: readonly {
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   {
     key: "character",
-    kinds: ["teleport", "wait", "damage", "trapImpulse", "movementEffect"],
+    kinds: ["teleport", "setCheckpoint", "wait", "damage", "trapImpulse", "movementEffect"],
   },
   { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
   { key: "ambience", kinds: ["playSound", "setMusic", "setWeather", "setDayCycle"] },
@@ -128,6 +131,7 @@ function defaultCommand(
     variables: readonly RegistryEntry[];
     quests: readonly AuthoredQuestDefinition[];
     maps: readonly TeleportMap[];
+    currentMapId?: string | undefined;
     defaultSpeakerName?: string | undefined;
   },
 ): EventCommand | null {
@@ -198,6 +202,15 @@ function defaultCommand(
         power: defaults.power,
       };
     }
+    case "setCheckpoint":
+      return ctx.currentMapId || ctx.maps[0]?.mapId
+        ? {
+            t: "setCheckpoint",
+            mapId: ctx.currentMapId ?? ctx.maps[0]?.mapId ?? "",
+            col: 0,
+            row: 0,
+          }
+        : null;
     case "teleport": {
       const mapId = ctx.maps[0]?.mapId;
       return mapId === undefined
@@ -450,6 +463,12 @@ function commandLine(
         effect: t(`editor.event.effect.${command.effect}`),
         seconds: command.durationMs / 1_000,
       });
+    case "setCheckpoint":
+      return t("editor.event.cmd.setCheckpoint", {
+        col: command.col + 1,
+        row: command.row + 1,
+        level: command.undergroundDepth === undefined ? 0 : -command.undergroundDepth,
+      });
     case "teleport": {
       const map = maps.find((m) => m.mapId === command.mapId);
       const category = t(`editor.event.cmd.transition.${command.category ?? "geographic"}`);
@@ -548,6 +567,7 @@ export function EventCommandEditor({
   variables,
   quests = [],
   maps,
+  currentMapId,
   defaultSpeakerName,
   onChange,
 }: EventCommandEditorProps) {
@@ -558,7 +578,7 @@ export function EventCommandEditor({
 
   const rows = useMemo(() => flattenCommands(commands), [commands]);
   const selected = selection ? commandAt(commands, selection) : null;
-  const ctx = { switches, variables, quests, maps, defaultSpeakerName };
+  const ctx = { switches, variables, quests, maps, currentMapId, defaultSpeakerName };
 
   const insert = (kind: EventCommand["t"]): void => {
     const command = defaultCommand(kind, ctx);
@@ -1208,6 +1228,8 @@ function ParamBody({
     }
     case "teleport":
       return <TeleportParams command={command} maps={maps} onChange={onChange} />;
+    case "setCheckpoint":
+      return <CheckpointParams command={command} maps={maps} onChange={onChange} />;
     case "changeGold":
       return (
         <Field label={t("editor.event.cmd.field.gold")}>
@@ -1757,6 +1779,70 @@ function ConditionParams({
           </FieldSelect>
         </Field>
       )}
+    </div>
+  );
+}
+
+function CheckpointParams({
+  command,
+  maps,
+  onChange,
+}: {
+  command: Extract<EventCommand, { t: "setCheckpoint" }>;
+  maps: readonly TeleportMap[];
+  onChange(command: EventCommand): void;
+}) {
+  const map = maps.find((candidate) => candidate.mapId === command.mapId);
+  const maxCol = Math.max(0, (map?.cols ?? 1) - 1);
+  const maxRow = Math.max(0, (map?.rows ?? 1) - 1);
+  const widthLabel = t("editor.event.cmd.field.col", { max: maxCol + 1 });
+  const heightLabel = t("editor.event.cmd.field.row", { max: maxRow + 1 });
+  const levels = Array.from(
+    { length: MAX_UNDERGROUND_DEPTH + MAX_UPPER_STOREY + 1 },
+    (_, index) => index - MAX_UNDERGROUND_DEPTH,
+  );
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <Field label={widthLabel}>
+        <NumberField
+          ariaLabel={widthLabel}
+          className="w-20"
+          value={command.col + 1}
+          min={1}
+          max={maxCol + 1}
+          onChange={(col) => onChange({ ...command, col: col - 1 })}
+          onBlur={() => onChange({ ...command, col: clampInt(command.col, 0, maxCol, 0) })}
+        />
+      </Field>
+      <Field label={heightLabel}>
+        <NumberField
+          ariaLabel={heightLabel}
+          className="w-20"
+          value={command.row + 1}
+          min={1}
+          max={maxRow + 1}
+          onChange={(row) => onChange({ ...command, row: row - 1 })}
+          onBlur={() => onChange({ ...command, row: clampInt(command.row, 0, maxRow, 0) })}
+        />
+      </Field>
+      <Field label={t("editor.event.cmd.field.checkpointLevel")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.checkpointLevel")}
+          className="w-32"
+          value={command.undergroundDepth === undefined ? 0 : -command.undergroundDepth}
+          onChange={(event) => {
+            const level = Number(event.currentTarget.value);
+            const { undergroundDepth: _depth, ...surface } = command;
+            onChange(level === 0 ? surface : { ...surface, undergroundDepth: -level });
+          }}
+        >
+          {levels.map((level) => (
+            <option key={level} value={level}>
+              {level > 0 ? `+${level}` : level}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
     </div>
   );
 }

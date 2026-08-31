@@ -133,6 +133,12 @@ export interface Attachment extends WorldPosition {
   resurrectionAt?: number;
 }
 
+export interface RespawnAnchor {
+  /** Checkpoints never silently cross maps; a different room falls back to that map's entry. */
+  mapId: string;
+  position: WorldPosition;
+}
+
 /**
  * The two capabilities the world systems actually need from the room's spatial index, on the
  * GROUND plane.
@@ -418,6 +424,8 @@ export interface PlayerRuntime extends PlayerProfile {
   forgottenUntil: number;
   invisibleUntil: number;
   resurrectionAt: number;
+  /** Last valid authored checkpoint crossed in this live session. */
+  respawnAnchor: RespawnAnchor | null;
   /** Temporary authored pickup grants. Room-local and never persisted. */
   movementEffects: Map<MovementEffectKind, ActiveMovementEffect>;
   /**
@@ -855,6 +863,7 @@ export function newPlayer(
       CONSUMABLES.invisibility_potion.durationMs,
     ),
     resurrectionAt: boundedResurrectionAt(profile.resurrectionAt, now),
+    respawnAnchor: null,
   };
 }
 

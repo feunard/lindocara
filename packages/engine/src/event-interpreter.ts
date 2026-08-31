@@ -260,6 +260,13 @@ export type EventEffect =
       readonly costCurrency?: "gold" | "crystals";
       readonly costAmount?: number;
     }
+  | {
+      readonly kind: "setCheckpoint";
+      readonly mapId: string;
+      readonly col: number;
+      readonly row: number;
+      readonly undergroundDepth?: number;
+    }
   | { readonly kind: "endAdventure" }
   /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
   | { readonly kind: "openShop" }
@@ -535,6 +542,21 @@ function executeCommand(
             effect: command.effect,
             durationMs: command.durationMs,
             power: command.power,
+          },
+        ],
+      };
+    case "setCheckpoint":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [
+          {
+            kind: "setCheckpoint",
+            mapId: command.mapId,
+            col: command.col,
+            row: command.row,
+            ...(command.undergroundDepth === undefined
+              ? {}
+              : { undergroundDepth: command.undergroundDepth }),
           },
         ],
       };

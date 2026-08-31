@@ -30,6 +30,24 @@ describe("presetPageContent", () => {
     ]);
   });
 
+  it("checkpoint carries its authored cell and storey", () => {
+    expect(
+      presetPageContent(
+        "checkpoint",
+        MAP_ID,
+        { col: 0, row: 0 },
+        {
+          col: 7,
+          row: 5,
+          undergroundDepth: 3,
+        },
+      ),
+    ).toEqual({
+      trigger: "player-touch",
+      commands: [{ t: "setCheckpoint", mapId: MAP_ID, col: 7, row: 5, undergroundDepth: 3 }],
+    });
+  });
+
   it("aims a fresh teleporter at the map's own spawn, not at the (0,0) corner", () => {
     // (0, 0) is a corner, and the runtime silently refuses a teleport onto unwalkable ground — on any
     // map with a decorated border that placeholder does nothing and only warns into the server log.
@@ -95,6 +113,22 @@ describe("presetEvent", () => {
     expect(event.pages[0]?.commands).toEqual([
       { t: "teleport", mapId: MAP_ID, col: 0, row: 0, category: "geographic" },
     ]);
+  });
+
+  it("aims a checkpoint at the cell and floor where it is placed", () => {
+    const event = presetEvent({
+      id: crypto.randomUUID(),
+      col: 6,
+      row: 8,
+      undergroundDepth: -2,
+      ordinal: 1,
+      preset: "checkpoint",
+      selfMapId: MAP_ID,
+    });
+    expect(event.pages[0]).toMatchObject({
+      trigger: "player-touch",
+      commands: [{ t: "setCheckpoint", mapId: MAP_ID, col: 6, row: 8, undergroundDepth: -2 }],
+    });
   });
 
   it("carries the placement's name so the event list can tell the presets apart", () => {

@@ -27,6 +27,7 @@ import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./Terr
  * two-click preset: its second click commits both linked endpoints. */
 export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   raw: "editor.event.preset.raw",
+  checkpoint: "editor.event.preset.checkpoint",
   teleporter: "editor.event.preset.teleporter",
   sign: "editor.event.preset.sign",
   chest: "editor.event.preset.chest",

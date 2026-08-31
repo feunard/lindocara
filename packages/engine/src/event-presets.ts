@@ -34,6 +34,7 @@ import { TRAP_LAUNCH_THREE_LEVEL_SPEED } from "./trap-physics.js";
 
 export const EVENT_PRESETS = [
   "raw",
+  "checkpoint",
   "teleporter",
   "sign",
   "chest",
@@ -85,10 +86,26 @@ export function presetPageContent(
   preset: EventPreset,
   selfMapId: string,
   selfSpawn: { col: number; row: number } = { col: 0, row: 0 },
+  checkpoint: { col: number; row: number; undergroundDepth?: number } = selfSpawn,
 ): { trigger: EventTrigger; commands: EventCommand[] } {
   switch (preset) {
     case "raw":
       return { trigger: "action", commands: [] };
+    case "checkpoint":
+      return {
+        trigger: "player-touch",
+        commands: [
+          {
+            t: "setCheckpoint",
+            mapId: selfMapId,
+            col: checkpoint.col,
+            row: checkpoint.row,
+            ...(checkpoint.undergroundDepth === undefined
+              ? {}
+              : { undergroundDepth: checkpoint.undergroundDepth }),
+          },
+        ],
+      };
     case "teleporter":
       // The destination defaults to the map's OWN spawn cell, not (0, 0). The runtime refuses a
       // teleport onto unwalkable ground (and only warns once, into the server log), so a corner cell
@@ -167,6 +184,8 @@ export function presetEvent(params: {
   selfMapId: string;
   /** The map's own spawn cell — the `teleporter` preset's walkable destination placeholder. */
   selfSpawn?: { col: number; row: number };
+  /** Placement storey used by the checkpoint preset's default respawn point. */
+  undergroundDepth?: number | null;
   /** The placed event's name, so the sidebar list and the inspector can tell a teleporter from a
    *  chest. Authored DATA in the author's own language (the editor passes its localized preset
    *  label), never a message key: an event name is stored in D1 and renamed freely, exactly like the
@@ -201,6 +220,13 @@ export function presetEvent(params: {
     params.preset,
     params.selfMapId,
     params.selfSpawn,
+    {
+      col: params.col,
+      row: params.row,
+      ...(params.undergroundDepth === undefined || params.undergroundDepth === null
+        ? {}
+        : { undergroundDepth: params.undergroundDepth }),
+    },
   );
   const chest = params.preset === "chest";
   const trap =

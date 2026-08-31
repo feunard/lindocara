@@ -174,6 +174,15 @@ export type EventCommand =
       readonly durationMs: number;
       readonly power: number;
     }
+  /** Replace the triggerer's death-release point on the current map. */
+  | {
+      readonly t: "setCheckpoint";
+      readonly mapId: string;
+      readonly col: number;
+      readonly row: number;
+      /** Missing means surface; positive depths are basements and negative depths are upper floors. */
+      readonly undergroundDepth?: number;
+    }
   | {
       readonly t: "teleport";
       readonly mapId: string;
@@ -423,6 +432,24 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       )
         return null;
       return { t: "movementEffect", effect: record.effect, durationMs, power: record.power };
+    }
+    case "setCheckpoint": {
+      if (!isUuid(record.mapId)) return null;
+      if (!Number.isSafeInteger(record.col) || !Number.isSafeInteger(record.row)) return null;
+      const col = record.col as number;
+      const row = record.row as number;
+      if (col < 0 || row < 0) return null;
+      if (record.undergroundDepth !== undefined && !validVerticalDepth(record.undergroundDepth))
+        return null;
+      return {
+        t: "setCheckpoint",
+        mapId: record.mapId,
+        col,
+        row,
+        ...(record.undergroundDepth === undefined
+          ? {}
+          : { undergroundDepth: record.undergroundDepth as number }),
+      };
     }
     case "teleport": {
       if (!isUuid(record.mapId)) return null;

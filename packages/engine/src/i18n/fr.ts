@@ -1047,7 +1047,8 @@ export const fr: Record<keyof typeof en, string> = {
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.death.fallen":
     "Vous êtes tombé. Attendez un prêtre, ou libérez votre esprit depuis l'écran de mort.",
-  "event.death.released": "Vous revenez à la vie au point d'entrée de la carte.",
+  "event.death.released": "Vous revenez à la vie à votre point de réapparition.",
+  "event.checkpoint.activated": "Nouveau point de réapparition activé.",
   "event.death.reclaimed": "Vous reprenez votre corps et respirez à nouveau.",
   "event.death.resurrected": "{name} vous rappelle du seuil.",
   "event.resurrect.cast": "Vous ramenez {name}.",
@@ -2084,6 +2085,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.new.exitRun": "Arrêter cet événement",
   "editor.event.cmd.new.wait": "Attendre",
   "editor.event.cmd.new.teleport": "Téléporter le héros",
+  "editor.event.cmd.new.setCheckpoint": "Changer le point de réapparition",
   "editor.event.cmd.new.damage": "Blesser le héros",
   "editor.event.cmd.new.trapImpulse": "Impulsion de piège",
   "editor.event.cmd.new.movementEffect": "Appliquer un bonus ou malus de déplacement",
@@ -2108,6 +2110,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.exitRun": "Arrêter cet événement",
   "editor.event.cmd.wait": "Attendre {frames} cycles",
   "editor.event.cmd.teleport": "Transition {category} : {map} — largeur X {col}, hauteur Y {row}",
+  "editor.event.cmd.setCheckpoint":
+    "Réapparition en largeur X {col}, hauteur Y {row}, niveau {level}",
   "editor.event.cmd.damage": "Infliger {amount} dégâts",
   "editor.event.cmd.damage.lethal": "Piège mortel ({amount} dégâts configurés)",
   "editor.event.cmd.trapImpulse": "{impulse} (puissance {power})",
@@ -2208,6 +2212,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.field.map": "Carte",
   "editor.event.cmd.field.col": "Largeur X (1 à {max})",
   "editor.event.cmd.field.row": "Hauteur Y (1 à {max})",
+  "editor.event.cmd.field.checkpointLevel": "Étage",
   "editor.event.cmd.field.gold": "Montant",
   "editor.event.cmd.field.item": "Objet",
   "editor.event.cmd.field.count": "Quantité",
@@ -2310,6 +2315,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Personnage libre avec apparence, dialogues, points de vie, puissance, vitesse, zone de déplacement et routine autonome.",
   "editor.event.preset.heading": "Placer",
   "editor.event.preset.raw": "Événement vierge",
+  "editor.event.preset.checkpoint": "Point de contrôle",
   "editor.event.preset.teleporter": "Téléporteur",
   "editor.event.preset.teleporter.disabled": "Ouvrez d’abord une carte pour placer un téléporteur.",
   "editor.event.teleporter.placeExit":

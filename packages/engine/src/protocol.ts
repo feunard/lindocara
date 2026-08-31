@@ -955,6 +955,7 @@ export const EVENT_CODES = [
   "heal.received",
   "death.fallen",
   "death.released",
+  "checkpoint.activated",
   "death.reclaimed",
   "death.resurrected",
   "resurrect.cast",

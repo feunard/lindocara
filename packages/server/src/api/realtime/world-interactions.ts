@@ -1279,6 +1279,46 @@ export function dispatchTrapImpulse(
   sendStateTo(w, connectionId, player);
 }
 
+/** Replace the triggerer's release point after validating the authored cell against this room. */
+export function dispatchCheckpoint(
+  w: WorldGlue,
+  dispatch: DispatchEffect,
+  effect: Extract<DispatchEffect["effect"], { kind: "setCheckpoint" }>,
+): boolean {
+  const connectionId = connectionOf(w.state, dispatch.heroId);
+  const player = connectionId === undefined ? undefined : w.state.players.get(connectionId);
+  if (
+    connectionId === undefined ||
+    !player?.authorized ||
+    player.transitioning ||
+    player.life !== "alive"
+  )
+    return false;
+  if (effect.mapId !== w.state.mapId) return false;
+  const terrain = zone(w.state).terrain;
+  const destination = authoredCellCentreGround(
+    effect.undergroundDepth === undefined
+      ? effect
+      : { ...effect, undergroundDepth: effect.undergroundDepth },
+    terrain.size,
+  );
+  const inBounds =
+    effect.col >= 0 && effect.row >= 0 && effect.col < terrain.size && effect.row < terrain.size;
+  const landing =
+    effect.undergroundDepth === undefined
+      ? groundUnder(terrain, destination.x, destination.z, player.y)
+      : destination.y;
+  if (!inBounds || !canStand(terrain, destination.x, destination.z, BODY_RADIUS, landing)) {
+    return false;
+  }
+  player.respawnAnchor = {
+    mapId: w.state.mapId,
+    position: { x: destination.x, y: landing, z: destination.z },
+  };
+  w.deps.send(connectionId, { t: "event", code: "checkpoint.activated", tone: "good" });
+  return true;
+}
+
 /**
  * Port of `#drainEventRuns` (`world.ts:4455`): step every live run its budgeted slice, then
  * dispatch the effects that need this room's authority. State mutations are batched into ONE
@@ -1324,6 +1364,8 @@ export function drainEventRuns(w: WorldGlue, now: number): void {
         dispatchMovementEffect(w, dispatch, effect, now);
       } else if (effect.kind === "trapImpulse") {
         dispatchTrapImpulse(w, dispatch, effect);
+      } else if (effect.kind === "setCheckpoint") {
+        dispatchCheckpoint(w, dispatch, effect);
       } else if (effect.kind === "ambience") {
         dispatchAmbience(w, effect);
       } else {

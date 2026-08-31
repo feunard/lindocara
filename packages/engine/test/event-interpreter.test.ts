@@ -218,6 +218,17 @@ describe("stepEventRun — the per-opcode table", () => {
     expect(drained.context.status).toBe("done");
   });
 
+  it("emits a checkpoint destination without parking the run", () => {
+    const result = stepEventRun(
+      run([{ t: "setCheckpoint", mapId: MAP_ID, col: 4, row: 5, undergroundDepth: -3 }]),
+      state(),
+    );
+    expect(result.effects).toEqual([
+      { kind: "setCheckpoint", mapId: MAP_ID, col: 4, row: 5, undergroundDepth: -3 },
+    ]);
+    expect(result.context.status).toBe("running");
+  });
+
   it("emits structured area and activity facts without mutating quest counters directly", () => {
     const program: EventCommand[] = [
       { t: "enterArea", areaId: "north_gate" },

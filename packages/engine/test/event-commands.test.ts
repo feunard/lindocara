@@ -48,6 +48,7 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "wait", frames: 1 },
   { t: "damage", amount: 25, lethal: false },
   { t: "movementEffect", effect: "speed_boost", durationMs: 6_000, power: 1.35 },
+  { t: "setCheckpoint", mapId: UUID, col: 7, row: 9, undergroundDepth: -3 },
   { t: "teleport", mapId: UUID, col: 0, row: 12, category: "geographic" },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
@@ -115,6 +116,27 @@ describe("parseEventCommands: good payloads", () => {
     ).toBeNull();
     expect(
       parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2, undergroundDepth: 17 }]),
+    ).toBeNull();
+  });
+
+  it("keeps a bounded checkpoint cell and storey", () => {
+    expect(parseEventCommands([{ t: "setCheckpoint", mapId: UUID, col: 3, row: 4 }])).toEqual([
+      { t: "setCheckpoint", mapId: UUID, col: 3, row: 4 },
+    ]);
+    expect(
+      parseEventCommands([
+        { t: "setCheckpoint", mapId: UUID, col: 3, row: 4, undergroundDepth: 2 },
+      ]),
+    ).toEqual([{ t: "setCheckpoint", mapId: UUID, col: 3, row: 4, undergroundDepth: 2 }]);
+    expect(
+      parseEventCommands([
+        { t: "setCheckpoint", mapId: UUID, col: 3, row: 4, undergroundDepth: 0 },
+      ]),
+    ).toBeNull();
+    expect(
+      parseEventCommands([
+        { t: "setCheckpoint", mapId: UUID, col: 3, row: 4, undergroundDepth: -17 },
+      ]),
     ).toBeNull();
   });
 
@@ -254,6 +276,9 @@ describe("parseEventCommands: totality — every malformed field lands on null",
     "teleport: non-uuid mapId": [{ t: "teleport", mapId: "map1", col: 0, row: 0 }],
     "teleport: negative col": [{ t: "teleport", mapId: UUID, col: -1, row: 0 }],
     "teleport: non-integer row": [{ t: "teleport", mapId: UUID, col: 0, row: 1.5 }],
+    "checkpoint: non-uuid mapId": [{ t: "setCheckpoint", mapId: "map1", col: 0, row: 0 }],
+    "checkpoint: negative col": [{ t: "setCheckpoint", mapId: UUID, col: -1, row: 0 }],
+    "checkpoint: non-integer row": [{ t: "setCheckpoint", mapId: UUID, col: 0, row: 1.5 }],
     "changeGold: non-integer amount": [{ t: "changeGold", amount: 1.5 }],
     "changeItems: bad id shape (uppercase)": [{ t: "changeItems", itemId: "Health", count: 1 }],
     "changeItems: bad id shape (leading digit)": [
