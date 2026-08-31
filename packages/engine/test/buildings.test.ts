@@ -3,6 +3,7 @@ import {
   buildingColor,
   buildingColorVariants,
   buildingDimensionsOrDefault,
+  buildingDoorFacadeRatio,
   buildingDoorGroundPoint,
   buildingVolumeDimensions,
   decodeBuildingTransform,
@@ -53,6 +54,12 @@ describe("building authoring rules", () => {
     expect(distanceToBuildingDoor({ x: 2.6, z: -3 }, anchor)).toBeGreaterThan(
       BUILDING_DOOR_INTERACTION_RANGE,
     );
+  });
+
+  it("publishes facade-relative door positions for generated interiors", () => {
+    expect(buildingDoorFacadeRatio(LINDOCARA_BUILDING_ASSET_IDS.house)).toBe(0.2);
+    expect(buildingDoorFacadeRatio(LINDOCARA_BUILDING_ASSET_IDS.archeryGuild)).toBe(0.31);
+    expect(buildingDoorFacadeRatio(LINDOCARA_BUILDING_ASSET_IDS.castle)).toBe(0);
   });
 
   it("uses one generic eighth-cell footprint for resized doors, colliders and persistence", () => {

@@ -5,6 +5,10 @@ import {
 } from "@lindocara/engine/building-interior.js";
 import { compileAuthoredMap } from "@lindocara/engine/hd2d/authored-map.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import {
+  LINDOCARA_BUILDING_ASSET_IDS,
+  LINDOCARA_INTERIOR_ASSET_IDS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
 describe("building interior template", () => {
@@ -27,6 +31,13 @@ describe("building interior template", () => {
       dayNightCycle: false,
     });
     expect(input.elements).toHaveLength(5);
+    expect(input.spawn).toEqual({ col: 14, row: BUILDING_INTERIOR_ROWS - 3 });
+    expect(input.events?.[0]).toMatchObject({
+      col: 14,
+      row: BUILDING_INTERIOR_ROWS - 2,
+      showMarker: false,
+      pages: [{ graphicAssetId: LINDOCARA_INTERIOR_ASSET_IDS.doorTimber }],
+    });
     expect(input.events?.[0]?.pages[0]?.commands).toEqual([
       expect.objectContaining({
         t: "teleport",
@@ -55,5 +66,22 @@ describe("building interior template", () => {
     expect(compiled.interiorShell).toEqual({ style: "timber" });
     expect(compiled.levels[0]).toBeNull();
     expect(compiled.colliders.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("uses a stone door and centres it on a castle facade", () => {
+    const input = createBuildingInteriorInput({
+      name: "Château · Intérieur",
+      exteriorMapId: "337fef22-4a43-469b-a831-439e65866aec",
+      exitEventId: "f2c15465-6f9d-4ef5-80dd-e508c3642111",
+      returnCol: 10,
+      returnRow: 8,
+      buildingAssetId: LINDOCARA_BUILDING_ASSET_IDS.castle,
+    });
+
+    expect(input.events?.[0]).toMatchObject({
+      col: Math.floor(BUILDING_INTERIOR_COLS / 2),
+      row: BUILDING_INTERIOR_ROWS - 2,
+      pages: [{ graphicAssetId: LINDOCARA_INTERIOR_ASSET_IDS.doorStone }],
+    });
   });
 });

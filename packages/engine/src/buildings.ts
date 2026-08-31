@@ -73,6 +73,19 @@ export interface BuildingDoorPlacement {
   dimensions?: BuildingDimensions;
 }
 
+/**
+ * Horizontal door position as a fraction of the complete facade width. Zero is centred; positive
+ * values move toward the building's local right. Keeping this independent from authored size lets
+ * generated interiors mirror the exterior facade even though their editable room has its own
+ * dimensions.
+ */
+export function buildingDoorFacadeRatio(assetId: string): number {
+  const archetype = buildingArchetype(assetId);
+  if (archetype === "house") return 0.2;
+  if (archetype === "archery") return 0.31;
+  return 0;
+}
+
 /** Shortest ground distance to a solid building base; zero while the point is inside the base. */
 export function distanceToBuildingCollider(
   point: GroundVector,
@@ -94,12 +107,7 @@ export function buildingDoorGroundPoint(placement: BuildingDoorPlacement): Groun
   const size = archetype
     ? buildingVolumeDimensions(archetype, placement.dimensions, buildingFaction(placement.assetId))
     : null;
-  const localX =
-    archetype === "house"
-      ? (size?.width ?? 0) * 0.2
-      : archetype === "archery"
-        ? (size?.width ?? 0) * 0.31
-        : 0;
+  const localX = (size?.width ?? 0) * buildingDoorFacadeRatio(placement.assetId);
   const radians = (elementRotationDegrees(placement) * Math.PI) / 180;
   return {
     x: placement.x + localX * Math.cos(radians),

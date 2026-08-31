@@ -19,6 +19,7 @@ import { defaultMapHeroSettings } from "@lindocara/engine/map-hero-settings.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { nativeHarvestEvents } from "@lindocara/engine/native-harvest.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { LINDOCARA_INTERIOR_ASSET_IDS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { UserController } from "alepha/api/users";
 import { $repository } from "alepha/orm";
@@ -1060,7 +1061,12 @@ describe("list, get, update, delete", () => {
         adventureId: string;
         environment: string;
         elements: unknown[];
-        events: { pages: { commands: unknown[] }[] }[];
+        events: {
+          col: number;
+          row: number;
+          showMarker?: boolean;
+          pages: { graphicAssetId: string | null; commands: unknown[] }[];
+        }[];
       };
     };
     expect(created.sourceMap.revision).toBe(3);
@@ -1071,6 +1077,12 @@ describe("list, get, update, delete", () => {
       elements: expect.any(Array),
     });
     expect(created.interiorMap.elements.length).toBeGreaterThan(0);
+    expect(created.interiorMap.events[0]).toMatchObject({
+      col: 14,
+      row: 13,
+      showMarker: false,
+      pages: [{ graphicAssetId: LINDOCARA_INTERIOR_ASSET_IDS.doorTimber }],
+    });
     expect(created.interiorMap.events[0]?.pages[0]?.commands).toEqual([
       expect.objectContaining({
         t: "teleport",

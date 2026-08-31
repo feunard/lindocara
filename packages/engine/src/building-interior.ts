@@ -1,4 +1,4 @@
-import { buildingArchetype } from "./buildings.js";
+import { buildingArchetype, buildingDoorFacadeRatio } from "./buildings.js";
 import type { MapElement } from "./map-data.js";
 import type { InteriorShellStyle } from "./map-environment.js";
 import { defaultEventPage, type MapEvent } from "./map-events.js";
@@ -10,8 +10,6 @@ import { type EditorAssetId, LINDOCARA_INTERIOR_ASSET_IDS } from "./tiny-swords-
 
 export const BUILDING_INTERIOR_COLS = 20;
 export const BUILDING_INTERIOR_ROWS = 15;
-
-const EXIT_SIGN = "decoration.deco.17" as EditorAssetId;
 
 export interface BuildingInteriorOptions {
   name: string;
@@ -89,12 +87,32 @@ function interiorShellStyle(buildingAssetId: string): InteriorShellStyle {
   }
 }
 
+function interiorDoorAsset(style: InteriorShellStyle): EditorAssetId {
+  return style === "castle"
+    ? LINDOCARA_INTERIOR_ASSET_IDS.doorStone
+    : LINDOCARA_INTERIOR_ASSET_IDS.doorTimber;
+}
+
+/** Mirror the exterior facade's lateral door position across this room's editable front wall. */
+function interiorDoorCol(buildingAssetId: string): number {
+  const centre = Math.floor(BUILDING_INTERIOR_COLS / 2);
+  const usableWidth = BUILDING_INTERIOR_COLS - 2;
+  return Math.max(
+    1,
+    Math.min(
+      BUILDING_INTERIOR_COLS - 2,
+      Math.round(centre + buildingDoorFacadeRatio(buildingAssetId) * usableWidth),
+    ),
+  );
+}
+
 /**
  * An interior is an ordinary authored map with a useful starter layout. Authors can repaint every
  * tile, move/delete every prop and edit the return event with the existing tools.
  */
 export function createBuildingInteriorInput(options: BuildingInteriorOptions): MapInput {
   const base = defaultMapInput(options.name, BUILDING_INTERIOR_COLS, BUILDING_INTERIOR_ROWS);
+  const shellStyle = interiorShellStyle(options.buildingAssetId);
   // `#` is an empty ground cell. In an interior heightfield it becomes black void rather than sea;
   // the one-cell frame therefore closes the room without drawing exterior cliffs or water.
   let layers = layersFromBlocks(
@@ -110,20 +128,22 @@ export function createBuildingInteriorInput(options: BuildingInteriorOptions): M
     }
   }
 
-  const centre = Math.floor(BUILDING_INTERIOR_COLS / 2);
+  const doorCol = interiorDoorCol(options.buildingAssetId);
+  const doorRow = BUILDING_INTERIOR_ROWS - 2;
   const exit: MapEvent = {
     id: options.exitEventId,
-    col: centre,
-    row: BUILDING_INTERIOR_ROWS - 3,
+    col: doorCol,
+    row: doorRow,
     name: "Sortie",
     ordinal: 1,
+    showMarker: false,
     kind: "normal",
     species: null,
     patrolRadius: null,
     pages: [
       {
         ...defaultEventPage(),
-        graphicAssetId: EXIT_SIGN,
+        graphicAssetId: interiorDoorAsset(shellStyle),
         trigger: "action",
         commands: [
           {
@@ -141,9 +161,9 @@ export function createBuildingInteriorInput(options: BuildingInteriorOptions): M
   return {
     ...base,
     environment: "interior",
-    interiorShell: { style: interiorShellStyle(options.buildingAssetId) },
+    interiorShell: { style: shellStyle },
     layers,
-    spawn: { col: centre, row: BUILDING_INTERIOR_ROWS - 4 },
+    spawn: { col: doorCol, row: doorRow - 1 },
     elements: themedInteriorElements(options.buildingAssetId),
     events: [exit],
     dayNightCycle: false,
