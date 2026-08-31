@@ -1,8 +1,10 @@
 import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
 import { RUNNER_PURSUER_TUNING } from "@lindocara/engine/game.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { DEFAULT_NPC_MODEL_ASSET_ID } from "@lindocara/engine/tiny-swords-catalog.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -89,6 +91,48 @@ describe("authored monster projection", () => {
       y: definition.y,
       spawnY: definition.y,
     });
+  });
+
+  it("spawns on raised terrain painted inside its underground storey", () => {
+    const underground = {
+      levels: [
+        {
+          depth: 2,
+          style: "cave" as const,
+          cells: [{ col: 11, row: 6, length: 2 }],
+          terrain: [
+            { col: 11, row: 6, length: 2, material: "grotte" as const, elevation: 1 as const },
+          ],
+        },
+      ],
+      stairs: [],
+      shafts: [],
+    };
+    const terrain = zoneTerrainFromHeightfield({
+      version: 1,
+      size: GRID_SIZE,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels: new Array<number | null>(GRID_SIZE * GRID_SIZE).fill(0),
+      materials: new Array(GRID_SIZE * GRID_SIZE).fill("herbe"),
+      colliders: undergroundColliders(underground, GRID_SIZE),
+      spawns: [],
+      elements: [],
+      events: [],
+      underground,
+    });
+    const event = { ...conditionalMonster(), undergroundDepth: 2 };
+
+    const definition = activeAuthoredMonsterDefinitions(
+      [event],
+      state({ "0075": true }),
+      terrain,
+    )[0];
+
+    expect(definition?.y).toBeCloseTo(undergroundFloorHeight(2) + terrain.levelHeight);
+    expect(createMonsters(definition ? [definition] : [])[0]?.spawnY).toBeCloseTo(
+      undergroundFloorHeight(2) + terrain.levelHeight,
+    );
   });
 
   it("keeps appearance visual while projecting an explicit attack profile", () => {

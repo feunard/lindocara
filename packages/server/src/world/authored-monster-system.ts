@@ -21,6 +21,8 @@ import {
   hostileOnPage,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
+import { groundUnder, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
+import { MAX_UNDERGROUND_TERRAIN_ELEVATION } from "@lindocara/engine/underground.js";
 
 import { createMonsters, type MonsterRuntime } from "./world-runtime.js";
 
@@ -39,6 +41,7 @@ export function authoredMonsterDefinition(
   event: MapEvent,
   gridSize: number,
   pageIndex = 0,
+  terrain?: ZoneTerrain,
 ): MonsterSpawn | null {
   const fights = event.kind === "monster" || hostileOnPage(event, pageIndex);
   if (!fights || event.patrolRadius === null) return null;
@@ -61,13 +64,24 @@ export function authoredMonsterDefinition(
       ? RUNNER_PURSUER_TUNING.speed
       : (authoredSpeed ?? RUNNER_PURSUER_TUNING.speed)
     : authoredSpeed;
+  const authoredPosition = authoredCellCentreGround(event, gridSize);
+  const y = terrain
+    ? event.undergroundDepth === undefined
+      ? groundUnder(terrain, authoredPosition.x, authoredPosition.z, authoredPosition.y)
+      : (terrain.query.surfaceAt?.(
+          authoredPosition.x,
+          authoredPosition.z,
+          authoredPosition.y + MAX_UNDERGROUND_TERRAIN_ELEVATION * terrain.levelHeight + 1e-3,
+        ) ?? authoredPosition.y)
+    : authoredPosition.y;
   return {
     id: `${AUTHORED_MONSTER_PREFIX}${event.id}`,
     name: event.name,
     kind: MONSTER_SPECIES_KIND[species],
     species,
     zone: "route",
-    ...authoredCellCentreGround(event, gridSize),
+    ...authoredPosition,
+    y,
     patrolRadius: authoredPatrolRadius(event.patrolRadius),
     graphicAssetId: event.pages[pageIndex]?.graphicAssetId ?? null,
     ...(event.monsterAttackProfile ? { attackProfile: event.monsterAttackProfile } : {}),
@@ -107,8 +121,11 @@ export function authoredMonsterDefinition(
 export function activeAuthoredMonsterDefinitions(
   events: readonly MapEvent[],
   state: PartyAdventureState,
-  gridSize: number,
+  terrainOrGridSize: ZoneTerrain | number,
 ): MonsterSpawn[] {
+  const terrain = typeof terrainOrGridSize === "number" ? undefined : terrainOrGridSize;
+  const gridSize =
+    typeof terrainOrGridSize === "number" ? terrainOrGridSize : terrainOrGridSize.size;
   // Monster events, plus every character a page has turned hostile. The second half is what lets a
   // dialogue start a fight: the wrong answer sets a switch, the switch selects a page, and this
   // derivation runs again the moment the party's state is installed.
@@ -124,7 +141,7 @@ export function activeAuthoredMonsterDefinitions(
       const profile = event.species ? animalCarcassHarvestProfile(event.species, "never", 0) : null;
       if (!profile || state.harvestNodes?.[event.id]?.depleted === true) return [];
     }
-    const definition = authoredMonsterDefinition(event, gridSize, pageIndex);
+    const definition = authoredMonsterDefinition(event, gridSize, pageIndex, terrain);
     return definition ? [definition] : [];
   });
 }

@@ -395,7 +395,7 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
 
   const monsterDefinitions = [
     ...definition.monsters,
-    ...activeAuthoredMonsterDefinitions(events, adventureState, definition.terrain.size),
+    ...activeAuthoredMonsterDefinitions(events, adventureState, definition.terrain),
   ];
   state.monsters = reconcileActiveMonsters(state.monsters, monsterDefinitions);
   // A permanent authored animal remains as a corpse until its explicit carcass node is depleted.

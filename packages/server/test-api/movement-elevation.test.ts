@@ -32,6 +32,7 @@ import {
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -600,6 +601,52 @@ describe("a monster and a hero on high ground", () => {
     // ...and stayed on the floor the whole way. Reading the highest surface at its feet instead of
     // the one within its own step is what used to levitate it onto the deck.
     expect(monster.y).toBe(0);
+  });
+
+  it("acquires and chases a hero through a basement below surface water", () => {
+    const floor = undergroundFloorHeight(1);
+    const basement = {
+      levels: [
+        {
+          depth: 1,
+          style: "cave" as const,
+          cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+        },
+      ],
+      stairs: [],
+      shafts: [],
+    };
+    const built = zoneTerrainFromHeightfield({
+      version: 1,
+      size: SIZE,
+      levelHeight: LEVEL_HEIGHT,
+      waterLevel: -0.25,
+      levels: new Array<number | null>(SIZE * SIZE).fill(null),
+      materials: new Array(SIZE * SIZE).fill("herbe"),
+      colliders: [
+        ...undergroundColliders(basement, SIZE),
+        { x: -0.25, z: -1, w: 0.5, h: 2, bottom: floor, top: floor + LEVEL_HEIGHT },
+      ],
+      spawns: [],
+      elements: [],
+      events: [],
+      underground: basement,
+    });
+    const monster = goblinAt(-1.5, 0);
+    monster.y = floor;
+    monster.spawnY = floor;
+    const target = hero(1.5, 0);
+    target.y = floor;
+    const startX = monster.x;
+    const startZ = monster.z;
+
+    chase(built, monster, target, 180);
+
+    expect(monster.threat.has(target.id)).toBe(true);
+    expect(monster.navigation.abandonReason).not.toBe("no_walkable_node");
+    expect(monster.x).toBeGreaterThan(startX);
+    expect(Math.abs(monster.z - startZ)).toBeGreaterThan(0.3);
+    expect(monster.y).toBeCloseTo(floor);
   });
 
   it("cannot chase a hero onto a plateau it has no path to", () => {
