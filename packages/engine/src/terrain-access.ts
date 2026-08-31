@@ -694,7 +694,7 @@ export function nearestStandableCell(
       if (!accepts({ x, z })) continue;
       const distance = Math.hypot(position.x - x, position.z - z);
       if (distance >= bestDistance) continue;
-      nearest = { x, y: groundUnder(terrain, x, z, groundY), z };
+      nearest = { x, y: groundUnderBody(terrain, x, z, groundY), z };
       bestDistance = distance;
     }
   }

@@ -53,7 +53,6 @@ import {
   BODY_RADIUS,
   canStand,
   groundLineOfSight,
-  groundUnder,
   groundUnderBody,
   nearestStandableCell,
 } from "@lindocara/engine/terrain-access.js";
@@ -735,7 +734,7 @@ export function damagePlayer(
       player.hp = 1;
       displacePlayer(player, {
         x: soulAnchor.x,
-        y: groundUnder(terrain, soulAnchor.x, soulAnchor.z, soulAnchor.y),
+        y: groundUnderBody(terrain, soulAnchor.x, soulAnchor.z, soulAnchor.y),
         z: soulAnchor.z,
       });
       player.priestSoulAnchor = null;
@@ -1333,7 +1332,7 @@ export function safeLumenLanding(
   ) {
     return {
       x: desired.x,
-      y: groundUnder(terrain, desired.x, desired.z, groundY),
+      y: groundUnderBody(terrain, desired.x, desired.z, groundY),
       z: desired.z,
     };
   }

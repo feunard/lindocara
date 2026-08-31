@@ -6,6 +6,7 @@ import {
   canStand,
   groundUnder,
   mapEntryPosition,
+  nearestStandableCell,
   withWorldEventColliders,
   worldEventColliderRect,
   zoneTerrainFromHeightfield,
@@ -325,6 +326,15 @@ describe("multi-storey underground", () => {
     expect(jumping.x).toBeGreaterThan(westEdge + deps.hero.radius);
     expect(jumping.y).toBeCloseTo(undergroundFloorHeight(5));
     expect(jumping.airborne).toBe(false);
+
+    expect(
+      nearestStandableCell(
+        terrain,
+        { x: -0.5, z: -0.5 },
+        deps.hero.radius,
+        undergroundFloorHeight(5),
+      ),
+    ).toEqual({ x: -0.5, y: undergroundFloorHeight(5), z: -0.5 });
   });
 
   it("keeps authored water above an excavation and underground collision below the surface", () => {

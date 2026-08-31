@@ -1,5 +1,5 @@
 import { type GroundVector, groundDistance, type WorldPosition } from "@lindocara/engine/ground.js";
-import { groundUnder, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
+import { groundUnderBody, type ZoneTerrain } from "@lindocara/engine/terrain-access.js";
 
 import { hasRogueLineOfSight, shadowStepDestination } from "./rogue-skill-system.js";
 
@@ -57,7 +57,7 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
   const strikes: ShadowDanceStrikePlan[] = [];
   // The rogue's own ground decides every sight test and every landing along the route: `MAX_STEP`
   // is 0, so a dance is no more a way up a cliff than a single shadow step is.
-  const groundY = groundUnder(terrain, origin.x, origin.z, origin.y);
+  const groundY = groundUnderBody(terrain, origin.x, origin.z, origin.y);
   let actorPosition: WorldPosition = { x: origin.x, y: origin.y, z: origin.z };
   let selectionOrigin: GroundVector = { x: origin.x, z: origin.z };
   let firstVisibleTargetWasBlocked = false;

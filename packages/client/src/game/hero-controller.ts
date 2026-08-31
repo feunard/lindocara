@@ -38,7 +38,7 @@ import {
   BODY_RADIUS,
   canStand,
   clampToGrid,
-  groundUnder,
+  groundUnderBody,
   HERO_FOOTPRINT_OFFSET,
   MAX_STEP,
   nearestStandableCell,
@@ -206,7 +206,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
   const state = createHeroState(
     spawn.x,
     spawn.z,
-    groundUnder(terrain, spawn.x, spawn.z, spawn.y),
+    groundUnderBody(terrain, spawn.x, spawn.z, spawn.y),
     hero.swim.breath,
     hero.haleineRepos,
   );
@@ -223,7 +223,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
   function place(position: WorldPosition): void {
     state.x = position.x;
     state.z = position.z;
-    state.y = groundUnder(terrain, position.x, position.z, position.y);
+    state.y = groundUnderBody(terrain, position.x, position.z, position.y);
     state.groundY = state.y;
     state.vx = 0;
     state.vz = 0;
@@ -247,7 +247,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
    * candidates ask of themselves.
    */
   function land(): void {
-    const groundY = groundUnder(terrain, state.x, state.z, state.y);
+    const groundY = groundUnderBody(terrain, state.x, state.z, state.y);
     if (canStand(terrain, state.x, state.z, hero.radius, groundY)) {
       state.y = groundY;
       state.groundY = groundY;
@@ -290,7 +290,7 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
       state.z = desired.z;
       // Elevation is re-read from the ground under the body, exactly as the retired server branch
       // did after every accepted segment: `y` is elevation, never a second ground axis.
-      state.y = groundUnder(terrain, state.x, state.z, state.y);
+      state.y = groundUnderBody(terrain, state.x, state.z, state.y);
       state.groundY = state.y;
     }
     // The traversal owns the body: nothing falls, swims or glides through a Pas de Lumen, and the

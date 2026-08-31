@@ -3,7 +3,6 @@ import { type GroundVector, groundDistance, type WorldPosition } from "@lindocar
 import {
   BODY_RADIUS,
   canStand,
-  groundUnder,
   groundUnderBody,
   sweptGroundTerrainImpact,
   type ZoneTerrain,
@@ -153,7 +152,7 @@ export function shadowStepDestination(
     if (valid) {
       return {
         x: destination.x,
-        y: groundUnder(terrain, destination.x, destination.z, groundY),
+        y: groundUnderBody(terrain, destination.x, destination.z, groundY),
         z: destination.z,
       };
     }
@@ -212,7 +211,7 @@ export function planShadowReturn(
         ok: true,
         destination: {
           x: point.x,
-          y: groundUnder(terrain, point.x, point.z, point.y),
+          y: groundUnderBody(terrain, point.x, point.z, point.y),
           z: point.z,
         },
       }

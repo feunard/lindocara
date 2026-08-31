@@ -50,7 +50,6 @@ import {
   BODY_RADIUS,
   canStand,
   groundLineOfSight,
-  groundUnder,
   groundUnderBody,
   resolveGroundMovement,
   sweptGroundTerrainImpact,
@@ -627,7 +626,7 @@ export function startPlayerAction(
     cancelCombatAction(player);
     displacePlayer(player, {
       x: destination.x,
-      y: groundUnder(terrain, destination.x, destination.z, destination.y),
+      y: groundUnderBody(terrain, destination.x, destination.z, destination.y),
       z: destination.z,
     });
     player.rangerAfterimage = null;

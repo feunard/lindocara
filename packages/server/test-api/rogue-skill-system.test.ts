@@ -1,6 +1,7 @@
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import {
   hasRogueLineOfSight,
   isShadowStepLandingValid,
@@ -57,6 +58,32 @@ function walledTerrain(): ZoneTerrain {
   return heightfield({ raisedColumn: 10 });
 }
 
+function basementTerrain(): ZoneTerrain {
+  const underground = {
+    levels: [
+      {
+        depth: 2,
+        style: "cave" as const,
+        cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+      },
+    ],
+    stairs: [],
+  };
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.25,
+    levels: Array.from({ length: SIZE * SIZE }, () => 0),
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: undergroundColliders(underground, SIZE, LEVEL_HEIGHT),
+    spawns: [],
+    elements: [],
+    events: [],
+    underground,
+  });
+}
+
 /** The target's own combat body — a fifth of a tile, the tile-unit twin of the old 14 px. */
 const TARGET_BODY_RADIUS = 14 / 64;
 const bodyRadius = () => TARGET_BODY_RADIUS;
@@ -104,6 +131,20 @@ describe("authoritative Shadow Step planning", () => {
       x: 2.5,
       y: 0,
       z: 2.53125,
+    });
+  });
+
+  it("keeps Shadow Step and Shadow Return on their underground storey", () => {
+    const geometry = basementTerrain();
+    const floor = undergroundFloorHeight(2);
+    const basementOrigin = { x: 1, y: floor, z: 2 };
+
+    expect(
+      shadowStepDestination(basementOrigin, { x: 2.5, z: 2 }, TARGET_BODY_RADIUS, geometry, floor),
+    ).toEqual({ x: 3.03125, y: floor, z: 2 });
+    expect(planShadowReturn({ ...basementOrigin, expiresAt: 2_000 }, 1_999, geometry)).toEqual({
+      ok: true,
+      destination: basementOrigin,
     });
   });
 

@@ -11,10 +11,11 @@ import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
   BODY_RADIUS,
   canStand,
-  groundUnder,
+  groundUnderBody,
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
 import { createHeroController, type HeroControllerInput } from "@/game/hero-controller.js";
@@ -84,6 +85,32 @@ function doubleWalledTerrain(): ZoneTerrain {
   return zoneTerrainFromHeightfield(map);
 }
 
+function undergroundTerrain(): ZoneTerrain {
+  const underground = {
+    levels: [
+      {
+        depth: 2,
+        style: "cave" as const,
+        cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+      },
+    ],
+    stairs: [],
+  };
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: 0.9,
+    waterLevel: -0.05,
+    levels: Array.from({ length: SIZE * SIZE }, () => 0),
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: undergroundColliders(underground, SIZE),
+    spawns: [],
+    elements: [],
+    events: [],
+    underground,
+  });
+}
+
 function controller(terrain = walledTerrain()) {
   return createHeroController({ terrain, spawn: { x: -2, y: 0, z: 0 }, speed: SPEED });
 }
@@ -94,7 +121,7 @@ function press(overrides: Partial<HeroControllerInput> = {}): HeroControllerInpu
 
 /** Could a body be standing exactly there? Grounded on where the body IS, like every landing. */
 function standable(position: { x: number; y: number; z: number }, terrain = walledTerrain()) {
-  const groundY = groundUnder(terrain, position.x, position.z, position.y);
+  const groundY = groundUnderBody(terrain, position.x, position.z, position.y);
   return canStand(terrain, position.x, position.z, BODY_RADIUS, groundY);
 }
 
@@ -122,6 +149,28 @@ describe("a granted mobility skill", () => {
     // key released, nothing at all. A grant that survived its own budget would be a teleport.
     for (let frame = 0; frame < 10; frame++) hero.step(press(), FRAME);
     expect(hero.state.x - start).toBeCloseTo(3, 6);
+  });
+
+  it("keeps every granted traversal on the current underground storey", () => {
+    const terrain = undergroundTerrain();
+    const floor = undergroundFloorHeight(2);
+    const hero = createHeroController({
+      terrain,
+      spawn: { x: -2, y: floor, z: 0 },
+      speed: SPEED,
+    });
+    hero.setMobility(grant(3));
+    const elevations: number[] = [];
+
+    for (let frame = 0; frame < 30; frame += 1) {
+      hero.step(press({ x: 1 }), FRAME);
+      elevations.push(hero.state.y);
+    }
+
+    expect(hero.state.x).toBeCloseTo(1, 6);
+    expect(elevations.every((elevation) => Math.abs(elevation - floor) < 1e-6)).toBe(true);
+    expect(hero.state.y).toBeCloseTo(floor);
+    expect(standable(hero.state, terrain)).toBe(true);
   });
 
   it("ends and rematerialises as soon as the granted distance is spent", () => {
