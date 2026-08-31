@@ -41,6 +41,8 @@ export interface ActorView {
   y: number;
   /** Authored vertical plane for event actors. Its presence makes `y` the exact supporting floor. */
   undergroundDepth?: number;
+  /** Logical storey used only by visibility filtering. A remote jump changes `y`, not this room. */
+  visibilityDepth?: number | null;
   /** The other GROUND axis. */
   z: number;
   /**

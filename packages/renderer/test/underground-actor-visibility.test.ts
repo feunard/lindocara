@@ -1,6 +1,7 @@
 import { actorUndergroundVisibilityDepth } from "@lindocara/renderer/hd2d/game-renderer.js";
 import { authoredContentVisible, exactStoreyVisible } from "@lindocara/renderer/hd2d/scene.js";
 import {
+  actorUndergroundVisibilityAt,
   groundedUndergroundVisibilityDepth,
   undergroundVisibilityTransitionAt,
 } from "@lindocara/renderer/hd2d/underground-visibility.js";
@@ -48,6 +49,50 @@ describe("underground actor visibility", () => {
     expect(actorUndergroundVisibilityDepth(0.9, true, false, stableDepth)).toBeNull();
     expect(actorUndergroundVisibilityDepth(1.6, true, false, stableDepth)).toBeNull();
     expect(actorUndergroundVisibilityDepth(1.1, true, false, stableDepth)).toBeNull();
+  });
+
+  it("keeps a remote hero on its grounded storey throughout a reported jump", () => {
+    const grounded = actorUndergroundVisibilityAt(visibilityMap, -0.5, -0.5, 0, false, 0);
+    const ascending = actorUndergroundVisibilityAt(
+      visibilityMap,
+      -0.5,
+      -0.5,
+      1.7,
+      true,
+      7,
+      grounded.stable,
+    );
+    const descending = actorUndergroundVisibilityAt(
+      visibilityMap,
+      -0.5,
+      -0.5,
+      0.8,
+      true,
+      -5,
+      ascending.stable,
+    );
+
+    expect(grounded.visibleDepth).toBeNull();
+    expect(ascending.visibleDepth).toBeNull();
+    expect(descending.visibleDepth).toBeNull();
+    expect(descending.stable).toEqual({ depth: null, elevation: 0 });
+  });
+
+  it("still follows a remote hero through a real vertical access", () => {
+    const grounded = actorUndergroundVisibilityAt(visibilityMap, -0.5, -0.5, -4.8, false, 0);
+    const crossing = actorUndergroundVisibilityAt(
+      visibilityMap,
+      -0.5,
+      -0.5,
+      -6.1,
+      true,
+      -6,
+      grounded.stable,
+    );
+
+    expect(grounded.visibleDepth).toBe(2);
+    expect(crossing.transitioning).toBe(true);
+    expect(crossing.visibleDepth).toBe(3);
   });
 
   it("follows real elevation while crossing a stair or shaft", () => {

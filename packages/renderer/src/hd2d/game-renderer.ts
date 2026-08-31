@@ -125,7 +125,9 @@ import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./stati
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import type { StructureVolumeKind } from "./structure-volumes.js";
 import {
+  actorUndergroundVisibilityAt,
   groundedUndergroundVisibilityDepth,
+  type StableUndergroundVisibility,
   undergroundVisibilityTransitionAt,
 } from "./underground-visibility.js";
 import {
@@ -342,10 +344,10 @@ function facingOf(vector: GroundVector): Facing {
 /** Locomotion flags for room-stepped actors which are always grounded (guards and corpses). */
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
-/** The local hero stays in its resolved room; only a real stair/shaft transition may change it. */
+/** A tracked hero stays in its resolved room; only a real stair/shaft transition may change it. */
 export function actorUndergroundVisibilityDepth(
   elevation: number,
-  localHero: boolean,
+  trackedHero: boolean,
   transitioning: boolean,
   stableDepth: number | null,
 ): number | null {
@@ -353,7 +355,7 @@ export function actorUndergroundVisibilityDepth(
   // hero's stable depth was resolved against the authored floors immediately above, so reuse it
   // both while grounded and during an ordinary jump. A genuine access transition deliberately
   // falls through to elevation so the actor moves progressively between the two visible floors.
-  return localHero && !transitioning ? stableDepth : undergroundDepthAtElevation(elevation);
+  return trackedHero && !transitioning ? stableDepth : undergroundDepthAtElevation(elevation);
 }
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
@@ -1136,6 +1138,8 @@ export class Hd2dRenderer implements RendererLike {
   #actorMotion = new ActorMotionTracker();
   #eventMotion = new WorldEventMotionTracker();
   #playerPresentation = new Map<string, PlayerPresentationState>();
+  /** Last grounded storey per remote hero. Their live `y` animates a jump but does not change room. */
+  #playerVisibility = new Map<string, StableUndergroundVisibility>();
   #combatAnimations = new Map<string, CombatAnimation>();
   #combatVisualAuthority = new CombatVisualAuthority();
   #cameraShake = new CameraShake();
@@ -1773,6 +1777,19 @@ export class Hd2dRenderer implements RendererLike {
         timing?.duration,
         player.id === this.#selfId,
       );
+      if (this.#map?.underground && player.id !== self?.id) {
+        const visibility = actorUndergroundVisibilityAt(
+          this.#map,
+          player.x,
+          player.z,
+          player.y,
+          player.airborne,
+          player.vy ?? 0,
+          this.#playerVisibility.get(player.id),
+        );
+        this.#playerVisibility.set(player.id, visibility.stable);
+        view.visibilityDepth = visibility.visibleDepth;
+      }
       if (player.action && !isLumenStepClouded(player.action, timing?.elapsed ?? animationTimeMs)) {
         const art = combatArt(
           player.class,
@@ -2012,6 +2029,9 @@ export class Hd2dRenderer implements RendererLike {
     for (const playerId of this.#playerPresentation.keys()) {
       if (!playerIds.has(playerId)) this.#playerPresentation.delete(playerId);
     }
+    for (const playerId of this.#playerVisibility.keys()) {
+      if (!playerIds.has(playerId)) this.#playerVisibility.delete(playerId);
+    }
     for (const actorId of this.#combatAnimations.keys()) {
       if (!present.has(actorId)) this.#combatAnimations.delete(actorId);
     }
@@ -2060,12 +2080,15 @@ export class Hd2dRenderer implements RendererLike {
       }
       let write = 0;
       for (const view of views) {
-        const viewDepth = actorUndergroundVisibilityDepth(
-          view.y,
-          view.id === self.id,
-          transitioning,
-          this.#gameplayVisibilityDepth,
-        );
+        const viewDepth =
+          view.visibilityDepth !== undefined
+            ? view.visibilityDepth
+            : actorUndergroundVisibilityDepth(
+                view.y,
+                view.id === self.id,
+                transitioning,
+                this.#gameplayVisibilityDepth,
+              );
         if (view.healthBar) {
           view.healthBar.visible &&= exactStoreyVisible(viewDepth, this.#gameplayVisibilityDepth);
         }
@@ -2212,6 +2235,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#actorMotion.reset();
     this.#eventMotion.reset();
     this.#playerPresentation.clear();
+    this.#playerVisibility.clear();
     this.#combatAnimations.clear();
     this.#combatVisualAuthority.clearSnapshots();
     this.#cameraShake.clear();

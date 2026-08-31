@@ -1,9 +1,21 @@
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import {
+  undergroundDepthAtElevation,
   undergroundFloorHeight,
   undergroundTerrainHeightAt,
   undergroundTransitionAt,
 } from "@lindocara/engine/underground.js";
+
+export interface StableUndergroundVisibility {
+  depth: number | null;
+  elevation: number;
+}
+
+export interface ActorUndergroundVisibility {
+  stable: StableUndergroundVisibility;
+  visibleDepth: number | null;
+  transitioning: boolean;
+}
 
 function cellAt(
   map: MapData,
@@ -84,6 +96,59 @@ export function undergroundVisibilityTransitionAt(
   if (!airborne) return true;
   if (verticalVelocity > 0) return false;
   return elevation < stableElevation - 1e-3;
+}
+
+/**
+ * Keep a moving actor on its last grounded storey while its sprite travels vertically.
+ *
+ * A remote player's reported `y` must still animate the jump, but it cannot identify the room the
+ * player occupies: at the apex, that elevation may be closer to an upper floor. Only an authored
+ * stair/shaft crossing may temporarily derive visibility from the body's live elevation.
+ */
+export function actorUndergroundVisibilityAt(
+  map: MapData,
+  x: number,
+  z: number,
+  elevation: number,
+  airborne: boolean,
+  verticalVelocity: number,
+  previous?: StableUndergroundVisibility,
+): ActorUndergroundVisibility {
+  const stable =
+    previous ??
+    ({
+      depth: groundedUndergroundVisibilityDepth(map, x, z, elevation),
+      elevation,
+    } satisfies StableUndergroundVisibility);
+  const transitioning = undergroundVisibilityTransitionAt(
+    map,
+    x,
+    z,
+    elevation,
+    airborne,
+    verticalVelocity,
+    stable.depth,
+    stable.elevation,
+  );
+
+  if (transitioning) {
+    const visibleDepth = undergroundDepthAtElevation(elevation);
+    return {
+      stable: airborne ? stable : { depth: visibleDepth, elevation },
+      visibleDepth,
+      transitioning: true,
+    };
+  }
+
+  if (!airborne) {
+    const grounded = {
+      depth: groundedUndergroundVisibilityDepth(map, x, z, elevation),
+      elevation,
+    };
+    return { stable: grounded, visibleDepth: grounded.depth, transitioning: false };
+  }
+
+  return { stable, visibleDepth: stable.depth, transitioning: false };
 }
 
 /** Stable visibility uses a storey's architectural floor, never local raised terrain. */
