@@ -101,6 +101,7 @@ import {
   DEFAULT_NPC_MODEL_ASSET_ID,
   type EditorAssetId,
   editorAsset,
+  LINDOCARA_RUNNER_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { MAX_UNDERGROUND_DEPTH } from "@lindocara/engine/underground.js";
 import { useAlepha, useStore } from "alepha/react";
@@ -1151,6 +1152,23 @@ function AdventureEditorInner({
   }
 
   function selectAsset(assetId: EditorAssetId): void {
+    const trapPreset =
+      assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap
+        ? "trap"
+        : assetId === LINDOCARA_RUNNER_ASSET_IDS.pushTrap
+          ? "push-trap"
+          : assetId === LINDOCARA_RUNNER_ASSET_IDS.launchTrap
+            ? "launch-trap"
+            : null;
+    // These three cards are visible in the scenery catalogue because they share the authored 3D
+    // placement language, but a trap-looking inert MapElement is a broken promise. Route the pick
+    // through the canonical event preset so damage/impulse remains server-authored and the saved map
+    // contains one functional object rather than a decorative duplicate hiding an event underneath.
+    if (trapPreset !== null) {
+      selectMode("event");
+      selectEventPreset(trapPreset);
+      return;
+    }
     setToolKey(null);
     setSelectedAsset(assetId);
     pushTool({ kind: "element", assetId });

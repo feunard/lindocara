@@ -24,7 +24,10 @@ import { MAP_MIN_COLS, MAP_MIN_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { CURATED_EDITOR_ASSET_IDS } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  CURATED_EDITOR_ASSET_IDS,
+  LINDOCARA_RUNNER_ASSET_IDS,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import type { RenderResult } from "@testing-library/react";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -1979,6 +1982,30 @@ describe("AdventureEditorScreen shell", () => {
         assetId: "resource.terrain-resources-wood-trees.tree3",
       }),
     );
+  });
+
+  it("routes a trap picked from scenery to its functional event preset", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady(alepha);
+
+    await userEvent.click(screen.getByRole("radio", { name: t("editor.shell.mode.element") }));
+    fireEvent.change(screen.getByRole("searchbox", { name: t("editor.palette.search") }), {
+      target: { value: "spike trap" },
+    });
+    const trap = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId === LINDOCARA_RUNNER_ASSET_IDS.spikeTrap);
+    expect(trap).toBeDefined();
+    await userEvent.click(trap as HTMLButtonElement);
+
+    expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("event");
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      preset: "trap",
+      selfMapId: "m1",
+      presetName: t("editor.event.preset.trap"),
+    });
   });
 
   describe("keyboard shortcuts", () => {

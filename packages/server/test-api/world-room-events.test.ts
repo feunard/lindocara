@@ -38,6 +38,7 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import { presetEvent } from "@lindocara/engine/event-presets.js";
 import { maxHpForLevel, xpForNextLevel } from "@lindocara/engine/game.js";
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import {
@@ -86,7 +87,7 @@ import { heroQuests } from "../src/api/entities/heroQuests.ts";
 import { parties } from "../src/api/entities/parties.ts";
 import { PartyRoom } from "../src/api/realtime/PartyRoom.ts";
 import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
-import { refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
+import { detectPlayerTouch, refreshHarvestEventVisuals } from "../src/api/realtime/worldEvents.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
 import { MapService } from "../src/api/services/MapService.ts";
@@ -1914,6 +1915,37 @@ describe("world room events (FakeClock)", () => {
 
     expect(player.hp).toBe(0);
     expect(player.life).toBe("corpse");
+    expect(messagesOf(socket)).toContainEqual(
+      expect.objectContaining({ t: "event", code: "hazard.hit" }),
+    );
+    engine.dispose();
+  });
+
+  test("the normal-adventure spike preset damages a hero on contact", async () => {
+    const trap = presetEvent({
+      id: crypto.randomUUID(),
+      col: SPAWN_COL + 2,
+      row: SPAWN_ROW,
+      ordinal: 1,
+      preset: "trap",
+      selfMapId: "",
+    });
+    const fixture = await newPlayableParty("spiketouch", [trap]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const player = playerOf(state, fixture.heroId);
+    const centre = authoredCellCentreGround(trap, gridSizeOf(state));
+    const previous = { x: centre.x - 1, y: centre.y, z: centre.z };
+    Object.assign(player, { x: centre.x - 0.65, y: centre.y, z: centre.z });
+    const hpBefore = player.hp;
+
+    detectPlayerTouch(state, player, previous);
+    await advanceTickSettled(clock);
+
+    expect(player.hp).toBe(hpBefore - 25);
     expect(messagesOf(socket)).toContainEqual(
       expect.objectContaining({ t: "event", code: "hazard.hit" }),
     );
