@@ -118,6 +118,12 @@ export interface ColliderIndex {
    */
   heightToClear(x: number, z: number, r: number): number | null;
   /**
+   * Maximum feet elevation reached by an upward segment before the body's head meets an underside.
+   * `null` means the whole segment is clear. This is swept rather than sampled at `toY`, because a
+   * strong launch can cross an entire slab in one frame and look clear again above its top.
+   */
+  upwardLimit(x: number, z: number, r: number, fromY: number, toY: number): number | null;
+  /**
    * Broad phase for a SWEPT query: every distinct rectangle whose bucket the axis-aligned box
    * touches. It over-reports (a bucket is coarser than a rectangle) and never under-reports, so
    * the caller still tests each candidate exactly — which is the whole contract, because a swept
@@ -341,6 +347,25 @@ export function createColliderIndex(): ColliderIndex {
         height = height === null ? surface : Math.max(height, surface);
       }
       return height;
+    },
+    upwardLimit(x, z, r, fromY, toY) {
+      if (toY <= fromY) return null;
+      const fromHead = fromY + BODY_CLEARANCE;
+      const toHead = toY + BODY_CLEARANCE;
+      let nearestUnderside: number | null = null;
+      for (const rect of candidates(x, z, r)) {
+        if (
+          rect.bottom === undefined ||
+          !colliderOverlapsDisc(rect, x, z, r) ||
+          rect.bottom < fromHead - 1e-3 ||
+          rect.bottom >= toHead - 1e-3
+        ) {
+          continue;
+        }
+        nearestUnderside =
+          nearestUnderside === null ? rect.bottom : Math.min(nearestUnderside, rect.bottom);
+      }
+      return nearestUnderside === null ? null : nearestUnderside - BODY_CLEARANCE;
     },
     inBox(minX, minZ, maxX, maxZ) {
       const seen = new Set<ColliderRect>();

@@ -186,6 +186,8 @@ export interface ColliderQuery {
   allowsEscape?(fromX: number, fromZ: number, x: number, z: number, r: number, y?: number): boolean;
   /** Finite height to clear, `Infinity` for a wall, `null` without overlap. */
   heightToClear?(x: number, z: number, r: number): number | null;
+  /** Highest feet position allowed while an upward segment crosses a finite underside. */
+  upwardLimit?(x: number, z: number, r: number, fromY: number, toY: number): number | null;
 }
 
 export interface StepDeps {

@@ -550,7 +550,19 @@ export function stepHero(
         // test below reads `vy` exactly as before, and a canopy landing is simply a soft one.
         if (state.gliding) state.vy = -hero.glide.fall;
         else state.vy -= hero.jump.gravity * dt;
-        state.y += state.vy * dt;
+        const previousY = state.y;
+        const nextY = state.y + state.vy * dt;
+        const upwardLimit =
+          state.vy > 0
+            ? (deps.colliders.upwardLimit?.(state.x, footprintZ, hero.radius, previousY, nextY) ??
+              null)
+            : null;
+        if (upwardLimit !== null && nextY > upwardLimit) {
+          state.y = upwardLimit;
+          state.vy = 0;
+        } else {
+          state.y = nextY;
+        }
         if (state.vy <= 0 && state.y <= ground) {
           state.y = ground;
           state.groundY = ground;

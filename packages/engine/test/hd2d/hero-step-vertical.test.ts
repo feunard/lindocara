@@ -1,3 +1,4 @@
+import { BODY_CLEARANCE, createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { describe, expect, it } from "vitest";
@@ -121,5 +122,51 @@ describe("stepHero — the vertical axis", () => {
 
     expect(s.y).toBeCloseTo(deck, 6);
     expect(s.airborne).toBe(false);
+  });
+
+  it("hits a basement ceiling instead of tunnelling through its slab in one strong launch", () => {
+    const deps = depsPlates({ hauteur: () => -2.4, surface: () => -2.4 });
+    const colliders = createColliderIndex();
+    colliders.add({ x: -1, z: -1, w: 2, h: 2, bottom: -0.12, top: 0 });
+    deps.colliders = colliders;
+    const state = createHeroState(0, 0, -2.4, 10, 2.2);
+    state.airborne = true;
+    state.vy = 20;
+
+    stepHero(state, immobile, 0.2, deps);
+
+    expect(state.y).toBeCloseTo(-0.12 - BODY_CLEARANCE, 6);
+    expect(state.y).toBeLessThan(-0.12);
+    expect(state.vy).toBe(0);
+    expect(state.airborne).toBe(true);
+  });
+
+  it("stops at the nearest ceiling even when a launch could cross several storeys", () => {
+    const deps = depsPlates({ hauteur: () => -4.8, surface: () => -4.8 });
+    const colliders = createColliderIndex();
+    colliders.add({ x: -1, z: -1, w: 2, h: 2, bottom: -2.52, top: -2.4 });
+    colliders.add({ x: -1, z: -1, w: 2, h: 2, bottom: -0.12, top: 0 });
+    deps.colliders = colliders;
+    const state = createHeroState(0, 0, -4.8, 10, 2.2);
+    state.airborne = true;
+    state.vy = 40;
+
+    stepHero(state, immobile, 0.2, deps);
+
+    expect(state.y).toBeCloseTo(-2.52 - BODY_CLEARANCE, 6);
+    expect(state.vy).toBe(0);
+  });
+
+  it("keeps a real opening traversable when no ceiling slab covers it", () => {
+    const deps = depsPlates({ hauteur: () => -2.4, surface: () => -2.4 });
+    deps.colliders = createColliderIndex();
+    const state = createHeroState(0, 0, -2.4, 10, 2.2);
+    state.airborne = true;
+    state.vy = 20;
+
+    stepHero(state, immobile, 0.2, deps);
+
+    expect(state.y).toBeGreaterThan(-0.12);
+    expect(state.vy).toBeGreaterThan(0);
   });
 });
