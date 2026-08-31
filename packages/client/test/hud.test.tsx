@@ -64,6 +64,7 @@ describe("Hud", () => {
       document.querySelector('.action-dock__experience [data-variant="xp"]'),
     ).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="hero"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-hud-widget="quests"]')).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="quick-items"]')).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="peasant-resources"]')).toBeInTheDocument();
     expect(document.querySelector('[data-hud-widget="xp"]')).toBeInTheDocument();

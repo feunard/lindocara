@@ -13,6 +13,7 @@ import { useHudLayout } from "./useHudLayout.js";
 
 const WIDGET_LABELS: Readonly<Record<HudWidgetId, MessageKey>> = {
   hero: "hud.layout.widget.hero",
+  quests: "hud.layout.widget.quests",
   chat: "hud.layout.widget.chat",
   "quick-items": "hud.layout.widget.quick_items",
   "peasant-resources": "hud.layout.widget.peasant_resources",

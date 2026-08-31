@@ -67,12 +67,31 @@ describe("HUD layout editor", () => {
 
     expect(getHudLayoutSnapshot().layout.chat).toEqual({ x: 0.7, y: 0.3, scale: 1.4 });
     expect(getHudLayoutSnapshot().layout.minimap).toEqual(defaults.minimap);
+    expect(getHudLayoutSnapshot().layout.quests).toEqual(defaults.quests);
     expect(getHudLayoutSnapshot().layout["quick-items"]).toEqual(defaults["quick-items"]);
     expect(getHudLayoutSnapshot().layout["peasant-resources"]).toEqual(
       defaults["peasant-resources"],
     );
     expect(defaults["peasant-resources"].x).toBeGreaterThan(0.75);
     expect(defaults["peasant-resources"].scale).toBeLessThan(1);
+  });
+
+  it("places quests below the default portrait and exposes them to the layout editor", () => {
+    const defaults = defaultHudLayout({ width: 1920, height: 1080 });
+    expect(defaults.quests.x).toBeLessThan(0.15);
+    expect(defaults.quests.y).toBeGreaterThan(defaults.hero.y + 0.2);
+    expect(defaults.quests.scale).toBeLessThan(1);
+
+    beginHudLayoutEdit();
+    render(
+      <HudLayoutWidget id="quests">
+        <div>Quest journal</div>
+      </HudLayoutWidget>,
+    );
+    expect(screen.getByRole("button", { name: "Move Quest journal and objectives" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Resize Quest journal and objectives" }),
+    ).toBeVisible();
   });
 
   it("moves and resizes one widget without changing the others", () => {

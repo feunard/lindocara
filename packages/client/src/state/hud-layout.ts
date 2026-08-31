@@ -11,6 +11,7 @@ export const HUD_LAYOUT_STORAGE_KEY = "lindocara.hud.layout.v1";
 
 export const HUD_WIDGET_IDS = [
   "hero",
+  "quests",
   "chat",
   "quick-items",
   "peasant-resources",
@@ -75,6 +76,9 @@ export function defaultHudLayout(
   const heroWidth = Math.min(320, width - 24);
   const heroCenterX = 12 + heroWidth / 2;
   const heroCenterY = 70;
+  const questWidth = Math.min(256, width - 24);
+  const questScale = 0.9;
+  const questCenterY = Math.min(height - 96, Math.max(250, height * 0.3));
   const chatWidth = Math.min(504, width - 24);
   const chatHeight = Math.min(330, height - 160);
   const dockOffset = Math.min(190, width * 0.24);
@@ -85,6 +89,11 @@ export function defaultHudLayout(
 
   return {
     hero: placement(heroCenterX / width, heroCenterY / height),
+    quests: placement(
+      (12 + (questWidth * questScale) / 2) / width,
+      questCenterY / height,
+      questScale,
+    ),
     chat: placement((12 + chatWidth / 2) / width, (height - 97 - chatHeight / 2) / height),
     "quick-items": placement(quickCenterX / width, (height - 135) / height),
     "peasant-resources": placement(

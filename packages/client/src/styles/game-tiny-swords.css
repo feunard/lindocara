@@ -146,19 +146,15 @@
 }
 
 /* Player-authored HUD layout. Every editable box is a viewport-relative fixed widget so a saved
-   layout scales across resolutions. The quest stack remains ordinary game information. */
+   layout scales across resolutions. */
 .game-ui #hud {
   display: contents;
   filter: none;
 }
 
 .hud-quest-stack {
-  position: fixed;
-  z-index: 4;
-  top: calc(7.2rem + var(--safe-top));
-  left: calc(0.7rem + var(--safe-left));
   display: grid;
-  width: min(20rem, calc(100vw - 1.4rem - var(--safe-left) - var(--safe-right)));
+  width: 100%;
   gap: 0.42rem;
   filter: drop-shadow(0 0.6rem 0.8rem rgb(0 0 0 / 42%));
   pointer-events: auto;
@@ -286,6 +282,18 @@
 
 .hud-layout-widget--hero .hud-layout-widget__content {
   width: min(20rem, calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
+}
+
+.hud-layout-widget--quests .hud-layout-widget__content {
+  width: min(16rem, calc(100vw - 1.5rem - var(--safe-left) - var(--safe-right)));
+}
+
+/* Keep the quest group selectable even when an authored party currently has nothing tracked. */
+.hud-layout-widget--quests[data-hud-editing="true"] .hud-quest-stack:empty {
+  min-height: 4rem;
+  border: 1px dashed rgb(255 226 137 / 55%);
+  border-radius: 0.35rem;
+  background: rgb(5 24 18 / 38%);
 }
 
 .hud-layout-widget--chat[data-hud-editing="true"] #chat:not(.chat-open) {
@@ -424,9 +432,5 @@
     width: 100%;
     min-width: 0;
     padding-inline: 0.35rem;
-  }
-
-  .hud-quest-stack {
-    top: calc(6.4rem + var(--safe-top));
   }
 }

@@ -580,6 +580,7 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.layout.move": "Déplacer {widget}",
   "hud.layout.resize": "Redimensionner {widget}",
   "hud.layout.widget.hero": "Portrait du héros",
+  "hud.layout.widget.quests": "Journal et objectifs de quête",
   "hud.layout.widget.chat": "Discussion",
   "hud.layout.widget.quick_items": "Objets rapides",
   "hud.layout.widget.peasant_resources": "Ressources du paysan",

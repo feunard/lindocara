@@ -145,70 +145,72 @@ export function Hud() {
           </section>
         </HudLayoutWidget>
 
-        <div className="hud-quest-stack">
-          {!activeParty && (
-            <section
-              key={questPulseKey}
-              className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
-            >
-              <div className="panel-title">
-                <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-                <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
-              </div>
-              <span>{questText(quest)}</span>
-              {showQuestBar && (
-                <Bar
-                  value={quest.status === "ready" ? quest.target : quest.progress}
-                  max={quest.target}
-                  variant="quest"
-                />
-              )}
-              {quest.timerEndsAt !== undefined && (
-                <strong className="quest-timer" aria-live="polite">
-                  {t("quest.timer", { seconds: remainingSeconds })}
-                </strong>
-              )}
-            </section>
-          )}
-
-          {authoredQuests.length > 0 && (
-            <button
-              type="button"
-              className="panel quest-journal-launch"
-              onClick={() => setQuestJournalOpen(true)}
-            >
-              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-              <strong>{t("quest.journal.open")}</strong>
-              <span className="quest-journal-launch__hint">{t("quest.journal.openHint")}</span>
-            </button>
-          )}
-
-          {trackedAuthoredQuests.map((authored) => (
-            <section
-              key={`${authored.id}:${authored.status}:${authored.objectives
-                .map((objective) => objective.progress)
-                .join("-")}`}
-              className="panel quest pulse"
-            >
-              <div className="panel-title">
-                <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-                <strong>{authored.title}</strong>
-              </div>
-              {(authored.journalSummary || authored.description) && (
-                <span>{authored.journalSummary || authored.description}</span>
-              )}
-              {authored.objectives.map((objective) => (
-                <div key={objective.id} className="flex flex-col gap-1">
-                  <span>{questObjectiveProgressText(objective)}</span>
-                  <Bar value={objective.progress} max={objective.target} variant="quest" />
+        <HudLayoutWidget id="quests">
+          <div className="hud-quest-stack">
+            {!activeParty && (
+              <section
+                key={questPulseKey}
+                className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
+              >
+                <div className="panel-title">
+                  <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+                  <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
                 </div>
-              ))}
-              {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
-            </section>
-          ))}
+                <span>{questText(quest)}</span>
+                {showQuestBar && (
+                  <Bar
+                    value={quest.status === "ready" ? quest.target : quest.progress}
+                    max={quest.target}
+                    variant="quest"
+                  />
+                )}
+                {quest.timerEndsAt !== undefined && (
+                  <strong className="quest-timer" aria-live="polite">
+                    {t("quest.timer", { seconds: remainingSeconds })}
+                  </strong>
+                )}
+              </section>
+            )}
 
-          {self.class === "priest" && <HealCooldownBar />}
-        </div>
+            {authoredQuests.length > 0 && (
+              <button
+                type="button"
+                className="panel quest-journal-launch"
+                onClick={() => setQuestJournalOpen(true)}
+              >
+                <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+                <strong>{t("quest.journal.open")}</strong>
+                <span className="quest-journal-launch__hint">{t("quest.journal.openHint")}</span>
+              </button>
+            )}
+
+            {trackedAuthoredQuests.map((authored) => (
+              <section
+                key={`${authored.id}:${authored.status}:${authored.objectives
+                  .map((objective) => objective.progress)
+                  .join("-")}`}
+                className="panel quest pulse"
+              >
+                <div className="panel-title">
+                  <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+                  <strong>{authored.title}</strong>
+                </div>
+                {(authored.journalSummary || authored.description) && (
+                  <span>{authored.journalSummary || authored.description}</span>
+                )}
+                {authored.objectives.map((objective) => (
+                  <div key={objective.id} className="flex flex-col gap-1">
+                    <span>{questObjectiveProgressText(objective)}</span>
+                    <Bar value={objective.progress} max={objective.target} variant="quest" />
+                  </div>
+                ))}
+                {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
+              </section>
+            ))}
+
+            {self.class === "priest" && <HealCooldownBar />}
+          </div>
+        </HudLayoutWidget>
       </aside>
       <ActionDock />
     </>

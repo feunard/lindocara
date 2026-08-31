@@ -574,6 +574,7 @@ export const en = {
   "hud.layout.move": "Move {widget}",
   "hud.layout.resize": "Resize {widget}",
   "hud.layout.widget.hero": "Hero portrait",
+  "hud.layout.widget.quests": "Quest journal and objectives",
   "hud.layout.widget.chat": "Chat",
   "hud.layout.widget.quick_items": "Quick items",
   "hud.layout.widget.peasant_resources": "Peasant resources",
