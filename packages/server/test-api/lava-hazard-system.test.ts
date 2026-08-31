@@ -7,7 +7,7 @@ import {
   advanceLavaHazard,
   LAVA_DAMAGE_RATIO_PER_SECOND,
 } from "@lindocara/server/world/lava-hazard-system.js";
-import { newPlayer } from "@lindocara/server/world/world-runtime.js";
+import { createMonsters, newPlayer } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
 
 function lavaMap(): MapData {
@@ -63,8 +63,10 @@ describe("lava hazard", () => {
       advanceLavaHazard({
         exposureTicks,
         players: [target],
+        monsters: [],
         terrain,
-        damage: (_player, amount) => damage.push(amount),
+        damagePlayer: (_player, amount) => damage.push(amount),
+        damageMonster: () => {},
       });
 
     for (let index = 0; index < TICK_HZ - 1; index += 1) tick();
@@ -82,8 +84,10 @@ describe("lava hazard", () => {
       advanceLavaHazard({
         exposureTicks,
         players: [target],
+        monsters: [],
         terrain,
-        damage: (_player, amount) => damage.push(amount),
+        damagePlayer: (_player, amount) => damage.push(amount),
+        damageMonster: () => {},
       });
 
     for (let index = 0; index < TICK_HZ - 1; index += 1) tick();
@@ -93,6 +97,72 @@ describe("lava hazard", () => {
     target.y = 0;
     tick();
     expect(exposureTicks.get(target.id)).toBe(1);
+    expect(damage).toEqual([]);
+  });
+
+  it("damages living monsters once per completed second without granting player credit", () => {
+    const target = createMonsters([
+      {
+        id: "lava-minotaur",
+        kind: "troll",
+        species: "mire_troll",
+        zone: "route",
+        x: 0,
+        y: 0,
+        z: 0,
+        patrolRadius: 2,
+        maxHp: 50,
+      },
+    ])[0];
+    if (!target) throw new Error("monster fixture missing");
+    const exposureTicks = new Map<string, number>();
+    const damage: number[] = [];
+    const terrain = zoneTerrainFromHeightfield(lavaMap());
+    const tick = () =>
+      advanceLavaHazard({
+        exposureTicks,
+        players: [],
+        monsters: [target],
+        terrain,
+        damagePlayer: () => {},
+        damageMonster: (_monster, amount) => damage.push(amount),
+      });
+
+    for (let index = 0; index < TICK_HZ; index += 1) tick();
+
+    expect(damage).toEqual([10]);
+    expect(target.contributions.size).toBe(0);
+  });
+
+  it("keeps monsters on another storey safe from lava in the same column", () => {
+    const target = createMonsters([
+      {
+        id: "monster-above-lava",
+        kind: "troll",
+        species: "mire_troll",
+        zone: "route",
+        x: 0,
+        y: 0.9,
+        z: 0,
+        patrolRadius: 2,
+      },
+    ])[0];
+    if (!target) throw new Error("monster fixture missing");
+    const damage: number[] = [];
+    const exposureTicks = new Map<string, number>();
+    const terrain = zoneTerrainFromHeightfield(lavaMap());
+
+    for (let index = 0; index < TICK_HZ; index += 1) {
+      advanceLavaHazard({
+        exposureTicks,
+        players: [],
+        monsters: [target],
+        terrain,
+        damagePlayer: () => {},
+        damageMonster: (_monster, amount) => damage.push(amount),
+      });
+    }
+
     expect(damage).toEqual([]);
   });
 });

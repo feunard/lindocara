@@ -308,12 +308,17 @@ export function advanceWorldTick(w: WorldGlue): void {
   advanceLavaHazard({
     exposureTicks: state.lavaExposureTicks,
     players: state.players.values(),
+    monsters: state.monsters,
     terrain: zone(state).terrain,
-    damage: (player, amount) => {
+    damagePlayer: (player, amount) => {
       const connectionId = connectionOf(state, player.id);
       if (connectionId !== undefined) {
         damagePlayerFromEvent(w, connectionId, player, amount, false, now);
       }
+    },
+    damageMonster: (monster, amount) => {
+      monster.hp = Math.max(0, monster.hp - amount);
+      if (monster.hp === 0) markMonsterDead(w, monster, now);
     },
   });
   // The guardian is a room-owned hazard, not a monster: no HP, no threat entry and no combat
