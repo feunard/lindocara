@@ -821,7 +821,11 @@ export interface WorldInfo {
 export interface WorldBuildingSnapshot {
   id: string;
   x: number;
+  /** Stable authored world height for a building outside the surface storey. */
+  y?: number;
   z: number;
+  /** Editor/runtime visibility storey. Omitted for surface buildings. */
+  undergroundDepth?: number;
   graphicAssetId: EditorAssetId;
   /** Explicit ruin art advertised up front so destruction never starts a texture download. */
   destroyedAssetId: EditorAssetId;
@@ -2071,7 +2075,10 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
     isRecord(value) &&
     isWireId(value.id) &&
     isMoveCoordinate(value.x) &&
+    (value.y === undefined || isMoveCoordinate(value.y)) &&
     isMoveCoordinate(value.z) &&
+    (value.undergroundDepth === undefined || validVerticalDepth(value.undergroundDepth)) &&
+    (value.undergroundDepth === undefined || value.y !== undefined) &&
     isEditorAssetId(value.graphicAssetId) &&
     isEditorAssetId(value.destroyedAssetId) &&
     (value.orientation === undefined ||
@@ -2104,7 +2111,9 @@ function isWorldBuildingSnapshot(value: unknown): value is WorldBuildingSnapshot
     hasOnlyKeys(value, [
       "id",
       "x",
+      "y",
       "z",
+      "undergroundDepth",
       "graphicAssetId",
       "destroyedAssetId",
       "orientation",

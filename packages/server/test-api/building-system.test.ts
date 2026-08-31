@@ -48,6 +48,8 @@ describe("building system", () => {
         definition({
           interiorMapId: "f2c15465-6f9d-4ef5-80dd-e508c3642112",
           dimensions: { width: 5, depth: 3.125 },
+          y: -4.8,
+          undergroundDepth: 2,
         }),
       ])[0],
     );
@@ -56,6 +58,8 @@ describe("building system", () => {
       interactive: true,
       collider: building.collider,
       dimensions: { width: 5, depth: 3.125 },
+      y: -4.8,
+      undergroundDepth: 2,
     });
 
     expect(damageBuilding(building, 40)).toEqual({ actualDamage: 40, destroyed: false });
@@ -149,5 +153,39 @@ describe("building system", () => {
     expect(liveMap?.colliders[0]?.top).toBeCloseTo(2.68);
     expect(liveMap?.colliders[0]?.surface).toMatchObject({ shape: "gable", eave: 1.3, axis: "z" });
     expect(liveMap?.colliders[0]?.surface?.peak).toBeCloseTo(2.68);
+
+    const basementElement = { ...element, undergroundDepth: 2 } as const;
+    const underground = {
+      levels: [
+        {
+          depth: 2,
+          style: "cave" as const,
+          cells: [{ col: 8, row: 8, length: 1 }],
+        },
+      ],
+      stairs: [],
+      shafts: [],
+    };
+    const basementHeightfield = compileAuthoredMap({
+      ...input,
+      underground,
+      elements: [basementElement],
+    });
+    const basementZone = zoneFromMapPayload(
+      {
+        ...payload,
+        underground,
+        elements: [basementElement],
+        heightfield: encodeMap(basementHeightfield),
+      },
+      DEFAULT_ADVENTURE_AUDIO,
+    );
+    expect(basementZone.buildings).toEqual([
+      expect.objectContaining({
+        id: element.id,
+        y: -4.8,
+        undergroundDepth: 2,
+      }),
+    ]);
   });
 });

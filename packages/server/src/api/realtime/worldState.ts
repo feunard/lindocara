@@ -29,6 +29,7 @@ import {
 import type { GroundVector } from "@lindocara/engine/ground.js";
 import { isNativeHarvestAsset } from "@lindocara/engine/harvest-presets.js";
 import {
+  AUTHORED_LEVEL_HEIGHT,
   authoredElementColliders,
   authoredElementGroundPoint,
 } from "@lindocara/engine/hd2d/authored-map.js";
@@ -49,6 +50,7 @@ import { seaGuardianRuntimeId } from "@lindocara/engine/sea-guardian.js";
 import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { undergroundTerrainHeightAt } from "@lindocara/engine/underground.js";
 import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 
 import { type BuildingRuntime, createBuildings } from "../../world/building-system.js";
@@ -246,10 +248,25 @@ function authoredBuildings(payload: MapPayload, size: number): ZoneBuildingDefin
     const destroyedAssetId = destroyedBuildingAssetId(element.assetId);
     const rect = elementWorldCollider(element);
     if (!destroyedAssetId || !rect) return [];
+    const ground = authoredElementGroundPoint(element, size);
+    const groundCol = Math.floor(ground.x + size / 2);
+    const groundRow = Math.floor(ground.z + size / 2);
     return [
       {
         id: element.id,
-        ...authoredElementGroundPoint(element, size),
+        ...ground,
+        ...(element.undergroundDepth === undefined
+          ? {}
+          : {
+              y: undergroundTerrainHeightAt(
+                payload.underground,
+                element.undergroundDepth,
+                groundCol,
+                groundRow,
+                AUTHORED_LEVEL_HEIGHT,
+              ),
+              undergroundDepth: element.undergroundDepth,
+            }),
         standingAssetId: element.assetId,
         destroyedAssetId,
         ...(element.orientation ? { orientation: element.orientation } : {}),

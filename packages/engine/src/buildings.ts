@@ -41,7 +41,11 @@ export interface BuildingDimensions {
 export interface ZoneBuildingDefinition extends BuildingSettings {
   id: string;
   x: number;
+  /** Stable authored world height for a building outside the surface storey. */
+  y?: number;
   z: number;
+  /** Positive basements and negative upper floors; omitted for the surface. */
+  undergroundDepth?: number;
   standingAssetId: EditorAssetId;
   destroyedAssetId: EditorAssetId;
   orientation?: ElementOrientation;

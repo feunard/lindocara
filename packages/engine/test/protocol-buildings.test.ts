@@ -40,6 +40,26 @@ describe("building state on the wire", () => {
     ).toBeNull();
   });
 
+  it("carries the exact vertical storey and rejects incomplete depth metadata", () => {
+    const basement = { ...building, y: -4.8, undergroundDepth: 2 };
+    expect(parseServerMessage(JSON.stringify({ t: "building.state", building: basement }))).toEqual(
+      { t: "building.state", building: basement },
+    );
+    expect(
+      parseServerMessage(
+        JSON.stringify({ t: "building.state", building: { ...building, undergroundDepth: 2 } }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "building.state",
+          building: { ...building, y: -4.8, undergroundDepth: 0 },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("rejects incoherent health, unknown art and extra outcome fields", () => {
     expect(
       parseServerMessage(

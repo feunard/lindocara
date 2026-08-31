@@ -505,9 +505,12 @@ export function placeStaticContent(
     fill.position.x = -(1 - ratio) * (1.55 / 2);
     group.add(background, fill);
     group.position.set(x, y, z);
-    group.visible = health.visible && ratio > 0;
+    const intrinsicVisible = health.visible && ratio > 0;
+    group.visible = intrinsicVisible;
     group.renderOrder = 70;
     group.userData.undergroundDepth = undergroundDepth ?? null;
+    group.userData.intrinsicVisible = intrinsicVisible;
+    group.userData.exactStoreyOverlay = true;
     scene.root.add(group);
     healthBars.push({ contentKey, group, fill });
   }

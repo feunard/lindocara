@@ -28,7 +28,11 @@ export function buildingSnapshot(building: BuildingRuntime): WorldBuildingSnapsh
   return {
     id: building.id,
     x: building.x,
+    ...(building.y === undefined ? {} : { y: building.y }),
     z: building.z,
+    ...(building.undergroundDepth === undefined
+      ? {}
+      : { undergroundDepth: building.undergroundDepth }),
     graphicAssetId: building.destroyed ? building.destroyedAssetId : building.standingAssetId,
     destroyedAssetId: building.destroyedAssetId,
     ...(building.orientation ? { orientation: building.orientation } : {}),

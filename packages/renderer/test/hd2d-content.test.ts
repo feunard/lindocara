@@ -244,8 +244,43 @@ describe("static map content", () => {
       (child): child is THREE.Group => child instanceof THREE.Group && child.renderOrder === 70,
     );
     expect(bar?.visible).toBe(true);
+    expect(bar?.userData).toMatchObject({
+      undergroundDepth: null,
+      intrinsicVisible: true,
+      exactStoreyOverlay: true,
+    });
     const fill = bar?.children[1];
     expect(fill?.scale.x).toBeCloseTo(0.25);
+  });
+
+  it("tags basement building health as exact-storey chrome", () => {
+    const map = flatMap(4, {
+      events: [
+        {
+          id: "building-basement",
+          x: 0.5,
+          y: -4.8,
+          z: 0.5,
+          undergroundDepth: 2,
+          graphicAssetId: "building",
+          health: { value: 450, max: 900, visible: true },
+        } as HeightfieldEvent & {
+          health: { value: number; max: number; visible: boolean };
+        },
+      ],
+    });
+    const scene = sceneFor(map);
+    placeStaticContent(createHd2dContext(), scene, map, resolverFor({ building: art() }));
+
+    const bar = scene.root.children.find(
+      (child): child is THREE.Group => child instanceof THREE.Group && child.renderOrder === 70,
+    );
+    expect(bar?.position.y).toBeCloseTo(-1.4);
+    expect(bar?.userData).toMatchObject({
+      undergroundDepth: 2,
+      intrinsicVisible: true,
+      exactStoreyOverlay: true,
+    });
   });
 
   it("skips an element whose asset id resolves to nothing, and keeps the rest", () => {

@@ -71,6 +71,31 @@ import { createUnderground, undergroundPreviewDepths } from "./underground.js";
 
 // --- art direction ------------------------------------------------------------------------------
 
+/** World-space chrome never leaks through a stair/shaft preview into another storey. */
+export function exactStoreyVisible(
+  contentDepth: number | null,
+  viewedDepth: number | null,
+): boolean {
+  return contentDepth === viewedDepth;
+}
+
+export function authoredContentVisible(options: {
+  contentDepth: number | null;
+  viewedDepth: number | null;
+  visibleDepths: readonly (number | null)[];
+  surfaceVisible: boolean;
+  intrinsicVisible: boolean;
+  exactStoreyOverlay: boolean;
+}): boolean {
+  if (!options.intrinsicVisible) return false;
+  if (options.exactStoreyOverlay) {
+    return exactStoreyVisible(options.contentDepth, options.viewedDepth);
+  }
+  return options.contentDepth === null
+    ? options.surfaceVisible
+    : options.visibleDepths.includes(options.contentDepth);
+}
+
 const TERRAIN_ROOT = "/assets/lindocara/tiny-swords/terrain";
 const HD2D_TERRAIN_ROOT = "/assets/lindocara/hd2d";
 
@@ -944,8 +969,16 @@ export function createHd2dScene(
     surfaceRoot.visible = true;
     for (const content of surfaceRoot.children) {
       const depth = content.userData.undergroundDepth;
-      content.visible =
-        depth === undefined || depth === null ? surfaceBlend > 0.04 : visibleDepths.includes(depth);
+      const contentDepth = typeof depth === "number" ? depth : null;
+      const intrinsicVisible = content.userData.intrinsicVisible !== false;
+      content.visible = authoredContentVisible({
+        contentDepth,
+        viewedDepth: viewedUndergroundDepth,
+        visibleDepths,
+        surfaceVisible: surfaceBlend > 0.04,
+        intrinsicVisible,
+        exactStoreyOverlay: content.userData.exactStoreyOverlay === true,
+      });
     }
     rain.group.visible = seesSurface;
     sky.mesh.visible = seesSurface && (currentMap.environment ?? "exterior") === "exterior";

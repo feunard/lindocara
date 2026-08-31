@@ -116,6 +116,7 @@ import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
 import {
   createHd2dScene,
+  exactStoreyVisible,
   HD2D_CAMERA,
   HD2D_TEXTURE_URLS,
   surfaceAccessPreviewAt,
@@ -1051,7 +1052,7 @@ export function worldEventContentVisualKey(
     }),
     ...buildings.map(
       (building) =>
-        `building:${building.id}:${building.x}:${building.z}:${building.orientation ?? 0}:${building.rotation ?? ""}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
+        `building:${building.id}:${building.x}:${building.y ?? ""}:${building.z}:${building.undergroundDepth ?? ""}:${building.orientation ?? 0}:${building.rotation ?? ""}:${building.dimensions?.width ?? ""}:${building.dimensions?.depth ?? ""}:${building.graphicAssetId}:${building.hp}:${building.maxHp}`,
     ),
   ].join("|");
 }
@@ -1598,7 +1599,11 @@ export class Hd2dRenderer implements RendererLike {
       ...this.#worldBuildings.map((building) => ({
         id: `building-${building.id}`,
         x: building.x,
+        ...(building.y === undefined ? {} : { y: building.y }),
         z: building.z,
+        ...(building.undergroundDepth === undefined
+          ? {}
+          : { undergroundDepth: building.undergroundDepth }),
         graphicAssetId: building.graphicAssetId,
         ...(building.orientation ? { orientation: building.orientation } : {}),
         ...(building.rotation === undefined ? {} : { rotation: building.rotation }),
@@ -2016,6 +2021,9 @@ export class Hd2dRenderer implements RendererLike {
           transitioning,
           this.#gameplayVisibilityDepth,
         );
+        if (view.healthBar) {
+          view.healthBar.visible &&= exactStoreyVisible(viewDepth, this.#gameplayVisibilityDepth);
+        }
         if (!visibleDepths.includes(viewDepth)) continue;
         views[write] = view;
         write += 1;
