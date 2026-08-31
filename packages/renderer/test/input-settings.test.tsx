@@ -462,6 +462,96 @@ describe("input remapping", () => {
     }
   });
 
+  it("lets an open controller menu consume D-pad and confirm without leaking gameplay actions", () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    const buttons = Array.from({ length: 19 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0,
+    }));
+    const gamepad = {
+      axes: [0, 0],
+      buttons,
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    const original = navigator.getGamepads;
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [gamepad],
+    });
+    const interact = vi.fn();
+    const toggleInventory = vi.fn();
+    let menuOpen = true;
+    const stop = trackActions(
+      {
+        attack: vi.fn(),
+        interact,
+        usePotion: vi.fn(),
+        release: vi.fn(),
+        castSkill: vi.fn(),
+        focusChat: vi.fn(),
+        toggleMap: vi.fn(),
+        toggleInventory,
+        toggleSettings: vi.fn(),
+      },
+      () => true,
+      () => true,
+      () => false,
+      () => menuOpen,
+    );
+    const poll = () => {
+      const callback = frames.shift();
+      if (!callback) throw new Error("Missing gamepad polling frame");
+      callback(0);
+    };
+    const setButton = (index: number, pressed: boolean) => {
+      const button = buttons[index];
+      if (!button) throw new Error(`Missing test gamepad button ${index}`);
+      button.pressed = pressed;
+      button.touched = pressed;
+      button.value = Number(pressed);
+    };
+
+    try {
+      setButton(13, true);
+      setButton(0, true);
+      poll();
+      expect(toggleInventory).not.toHaveBeenCalled();
+      expect(interact).not.toHaveBeenCalled();
+
+      // Closing the menu while both controls are still held must not manufacture new edges.
+      menuOpen = false;
+      poll();
+      expect(toggleInventory).not.toHaveBeenCalled();
+      expect(interact).not.toHaveBeenCalled();
+
+      setButton(13, false);
+      setButton(0, false);
+      poll();
+      setButton(13, true);
+      setButton(0, true);
+      poll();
+      expect(toggleInventory).toHaveBeenCalledOnce();
+      expect(interact).toHaveBeenCalledOnce();
+    } finally {
+      stop();
+      Object.defineProperty(navigator, "getGamepads", {
+        configurable: true,
+        value: original,
+      });
+      requestFrame.mockRestore();
+      cancelFrame.mockRestore();
+    }
+  });
+
   it("dispatches remapped shortcuts through the authoritative intent handlers", () => {
     setKeyboardBinding("interact", { code: "KeyK" });
     const interact = vi.fn();

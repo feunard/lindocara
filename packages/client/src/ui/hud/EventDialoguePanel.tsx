@@ -1,3 +1,4 @@
+import { gamepadBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { useEffect } from "react";
 
 import { t, useLocale } from "../../i18n.js";
@@ -42,11 +43,15 @@ function EventDialogueSay({
       {dialogue.name && <strong className="event-dialogue__name">{dialogue.name}</strong>}
       <p className="event-dialogue__text">{dialogue.text}</p>
       <div className="event-dialogue__actions">
-        <span ref={continueItem.ref} {...continueItem.itemProps}>
-          <TinyButton size="sm" type="button" data-dialogue-advance>
-            {t("dialogue.continue")} <TinyKbd>{confirmBinding}</TinyKbd>
-          </TinyButton>
-        </span>
+        <TinyButton
+          ref={continueItem.ref}
+          {...continueItem.itemProps}
+          size="sm"
+          type="button"
+          data-dialogue-advance
+        >
+          {t("dialogue.continue")} <TinyKbd>{confirmBinding}</TinyKbd>
+        </TinyButton>
       </div>
     </>
   );
@@ -104,17 +109,17 @@ function EventDialogueChoice({
     onActivate: () => game?.eventChoose?.(dialogue.runId, index),
   });
   return (
-    <span ref={choiceItem.ref} {...choiceItem.itemProps}>
-      <TinyButton
-        size="sm"
-        variant="secondary"
-        type="button"
-        className="event-dialogue__choice"
-        data-dialogue-choice={index}
-      >
-        <TinyKbd>{String(index + 1)}</TinyKbd> {label}
-      </TinyButton>
-    </span>
+    <TinyButton
+      ref={choiceItem.ref}
+      {...choiceItem.itemProps}
+      size="sm"
+      variant="secondary"
+      type="button"
+      className="event-dialogue__choice"
+      data-dialogue-choice={index}
+    >
+      <TinyKbd>{String(index + 1)}</TinyKbd> {label}
+    </TinyButton>
   );
 }
 
@@ -123,7 +128,10 @@ export function EventDialoguePanel() {
   const dialogue = useUiStore((s) => s.eventDialogue);
   const game = useUiStore((s) => s.game);
   const { mode, settings } = useInputModeSettings();
-  const confirmBinding = controlBindingLabel("interact", mode, settings);
+  const confirmBinding =
+    mode === "gamepad"
+      ? gamepadBindingLabel({ kind: "button", index: 0 }, settings.controllerLayout)
+      : controlBindingLabel("interact", mode, settings);
 
   useEffect(() => {
     if (!dialogue) return;
@@ -154,7 +162,7 @@ export function EventDialoguePanel() {
       data-text-surface="dialogue"
       data-dialogue-kind={dialogue.kind}
     >
-      <MenuNav orientation="vertical" confirmControl="interact">
+      <MenuNav orientation="vertical">
         {dialogue.kind === "say" ? (
           <EventDialogueSay
             dialogue={dialogue}

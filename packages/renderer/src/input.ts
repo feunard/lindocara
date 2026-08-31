@@ -492,11 +492,15 @@ export function trackActions(
   actionsEnabled: () => boolean = () => true,
   interactionAvailable: () => boolean = () => true,
   releaseAvailable: () => boolean = () => true,
+  menuConsumesActions: () => boolean = () => false,
 ): () => void {
   const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
     setInputMode("keyboard");
     if (event.defaultPrevented || event.repeat) return;
+    // Dialogue MenuNav owns arrows and confirm. The gameplay tracker is registered before React's
+    // panel and therefore cannot rely on `defaultPrevented` being set yet.
+    if (menuConsumesActions()) return;
     if (isTextEntry(event.target)) {
       if (event.code === "Escape") {
         event.target.blur();
@@ -545,6 +549,9 @@ export function trackActions(
       for (const control of ACTION_CONTROLS) {
         if (!gamepadControlPressed(control, gamepad)) continue;
         pressed.add(control);
+        // Still record held controls while a menu owns the pad. Releasing the dialogue while A or
+        // a D-pad shortcut remains held must not leak a fresh gameplay action on the next frame.
+        if (menuConsumesActions()) continue;
         if (control === "release" && !contextualRelease) continue;
         // Start/Menu is shared by the two default bindings. Remember both as held, but let exactly
         // one intent through so a retry never opens settings and a menu press never releases life.

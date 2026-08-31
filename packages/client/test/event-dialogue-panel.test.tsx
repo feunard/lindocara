@@ -9,11 +9,7 @@
 import { setLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { EventDialoguePanel } from "@lindocara/client/ui/hud/EventDialoguePanel.js";
-import {
-  resetInputBindings,
-  setGamepadBinding,
-  setInputMode,
-} from "@lindocara/renderer/input-settings.js";
+import { resetInputBindings, setInputMode } from "@lindocara/renderer/input-settings.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -100,15 +96,15 @@ describe("EventDialoguePanel", () => {
     });
     render(<EventDialoguePanel />);
 
-    expect(screen.getByRole("button", { name: /1 Yes/ }).parentElement).toHaveFocus();
+    expect(screen.getByRole("button", { name: /1 Yes/ })).toHaveFocus();
     fireEvent.keyDown(window, { key: "ArrowDown", code: "ArrowDown" });
-    expect(screen.getByRole("button", { name: /2 No/ }).parentElement).toHaveFocus();
+    expect(screen.getByRole("button", { name: /2 No/ })).toHaveFocus();
     fireEvent.keyDown(window, { key: "Enter", code: "Enter" });
 
     expect(eventChoose).toHaveBeenCalledWith("run-arrows", 1);
   });
 
-  it("uses the D-pad or left stick and the remapped gamepad confirm button", () => {
+  it("uses the D-pad or left stick and always confirms with the south face button", () => {
     const frames: FrameRequestCallback[] = [];
     const requestFrame = vi
       .spyOn(window, "requestAnimationFrame")
@@ -134,7 +130,6 @@ describe("EventDialoguePanel", () => {
       configurable: true,
       value: () => [gamepad],
     });
-    setGamepadBinding("interact", { kind: "button", index: 2 });
     useUiStore.setState({
       eventDialogue: {
         kind: "choices",
@@ -158,30 +153,35 @@ describe("EventDialoguePanel", () => {
     };
 
     try {
-      expect(screen.getByRole("button", { name: /1 Forest/ }).parentElement).toHaveFocus();
+      expect(screen.getByRole("button", { name: /1 Forest/ })).toHaveFocus();
 
       // The first neutral sample arms the newly mounted menu.
       poll();
       axes[1] = 1;
       poll();
-      expect(screen.getByRole("button", { name: /2 Cave/ }).parentElement).toHaveFocus();
-      expect(screen.getByText("X", { selector: "kbd" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /2 Cave/ })).toHaveFocus();
+      expect(screen.getByText("A", { selector: "kbd" })).toBeInTheDocument();
 
       axes[1] = 0;
       poll();
       setButton(12, true);
       poll();
-      expect(screen.getByRole("button", { name: /1 Forest/ }).parentElement).toHaveFocus();
+      expect(screen.getByRole("button", { name: /1 Forest/ })).toHaveFocus();
 
       setButton(12, false);
       poll();
-      setButton(13, true);
+      const dpadDown = buttons[13];
+      if (!dpadDown) throw new Error("Missing test D-pad down button");
+      dpadDown.pressed = false;
+      dpadDown.touched = true;
+      dpadDown.value = 1;
       poll();
-      expect(screen.getByRole("button", { name: /2 Cave/ }).parentElement).toHaveFocus();
+      expect(screen.getByRole("button", { name: /2 Cave/ })).toHaveFocus();
 
-      setButton(13, false);
+      dpadDown.touched = false;
+      dpadDown.value = 0;
       poll();
-      setButton(2, true);
+      setButton(0, true);
       poll();
       expect(eventChoose).toHaveBeenCalledWith("run-gamepad", 1);
     } finally {

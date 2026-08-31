@@ -1354,6 +1354,7 @@ async function startGameIdentity(
     () => !isGameplayInputPaused(),
     () => interactionNearby,
     () => useUiStore.getState().selfState?.life === "corpse",
+    dialogueOpen,
   );
 
   useUiStore.getState().setGame({

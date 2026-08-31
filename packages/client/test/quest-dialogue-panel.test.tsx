@@ -146,7 +146,7 @@ describe("QuestDialoguePanel", () => {
     const { unmount } = render(<QuestDialoguePanel />);
 
     try {
-      expect(screen.getByRole("button", { name: "Decline" }).parentElement).toHaveFocus();
+      expect(screen.getByRole("button", { name: "Decline" })).toHaveFocus();
       poll();
       expect(questAction).not.toHaveBeenCalled();
 
@@ -154,7 +154,7 @@ describe("QuestDialoguePanel", () => {
       poll();
       setButton(13, true);
       poll();
-      expect(screen.getByRole("button", { name: "Accept" }).parentElement).toHaveFocus();
+      expect(screen.getByRole("button", { name: "Accept" })).toHaveFocus();
       setButton(13, false);
       poll();
       setButton(0, true);

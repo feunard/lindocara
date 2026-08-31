@@ -1,4 +1,5 @@
-import { type ReactNode, useCallback, useState } from "react";
+import { gamepadBindingLabel } from "@lindocara/renderer/input-settings.js";
+import { type ComponentProps, type ReactNode, useCallback, useState } from "react";
 
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
@@ -12,18 +13,29 @@ function QuestDialogueItem({
   order,
   onActivate,
   disabled,
+  variant,
+  pressed,
   children,
 }: {
   order: number;
   onActivate: () => void;
   disabled?: boolean;
+  variant?: ComponentProps<typeof TinyButton>["variant"];
+  pressed?: boolean;
   children: ReactNode;
 }) {
   const item = useMenuItem({ order, onActivate, disabled: disabled === true });
   return (
-    <span ref={item.ref} {...item.itemProps} style={{ display: "contents" }}>
+    <TinyButton
+      ref={item.ref}
+      {...item.itemProps}
+      size="sm"
+      variant={variant}
+      disabled={disabled}
+      aria-pressed={pressed}
+    >
       {children}
-    </span>
+    </TinyButton>
   );
 }
 
@@ -39,9 +51,12 @@ export function QuestDialoguePanel() {
   }, [conversationId, game]);
   if (!dialogue) return null;
 
-  const confirmBinding = controlBindingLabel("interact", mode, settings);
+  const confirmBinding =
+    mode === "gamepad"
+      ? gamepadBindingLabel({ kind: "button", index: 0 }, settings.controllerLayout)
+      : controlBindingLabel("interact", mode, settings);
   return (
-    <MenuNav orientation="vertical" confirmControl="interact" onBack={close}>
+    <MenuNav orientation="vertical" onBack={close}>
       <TinyPanel
         className="event-dialogue quest-dialogue"
         role="dialog"
@@ -101,17 +116,13 @@ export function QuestDialoguePanel() {
                         <QuestDialogueItem
                           key={choice.id}
                           order={entryIndex * 20 + choiceIndex}
+                          variant={selectedChoice === choice.id ? "success" : "secondary"}
+                          pressed={selectedChoice === choice.id}
                           onActivate={() =>
                             setChoices((current) => ({ ...current, [choiceKey]: choice.id }))
                           }
                         >
-                          <TinyButton
-                            size="sm"
-                            variant={selectedChoice === choice.id ? "success" : "secondary"}
-                            aria-pressed={selectedChoice === choice.id}
-                          >
-                            {choice.label}
-                          </TinyButton>
+                          {choice.label}
                         </QuestDialogueItem>
                       ))}
                     </fieldset>
@@ -121,13 +132,12 @@ export function QuestDialoguePanel() {
                       {entry.canAccept && (
                         <QuestDialogueItem
                           order={entryIndex * 20 + 10}
+                          variant="secondary"
                           onActivate={() =>
                             game?.questAction?.(dialogue.conversationId, "refuse", entry.questId)
                           }
                         >
-                          <TinyButton size="sm" variant="secondary">
-                            {t("quest.dialogue.refuse")}
-                          </TinyButton>
+                          {t("quest.dialogue.refuse")}
                         </QuestDialogueItem>
                       )}
                       <QuestDialogueItem
@@ -146,16 +156,7 @@ export function QuestDialoguePanel() {
                           )
                         }
                       >
-                        <TinyButton
-                          size="sm"
-                          disabled={
-                            entry.canTurnIn &&
-                            entry.rewardChoices.length > 0 &&
-                            selectedChoice === undefined
-                          }
-                        >
-                          {t(entry.canAccept ? "quest.dialogue.accept" : "quest.dialogue.turnIn")}
-                        </TinyButton>
+                        {t(entry.canAccept ? "quest.dialogue.accept" : "quest.dialogue.turnIn")}
                       </QuestDialogueItem>
                     </div>
                   )}
@@ -165,10 +166,8 @@ export function QuestDialoguePanel() {
           </div>
         )}
         <div className="event-dialogue__actions">
-          <QuestDialogueItem order={999} onActivate={close}>
-            <TinyButton size="sm" variant="secondary">
-              {t("quest.dialogue.close")}
-            </TinyButton>
+          <QuestDialogueItem order={999} variant="secondary" onActivate={close}>
+            {t("quest.dialogue.close")}
           </QuestDialogueItem>
         </div>
       </TinyPanel>

@@ -183,9 +183,12 @@ export function MenuNav({
     const poll = () => {
       const pad = firstConnectedGamepad();
       if (pad) {
+        // Some otherwise standard browser mappings expose the analogue D-pad value reliably but
+        // leave `pressed` false. Read the same >55% threshold as the remappable input layer.
         const neg =
-          pad.buttons[negBtn]?.pressed === true || (pad.axes[axis] ?? 0) < -STICK_DEADZONE;
-        const pos = pad.buttons[posBtn]?.pressed === true || (pad.axes[axis] ?? 0) > STICK_DEADZONE;
+          (pad.buttons[negBtn]?.value ?? 0) > 0.55 || (pad.axes[axis] ?? 0) < -STICK_DEADZONE;
+        const pos =
+          (pad.buttons[posBtn]?.value ?? 0) > 0.55 || (pad.axes[axis] ?? 0) > STICK_DEADZONE;
         const dir: 1 | -1 | 0 = pos ? 1 : neg ? -1 : 0;
         if (!gamepadSampled) {
           // A panel can mount while the button which opened it is still physically held. The first
