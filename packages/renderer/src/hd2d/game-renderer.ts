@@ -342,14 +342,18 @@ function facingOf(vector: GroundVector): Facing {
 /** Locomotion flags for room-stepped actors which are always grounded (guards and corpses). */
 const GROUNDED = { airborne: false, swimming: false, gliding: false } as const;
 
-/** A local jump stays in its room; only a real stair/shaft transition may change visibility depth. */
+/** The local hero stays in its resolved room; only a real stair/shaft transition may change it. */
 export function actorUndergroundVisibilityDepth(
   elevation: number,
-  localAirborne: boolean,
+  localHero: boolean,
   transitioning: boolean,
   stableDepth: number | null,
 ): number | null {
-  return localAirborne && !transitioning ? stableDepth : undergroundDepthAtElevation(elevation);
+  // Elevation alone cannot distinguish a raised surface tile from an upper storey. The local
+  // hero's stable depth was resolved against the authored floors immediately above, so reuse it
+  // both while grounded and during an ordinary jump. A genuine access transition deliberately
+  // falls through to elevation so the actor moves progressively between the two visible floors.
+  return localHero && !transitioning ? stableDepth : undergroundDepthAtElevation(elevation);
 }
 
 export const HD2D_GLIDER_TEXTURE_URL = "/assets/lindocara/hd2d/glider.png";
@@ -2058,7 +2062,7 @@ export class Hd2dRenderer implements RendererLike {
       for (const view of views) {
         const viewDepth = actorUndergroundVisibilityDepth(
           view.y,
-          view.id === self.id && self.airborne,
+          view.id === self.id,
           transitioning,
           this.#gameplayVisibilityDepth,
         );

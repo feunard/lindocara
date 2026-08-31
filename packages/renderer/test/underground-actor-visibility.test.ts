@@ -34,6 +34,22 @@ describe("underground actor visibility", () => {
     expect(actorUndergroundVisibilityDepth(-5.7, true, false, 3)).toBe(3);
   });
 
+  it("keeps the local hero visible while grounded and jumping on raised surface terrain", () => {
+    const adjacentSurfaceHole = {
+      ...visibilityMap,
+      underground: {
+        ...visibilityMap.underground,
+        shafts: [{ col: 2, row: 1, width: 1, length: 1, fromDepth: 0, depth: 1 }],
+      },
+    };
+    const stableDepth = groundedUndergroundVisibilityDepth(adjacentSurfaceHole, -0.5, -0.5, 0.9);
+
+    expect(stableDepth).toBeNull();
+    expect(actorUndergroundVisibilityDepth(0.9, true, false, stableDepth)).toBeNull();
+    expect(actorUndergroundVisibilityDepth(1.6, true, false, stableDepth)).toBeNull();
+    expect(actorUndergroundVisibilityDepth(1.1, true, false, stableDepth)).toBeNull();
+  });
+
   it("follows real elevation while crossing a stair or shaft", () => {
     expect(actorUndergroundVisibilityDepth(-6.1, true, true, 3)).toBe(3);
     expect(actorUndergroundVisibilityDepth(-4.7, true, true, 3)).toBe(2);
