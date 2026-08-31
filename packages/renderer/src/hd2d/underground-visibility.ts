@@ -53,6 +53,28 @@ export function groundedUndergroundVisibilityDepth(
       : surfaceLevel === null || surfaceLevel === undefined
         ? map.waterLevel
         : surfaceLevel * map.levelHeight;
+
+  // A prop is support, not a new architectural floor. Its top can be closer to the ceiling above
+  // than to the floor of the room it occupies (a tall rock on floor -1 is the common case), so a
+  // nearest-floor comparison alone makes the whole scene reveal the surface as soon as the hero
+  // lands on it. First identify the authored room whose vertical band contains the body. The upper
+  // bound is exclusive: standing exactly on that bound belongs to the floor above.
+  for (const level of map.underground?.levels ?? []) {
+    const containsCell = level.cells.some(
+      (run) => run.row === cell.row && cell.col >= run.col && cell.col < run.col + run.length,
+    );
+    if (!containsCell) continue;
+    const floor = undergroundTerrainHeightAt(
+      map.underground,
+      level.depth,
+      cell.col,
+      cell.row,
+      map.levelHeight,
+    );
+    const ceiling = undergroundFloorHeight(level.depth - 1);
+    if (elevation >= floor - 1e-3 && elevation < ceiling - 1e-3) return level.depth;
+  }
+
   let closestDepth: number | null = null;
   let closestDistance = Math.abs(elevation - surfaceHeight);
 

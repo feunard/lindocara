@@ -78,6 +78,28 @@ describe("underground actor visibility", () => {
     expect(descending.stable).toEqual({ depth: null, elevation: 0 });
   });
 
+  it("keeps a hero on its underground storey after climbing onto a tall prop", () => {
+    const floor = -2.4;
+    const onRock = actorUndergroundVisibilityAt(visibilityMap, -0.5, -0.5, -0.65, false, 0, {
+      depth: 1,
+      elevation: floor,
+    });
+    const jumping = actorUndergroundVisibilityAt(
+      visibilityMap,
+      -0.5,
+      -0.5,
+      0.45,
+      true,
+      5,
+      onRock.stable,
+    );
+
+    expect(onRock.visibleDepth).toBe(1);
+    expect(onRock.stable).toEqual({ depth: 1, elevation: -0.65 });
+    expect(jumping.visibleDepth).toBe(1);
+    expect(jumping.stable.depth).toBe(1);
+  });
+
   it("still follows a remote hero through a real vertical access", () => {
     const grounded = actorUndergroundVisibilityAt(visibilityMap, -0.5, -0.5, -4.8, false, 0);
     const crossing = actorUndergroundVisibilityAt(
