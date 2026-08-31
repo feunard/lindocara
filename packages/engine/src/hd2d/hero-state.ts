@@ -50,6 +50,13 @@ export interface HeroState {
   /** Persistent horizontal speed (the friction model). */
   vx: number;
   vz: number;
+  /**
+   * External horizontal momentum, kept separate from player propulsion so ground friction cannot
+   * erase a server-authored knockback on its first frame. `stepHero` moves it through the exact
+   * same terrain/collider checks as ordinary velocity and damps it continuously while airborne.
+   */
+  impulsionX: number;
+  impulsionZ: number;
   /** Vertical speed: falling and jumping. */
   vy: number;
   airborne: boolean;
@@ -202,6 +209,8 @@ export function createHeroState(
     z,
     vx: 0,
     vz: 0,
+    impulsionX: 0,
+    impulsionZ: 0,
     vy: 0,
     airborne: false,
     swimming: false,

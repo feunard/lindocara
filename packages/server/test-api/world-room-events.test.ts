@@ -1958,7 +1958,7 @@ describe("world room events (FakeClock)", () => {
   test("push and launch traps move their triggerer without dealing damage", async () => {
     for (const [suffix, command] of [
       ["push", { t: "trapImpulse", impulse: "push", power: 2.5 }],
-      ["launch", { t: "trapImpulse", impulse: "launch", power: 12 }],
+      ["launch", { t: "trapImpulse", impulse: "launch", power: 13 }],
     ] as const) {
       const trap = scriptEvent(crypto.randomUUID(), SPAWN_COL, SPAWN_ROW, "action", [command]);
       const fixture = await newPlayableParty(`${suffix}trap`, [trap]);
@@ -1983,10 +1983,11 @@ describe("world room events (FakeClock)", () => {
       expect(player.displacement).toBeGreaterThan(displacementBefore);
       expect(messagesOf(socket).some((message) => message.t === "event")).toBe(false);
       if (command.impulse === "push") {
-        expect(player.x).toBeLessThan(centre.x);
-        expect(player.displacementImpulse).toBeNull();
+        expect(player.x).toBe(centre.x);
+        expect(player.displacementImpulse).toEqual({ x: -6.25, y: 9, z: 0 });
+        expect(player.airborne).toBe(true);
       } else {
-        expect(player.displacementImpulse).toEqual({ x: 0, y: 12, z: 0 });
+        expect(player.displacementImpulse).toEqual({ x: 0, y: 13, z: 0 });
         expect(player.airborne).toBe(true);
       }
       engine.dispose();

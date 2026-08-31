@@ -53,6 +53,10 @@ import type { QuestEventReference } from "@lindocara/engine/quests.js";
 import { unlockTalent } from "@lindocara/engine/talents.js";
 import { BODY_RADIUS, canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  TRAP_PUSH_HORIZONTAL_SPEED_PER_POWER,
+  TRAP_PUSH_VERTICAL_SPEED,
+} from "@lindocara/engine/trap-physics.js";
 
 import type { AuthoredQuestChange } from "../../authored-quest-system.js";
 import { executeCheatCommand } from "../../world/cheat-command-system.js";
@@ -75,7 +79,6 @@ import {
   removePolarityOrbsByOwner,
 } from "../../world/priest-variant-system.js";
 import { nextQuestChapter, questDefinition } from "../../world/quest-system.js";
-import { movePlayerInDirection } from "../../world/skill-system.js";
 import {
   CHAT_MAX_LENGTH,
   displacePlayer,
@@ -1261,13 +1264,13 @@ export function dispatchTrapImpulse(
   )
     return;
   if (effect.impulse === "push") {
-    movePlayerInDirection(
-      player,
-      { x: -player.facing.x, z: -player.facing.z },
-      effect.power,
-      zone(w.state).terrain,
-      w.state.playerGrid,
-    );
+    impulsePlayer(player, {
+      x: -player.facing.x * effect.power * TRAP_PUSH_HORIZONTAL_SPEED_PER_POWER || 0,
+      y: TRAP_PUSH_VERTICAL_SPEED,
+      z: -player.facing.z * effect.power * TRAP_PUSH_HORIZONTAL_SPEED_PER_POWER || 0,
+    });
+    player.airborne = true;
+    player.vy = TRAP_PUSH_VERTICAL_SPEED;
   } else {
     impulsePlayer(player, { x: 0, y: effect.power, z: 0 });
     player.airborne = true;

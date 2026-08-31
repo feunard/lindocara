@@ -227,6 +227,8 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     state.groundY = state.y;
     state.vx = 0;
     state.vz = 0;
+    state.impulsionX = 0;
+    state.impulsionZ = 0;
     state.vy = 0;
     state.airborne = false;
     state.swimming = false;
@@ -295,6 +297,8 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     // elan it started with means nothing on the other side.
     state.vx = 0;
     state.vz = 0;
+    state.impulsionX = 0;
+    state.impulsionZ = 0;
     state.vy = 0;
     state.airborne = false;
     state.swimming = false;
@@ -344,9 +348,11 @@ export function createHeroController(options: HeroControllerOptions): HeroContro
     },
     impulse(velocity) {
       mobility = null;
-      state.vx = velocity.x;
+      state.vx = 0;
       state.vy = velocity.y;
-      state.vz = velocity.z;
+      state.vz = 0;
+      state.impulsionX = velocity.x;
+      state.impulsionZ = velocity.z;
       state.airborne = velocity.y > 0;
       state.swimming = false;
       state.liquid = null;

@@ -239,6 +239,8 @@ function enterWater(state: HeroState, deps: StepDeps): Extract<HeroEvent, { t: "
   state.vy = 0;
   state.vx = 0;
   state.vz = 0;
+  state.impulsionX = 0;
+  state.impulsionZ = 0;
   state.breath = hero.swim.breath;
   const surface = liquidSurfaceAtElevation(deps.query, state.x, footprintZ, state.y);
   state.y = surface;
@@ -255,6 +257,8 @@ function leaveWater(state: HeroState, deps: StepDeps, y: number): HeroEvent {
   state.liquid = null;
   state.vx = 0;
   state.vz = 0;
+  state.impulsionX = 0;
+  state.impulsionZ = 0;
   state.breath = hero.swim.breath;
   state.y = y;
   state.groundY = y;
@@ -290,6 +294,8 @@ function drown(state: HeroState, deps: StepDeps): HeroEvent {
   state.vy = 0;
   state.vx = 0;
   state.vz = 0;
+  state.impulsionX = 0;
+  state.impulsionZ = 0;
   state.breath = hero.swim.breath;
   return {
     t: "noyade",
@@ -357,12 +363,31 @@ export function stepHero(
   // One axis at a time: hitting an obstacle diagonally slides along it. On the refused axis, speed
   // drops to zero, otherwise the hero would stay stuck to the wall at full speed and shoot off the
   // instant they move away from it.
-  const nx = state.x + state.vx * dt;
+  const nx = state.x + (state.vx + state.impulsionX) * dt;
   if (canEnter(state, nx, state.z, deps)) state.x = nx;
-  else if (!canPreserveVaultMomentum(state, nx, state.z, deps)) state.vx = 0;
-  const nz = state.z + state.vz * dt;
+  else if (!canPreserveVaultMomentum(state, nx, state.z, deps)) {
+    state.vx = 0;
+    state.impulsionX = 0;
+  }
+  const nz = state.z + (state.vz + state.impulsionZ) * dt;
   if (canEnter(state, state.x, nz, deps)) state.z = nz;
-  else if (!canPreserveVaultMomentum(state, state.x, nz, deps)) state.vz = 0;
+  else if (!canPreserveVaultMomentum(state, state.x, nz, deps)) {
+    state.vz = 0;
+    state.impulsionZ = 0;
+  }
+
+  // A knockback is an airborne ballistic impulse, not ordinary player propulsion. Its own gentle
+  // drag keeps the arc readable on every terrain while leaving the existing grass/snow/ice model
+  // untouched. Exact exponential damping makes the travelled distance independent of frame rate.
+  if (state.airborne) {
+    const damping = Math.exp(-1.5 * dt);
+    state.impulsionX *= damping;
+    state.impulsionZ *= damping;
+    if (Math.hypot(state.impulsionX, state.impulsionZ) < 1e-3) {
+      state.impulsionX = 0;
+      state.impulsionZ = 0;
+    }
+  }
 
   const followsRamp =
     etaitAuSol &&
@@ -397,6 +422,8 @@ export function stepHero(
     state.swimming = false;
     state.liquid = null;
     state.vy = 0;
+    state.impulsionX = 0;
+    state.impulsionZ = 0;
   }
   const footprintZ = empreinteZ(state.z);
   // How high a surface may be and still count as the one under the hero's FEET.
@@ -534,6 +561,8 @@ export function stepHero(
           events.push({ t: "reception", force: impact });
           state.vy = 0;
           state.airborne = false;
+          state.impulsionX = 0;
+          state.impulsionZ = 0;
           state.airJumpsRemaining = hero.airJumps ?? 0;
           state.distanceDepuisLePas = 0;
         }

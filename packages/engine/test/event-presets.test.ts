@@ -62,7 +62,7 @@ describe("presetPageContent", () => {
     });
     expect(presetPageContent("launch-trap", MAP_ID)).toEqual({
       trigger: "player-touch",
-      commands: [{ t: "trapImpulse", impulse: "launch", power: 12 }],
+      commands: [{ t: "trapImpulse", impulse: "launch", power: 13 }],
     });
     for (const preset of ["push-trap", "launch-trap"] as const) {
       expect(
@@ -160,7 +160,7 @@ describe("presetEvent", () => {
 
     for (const [preset, graphicAssetId, impulse, power] of [
       ["push-trap", LINDOCARA_RUNNER_ASSET_IDS.pushTrap, "push", 2.5],
-      ["launch-trap", LINDOCARA_RUNNER_ASSET_IDS.launchTrap, "launch", 12],
+      ["launch-trap", LINDOCARA_RUNNER_ASSET_IDS.launchTrap, "launch", 13],
     ] as const) {
       const movementTrap = presetEvent({
         id: crypto.randomUUID(),

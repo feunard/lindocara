@@ -33,6 +33,21 @@ function plateauTerrain(): ZoneTerrain {
   return zoneTerrainFromHeightfield(map);
 }
 
+function flatTerrain(): ZoneTerrain {
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels: Array.from({ length: SIZE * SIZE }, () => 0),
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: [],
+    spawns: [],
+    elements: [],
+    events: [],
+  });
+}
+
 function controller() {
   return createHeroController({
     terrain: plateauTerrain(),
@@ -253,6 +268,49 @@ describe("the hero controller", () => {
     expect(hero.state.y).toBe(LEVEL_HEIGHT);
     expect(hero.state.vx).toBe(0);
     expect(hero.state.vz).toBe(0);
+    expect(hero.state.airborne).toBe(false);
+  });
+
+  it("carries a push-trap impulse through a real backward jump", () => {
+    const hero = createHeroController({
+      terrain: flatTerrain(),
+      spawn: { x: 0, y: 0, z: 0 },
+      speed: 4.2,
+    });
+
+    hero.impulse({ x: -6.25, y: 9, z: 0 });
+    let apex = hero.state.y;
+    for (let frame = 0; frame < 120 && (frame === 0 || hero.state.airborne); frame++) {
+      hero.step(press(), FRAME);
+      apex = Math.max(apex, hero.state.y);
+    }
+
+    expect(apex).toBeGreaterThan(1.2);
+    expect(hero.state.x).toBeLessThan(-2);
+    expect(hero.state.y).toBe(0);
+    expect(hero.state.airborne).toBe(false);
+    expect([hero.state.impulsionX, hero.state.impulsionZ]).toEqual([0, 0]);
+  });
+
+  it("launches about three authored elevation levels straight upward", () => {
+    const hero = createHeroController({
+      terrain: flatTerrain(),
+      spawn: { x: 0, y: 0, z: 0 },
+      speed: 4.2,
+    });
+
+    hero.impulse({ x: 0, y: 13, z: 0 });
+    let apex = hero.state.y;
+    for (let frame = 0; frame < 180 && (frame === 0 || hero.state.airborne); frame++) {
+      hero.step(press(), FRAME);
+      apex = Math.max(apex, hero.state.y);
+    }
+
+    expect(apex).toBeGreaterThanOrEqual(LEVEL_HEIGHT * 3);
+    expect(apex).toBeLessThan(LEVEL_HEIGHT * 3.2);
+    expect(hero.state.x).toBe(0);
+    expect(hero.state.z).toBe(0);
+    expect(hero.state.y).toBe(0);
     expect(hero.state.airborne).toBe(false);
   });
 });

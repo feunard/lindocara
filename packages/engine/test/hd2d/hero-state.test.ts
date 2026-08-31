@@ -6,6 +6,7 @@ describe("createHeroState", () => {
     const s = createHeroState(3, -4, 1.8, 12, 2.2);
     expect([s.x, s.y, s.z]).toEqual([3, 1.8, -4]);
     expect([s.vx, s.vz, s.vy]).toEqual([0, 0, 0]);
+    expect([s.impulsionX, s.impulsionZ]).toEqual([0, 0]);
     expect(s.airborne).toBe(false);
     expect(s.swimming).toBe(false);
     expect(s.breath).toBe(12);

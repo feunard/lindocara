@@ -30,6 +30,7 @@ import {
   LINDOCARA_RUNNER_ASSET_IDS,
   LINDOCARA_PICKUP_ASSET_IDS,
 } from "./tiny-swords-catalog.js";
+import { TRAP_LAUNCH_THREE_LEVEL_SPEED } from "./trap-physics.js";
 
 export const EVENT_PRESETS = [
   "raw",
@@ -120,7 +121,7 @@ export function presetPageContent(
     case "launch-trap":
       return {
         trigger: "player-touch",
-        commands: [{ t: "trapImpulse", impulse: "launch", power: 12 }],
+        commands: [{ t: "trapImpulse", impulse: "launch", power: TRAP_LAUNCH_THREE_LEVEL_SPEED }],
       };
     case "pursuer":
       return { trigger: "action", commands: [] };
