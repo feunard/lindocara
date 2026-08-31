@@ -1006,6 +1006,30 @@ function AdventureEditorInner({
     handleRef.current?.setEditingDepth?.(next);
   }
 
+  async function removeEditingStorey(): Promise<void> {
+    const depth = editingDepth;
+    const handle = handleRef.current;
+    if (
+      depth === null ||
+      !handle ||
+      !handle.current().underground?.levels.some((level) => level.depth === depth)
+    ) {
+      return;
+    }
+    const level = depth < 0 ? `+${-depth}` : `−${depth}`;
+    if (
+      !(await dialog.confirm({
+        title: t("editor.level.delete.confirm", { level }),
+        confirmLabel: t("editor.level.delete.action"),
+        cancelLabel: t("editor.discard.cancel"),
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    if (handle.removeStorey(depth)) chooseEditingDepth(null);
+  }
+
   function selectTool(key: EditorPaintTool | "stairs"): void {
     if (
       toolKey === "underground" &&
@@ -2194,6 +2218,18 @@ function AdventureEditorInner({
               onChange={(event) => chooseEditingDepth(-Number(event.currentTarget.value))}
             />
           )}
+          {editingDepth !== null &&
+          currentMap?.underground?.levels.some((level) => level.depth === editingDepth) ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="ml-1 h-6 px-2 text-[10px]"
+              onClick={() => void removeEditingStorey()}
+            >
+              {t("editor.level.delete.action")}
+            </Button>
+          ) : null}
           <span className="ml-1 truncate text-zinc-400">{t("editor.level.hint")}</span>
         </div>
 

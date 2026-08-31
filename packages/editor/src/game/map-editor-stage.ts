@@ -134,6 +134,7 @@ import {
   updateSelectedElementRotation,
   updateSelectedElementScale,
   updateSelectedNativeSceneryDimensions,
+  removeVerticalStorey,
   undergroundStairRequiredLength,
   undergroundStairPlacement,
 } from "./editor-state.js";
@@ -157,6 +158,8 @@ export interface MapEditorStageHandle {
   current(): EditorMap;
   /** Replace the authored content as one undoable operation (procedural generation/import). */
   replaceMap(map: EditorMap): void;
+  /** Delete one complete non-surface storey, including its content and vertical accesses. */
+  removeStorey(depth: number): boolean;
   setName(name: string): void;
   setAudio(audio: MapAudioConfig): void;
   setHeroSettings(settings: MapHeroSettings): void;
@@ -2180,6 +2183,13 @@ export function openMapEditorStage(
         centreCamera();
         redrawMapChange(previous);
         notify();
+      },
+      removeStorey(depth) {
+        stopStroke();
+        pendingTeleportOrigin = null;
+        linkFrom = null;
+        wallOpeningFrom = null;
+        return commitInspectorChange(removeVerticalStorey(map, depth), null);
       },
       setName(name) {
         if (name === map.name) return;

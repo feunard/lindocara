@@ -109,6 +109,8 @@ const stageMock = vi.hoisted(() => ({
   setZoom: vi.fn(),
   current: vi.fn(),
   replaceMap: vi.fn(),
+  removeStorey: vi.fn(),
+  setEditingDepth: vi.fn(),
   setName: vi.fn(),
   setAudio: vi.fn(),
   setHeroSettings: vi.fn(),
@@ -151,6 +153,8 @@ function stageHandle() {
     setZoom: stageMock.setZoom,
     current: stageMock.current,
     replaceMap: stageMock.replaceMap,
+    removeStorey: stageMock.removeStorey,
+    setEditingDepth: stageMock.setEditingDepth,
     setName: stageMock.setName,
     setAudio: stageMock.setAudio,
     setHeroSettings: stageMock.setHeroSettings,
@@ -445,6 +449,42 @@ describe("AdventureEditorScreen shell", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
+  });
+
+  it("confirms and removes the selected upper floor before returning to the surface", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    const upperFloor = {
+      ...blankMap("House", 20, 15),
+      environment: "interior" as const,
+      interiorShell: { style: "timber" as const },
+      underground: {
+        levels: [
+          {
+            depth: -1,
+            style: "timber" as const,
+            cells: [{ col: 4, row: 4, length: 4 }],
+          },
+        ],
+        stairs: [],
+      },
+    };
+    stageMock.current.mockReturnValue(upperFloor);
+    stageMock.removeStorey.mockReturnValue(true);
+    const user = userEvent.setup();
+    await mountReady(alepha);
+
+    await user.click(screen.getByRole("button", { name: "+1" }));
+    await user.click(screen.getByRole("button", { name: t("editor.level.delete.action") }));
+    await screen.findByText(t("editor.level.delete.confirm", { level: "+1" }));
+    const confirmations = screen.getAllByRole("button", {
+      name: t("editor.level.delete.action"),
+    });
+    const confirmation = confirmations.at(-1);
+    if (!confirmation) throw new Error("storey deletion confirmation is missing");
+    await user.click(confirmation);
+
+    expect(stageMock.removeStorey).toHaveBeenCalledWith(-1);
+    expect(stageMock.setEditingDepth).toHaveBeenLastCalledWith(null);
   });
 
   it("asks for a procedural recipe before replacing the open map as one edit", async () => {

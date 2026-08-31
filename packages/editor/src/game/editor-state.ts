@@ -610,6 +610,82 @@ export function deleteSelection(map: EditorMap, selection: EditorSelection): Edi
   }
 }
 
+/**
+ * Remove one complete authored vertical storey as a single editor operation.
+ *
+ * A storey is more than its floor runs: every prop/event on it and every stair or shaft crossing
+ * its elevation depends on that floor existing. Linked event endpoints are indivisible too, so a
+ * door left on another storey cannot keep pointing at an endpoint that was just removed.
+ */
+export function removeVerticalStorey(map: EditorMap, depth: number): EditorMap {
+  if (!Number.isSafeInteger(depth) || depth === 0) return map;
+  const source = map.underground;
+  if (!source?.levels.some((level) => level.depth === depth)) return map;
+
+  const removedElementIds = new Set(
+    map.elements.flatMap((element) =>
+      element.undergroundDepth === depth && element.id ? [element.id] : [],
+    ),
+  );
+  const removedEventIds = new Set(
+    map.events.flatMap((event) => (event.undergroundDepth === depth ? [event.id] : [])),
+  );
+  let linkedEventAdded = true;
+  while (linkedEventAdded) {
+    linkedEventAdded = false;
+    for (const event of map.events) {
+      if (
+        removedEventIds.has(event.id) ||
+        event.linkedEventId === undefined ||
+        !removedEventIds.has(event.linkedEventId)
+      ) {
+        continue;
+      }
+      removedEventIds.add(event.id);
+      linkedEventAdded = true;
+    }
+  }
+
+  const crossesDepth = (from: number, to: number): boolean =>
+    depth >= Math.min(from, to) && depth <= Math.max(from, to);
+  const levels = source.levels.filter((level) => level.depth !== depth);
+  const stairs = source.stairs.filter(
+    (stair) => !crossesDepth(stair.fromDepth ?? stair.depth - 1, stair.depth),
+  );
+  const shafts = (source.shafts ?? []).filter(
+    (shaft) => !crossesDepth(shaft.fromDepth ?? 0, shaft.depth),
+  );
+  const elementDepths = source.elementDepths?.filter(
+    (entry) => entry.depth !== depth && !removedElementIds.has(entry.id),
+  );
+  const eventDepths = source.eventDepths?.filter(
+    (entry) => entry.depth !== depth && !removedEventIds.has(entry.id),
+  );
+  const hasUndergroundData =
+    levels.length > 0 ||
+    stairs.length > 0 ||
+    shafts.length > 0 ||
+    (elementDepths?.length ?? 0) > 0 ||
+    (eventDepths?.length ?? 0) > 0;
+  const underground: UndergroundMap | undefined = hasUndergroundData
+    ? {
+        levels,
+        stairs,
+        ...(shafts.length > 0 ? { shafts } : {}),
+        ...(elementDepths && elementDepths.length > 0 ? { elementDepths } : {}),
+        ...(eventDepths && eventDepths.length > 0 ? { eventDepths } : {}),
+      }
+    : undefined;
+
+  const { underground: _removedUnderground, ...mapWithoutUnderground } = map;
+  return {
+    ...mapWithoutUnderground,
+    ...(underground ? { underground } : {}),
+    elements: map.elements.filter((element) => element.undergroundDepth !== depth),
+    events: map.events.filter((event) => !removedEventIds.has(event.id)),
+  };
+}
+
 export function moveSelection(
   map: EditorMap,
   selection: EditorSelection,

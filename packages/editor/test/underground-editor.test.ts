@@ -1,6 +1,8 @@
 import {
   applyTool,
   blankMap,
+  type EditorMap,
+  removeVerticalStorey,
   toMapData,
   toSaveInput,
 } from "@lindocara/editor/game/editor-state.js";
@@ -9,6 +11,110 @@ import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { describe, expect, it } from "vitest";
 
 describe("underground editor tools", () => {
+  it("deletes one whole selected storey and every access or linked endpoint that depends on it", () => {
+    let map: EditorMap = {
+      ...blankMap("Storey removal", 12, 12),
+      environment: "interior" as const,
+      interiorShell: { style: "timber" as const },
+    };
+    map = applyTool(
+      map,
+      { kind: "elevation", material: "parquet", step: "keep" },
+      4,
+      4,
+      true,
+      "field",
+      0,
+      0,
+      -1,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "elevation", material: "parquet", step: "keep" },
+      5,
+      5,
+      true,
+      "field",
+      0,
+      0,
+      -2,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "elevation", material: "volcan", step: "keep" },
+      8,
+      8,
+      true,
+      "field",
+      0,
+      0,
+      1,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "element", assetId: "decoration.deco.01" },
+      4,
+      4,
+      true,
+      "element",
+      0,
+      0,
+      -1,
+    ) as EditorMap;
+    map = applyTool(
+      map,
+      { kind: "event", eventKind: "normal" },
+      4,
+      4,
+      true,
+      "event",
+      0,
+      0,
+      -1,
+    ) as EditorMap;
+    map = applyTool(map, { kind: "event", eventKind: "normal" }, 6, 6, true, "event") as EditorMap;
+    map = applyTool(map, { kind: "event", eventKind: "normal" }, 7, 7, true, "event") as EditorMap;
+    const upperEvent = map.events.find((event) => event.undergroundDepth === -1);
+    const surfaceEvent = map.events.find((event) => event.undergroundDepth === undefined);
+    const unrelatedEvent = map.events.find(
+      (event) => event.undergroundDepth === undefined && event.id !== surfaceEvent?.id,
+    );
+    if (!upperEvent || !surfaceEvent || !unrelatedEvent)
+      throw new Error("storey event fixture is incomplete");
+    map = {
+      ...map,
+      underground: {
+        ...map.underground,
+        levels: map.underground?.levels ?? [],
+        stairs: [
+          { depth: -1, fromDepth: 0, col: 2, row: 2, direction: "east", length: 3, width: 1 },
+          { depth: -2, fromDepth: -1, col: 5, row: 5, direction: "east", length: 3, width: 1 },
+          { depth: 1, fromDepth: 0, col: 8, row: 8, direction: "east", length: 3, width: 1 },
+        ],
+        shafts: [{ col: 9, row: 9, width: 1, length: 1, depth: 1 }],
+      },
+      events: map.events.map((event) =>
+        event.id === upperEvent.id
+          ? { ...event, linkedEventId: surfaceEvent.id }
+          : event.id === surfaceEvent.id
+            ? { ...event, linkedEventId: upperEvent.id }
+            : event,
+      ),
+    };
+
+    const removed = removeVerticalStorey(map, -1);
+    expect(removed.underground?.levels.map((level) => level.depth)).toEqual([-2, 1]);
+    expect(removed.underground?.stairs).toEqual([
+      { depth: 1, fromDepth: 0, col: 8, row: 8, direction: "east", length: 3, width: 1 },
+    ]);
+    expect(removed.underground?.shafts).toEqual([
+      { col: 9, row: 9, width: 1, length: 1, depth: 1 },
+    ]);
+    expect(removed.elements).toHaveLength(0);
+    expect(removed.events.map((event) => event.id)).toEqual([unrelatedEvent.id]);
+    expect(removeVerticalStorey(removed, -1)).toBe(removed);
+  });
+
   it("digs and refills large blocks as one authored operation", () => {
     const map = blankMap("Deep map", 12, 12);
     const dug = applyTool(

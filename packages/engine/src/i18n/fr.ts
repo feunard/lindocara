@@ -1535,6 +1535,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.level.surface": "Surface",
   "editor.level.storey": "Niveau vertical (−16 à +16)",
   "editor.level.hint": "Terrain, Décors et Événements agissent sur ce niveau.",
+  "editor.level.delete.action": "Supprimer ce niveau",
+  "editor.level.delete.confirm":
+    "Supprimer le niveau {level}, tout son terrain, ses décors, ses événements et ses accès ? Cette action peut être annulée.",
   "editor.upperStorey.heading": "Étages intérieurs",
   "editor.upperStorey.stairs": "Escalier montant",
   "editor.upperStorey.target": "Étage cible (+1 à +16)",

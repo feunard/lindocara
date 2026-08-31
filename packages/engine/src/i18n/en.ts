@@ -1519,6 +1519,9 @@ export const en = {
   "editor.level.surface": "Surface",
   "editor.level.storey": "Vertical level (−16 to +16)",
   "editor.level.hint": "Terrain, Scenery and Event tools act on this level.",
+  "editor.level.delete.action": "Delete this level",
+  "editor.level.delete.confirm":
+    "Delete level {level}, all of its terrain, scenery, events and accesses? This can be undone.",
   "editor.upperStorey.heading": "Interior upper floors",
   "editor.upperStorey.stairs": "Up stairs",
   "editor.upperStorey.target": "Target floor (+1 to +16)",
