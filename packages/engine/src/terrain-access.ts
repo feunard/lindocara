@@ -711,18 +711,25 @@ export function nearestStandableCell(
  * sea as land. Without a search, `restoreStandablePosition` would hand back the unchecked spawn and
  * seat the hero in the water, looking correct to every test that only asserts a position came back.
  *
- * Each candidate is grounded on ITSELF, which would be a cliff-climbing bug in
- * `resolveGroundMovement` and is the right question here for the same reason
- * `restoreStandablePosition` grounds its own: nobody is stepping anywhere. The question is "could a
- * body be standing here", so the ground under it is by definition the ground it stands on, and only
- * the disc's relief and the props may refuse it.
+ * Each candidate is grounded on its SURFACE HEIGHTFIELD. A map spawn has no storey field, so an
+ * upper-floor platform in the same column must not capture it; destinations that intentionally
+ * select another storey use an authored event carrying that storey. Grounding the candidate on its
+ * own surface would be a cliff-climbing bug in `resolveGroundMovement`, but is correct here because
+ * nobody is stepping anywhere: only the body footprint and props may refuse the authored landing.
  */
 export function mapEntryPosition(terrain: ZoneTerrain, authored?: GroundVector): WorldPosition {
   const near: GroundVector = authored ?? { x: 0, z: 0 };
-  const standable = (x: number, z: number) =>
-    canStand(terrain, x, z, BODY_RADIUS, groundUnder(terrain, x, z));
+  // A map spawn has no vertical-storey field: by definition it belongs to the surface layer.
+  // Reading `groundUnder` here selected the highest platform in the column, so adding an upper
+  // floor above an interior door silently moved every building arrival onto that floor. Explicit
+  // event destinations carry their own storey and bypass this surface-only fallback in WorldRoom.
+  const surfaceGround = (x: number, z: number): number | null => terrain.query.heightAt(x, z);
+  const standable = (x: number, z: number) => {
+    const ground = surfaceGround(x, z);
+    return ground !== null && canStand(terrain, x, z, BODY_RADIUS, ground);
+  };
   if (standable(near.x, near.z)) {
-    return { x: near.x, y: groundUnder(terrain, near.x, near.z), z: near.z };
+    return { x: near.x, y: surfaceGround(near.x, near.z) ?? 0, z: near.z };
   }
   let nearest: WorldPosition | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
@@ -733,7 +740,7 @@ export function mapEntryPosition(terrain: ZoneTerrain, authored?: GroundVector):
       const distance = Math.hypot(near.x - x, near.z - z);
       if (distance >= bestDistance) continue;
       bestDistance = distance;
-      nearest = { x, y: groundUnder(terrain, x, z), z };
+      nearest = { x, y: surfaceGround(x, z) ?? 0, z };
     }
   }
   // A grid with nowhere at all to stand is a map that cannot be played; the authored point is then

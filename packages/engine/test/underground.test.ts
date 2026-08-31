@@ -4,6 +4,7 @@ import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   canStand,
   groundUnder,
+  mapEntryPosition,
   withWorldEventColliders,
   worldEventColliderRect,
 } from "@lindocara/engine/terrain-access.js";
@@ -199,6 +200,19 @@ describe("multi-storey underground", () => {
     expect(query.surfaceAt?.(x, z, undergroundFloorHeight(-1) + 0.02)).toBeCloseTo(
       undergroundFloorHeight(-1),
     );
+    expect(
+      mapEntryPosition(
+        {
+          query,
+          colliders,
+          size: 8,
+          levelHeight: 0.9,
+          waterLevel: -0.05,
+          minimumElevation: -0.05,
+        },
+        { x, z },
+      ),
+    ).toEqual({ x, y: 0, z });
     const groundHero = createHeroState(x, z + 0.35, 0, 10, 2.2);
     const upperHero = createHeroState(x, z + 0.35, undergroundFloorHeight(-1), 10, 2.2);
     stepHero(groundHero, immobile, 1 / 60, { ...depsPlates(), query, colliders });

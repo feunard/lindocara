@@ -71,7 +71,7 @@ import { PresenceRoom } from "../src/api/realtime/PresenceRoom.ts";
 import { activeEventCentre } from "../src/api/realtime/worldEvents.ts";
 import { WorldRoom } from "../src/api/realtime/WorldRoom.ts";
 import type { WorldRoomState } from "../src/api/realtime/worldState.ts";
-import { MapService } from "../src/api/services/MapService.ts";
+import { type MapPayload, MapService } from "../src/api/services/MapService.ts";
 import { createTestApp, PROVING_SIZE, provingHeightfield } from "./helpers.ts";
 
 const PASSWORD = "Sup3rSecret";
@@ -455,7 +455,10 @@ interface BuildingInteriorFixture {
   interiorRoomId: string;
 }
 
-async function buildingInteriorAdventure(prefix: string): Promise<BuildingInteriorFixture> {
+async function buildingInteriorAdventure(
+  prefix: string,
+  options: { upperFloorOverSpawn?: boolean } = {},
+): Promise<BuildingInteriorFixture> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
   const adventureResponse = await api("/api/adventures", {
@@ -490,8 +493,36 @@ async function buildingInteriorAdventure(prefix: string): Promise<BuildingInteri
     body: JSON.stringify({ col: 8, row: 8, offsetX: 0, offsetY: 0 }),
   });
   expect(interiorResponse.status).toBe(200);
-  const interiorMapId = ((await interiorResponse.json()) as { interiorMap: { id: string } })
-    .interiorMap.id;
+  const interiorMap = ((await interiorResponse.json()) as { interiorMap: MapPayload }).interiorMap;
+  const interiorMapId = interiorMap.id;
+  if (options.upperFloorOverSpawn) {
+    const {
+      id: _id,
+      accountId: _accountId,
+      adventureId: _adventureId,
+      revision: _revision,
+      heightfield: _heightfield,
+      ...saveableInterior
+    } = interiorMap;
+    const putInterior = await api(`/api/maps/${interiorMapId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        ...saveableInterior,
+        underground: {
+          levels: [
+            {
+              depth: -1,
+              style: "timber",
+              cells: [{ col: interiorMap.spawn.col, row: interiorMap.spawn.row, length: 1 }],
+            },
+          ],
+          stairs: [],
+          shafts: [],
+        },
+      }),
+    });
+    expect(putInterior.status).toBe(200);
+  }
   const graphResponse = await api(`/api/adventures/${adventure.id}`, {
     method: "PUT",
     body: JSON.stringify({
@@ -1216,7 +1247,9 @@ describe("world room transitions (FakeClock)", () => {
   });
 
   test("an adjacent building enters its linked map and its exit returns through a door transition", async () => {
-    const fixture = await buildingInteriorAdventure("buildingdoor");
+    const fixture = await buildingInteriorAdventure("buildingdoor", {
+      upperFloorOverSpawn: true,
+    });
     const clock = new FakeClock();
     const exteriorEngine = createEngine(fixture.exteriorRoomId, clock);
     const exteriorSocket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
@@ -1250,6 +1283,7 @@ describe("world room transitions (FakeClock)", () => {
     await exteriorEngine.message(exteriorSocket.id, { t: "interact" });
     await vi.waitFor(() => expect(exteriorSocket.closed?.code).toBe(WS_CLOSE.ZONE_TRANSITION));
     expect((await probe.heroes.findById(fixture.heroId))?.mapId).toBe(fixture.interiorMapId);
+    expect((await probe.heroes.findById(fixture.heroId))?.y).toBeCloseTo(0);
     expect(messagesOf(exteriorSocket)).toContainEqual(
       expect.objectContaining({
         t: "event",
