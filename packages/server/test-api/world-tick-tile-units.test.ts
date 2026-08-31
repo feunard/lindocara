@@ -36,6 +36,7 @@ import {
   type ZoneTerrain,
   zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
 
@@ -98,6 +99,32 @@ function terrain(colliders: MapData["colliders"] = []): ZoneTerrain {
     events: [],
   };
   return zoneTerrainFromHeightfield(map);
+}
+
+function basementTerrain(): ZoneTerrain {
+  const underground = {
+    levels: [
+      {
+        depth: 1,
+        style: "cave" as const,
+        cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+      },
+    ],
+    stairs: [],
+  };
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.25,
+    levels: new Array(SIZE * SIZE).fill(0),
+    materials: new Array(SIZE * SIZE).fill("herbe"),
+    colliders: undergroundColliders(underground, SIZE),
+    spawns: [],
+    elements: [],
+    events: [],
+    underground,
+  });
 }
 
 function definitionWith(
@@ -318,6 +345,39 @@ describe("an authored teleport, in tile units", () => {
     expect(player.z).toBeCloseTo(atCell(3, 5).z, 10);
     // All three axes travel: `y` is the ground the terrain reports under the landing.
     expect(player.y).toBe(0);
+  });
+
+  it("lands on a linked teleporter event's underground storey", () => {
+    const target = {
+      id: "bbbbbbbb-0000-4000-8000-000000000002",
+      col: 10,
+      row: 9,
+      undergroundDepth: 1,
+    } as unknown as MapEvent;
+    const built = basementTerrain();
+    const player = hero(0, 0);
+    const w = glue(built, player, null, [target]);
+    const destination = authoredTeleportTarget(w.state.location?.definition.events, {
+      col: 10,
+      row: 9,
+      eventId: target.id,
+      undergroundDepth: 1,
+    });
+
+    expect(
+      teleportSameMap(
+        w,
+        player,
+        destination.col,
+        destination.row,
+        "surface-teleporter",
+        destination.undergroundDepth,
+      ),
+    ).toBe("teleported");
+    expect(player).toMatchObject({
+      ...atCell(target.col, target.row),
+      y: undergroundFloorHeight(1),
+    });
   });
 
   it("re-derives the elevation from the ground it lands on", () => {

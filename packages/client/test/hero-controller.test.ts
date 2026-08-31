@@ -1,5 +1,6 @@
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { type ZoneTerrain, zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
+import { undergroundColliders, undergroundFloorHeight } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
 import { createHeroController, type HeroControllerInput } from "@/game/hero-controller.js";
@@ -45,6 +46,32 @@ function flatTerrain(): ZoneTerrain {
     spawns: [],
     elements: [],
     events: [],
+  });
+}
+
+function basementTerrain(): ZoneTerrain {
+  const underground = {
+    levels: [
+      {
+        depth: 1,
+        style: "cave" as const,
+        cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+      },
+    ],
+    stairs: [],
+  };
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels: Array.from({ length: SIZE * SIZE }, () => 0),
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: undergroundColliders(underground, SIZE),
+    spawns: [],
+    elements: [],
+    events: [],
+    underground,
   });
 }
 
@@ -269,6 +296,20 @@ describe("the hero controller", () => {
     expect(hero.state.vx).toBe(0);
     expect(hero.state.vz).toBe(0);
     expect(hero.state.airborne).toBe(false);
+  });
+
+  it("adopts a teleporter arrival on its authored underground storey", () => {
+    const terrain = basementTerrain();
+    const floor = undergroundFloorHeight(1);
+    const hero = createHeroController({
+      terrain,
+      spawn: { x: -1, y: 0, z: 0 },
+      speed: 4.2,
+    });
+
+    hero.teleport({ x: 1, y: floor, z: 1 });
+
+    expect(hero.state).toMatchObject({ x: 1, y: floor, z: 1, airborne: false });
   });
 
   it("carries a push-trap impulse through a real backward jump", () => {
