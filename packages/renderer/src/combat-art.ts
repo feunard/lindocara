@@ -615,11 +615,9 @@ export function combatArt(
     };
   }
   if (playerClass === "peasant") {
-    if (skillId === "woodcutters_swing")
-      return {
-        caster,
-        impact: peasantAbilityEffect("woodcutters_swing", 620, 0.72),
-      };
+    // The contextual axe/pickaxe/knife strip already animates the basic hit on the hero. Adding
+    // the generated contextual-tools sheet at contact duplicated that action as a second attack.
+    if (skillId === "woodcutters_swing") return { caster };
     if (skillId === "prospectors_pick")
       return {
         caster,

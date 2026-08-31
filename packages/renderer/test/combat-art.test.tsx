@@ -137,6 +137,10 @@ describe("Tiny Swords directional combat art", () => {
         expect(decodeURI(art.caster.source)).toContain(file);
         expect(art.caster).toMatchObject({ frames, activeFrame });
         const effect = art.impact ?? art.zone;
+        if (skillId === "woodcutters_swing") {
+          expect(effect).toBeUndefined();
+          continue;
+        }
         expect(effect).toMatchObject({
           source: PEASANT_ABILITY_SHEETS[skillId as keyof typeof PEASANT_ABILITY_SHEETS].source,
           frames: 6,
@@ -149,7 +153,7 @@ describe("Tiny Swords directional combat art", () => {
       const bomb = combatArt("peasant", "homemade_bomb", color);
       expect(decodeURI(bomb.caster.source)).toContain("Pawn_Idle.png");
       expect(decodeURI(bomb.projectile?.source ?? "")).toContain("Bomb_Spinning.png");
-      expect(visualSources.size).toBe(5);
+      expect(visualSources.size).toBe(4);
     }
     expect(() => combatArt("peasant", "unknown_skill", "azure")).toThrow(
       "Unknown Peasant skill art",
@@ -252,8 +256,8 @@ describe("Tiny Swords directional combat art", () => {
 
     const preloaded = new Set(allCombatSheets().map((entry) => entry.source));
     expect(preloaded.has(TINY_SWORDS_PEASANT_BOMB_SHEETS.projectile.source)).toBe(true);
-    for (const sheet of Object.values(PEASANT_ABILITY_SHEETS)) {
-      expect(preloaded.has(sheet.source)).toBe(true);
+    for (const [skillId, sheet] of Object.entries(PEASANT_ABILITY_SHEETS)) {
+      expect(preloaded.has(sheet.source)).toBe(skillId !== "woodcutters_swing");
     }
   });
 
