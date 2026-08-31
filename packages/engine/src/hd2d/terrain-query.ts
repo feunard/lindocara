@@ -347,7 +347,23 @@ export function createTerrainQuery(source: TerrainQuerySource): TerrainQuery {
                 ? waterLevel
                 : liquidLevel * levelHeight
               : h * levelHeight;
-          if (!beneathSurface || candidate <= (ceilingY ?? Number.POSITIVE_INFINITY) + 1e-3)
+          const cellX = i + 0.5 - c;
+          const cellZ = j + 0.5 - c;
+          // Once the body's centre is inside an underground volume, the surface ceiling must stay
+          // invisible only over OTHER excavated cells. Applying the centre's exemption to its
+          // entire collision disc also erased the side of an unexcavated raised cell beside a
+          // shaft, letting a jumping hero enter that terrain before its feet cleared the top.
+          const lowerPassageInCell =
+            ceilingY !== undefined &&
+            beneathSurface &&
+            (platformAt(cellX, cellZ, ceilingY) !== null ||
+              rampSampleAt(ramps, levelHeight, cellX, cellZ) !== null) &&
+            (h === null || h * levelHeight > ceilingY + 1e-3);
+          if (
+            !beneathSurface ||
+            !lowerPassageInCell ||
+            candidate <= (ceilingY ?? Number.POSITIVE_INFINITY) + 1e-3
+          )
             max = Math.max(max, candidate);
         }
       }

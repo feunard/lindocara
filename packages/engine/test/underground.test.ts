@@ -232,6 +232,42 @@ describe("multi-storey underground", () => {
     expect(query.surfaceAt?.(x, z, 0.02)).toBeCloseTo(undergroundFloorHeight(2));
   });
 
+  it("keeps a jumping hero outside raised terrain beside a direct shaft until its feet clear", () => {
+    const authored = {
+      levels: [{ depth: 1, style: "cave" as const, cells: [{ col: 3, row: 3, length: 1 }] }],
+      stairs: [],
+      shafts: [{ col: 3, row: 3, width: 1, length: 1, fromDepth: 0, depth: 1 }],
+    };
+    const platforms = undergroundColliders(authored, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: (col, row) => (col === 4 && row === 3 ? 1 : 0),
+      kindAt: () => "herbe",
+      voidAt: (col, row) => col === 3 && row === 3,
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const deps = { ...depsPlates(), query, colliders };
+    // The hero is already airborne over shaft cell 3 and moving east. Its disc is just outside the
+    // raised cell 4 (whose west edge is x=0), while its feet are still below that cell's y=0.9 top.
+    // The sprite anchor carries a +0.35 Z offset, so z=-0.15 puts the collision footprint at row 3.
+    const state = createHeroState(-0.31, -0.15, 0.4, 10, 2.2);
+    state.airborne = true;
+    state.groundY = 0;
+    state.vy = 3;
+    state.vx = deps.hero.speed;
+    stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    expect(state.x + deps.hero.radius, JSON.stringify(state)).toBeLessThanOrEqual(0);
+
+    state.y = 0.91;
+    state.vy = 1;
+    stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
+    expect(state.x + deps.hero.radius, JSON.stringify(state)).toBeGreaterThan(0);
+  });
+
   it("keeps authored water above an excavation and underground collision below the surface", () => {
     const platforms = undergroundColliders(underground, 8);
     const query = createTerrainQuery({
