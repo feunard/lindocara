@@ -9,8 +9,8 @@ interface SheepState {
 }
 
 export type SheepFeedback =
-  | { type: "bleat"; eventId: string; hit: number; x: number; z: number }
-  | { type: "explode"; eventId: string; x: number; z: number };
+  | { type: "bleat"; eventId: string; hit: number; x: number; y: number; z: number }
+  | { type: "explode"; eventId: string; x: number; y: number; z: number };
 
 /** Turns authoritative harvest transitions into one-shot local presentation without replaying a
  * welcome or a resync as a fresh hit. */
@@ -44,13 +44,14 @@ export class SheepFeedbackTracker {
       this.#state.set(event.id, current);
       if (!previous || previous.generation !== current.generation) continue;
       const x = event.col + 0.5 - this.#mapSize / 2;
+      const y = event.y ?? 0;
       const z = event.row + 0.5 - this.#mapSize / 2;
       for (let hit = previous.hits + 1; hit <= current.hits; hit += 1) {
         const finalHit = current.state === "depleted" && hit === current.hits;
-        if (!finalHit) feedback.push({ type: "bleat", eventId: event.id, hit, x, z });
+        if (!finalHit) feedback.push({ type: "bleat", eventId: event.id, hit, x, y, z });
       }
       if (previous.state !== "depleted" && current.state === "depleted") {
-        feedback.push({ type: "explode", eventId: event.id, x, z });
+        feedback.push({ type: "explode", eventId: event.id, x, y, z });
       }
     }
     for (const id of this.#state.keys()) if (!present.has(id)) this.#state.delete(id);

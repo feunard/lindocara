@@ -8,6 +8,7 @@ function sheep(hits: number, state: "intact" | "depleted" = "intact"): WorldEven
     id: "sheep-1",
     col: 6,
     row: 5,
+    y: -4.8,
     graphicAssetId:
       state === "depleted" ? null : "resource.terrain-resources-meat-sheep.sheep-idle",
     graphicTint: 0xffffff,
@@ -39,12 +40,12 @@ describe("authoritative sheep feedback", () => {
     tracker.reset(12, [sheep(0)]);
     expect(tracker.sync([sheep(0)])).toEqual([]);
     expect(tracker.sync([sheep(1)])).toEqual([
-      { type: "bleat", eventId: "sheep-1", hit: 1, x: 0.5, z: -0.5 },
+      { type: "bleat", eventId: "sheep-1", hit: 1, x: 0.5, y: -4.8, z: -0.5 },
     ]);
     expect(tracker.sync([sheep(4, "depleted")])).toEqual([
-      { type: "bleat", eventId: "sheep-1", hit: 2, x: 0.5, z: -0.5 },
-      { type: "bleat", eventId: "sheep-1", hit: 3, x: 0.5, z: -0.5 },
-      { type: "explode", eventId: "sheep-1", x: 0.5, z: -0.5 },
+      { type: "bleat", eventId: "sheep-1", hit: 2, x: 0.5, y: -4.8, z: -0.5 },
+      { type: "bleat", eventId: "sheep-1", hit: 3, x: 0.5, y: -4.8, z: -0.5 },
+      { type: "explode", eventId: "sheep-1", x: 0.5, y: -4.8, z: -0.5 },
     ]);
     expect(tracker.sync([sheep(4, "depleted")])).toEqual([]);
   });

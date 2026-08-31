@@ -1059,6 +1059,7 @@ export function worldEventContentVisualKey(
 
 interface ActorPosition {
   x: number;
+  y: number;
   z: number;
   playerClass?: PlayerClass;
   primaryColor?: PrimaryColor;
@@ -1067,6 +1068,7 @@ interface ActorPosition {
 
 interface PlayerPresentationState {
   x: number;
+  y: number;
   z: number;
   invisible: boolean;
   actionId: string | null;
@@ -1665,6 +1667,7 @@ export class Hd2dRenderer implements RendererLike {
               {
                 id: player.id,
                 x: player.x,
+                y: player.y,
                 z: player.z,
                 endsAt: this.#localDeadline(player.powerBuffUntil, 6_000),
               },
@@ -1680,6 +1683,7 @@ export class Hd2dRenderer implements RendererLike {
               {
                 id: player.id,
                 x: player.x,
+                y: player.y,
                 z: player.z,
                 endsAt: this.#localDeadline(player.healingAuraUntil, 150),
               },
@@ -1798,6 +1802,7 @@ export class Hd2dRenderer implements RendererLike {
       }
       this.#actorPositions.set(player.id, {
         x: player.x,
+        y: player.y,
         z: player.z,
         playerClass: player.class,
         primaryColor: player.appearance.primaryColor,
@@ -1905,6 +1910,7 @@ export class Hd2dRenderer implements RendererLike {
       views.push(monsterView);
       this.#actorPositions.set(monster.id, {
         x: monster.x,
+        y: monster.y,
         z: monster.z,
         species: monster.species,
       });
@@ -1937,7 +1943,7 @@ export class Hd2dRenderer implements RendererLike {
       });
     }
     for (const guard of sample.guards)
-      this.#actorPositions.set(guard.id, { x: guard.x, z: guard.z });
+      this.#actorPositions.set(guard.id, { x: guard.x, y: guard.y, z: guard.z });
     for (const corpse of sample.corpses) {
       const sheet = unitSheet(corpse.class, corpse.appearance, "idle");
       views.push({
@@ -2059,7 +2065,16 @@ export class Hd2dRenderer implements RendererLike {
     if (previous) {
       if (previous.invisible && !player.invisible) {
         const vanish = combatArt("rogue", "vanish", player.appearance.primaryColor);
-        if (vanish.zone) this.#visuals?.playSheet(vanish.zone, player.x, player.z);
+        if (vanish.zone)
+          this.#visuals?.playSheet(
+            vanish.zone,
+            player.x,
+            player.z,
+            vanish.zone.durationMs,
+            now,
+            1,
+            player.y,
+          );
       }
       const mobility = mobilityVisual(player.action?.skillId);
       const distance = Math.hypot(player.x - previous.x, player.z - previous.z);
@@ -2086,14 +2101,24 @@ export class Hd2dRenderer implements RendererLike {
             impact.durationMs,
             startedAt,
             0.72,
+            previous.y,
           );
-          this.#visuals?.playSheet(impact, player.x, player.z, impact.durationMs, startedAt, 1.02);
+          this.#visuals?.playSheet(
+            impact,
+            player.x,
+            player.z,
+            impact.durationMs,
+            startedAt,
+            1.02,
+            player.y,
+          );
         }
         mobilityPlayedActionId = actionId;
       }
     }
     this.#playerPresentation.set(player.id, {
       x: player.x,
+      y: player.y,
       z: player.z,
       invisible: player.invisible === true,
       actionId,
@@ -2190,9 +2215,16 @@ export class Hd2dRenderer implements RendererLike {
     return this.#actorPositions.get(id) ?? null;
   }
 
-  #effectPosition(x: number, z: number, targetId?: string): GroundVector {
+  #effectPosition(
+    x: number,
+    z: number,
+    targetId?: string,
+    fallbackElevation?: number,
+  ): GroundVector & { y?: number } {
     const renderedTarget = targetId ? this.#position(targetId) : null;
-    return renderedTarget ? { x: renderedTarget.x, z: renderedTarget.z } : { x, z };
+    return renderedTarget
+      ? { x: renderedTarget.x, y: renderedTarget.y, z: renderedTarget.z }
+      : { x, z, ...(fallbackElevation === undefined ? {} : { y: fallbackElevation }) };
   }
 
   #localDeadline(serverTimestamp: number, fallbackMs: number): number {
@@ -2252,6 +2284,8 @@ export class Hd2dRenderer implements RendererLike {
             position.z,
             sheet.durationMs,
             timeline.impactAt,
+            1,
+            position.y,
           );
       }
       if (animation.talented) {
@@ -2267,6 +2301,8 @@ export class Hd2dRenderer implements RendererLike {
             position.z,
             flourish.durationMs,
             timeline.impactAt,
+            1,
+            position.y,
           );
           this.#visuals.playSheet(
             {
@@ -2277,6 +2313,8 @@ export class Hd2dRenderer implements RendererLike {
             position.z,
             flourish.durationMs * 0.82,
             timeline.impactAt,
+            1,
+            position.y,
           );
           if (animation.evolved) {
             this.#visuals.playSheet(
@@ -2288,6 +2326,8 @@ export class Hd2dRenderer implements RendererLike {
               position.z,
               flourish.durationMs * 1.18,
               timeline.impactAt,
+              1,
+              position.y,
             );
           }
         }
@@ -2306,8 +2346,17 @@ export class Hd2dRenderer implements RendererLike {
     const playerClass = position?.playerClass;
     if (playerClass && position?.primaryColor) {
       const art = combatArt(playerClass, skillId, position.primaryColor);
-      const impact = this.#effectPosition(x, z, targetId);
-      if (art.impact) this.#visuals?.playSheet(art.impact, impact.x, impact.z);
+      const impact = this.#effectPosition(x, z, targetId, position.y);
+      if (art.impact)
+        this.#visuals?.playSheet(
+          art.impact,
+          impact.x,
+          impact.z,
+          art.impact.durationMs,
+          performance.now(),
+          1,
+          impact.y,
+        );
     }
     return playerClass;
   }
@@ -2317,19 +2366,30 @@ export class Hd2dRenderer implements RendererLike {
     skillId: "mend" | "prayer" | "divine_nova" = "mend",
     x?: number,
     z?: number,
+    targetId?: string,
   ): void {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
     const atX = x ?? self?.x;
     const atZ = z ?? self?.z;
     if (atX === undefined || atZ === undefined) return;
+    const position = this.#effectPosition(atX, atZ, targetId, self?.y);
     const definition = combatArt("priest", skillId, color);
     const impact = definition.impact ?? definition.zone;
-    if (impact) this.#visuals?.playSheet(impact, atX, atZ);
+    if (impact)
+      this.#visuals?.playSheet(
+        impact,
+        position.x,
+        position.z,
+        impact.durationMs,
+        performance.now(),
+        1,
+        position.y,
+      );
   }
 
   playInteraction(): void {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
-    if (self) this.#visuals?.pulse(self.x, self.z, 0xffe29a, 0.48, 300);
+    if (self) this.#visuals?.pulse(self.x, self.z, 0xffe29a, 0.48, 300, performance.now(), self.y);
   }
 
   /**
@@ -2353,17 +2413,19 @@ export class Hd2dRenderer implements RendererLike {
     const now = performance.now();
     const endsAt = this.#localDeadline(portal.endsAt, 700);
     const duration = Math.max(120, endsAt - now);
-    const color = this.#position(portal.actorId)?.primaryColor ?? "azure";
+    const actor = this.#position(portal.actorId);
+    const color = actor?.primaryColor ?? "azure";
     const cloud = combatArt("priest", "blink", color).impact;
     if (!cloud) return;
-    this.#visuals?.playSheet(cloud, portal.from.x, portal.from.z, duration, now, 1.05);
-    this.#visuals?.playSheet(cloud, portal.to.x, portal.to.z, duration, now, 1.18);
+    this.#visuals?.playSheet(cloud, portal.from.x, portal.from.z, duration, now, 1.05, actor?.y);
+    this.#visuals?.playSheet(cloud, portal.to.x, portal.to.z, duration, now, 1.18, actor?.y);
   }
 
   playLumenTrail(trail: PriestLumenTrailVisual): void {
     const now = performance.now();
     const duration = Math.max(120, this.#localDeadline(trail.endsAt, 650) - now);
-    const color = this.#position(trail.actorId)?.primaryColor ?? "azure";
+    const actor = this.#position(trail.actorId);
+    const color = actor?.primaryColor ?? "azure";
     const cloud = combatArt("priest", "blink", color).impact;
     if (!cloud) return;
     for (let index = 1; index < trail.points.length; index += 1) {
@@ -2381,6 +2443,7 @@ export class Hd2dRenderer implements RendererLike {
           duration,
           now,
           0.72 + ((index + step) % 3) * 0.08,
+          actor?.y,
         );
       }
     }
@@ -2391,16 +2454,35 @@ export class Hd2dRenderer implements RendererLike {
     const atX = x ?? fallback?.x;
     const atZ = z ?? fallback?.z;
     if (atX === undefined || atZ === undefined) return;
-    this.#visuals?.playSheet(monsterCombatArt(species).impact, atX, atZ);
+    const art = monsterCombatArt(species).impact;
+    this.#visuals?.playSheet(art, atX, atZ, art.durationMs, performance.now(), 1, fallback?.y);
   }
 
   playMonsterSpecialImpact(impact: MonsterSpecialImpact): MonsterImpactSound | undefined {
     if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return undefined;
     const art = monsterSpecialImpactArt(impact.technique);
+    const actor = this.#position(impact.actorId);
     const x = impact.x + (impact.direction.x * art.forwardOffset) / TILE_SIZE;
     const z = impact.z + (impact.direction.z * art.forwardOffset) / TILE_SIZE;
-    this.#visuals?.playSheet(art.effect, x, z);
-    if (art.accent) this.#visuals?.playSheet(art.accent, x, z);
+    this.#visuals?.playSheet(
+      art.effect,
+      x,
+      z,
+      art.effect.durationMs,
+      performance.now(),
+      1,
+      actor?.y,
+    );
+    if (art.accent)
+      this.#visuals?.playSheet(
+        art.accent,
+        x,
+        z,
+        art.accent.durationMs,
+        performance.now(),
+        1,
+        actor?.y,
+      );
     const self = this.#selfId ? this.#position(this.#selfId) : null;
     if (!self) return undefined;
     const nearby = this.#cameraShake.trigger({
@@ -2417,12 +2499,16 @@ export class Hd2dRenderer implements RendererLike {
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void {
     if (!this.#combatVisualAuthority.acceptsImpact(impact.actionId)) return;
     const art = combatArt("peasant", "homemade_bomb", "ember").impact;
+    const actorY = this.#position(impact.actorId)?.y;
     if (art) {
       this.#visuals?.playSheet(
         { ...art, scale: (art.scale ?? 1) * 1.05 },
         impact.x,
         impact.z,
         art.durationMs * 1.05,
+        performance.now(),
+        1,
+        actorY,
       );
     }
     const self = this.#selfId ? this.#position(this.#selfId) : null;
@@ -2438,8 +2524,8 @@ export class Hd2dRenderer implements RendererLike {
     }
   }
 
-  playSheepExplosion(x: number, z: number): void {
-    this.#visuals?.playSheepExplosion(x, z);
+  playSheepExplosion(x: number, z: number, y?: number): void {
+    this.#visuals?.playSheepExplosion(x, z, y);
     const self = this.#selfId ? this.#position(this.#selfId) : null;
     if (!self) return;
     this.#cameraShake.trigger({
@@ -2455,14 +2541,16 @@ export class Hd2dRenderer implements RendererLike {
   playPolarityOrb(orb: PriestPolarityOrbVisual): void {
     const now = performance.now();
     const duration = Math.max(120, this.#localDeadline(orb.endsAt, 900) - now);
-    const color = this.#position(orb.actorId)?.primaryColor ?? "azure";
+    const actor = this.#position(orb.actorId);
+    const color = actor?.primaryColor ?? "azure";
     const sprite = combatArt("priest", "radiant_bolt", color).projectile;
-    if (sprite) this.#visuals?.playSheet(sprite, orb.x, orb.z, duration, now, 0.78);
+    if (sprite) this.#visuals?.playSheet(sprite, orb.x, orb.z, duration, now, 0.78, actor?.y);
   }
 
   playRoguePoisonImpact(x: number, z: number, rupture: boolean, targetId?: string): PlayerClass {
     const art = combatArt("rogue", "poisoned_shiv", "violet").impact;
-    const impact = this.#effectPosition(x, z, targetId);
+    const self = this.#selfId ? this.#position(this.#selfId) : null;
+    const impact = this.#effectPosition(x, z, targetId, self?.y);
     if (art) {
       this.#visuals?.playSheet(
         {
@@ -2472,6 +2560,9 @@ export class Hd2dRenderer implements RendererLike {
         impact.x,
         impact.z,
         art.durationMs * (rupture ? 1.15 : 0.72),
+        performance.now(),
+        1,
+        impact.y,
       );
     }
     return "rogue";
@@ -2483,6 +2574,7 @@ export class Hd2dRenderer implements RendererLike {
     const art = combatArt("rogue", "shadow_dance", "violet");
     for (const strike of sequence.strikes) {
       const startedAt = this.#serverClock.toLocal(strike.impactAt) ?? base;
+      const targetY = this.#position(strike.targetId)?.y ?? this.#position(sequence.actorId)?.y;
       if (art.zone) {
         this.#visuals?.playSheet(
           { ...art.zone, scale: (art.zone.scale ?? 1) * 0.62 },
@@ -2491,18 +2583,22 @@ export class Hd2dRenderer implements RendererLike {
           360,
           startedAt,
           0.78,
+          targetY,
         );
       }
     }
     const last = sequence.strikes.at(-1);
     if (last && art.accent) {
       const startedAt = this.#serverClock.toLocal(last.impactAt) ?? base;
+      const targetY = this.#position(last.targetId)?.y ?? this.#position(sequence.actorId)?.y;
       this.#visuals?.playSheet(
         art.accent,
         last.targetPosition.x,
         last.targetPosition.z,
         art.accent.durationMs,
         startedAt,
+        1,
+        targetY,
       );
     }
   }
@@ -2512,7 +2608,8 @@ export class Hd2dRenderer implements RendererLike {
     const atX = x ?? self?.x;
     const atZ = z ?? self?.z;
     if (atX === undefined || atZ === undefined) return;
-    this.#visuals?.playSheet(teleportEffectArt(), atX, atZ);
+    const art = teleportEffectArt();
+    this.#visuals?.playSheet(art, atX, atZ, art.durationMs, performance.now(), 1, self?.y);
   }
 
   /**
@@ -2677,11 +2774,25 @@ export class Hd2dRenderer implements RendererLike {
   }
 
   showPeasantCamp(camp: PeasantCampVisual): void {
-    const created = this.#visuals?.showCamp(camp, this.#localDeadline(camp.expiresAt, 30_000));
+    const actor = this.#position(camp.actorId);
+    const created = this.#visuals?.showCamp(
+      camp,
+      this.#localDeadline(camp.expiresAt, 30_000),
+      actor?.y,
+    );
     if (!created) return;
-    const color = this.#position(camp.actorId)?.primaryColor ?? "moss";
+    const color = actor?.primaryColor ?? "moss";
     const zone = combatArt("peasant", "makeshift_camp", color).zone;
-    if (zone) this.#visuals?.playSheet(zone, camp.x, camp.z);
+    if (zone)
+      this.#visuals?.playSheet(
+        zone,
+        camp.x,
+        camp.z,
+        zone.durationMs,
+        performance.now(),
+        1,
+        actor?.y,
+      );
   }
 
   showPeasantRation(ration: PeasantRationVisual): void {
@@ -2702,7 +2813,7 @@ export class Hd2dRenderer implements RendererLike {
     targetId?: string,
   ): void {
     const self = this.#selfId ? this.#position(this.#selfId) : null;
-    const position = this.#effectPosition(x ?? self?.x ?? 0, z ?? self?.z ?? 0, targetId);
-    this.#visuals?.showWorldEvent(text, tone, position.x, position.z);
+    const position = this.#effectPosition(x ?? self?.x ?? 0, z ?? self?.z ?? 0, targetId, self?.y);
+    this.#visuals?.showWorldEvent(text, tone, position.x, position.z, position.y);
   }
 }

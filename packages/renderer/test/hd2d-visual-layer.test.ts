@@ -23,6 +23,7 @@ function harness(
   size = 20,
   surfaceY = 0,
   liquid: "water" | "lava" = "water",
+  lowerSurfaceY?: number,
 ): {
   canvas: HTMLCanvasElement;
   layer: Hd2dVisualLayer;
@@ -55,7 +56,8 @@ function harness(
       heightAt: () => 0,
       liquidAt: () => liquid,
       liquidAtElevation: () => null,
-      surfaceAt: () => surfaceY,
+      surfaceAt: (_x: number, _z: number, ceilingY: number) =>
+        lowerSurfaceY !== undefined && ceilingY < surfaceY ? lowerSurfaceY : surfaceY,
       waterLevelAt: () => surfaceY,
       waterLevelAtElevation: () => surfaceY,
     },
@@ -462,6 +464,19 @@ describe("Hd2dVisualLayer skid decal", () => {
     clock.mockRestore();
     layer.dispose();
   });
+
+  it("keeps the decal on the hero's underground storey", () => {
+    const { layer, root } = harness(20, 0, "water", -4.8);
+    const skid = root.getObjectByName("hero-skid");
+    if (!skid) throw new Error("the skid decal was not built");
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1_000);
+
+    layer.playHeroMovement([{ t: "glisse", intensite: 1 }], { ...hero, y: -4.8 });
+    expect(skid.position.y).toBeCloseTo(-4.8 + 0.035);
+
+    clock.mockRestore();
+    layer.dispose();
+  });
 });
 
 describe("Hd2dVisualLayer hero movement", () => {
@@ -587,7 +602,7 @@ describe("Hd2dVisualLayer hero movement", () => {
 describe("Hd2dVisualLayer restored authored effects", () => {
   it("keeps the light power aura attached only while an authoritative buff is live", () => {
     const { layer } = harness();
-    layer.syncPowerBuffs([{ id: "hero-1", x: 2, z: 3, endsAt: 2_000 }], 1_000);
+    layer.syncPowerBuffs([{ id: "hero-1", x: 2, y: 0, z: 3, endsAt: 2_000 }], 1_000);
     expect(layer.diagnostics().powerBuffs).toBe(1);
     layer.syncPowerBuffs([], 1_100);
     expect(layer.diagnostics().powerBuffs).toBe(0);
@@ -602,7 +617,7 @@ describe("Hd2dVisualLayer restored authored effects", () => {
         ringsBefore.push(object.geometry);
       }
     });
-    layer.syncHealingAuras([{ id: "hero-1", x: 2, z: 3, endsAt: 1_200 }], 1_000);
+    layer.syncHealingAuras([{ id: "hero-1", x: 2, y: 0, z: 3, endsAt: 1_200 }], 1_000);
     expect(layer.diagnostics().healingAuras).toBe(1);
     const healingSpheres: THREE.SphereGeometry[] = [];
     const ringsAfter: THREE.RingGeometry[] = [];
@@ -650,6 +665,35 @@ describe("Hd2dVisualLayer restored authored effects", () => {
   it("plants upright authored sheets above the terrain instead of burying their lower edge", () => {
     expect(AUTHORED_EFFECT_FOOT).toBe(0);
     expect(AUTHORED_EFFECT_GROUND_CLEARANCE).toBeGreaterThan(0);
+  });
+
+  it("anchors authored combat sheets to the actor's underground storey", () => {
+    const { layer, root } = harness(20, 0, "water", -4.8);
+    layer.playSheet(
+      {
+        source: "unused-without-textures",
+        frameWidth: 64,
+        frameHeight: 64,
+        frames: 1,
+        durationMs: 400,
+        activeFrame: 0,
+        anchor: { x: 0.5, y: 1 },
+      },
+      1,
+      2,
+      400,
+      1_000,
+      1,
+      -4.8,
+    );
+    const effect = root
+      .getObjectByName("game-presentation")
+      ?.children.find(
+        (object) => object instanceof THREE.Mesh && object.geometry instanceof THREE.RingGeometry,
+      );
+
+    expect(effect?.position.y).toBeCloseTo(-4.8 + 0.04);
+    layer.dispose();
   });
 
   it("projects projectile directions into the rotating billboard plane", () => {

@@ -906,6 +906,7 @@ async function startGameIdentity(
             healingSkillId(params?.skill),
             x,
             z,
+            typeof params?.targetId === "string" ? params.targetId : undefined,
           );
           break;
         case "loot.picked":
@@ -925,6 +926,7 @@ async function startGameIdentity(
             healingSkillId(params?.skill),
             x,
             z,
+            typeof params?.targetId === "string" ? params.targetId : undefined,
           );
           break;
         case "player.down":
@@ -1474,7 +1476,7 @@ async function startGameIdentity(
       if (feedback.type === "bleat") sound.sheepBleat(feedback.eventId, feedback.hit);
       else {
         sound.sheepExplosion(feedback.eventId);
-        renderer.playSheepExplosion(feedback.x, feedback.z);
+        renderer.playSheepExplosion(feedback.x, feedback.z, feedback.y);
       }
     }
     for (const feedback of chestFeedback.sync(sample.events)) sound.chest(feedback === "open");

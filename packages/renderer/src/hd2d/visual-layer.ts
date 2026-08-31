@@ -745,9 +745,18 @@ export class Hd2dVisualLayer {
     durationMs = art.durationMs,
     startedAt = performance.now(),
     heightScale = 1,
+    referenceElevation?: number,
   ): void {
     if (!this.#textures) {
-      this.pulse(x, z, art.tint ?? 0xffffff, Math.max(0.45, art.scale ?? 1), durationMs, startedAt);
+      this.pulse(
+        x,
+        z,
+        art.tint ?? 0xffffff,
+        Math.max(0.45, art.scale ?? 1),
+        durationMs,
+        startedAt,
+        referenceElevation,
+      );
       return;
     }
     const height = Math.max(0.42, (art.frameHeight / 192) * 2.6 * (art.scale ?? 1)) * heightScale;
@@ -775,7 +784,7 @@ export class Hd2dVisualLayer {
     );
     billboard.placeAt(
       placement.x,
-      this.#groundY(x, z, AUTHORED_EFFECT_GROUND_CLEARANCE),
+      this.#groundY(x, z, AUTHORED_EFFECT_GROUND_CLEARANCE, referenceElevation),
       placement.z,
     );
     billboard.mesh.visible = startedAt <= performance.now();
@@ -867,9 +876,14 @@ export class Hd2dVisualLayer {
   }
 
   /** Exact lab critter blast: the authored nine-frame, unlit sheet at 12 fps and 2.6 tiles high. */
-  playSheepExplosion(x: number, z: number, now = performance.now()): void {
+  playSheepExplosion(
+    x: number,
+    z: number,
+    referenceElevation?: number,
+    now = performance.now(),
+  ): void {
     if (!this.#textures) {
-      this.pulse(x, z, 0xff9f45, 1.2, 750, now);
+      this.pulse(x, z, 0xff9f45, 1.2, 750, now, referenceElevation);
       return;
     }
     const billboard = makeBillboard(this.#scene.ctx, {
@@ -881,7 +895,7 @@ export class Hd2dVisualLayer {
       foot: 0.3,
       lit: false,
     });
-    billboard.placeAt(x, this.#groundY(x, z, 0), z);
+    billboard.placeAt(x, this.#groundY(x, z, 0, referenceElevation), z);
     this.#root.add(billboard.mesh);
     const duration = (9 / 12) * 1_000;
     this.#trackEffect({
@@ -903,7 +917,7 @@ export class Hd2dVisualLayer {
       new THREE.BoxGeometry(0.18, 0.012, 0.4),
       transparentMaterial(0x536d78, 0.7),
     );
-    mesh.position.set(event.x, this.#groundY(event.x, event.z, 0.025), event.z);
+    mesh.position.set(event.x, this.#groundY(event.x, event.z, 0.025, hero.y), event.z);
     mesh.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
     this.#root.add(mesh);
     this.#trackEffect({
@@ -974,7 +988,7 @@ export class Hd2dVisualLayer {
       // follow the hero through the fade.
       this.#skid.position.set(
         hero.x - hero.facing.x * 0.38,
-        this.#groundY(hero.x, hero.z, 0.035),
+        this.#groundY(hero.x, hero.z, 0.035, hero.y),
         hero.z - hero.facing.z * 0.38,
       );
       this.#skid.rotation.y = -Math.atan2(hero.facing.z, hero.facing.x);
@@ -1044,7 +1058,7 @@ export class Hd2dVisualLayer {
 
   /** Keeps a restrained gold aura attached to every hero whose authoritative power buff is live. */
   syncPowerBuffs(
-    buffs: readonly { id: string; x: number; z: number; endsAt: number }[],
+    buffs: readonly { id: string; x: number; y: number; z: number; endsAt: number }[],
     now: number,
   ): void {
     const present = new Set<string>();
@@ -1069,7 +1083,7 @@ export class Hd2dVisualLayer {
         entry = { object, phase: phaseFor(buff.id) };
         this.#powerBuffs.set(buff.id, entry);
       }
-      entry.object.position.set(buff.x, this.#groundY(buff.x, buff.z, 0.045), buff.z);
+      entry.object.position.set(buff.x, this.#groundY(buff.x, buff.z, 0.045, buff.y), buff.z);
       const pulse = 1 + Math.sin(now / 320 + entry.phase) * 0.08;
       entry.object.scale.setScalar(pulse);
       materialOpacity(entry.object, Math.min(0.28, Math.max(0.08, (buff.endsAt - now) / 700)));
@@ -1083,7 +1097,7 @@ export class Hd2dVisualLayer {
 
   /** Soft green body glow attached only while the server confirms camp-zone membership. */
   syncHealingAuras(
-    auras: readonly { id: string; x: number; z: number; endsAt: number }[],
+    auras: readonly { id: string; x: number; y: number; z: number; endsAt: number }[],
     now: number,
   ): void {
     const present = new Set<string>();
@@ -1110,7 +1124,7 @@ export class Hd2dVisualLayer {
         entry = { object, phase: phaseFor(`heal:${aura.id}`) };
         this.#healingAuras.set(aura.id, entry);
       }
-      entry.object.position.set(aura.x, this.#groundY(aura.x, aura.z, 0.62), aura.z);
+      entry.object.position.set(aura.x, this.#groundY(aura.x, aura.z, 0.62, aura.y), aura.z);
       entry.object.scale.setScalar(1 + Math.sin(now / 460 + entry.phase) * 0.045);
       materialOpacity(entry.object, Math.min(0.2, Math.max(0.06, (aura.endsAt - now) / 500)));
     }
@@ -1135,7 +1149,7 @@ export class Hd2dVisualLayer {
     this.#merchant = marker;
   }
 
-  showCamp(camp: PeasantCampVisual, endsAt: number): boolean {
+  showCamp(camp: PeasantCampVisual, endsAt: number, referenceElevation?: number): boolean {
     const current = this.#camps.get(camp.id);
     if (current && current.startedAt === camp.startedAt && current.expiresAt === camp.expiresAt) {
       current.endsAt = endsAt;
@@ -1155,7 +1169,7 @@ export class Hd2dVisualLayer {
       billboard.placeAt(0, 0, 0);
       group.add(billboard.mesh);
     }
-    group.position.set(camp.x, this.#groundY(camp.x, camp.z, 0.02), camp.z);
+    group.position.set(camp.x, this.#groundY(camp.x, camp.z, 0.02, referenceElevation), camp.z);
     this.#root.add(group);
     this.#camps.set(camp.id, {
       object: group,
@@ -1737,6 +1751,7 @@ export class Hd2dVisualLayer {
     tone: "info" | "good" | "bad",
     x: number,
     z: number,
+    referenceElevation?: number,
     now = performance.now(),
   ): void {
     if (typeof document === "undefined") return;
@@ -1758,7 +1773,7 @@ export class Hd2dVisualLayer {
     document.body.append(element);
     this.#labels.push({
       element,
-      point: new THREE.Vector3(x, this.#groundY(x, z, 1.4), z),
+      point: new THREE.Vector3(x, this.#groundY(x, z, 1.4, referenceElevation), z),
       endsAt: now + 1500,
     });
   }

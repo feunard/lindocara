@@ -102,6 +102,7 @@ export interface RendererLike {
     skillId?: "mend" | "prayer" | "divine_nova",
     x?: number,
     z?: number,
+    targetId?: string,
   ): void;
   playInteraction(): void;
   /** Decorative consequences emitted by the client-owned movement rule. */
@@ -113,7 +114,7 @@ export interface RendererLike {
   playPeasantBombImpact(impact: PeasantBombImpactVisual): void;
   playPolarityOrb(orb: PriestPolarityOrbVisual): void;
   playRoguePoisonImpact(x: number, z: number, rupture: boolean, targetId?: string): PlayerClass;
-  playSheepExplosion(x: number, z: number): void;
+  playSheepExplosion(x: number, z: number, y?: number): void;
   /** Raycasts only live authored sheep billboards; no ground approximation or client outcome. */
   pickSheep?(clientX: number, clientY: number): string | null;
   playShadowDance(sequence: RogueShadowDanceSequence): void;
