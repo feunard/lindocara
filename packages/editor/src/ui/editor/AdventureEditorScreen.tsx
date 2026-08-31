@@ -2604,9 +2604,20 @@ function AdventureEditorInner({
             registry={registry}
             maps={liveTeleportMaps}
             onOpenHelp={() => openHelp("story")}
-            onCommit={(draft) => {
-              handleRef.current?.commitEventDraft(draft);
-              setOpenEventId(null);
+            onCommit={async (draft) => {
+              const handle = handleRef.current;
+              if (!handle) return;
+              handle.commitEventDraft(draft);
+              // This dialog says Save, so it owns the durable write just like the map-audio,
+              // interior-shell and hero-settings dialogs below. Previously it only committed the
+              // detached draft to stage memory: a map switch/reload then made a freshly created
+              // blank or scenery-bound event appear to have vanished.
+              if (titleUntouched || !adventureId) {
+                setOpenEventId(null);
+                setFirstSaveOpen(true);
+                return;
+              }
+              if (await doSaveMap()) setOpenEventId(null);
             }}
             onDelete={() => {
               if (openEventId) handleRef.current?.deleteEvent(openEventId);

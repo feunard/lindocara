@@ -7,7 +7,10 @@ import {
 } from "@lindocara/client/state/atoms.js";
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import {
+  applyTool,
+  beginEventDraft as beginDetachedEventDraft,
   blankMap,
+  convertElementToEvent,
   defaultEventPage,
   toMapData,
   toSaveInput,
@@ -16,10 +19,12 @@ import { createSandboxSession } from "@lindocara/editor/ui/editor/adventure-sess
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS, MAP_OCEAN_MARGIN } from "@lindocara/engine/map-limits.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { CURATED_EDITOR_ASSET_IDS } from "@lindocara/engine/tiny-swords-catalog.js";
 import type { RenderResult } from "@testing-library/react";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -121,6 +126,7 @@ const stageMock = vi.hoisted(() => ({
   beginEventDraft: vi.fn(),
   commitEventDraft: vi.fn(),
   deleteEvent: vi.fn(),
+  bindSelectedElement: vi.fn(),
   highlightEvent: vi.fn(),
   selectEvent: vi.fn(),
   dispose: vi.fn(),
@@ -162,6 +168,7 @@ function stageHandle() {
     beginEventDraft: stageMock.beginEventDraft,
     commitEventDraft: stageMock.commitEventDraft,
     deleteEvent: stageMock.deleteEvent,
+    bindSelectedElement: stageMock.bindSelectedElement,
     highlightEvent: stageMock.highlightEvent,
     selectEvent: stageMock.selectEvent,
     dispose: stageMock.dispose,
@@ -597,6 +604,142 @@ describe("AdventureEditorScreen shell", () => {
     );
     // The screen seeds the dialog with a detached draft read off the handle for that id.
     expect(stageMock.beginEventDraft).toHaveBeenCalledWith("ev-1");
+  });
+
+  it("persists a blank event and its chosen appearance from the event Save button", async () => {
+    const placed = applyTool(
+      blankMap("Verdant Reach", 20, 15),
+      { kind: "event", eventKind: "normal", preset: "raw" },
+      3,
+      4,
+      true,
+      "event",
+    );
+    if (!placed) throw new Error("blank event placement failed");
+    let liveMap = placed;
+    const eventId = liveMap.events[0]?.id;
+    if (!eventId) throw new Error("blank event missing");
+    stageMock.current.mockImplementation(() => liveMap);
+    stageMock.beginEventDraft.mockImplementation((id: string) =>
+      beginDetachedEventDraft(liveMap, id),
+    );
+    stageMock.commitEventDraft.mockImplementation((draft: MapEvent) => {
+      liveMap = {
+        ...liveMap,
+        events: liveMap.events.map((event) => (event.id === draft.id ? draft : event)),
+      };
+    });
+    const backend = mapsBackend(twoMaps);
+    vi.stubGlobal("fetch", backend);
+    const user = userEvent.setup();
+    await mountReady(alepha);
+
+    const onOpenSelection = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (
+      target: string,
+    ) => void;
+    act(() => onOpenSelection(eventId));
+    await user.click(screen.getByRole("tab", { name: t("editor.event.appearance") }));
+    const appearance = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId !== undefined);
+    if (!appearance?.dataset.assetId) throw new Error("event appearance missing");
+    const appearanceId = appearance.dataset.assetId;
+    await user.click(appearance);
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    await waitFor(() =>
+      expect(
+        backend.mock.calls.some(([url, init]) => url === "/api/maps/m1" && init?.method === "PUT"),
+      ).toBe(true),
+    );
+    const saveCall = backend.mock.calls.find(
+      ([url, init]) => url === "/api/maps/m1" && init?.method === "PUT",
+    );
+    const body = JSON.parse(String(saveCall?.[1]?.body ?? "{}")) as {
+      events?: MapEvent[];
+    };
+    expect(body.events?.[0]?.id).toBe(eventId);
+    expect(body.events?.[0]?.pages[0]?.graphicAssetId).toBe(appearanceId);
+    expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.queryByText(t("editor.event.dialog.title"))).not.toBeInTheDocument(),
+    );
+  });
+
+  it("persists a scenery-bound event after its appearance is changed", async () => {
+    const assetId = CURATED_EDITOR_ASSET_IDS[0];
+    const placed = applyTool(
+      blankMap("Verdant Reach", 20, 15),
+      { kind: "element", assetId },
+      5,
+      6,
+      true,
+      "element",
+    );
+    if (!placed) throw new Error("scenery placement failed");
+    let liveMap = placed;
+    const selection = {
+      kind: "element" as const,
+      col: 5,
+      row: 6,
+      offsetX: 0,
+      offsetY: 0,
+    };
+    stageMock.current.mockImplementation(() => liveMap);
+    stageMock.bindSelectedElement.mockImplementation(
+      (binding: Parameters<typeof convertElementToEvent>[2]) => {
+        const converted = convertElementToEvent(liveMap, selection, binding);
+        if (!converted) return null;
+        liveMap = converted.map;
+        return converted.eventId;
+      },
+    );
+    stageMock.beginEventDraft.mockImplementation((id: string) =>
+      beginDetachedEventDraft(liveMap, id),
+    );
+    stageMock.commitEventDraft.mockImplementation((draft: MapEvent) => {
+      liveMap = {
+        ...liveMap,
+        events: liveMap.events.map((event) => (event.id === draft.id ? draft : event)),
+      };
+    });
+    const backend = mapsBackend(twoMaps);
+    vi.stubGlobal("fetch", backend);
+    const user = userEvent.setup();
+    await mountReady(alepha);
+
+    const onOpenSelection = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (
+      target: typeof selection,
+    ) => void;
+    act(() => onOpenSelection(selection));
+    await screen.findByText(t("editor.binding.title"));
+    await user.click(screen.getByRole("button", { name: t("editor.binding.continue") }));
+    await screen.findByText(t("editor.event.dialog.title"));
+    await user.click(screen.getByRole("tab", { name: t("editor.event.appearance") }));
+    const appearance = screen
+      .getAllByRole("button")
+      .find((button) => button.dataset.assetId && button.dataset.assetId !== assetId);
+    if (!appearance?.dataset.assetId) throw new Error("replacement appearance missing");
+    const appearanceId = appearance.dataset.assetId;
+    await user.click(appearance);
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    await waitFor(() =>
+      expect(
+        backend.mock.calls.some(([url, init]) => url === "/api/maps/m1" && init?.method === "PUT"),
+      ).toBe(true),
+    );
+    const saveCall = backend.mock.calls.find(
+      ([url, init]) => url === "/api/maps/m1" && init?.method === "PUT",
+    );
+    const body = JSON.parse(String(saveCall?.[1]?.body ?? "{}")) as {
+      elements?: unknown[];
+      events?: MapEvent[];
+    };
+    expect(body.elements).toEqual([]);
+    expect(body.events).toHaveLength(1);
+    expect(body.events?.[0]?.pages[0]?.graphicAssetId).toBe(appearanceId);
+    expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
   });
 
   it("opens the event dialog on Enter when an event is selected", async () => {

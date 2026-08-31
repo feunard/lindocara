@@ -63,7 +63,7 @@ import {
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { CircleHelp } from "lucide-react";
 import type * as React from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   addEventDraftPage,
@@ -1160,8 +1160,8 @@ interface EventDialogProps {
   /** The adventure's member maps, for a `teleport` command's destination Select (with its dims for
    *  the client-side cell clamp). Empty disables the teleport command in the insert palette. */
   maps: readonly TeleportMap[];
-  /** Commit the edited draft as one history entry. */
-  onCommit(draft: MapEvent): void;
+  /** Commit and persist the edited draft. The dialog stays busy until persistence settles. */
+  onCommit(draft: MapEvent): void | Promise<void>;
   /** Delete the event (its own history entry). */
   onDelete(): void;
   /** Close without writing anything back. */
@@ -1191,10 +1191,20 @@ export function EventDialog({
   onOpenHelp,
 }: EventDialogProps) {
   useLocale();
-  const [draft, setDraft] = useState<MapEvent>(event);
+  const [draft, setRenderedDraft] = useState<MapEvent>(event);
+  // Asset selection and the Save click are two discrete interactions, but Radix focus restoration
+  // and React batching can let the latter handler run before the former state update has rendered.
+  // Keep the detached draft synchronously addressable so Save always commits the last control value,
+  // never the closure captured by the previous render.
+  const draftRef = useRef(event);
+  const setDraft = (next: MapEvent): void => {
+    draftRef.current = next;
+    setRenderedDraft(next);
+  };
   const [pageIndex, setPageIndex] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const index = Math.min(pageIndex, draft.pages.length - 1);
   const page = draft.pages[index];
@@ -1228,23 +1238,39 @@ export function EventDialog({
     setPageIndex(Math.min(index, next.pages.length - 1));
   };
 
-  const save = (): void => {
-    if (unsupportedTriggerPages.length > 0) return;
+  const save = async (): Promise<void> => {
+    if (saving) return;
+    const latest = draftRef.current;
+    const latestUnsupportedTriggerPages = latest.pages.flatMap((candidate, candidateIndex) =>
+      runtimeTrigger(candidate.trigger) ? [] : [candidateIndex + 1],
+    );
+    const latestStatErrors = validateEventStats(latest);
+    const latestHarvestProfileValid =
+      latest.kind !== "harvestable" || parseHarvestProfile(latest.harvestProfile) !== null;
+    const latestHarvestAppearanceValid =
+      latest.kind !== "harvestable" ||
+      latest.pages.every((candidate) => candidate.graphicAssetId !== null);
+    if (latestUnsupportedTriggerPages.length > 0) return;
     if (
-      Object.values(statErrors).some(Boolean) ||
-      !harvestProfileValid ||
-      !harvestAppearanceValid
+      Object.values(latestStatErrors).some(Boolean) ||
+      !latestHarvestProfileValid ||
+      !latestHarvestAppearanceValid
     ) {
       setValidationAttempted(true);
       return;
     }
     // Re-normalize condition ids/thresholds here so old imported pages remain parser-safe even
     // though current authors can only pick named values.
-    const normalized = normalizeEventDraftConditions(draft);
+    const normalized = normalizeEventDraftConditions(latest);
     // The wireframe's `normEv`: an empty name persists as the `EV{ordinal}` string, never blank.
     const trimmed = validateEventName(normalized.name) ?? "";
     const name = trimmed === "" ? eventDisplayId(normalized.ordinal) : trimmed;
-    onCommit(setEventDraftName(normalized, name));
+    setSaving(true);
+    try {
+      await onCommit(setEventDraftName(normalized, name));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1852,7 +1878,7 @@ export function EventDialog({
             <Button variant="outline" onClick={onCancel}>
               {t("editor.event.cancel")}
             </Button>
-            <Button disabled={unsupportedTriggerPages.length > 0} onClick={save}>
+            <Button disabled={saving || unsupportedTriggerPages.length > 0} onClick={save}>
               {t("editor.event.save")}
             </Button>
           </div>
