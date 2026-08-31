@@ -1490,6 +1490,7 @@ export function createHd2dScene(
       pushMood();
       water.update(dt);
       liquids.update(dt);
+      underground.update(dt);
       foam.update(dt);
       // The curtain follows what the camera looks at, not the hero: they are the same point while
       // the camera is settled, and during a fly-in it is the frame that must stay full of rain.

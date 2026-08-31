@@ -198,7 +198,11 @@ function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
  *   monsters and guards. `waterLevel` remains the off-map fallback.
  */
 function elevationOf(actor: ActorView, scene: BillboardScene): number {
-  if (actor.swimming) return scene.query.waterLevelAt(actor.x, actor.z);
+  if (actor.swimming)
+    return (
+      scene.query.waterLevelAtElevation?.(actor.x, actor.z, actor.y) ??
+      scene.query.waterLevelAt(actor.x, actor.z)
+    );
   if (actor.airborne || actor.gliding) return actor.y;
   const terrain = scene.query.heightAt(actor.x, actor.z) ?? scene.waterLevel;
   // Monsters, guards and corpses already carry their authoritative server elevation. Authored event

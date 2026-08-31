@@ -249,6 +249,30 @@ describe("a remote hero's drawn state", () => {
     },
   );
 
+  it("draws a swimmer in underground lava on that storey's liquid surface", () => {
+    const map = flatMap(4);
+    map.underground = {
+      levels: [
+        {
+          depth: 1,
+          style: "volcano",
+          cells: [{ col: 2, row: 2, length: 1 }],
+          terrain: [{ col: 2, row: 2, length: 1, material: "lave" }],
+        },
+      ],
+      stairs: [],
+    };
+    const scene = sceneFor(map);
+    const ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf());
+
+    registry.sync([actor({ y: -2.4, swimming: true })]);
+
+    const mesh = meshes(scene.root)[0];
+    if (!mesh) throw new Error("expected a billboard");
+    expect(drawnElevation(mesh, ctx)).toBeCloseTo(-2.4 - SWIM_DEPTH);
+  });
+
   it("draws a swimmer at the water line even when a desynced client also reports airborne", () => {
     // The two flags are mutually exclusive in `stepHero`'s own rule (water entry clears `airborne`
     // in the same assignment that sets `swimming`), so this combination should never arrive from a

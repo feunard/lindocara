@@ -32,6 +32,7 @@ const STYLE_TEXTURE: Record<InteriorShellStyle, { url: string; atlas: boolean; c
 
 export interface UndergroundVisual {
   group: THREE.Group;
+  update(dt: number): void;
   setDepth(depth: number | null): void;
   /** Gameplay descent: keeps adjacent storeys visible around the body's exact elevation. */
   setElevation(elevation: number | null): void;
@@ -69,6 +70,13 @@ function textureFor(style: InteriorShellStyle, textures: TextureRegistry): THREE
 
 function terrainTextureFor(material: string, textures: TextureRegistry): THREE.Texture | null {
   if (material === "water") return null;
+  if (material === "lave") {
+    const texture = textures.get(`${HD2D_ROOT}/lava-surface.png`).clone();
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.needsUpdate = true;
+    return texture;
+  }
   const url =
     material === "herbe"
       ? `${TINY_TERRAIN_ROOT}/Tilemap_color1.png`
@@ -178,13 +186,14 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
   const ownedTextures: THREE.Texture[] = [];
+  const lavaSurfaces: Array<{ texture: THREE.Texture; material: THREE.MeshStandardMaterial }> = [];
   const levels = new Map<
     number,
     {
       group: THREE.Group;
       walls: Map<string, THREE.InstancedMesh>;
       tintedMaterials: Array<{
-        material: THREE.MeshLambertMaterial | THREE.MeshPhongMaterial;
+        material: THREE.MeshLambertMaterial | THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
         color: THREE.Color;
       }>;
     }
@@ -221,7 +230,7 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       side: THREE.DoubleSide,
     });
     const tintedMaterials: Array<{
-      material: THREE.MeshLambertMaterial | THREE.MeshPhongMaterial;
+      material: THREE.MeshLambertMaterial | THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
       color: THREE.Color;
     }> = [
       { material: floorMaterial, color: floorMaterial.color.clone() },
@@ -314,11 +323,28 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
       const overrideMaterial =
         material === "water"
           ? new THREE.MeshPhongMaterial({ color: 0x2d7fbb, transparent: true, opacity: 0.78 })
-          : new THREE.MeshLambertMaterial({
-              map: overrideTexture,
-              color: material === "lave" ? 0xff8a3d : 0xffffff,
-              ...(material === "lave" ? { emissive: 0x5a1600, emissiveIntensity: 0.45 } : {}),
-            });
+          : material === "lave"
+            ? new THREE.MeshStandardMaterial({
+                map: overrideTexture,
+                emissiveMap: overrideTexture,
+                color: 0xffb12b,
+                emissive: 0xff4b0b,
+                emissiveIntensity: 0.78,
+                roughness: 0.72,
+                metalness: 0,
+                side: THREE.DoubleSide,
+              })
+            : new THREE.MeshLambertMaterial({
+                map: overrideTexture,
+                color: 0xffffff,
+              });
+      if (
+        material === "lave" &&
+        overrideTexture &&
+        overrideMaterial instanceof THREE.MeshStandardMaterial
+      ) {
+        lavaSurfaces.push({ texture: overrideTexture, material: overrideMaterial });
+      }
       materials.push(overrideMaterial);
       tintedMaterials.push({ material: overrideMaterial, color: overrideMaterial.color.clone() });
       const overrideFloor = new THREE.InstancedMesh(box, overrideMaterial, entries.length);
@@ -602,8 +628,16 @@ export function createUnderground(map: MapData, textures: TextureRegistry): Unde
     }
   };
   refresh();
+  let elapsed = 0;
   return {
     group: root,
+    update(dt) {
+      elapsed += Math.max(0, dt);
+      for (const surface of lavaSurfaces) {
+        surface.texture.offset.set(elapsed * 0.012, Math.sin(elapsed * 0.13) * 0.024);
+        surface.material.emissiveIntensity = 0.72 + (Math.sin(elapsed * 0.45) + 1) * 0.09;
+      }
+    },
     setDepth(depth) {
       activeDepth = depth;
       activeElevation = null;
