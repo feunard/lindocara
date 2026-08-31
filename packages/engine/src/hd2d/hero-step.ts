@@ -203,6 +203,20 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   }
 
   const collisionY = platformHeight ?? state.y;
+  const travel = Math.hypot(x - state.x, footprintZ - currentFootprintZ);
+  if (
+    travel > hero.radius * 2 &&
+    deps.colliders.blockedAlong?.(
+      state.x,
+      currentFootprintZ,
+      x,
+      footprintZ,
+      hero.radius,
+      collisionY,
+    )
+  ) {
+    return false;
+  }
   if (!colliders.blocked(x, empreinte(z, hero), hero.radius, collisionY)) return true;
 
   // Same escape hatch against props (an unlucky spawn, a prop added underneath). The concrete

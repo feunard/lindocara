@@ -108,6 +108,18 @@ export interface ColliderIndex {
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps a rectangle. */
   blocked(x: number, z: number, r: number, y?: number): boolean;
   /**
+   * `true` when a moving disc crosses a blocking volume anywhere between both centres.
+   * Colliders already overlapping the origin are ignored so an embedded body can still escape.
+   */
+  blockedAlong(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+    r: number,
+    y?: number,
+  ): boolean;
+  /**
    * Whether an already-overlapping disc may move to another overlapping point. Every obstacle at
    * the destination must already block the origin, and the move may not deepen either overlap.
    */
@@ -133,6 +145,99 @@ export interface ColliderIndex {
    * a segment, not a point.
    */
   inBox(minX: number, minZ: number, maxX: number, maxZ: number): readonly ColliderRect[];
+}
+
+function squaredDistanceToSegment(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared <= 1e-12) return (px - ax) ** 2 + (pz - az) ** 2;
+  const t = Math.min(1, Math.max(0, ((px - ax) * dx + (pz - az) * dz) / lengthSquared));
+  return (px - (ax + dx * t)) ** 2 + (pz - (az + dz * t)) ** 2;
+}
+
+function segmentsIntersect(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  cx: number,
+  cz: number,
+  dx: number,
+  dz: number,
+): boolean {
+  const cross = (ux: number, uz: number, vx: number, vz: number) => ux * vz - uz * vx;
+  const abx = bx - ax;
+  const abz = bz - az;
+  const acx = cx - ax;
+  const acz = cz - az;
+  const adx = dx - ax;
+  const adz = dz - az;
+  const cdx = dx - cx;
+  const cdz = dz - cz;
+  return (
+    cross(abx, abz, acx, acz) * cross(abx, abz, adx, adz) <= 0 &&
+    cross(cdx, cdz, ax - cx, az - cz) * cross(cdx, cdz, bx - cx, bz - cz) <= 0
+  );
+}
+
+/** Exact swept overlap for rectangles; ellipses retain their documented conservative expansion. */
+function colliderOverlapsSegment(
+  rect: ColliderRect,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  r: number,
+): boolean {
+  const from = colliderLocalPoint(rect, fromX, fromZ);
+  const to = colliderLocalPoint(rect, toX, toZ);
+  if (rect.footprint === "ellipse") {
+    const rx = rect.w / 2 + r;
+    const rz = rect.h / 2 + r;
+    const cx = rect.x + rect.w / 2;
+    const cz = rect.z + rect.h / 2;
+    const dx = (to.x - from.x) / rx;
+    const dz = (to.z - from.z) / rz;
+    const ox = (from.x - cx) / rx;
+    const oz = (from.z - cz) / rz;
+    const denominator = dx * dx + dz * dz;
+    const t =
+      denominator <= 1e-12 ? 0 : Math.min(1, Math.max(0, -(ox * dx + oz * dz) / denominator));
+    return (ox + dx * t) ** 2 + (oz + dz * t) ** 2 < 1;
+  }
+  if (
+    (from.x >= rect.x &&
+      from.x <= rect.x + rect.w &&
+      from.z >= rect.z &&
+      from.z <= rect.z + rect.h) ||
+    (to.x >= rect.x && to.x <= rect.x + rect.w && to.z >= rect.z && to.z <= rect.z + rect.h)
+  ) {
+    return true;
+  }
+  const edges = [
+    [rect.x, rect.z, rect.x + rect.w, rect.z],
+    [rect.x + rect.w, rect.z, rect.x + rect.w, rect.z + rect.h],
+    [rect.x + rect.w, rect.z + rect.h, rect.x, rect.z + rect.h],
+    [rect.x, rect.z + rect.h, rect.x, rect.z],
+  ] as const;
+  const radiusSquared = r * r;
+  return edges.some(([ax, az, bx, bz]) => {
+    if (segmentsIntersect(from.x, from.z, to.x, to.z, ax, az, bx, bz)) return true;
+    return (
+      squaredDistanceToSegment(ax, az, from.x, from.z, to.x, to.z) < radiusSquared ||
+      squaredDistanceToSegment(bx, bz, from.x, from.z, to.x, to.z) < radiusSquared ||
+      squaredDistanceToSegment(from.x, from.z, ax, az, bx, bz) < radiusSquared ||
+      squaredDistanceToSegment(to.x, to.z, ax, az, bx, bz) < radiusSquared
+    );
+  });
 }
 
 /** Whether a point is on the collider footprint, optionally inset by a body's radius. */
@@ -328,6 +433,18 @@ export function createColliderIndex(): ColliderIndex {
         (rect) => colliderOverlapsDisc(rect, x, z, r) && colliderBlocksAtElevation(rect, x, z, y),
       );
     },
+    blockedAlong(fromX, fromZ, toX, toZ, r, y) {
+      const minX = Math.min(fromX, toX) - r;
+      const minZ = Math.min(fromZ, toZ) - r;
+      const maxX = Math.max(fromX, toX) + r;
+      const maxZ = Math.max(fromZ, toZ) + r;
+      return this.inBox(minX, minZ, maxX, maxZ).some(
+        (rect) =>
+          !colliderOverlapsDisc(rect, fromX, fromZ, r) &&
+          colliderOverlapsSegment(rect, fromX, fromZ, toX, toZ, r) &&
+          colliderBlocksAtElevation(rect, toX, toZ, y),
+      );
+    },
     allowsEscape(fromX, fromZ, x, z, r, y) {
       const destinationBlockers = candidates(x, z, r).filter(
         (rect) => colliderOverlapsDisc(rect, x, z, r) && colliderBlocksAtElevation(rect, x, z, y),
@@ -350,14 +467,13 @@ export function createColliderIndex(): ColliderIndex {
     },
     upwardLimit(x, z, r, fromY, toY) {
       if (toY <= fromY) return null;
-      const fromHead = fromY + BODY_CLEARANCE;
       const toHead = toY + BODY_CLEARANCE;
       let nearestUnderside: number | null = null;
       for (const rect of candidates(x, z, r)) {
         if (
           rect.bottom === undefined ||
           !colliderOverlapsDisc(rect, x, z, r) ||
-          rect.bottom < fromHead - 1e-3 ||
+          rect.bottom <= fromY + 1e-3 ||
           rect.bottom >= toHead - 1e-3
         ) {
           continue;

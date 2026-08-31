@@ -169,4 +169,20 @@ describe("stepHero — the vertical axis", () => {
     expect(state.y).toBeGreaterThan(-0.12);
     expect(state.vy).toBeGreaterThan(0);
   });
+
+  it("stops a second jump when a rock has already put the hero's head into the ceiling", () => {
+    const deps = depsPlates({ hauteur: () => -1.1, surface: () => -1.1 });
+    const colliders = createColliderIndex();
+    colliders.add({ x: -1, z: -1, w: 2, h: 2, bottom: -0.36, top: -0.18 });
+    deps.colliders = colliders;
+    const state = createHeroState(0, 0, -1.1, 10, 2.2);
+    state.groundY = -1.1;
+    state.airborne = true;
+    state.vy = 6;
+
+    stepHero(state, immobile, 1 / 60, deps);
+
+    expect(state.y).toBeLessThanOrEqual(-1.1);
+    expect(state.vy).toBe(0);
+  });
 });

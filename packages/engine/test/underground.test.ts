@@ -26,7 +26,7 @@ import {
 } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
-import { createColliderIndex } from "../src/hd2d/collider-index.js";
+import { BODY_CLEARANCE, createColliderIndex } from "../src/hd2d/collider-index.js";
 import { depsPlates } from "./hd2d/helpers/step-deps.js";
 
 const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: false };
@@ -1073,6 +1073,56 @@ describe("multi-storey underground", () => {
     expect(state.x).toBeGreaterThan(ramp.x + ramp.width);
     expect(state.y).toBeCloseTo(undergroundFloorHeight(-2));
     expect(state.airborne).toBe(false);
+  });
+
+  it("contains vertical and horizontal trap impulses inside a real depth-5 room", () => {
+    const depth = 5;
+    const deepRoom = {
+      levels: [
+        {
+          depth,
+          style: "cave" as const,
+          cells: [
+            { col: 2, row: 2, length: 3 },
+            { col: 2, row: 3, length: 3 },
+            { col: 2, row: 4, length: 3 },
+          ],
+        },
+      ],
+      stairs: [],
+      shafts: [],
+    };
+    const platforms = undergroundColliders(deepRoom, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const deps = { ...depsPlates(), query, colliders };
+    const floor = undergroundFloorHeight(depth);
+
+    const launched = createHeroState(-0.5, -0.15, floor, 10, 2.2);
+    launched.groundY = floor;
+    launched.airborne = true;
+    launched.vy = 13;
+    for (let frame = 0; frame < 60 && launched.vy > 0; frame += 1) {
+      stepHero(launched, immobile, 1 / 60, deps);
+    }
+    expect(launched.y + BODY_CLEARANCE).toBeLessThanOrEqual(undergroundFloorHeight(depth - 1));
+
+    const pushed = createHeroState(-0.5, -0.15, floor, 10, 2.2);
+    pushed.groundY = floor;
+    pushed.airborne = true;
+    pushed.vy = 9;
+    pushed.impulsionX = 20;
+    stepHero(pushed, immobile, 0.1, deps);
+    expect(pushed.x).toBeCloseTo(-0.5);
+    expect(pushed.impulsionX).toBe(0);
   });
 
   it("falls continuously through every elevation down to depth 16", () => {

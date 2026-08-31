@@ -182,6 +182,15 @@ export interface WorldSettings {
 export interface ColliderQuery {
   /** `true` if a disc of radius `r` centered at `(x, z)` overlaps an obstacle. */
   blocked(x: number, z: number, r: number, y?: number): boolean;
+  /** Refuses a swept horizontal move that crosses a collider between two rendered frames. */
+  blockedAlong?(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+    r: number,
+    y?: number,
+  ): boolean;
   /** Allows an embedded body to move sideways or outward, never farther into an obstacle. */
   allowsEscape?(fromX: number, fromZ: number, x: number, z: number, r: number, y?: number): boolean;
   /** Finite height to clear, `Infinity` for a wall, `null` without overlap. */

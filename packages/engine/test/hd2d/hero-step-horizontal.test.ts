@@ -1,3 +1,4 @@
+import { createColliderIndex } from "@lindocara/engine/hd2d/collider-index.js";
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { describe, expect, it } from "vitest";
@@ -69,6 +70,27 @@ describe("stepHero — horizontal movement", () => {
     expect(s.x).toBe(1);
     expect(s.vz).toBeGreaterThan(0);
     expect(s.z).toBeGreaterThan(0);
+  });
+
+  it("cannot tunnel through a basement wall during a strong airborne push", () => {
+    const deps = depsPlates({ hauteur: () => -2.4, surface: () => -2.4 });
+    const colliders = createColliderIndex();
+    colliders.add({ x: 0, z: -1, w: 0.16, h: 2, bottom: -2.4, top: 0 });
+    deps.colliders = colliders;
+    const state = createHeroState(-0.7, 0.35, -2.4, 10, 2.2);
+    state.airborne = true;
+    state.vy = 1;
+    state.impulsionX = 14;
+
+    stepHero(
+      state,
+      { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: false },
+      0.1,
+      deps,
+    );
+
+    expect(state.x).toBeCloseTo(-0.7);
+    expect(state.impulsionX).toBe(0);
   });
 
   it("emits a footstep while propelling, never while skidding", () => {

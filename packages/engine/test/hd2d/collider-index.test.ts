@@ -54,6 +54,23 @@ describe("createColliderIndex", () => {
     expect(idx.blocked(0, 5, 0.3)).toBe(false);
   });
 
+  it("blocks a strong impulse that crosses a thin wall between two frames", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 0, z: -1, w: 0.16, h: 2, bottom: -2.4, top: 0 });
+
+    expect(idx.blocked(-0.7, 0, 0.3, -2.4)).toBe(false);
+    expect(idx.blocked(0.7, 0, 0.3, -2.4)).toBe(false);
+    expect(idx.blockedAlong(-0.7, 0, 0.7, 0, 0.3, -2.4)).toBe(true);
+  });
+
+  it("keeps movement below and above a finite wall storey-aware", () => {
+    const idx = createColliderIndex();
+    idx.add({ x: 0, z: -1, w: 0.16, h: 2, bottom: -2.4, top: 0 });
+
+    expect(idx.blockedAlong(-0.7, 0, 0.7, 0, 0.3, -3.3)).toBe(false);
+    expect(idx.blockedAlong(-0.7, 0, 0.7, 0, 0.3, 0)).toBe(false);
+  });
+
   // The next three tests reprise the coverage of the old `colliders.test.ts` (circles), carried
   // over to rectangles: degrading gracefully with a large query radius is about the overlap TEST,
   // not the collider's shape, so the same cases must stay true.
