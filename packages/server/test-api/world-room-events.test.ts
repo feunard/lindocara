@@ -1942,6 +1942,9 @@ describe("world room events (FakeClock)", () => {
     Object.assign(player, { x: centre.x - 0.65, y: centre.y, z: centre.z });
     const hpBefore = player.hp;
 
+    expect(state.activeEvents.find((event) => event.id === trap.id)).not.toHaveProperty("collider");
+    expect(state.eventColliders).toHaveLength(0);
+
     detectPlayerTouch(state, player, previous);
     await advanceTickSettled(clock);
 

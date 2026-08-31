@@ -30,7 +30,6 @@ import {
   isActiveWorldEventKind,
   isInteractiveWorldEventKind,
   type MapEvent,
-  type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import { maxMapHeroMovementSpeed } from "@lindocara/engine/map-hero-settings.js";
 import { refreshHarvestNode } from "@lindocara/engine/party-harvest-state.js";
@@ -42,10 +41,8 @@ import {
   groundUnder,
   worldEventColliderRect,
 } from "@lindocara/engine/terrain-access.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type CollisionElevation,
-  editorAsset,
   editorAssetCollisionElevation,
   LINDOCARA_PICKUP_ASSET_IDS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -81,20 +78,6 @@ function programGrantsMovementEffect(commands: readonly EventCommand[]): boolean
     if (command.t === "loop") return programGrantsMovementEffect(command.body);
     if (command.t === "choices") {
       return command.options.some((option) => programGrantsMovementEffect(option.body));
-    }
-    return false;
-  });
-}
-
-function programDealsDamage(commands: readonly EventCommand[]): boolean {
-  return commands.some((command) => {
-    if (command.t === "damage") return true;
-    if (command.t === "if") {
-      return programDealsDamage(command.then) || programDealsDamage(command.else);
-    }
-    if (command.t === "loop") return programDealsDamage(command.body);
-    if (command.t === "choices") {
-      return command.options.some((option) => programDealsDamage(option.body));
     }
     return false;
   });
@@ -175,28 +158,6 @@ function colliderTuple(
   elevation: CollisionElevation,
 ): WorldEventCollider | null {
   return rect ? [rect.x, rect.y, rect.width, rect.height, elevation] : null;
-}
-
-/** Project a visible player-touch hazard into the same explicit pixel tuple harvest nodes use. */
-function hazardColliderTuple(
-  page: MapEventPage,
-  col: number,
-  row: number,
-): WorldEventCollider | null {
-  if (page.trigger !== "player-touch" || !programDealsDamage(page.commands)) return null;
-  const asset = page.graphicAssetId ? editorAsset(page.graphicAssetId) : null;
-  const rect = asset?.editor.collider;
-  const elevation = asset ? editorAssetCollisionElevation(asset) : null;
-  if (!rect || elevation === null) return null;
-  return colliderTuple(
-    {
-      x: col * TILE_SIZE + TILE_SIZE / 2 + rect.x,
-      y: (row + 1) * TILE_SIZE + rect.y,
-      width: rect.width,
-      height: rect.height,
-    },
-    elevation,
-  );
 }
 
 function sameCollider(a: ColliderRect | undefined, b: ColliderRect | undefined): boolean {
@@ -457,7 +418,6 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       event.undergroundDepth === undefined
         ? (definition.terrain.query.heightAt(eventX, eventZ) ?? definition.terrain.waterLevel)
         : authoredCellCentreGround(event, definition.terrain.size).y;
-    const collider = hazardColliderTuple(page, eventCol, eventRow);
     const harvestState = depleted ? ("depleted" as const) : ("intact" as const);
     const projectedHits = depleted
       ? profile?.hitsRequired
@@ -488,7 +448,6 @@ export function evaluateActiveEvents(state: WorldRoomState, now = Date.now()): v
       showMarker: event.showMarker !== false,
       ...(page.graphicElevation === undefined ? {} : { elevationOffset: page.graphicElevation }),
       ...(page.optFloat === true ? { floating: true as const } : {}),
-      ...(collider ? { collider } : {}),
       ...(profile && harvestNode
         ? {
             harvest: {
