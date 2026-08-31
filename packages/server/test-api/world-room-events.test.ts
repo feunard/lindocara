@@ -48,6 +48,7 @@ import {
 } from "@lindocara/engine/harvest-presets.js";
 import { type HarvestProfile, harvestGroundColliderAt } from "@lindocara/engine/harvest.js";
 import type { ColliderRect } from "@lindocara/engine/hd2d/collider-index.js";
+import type { MapElement } from "@lindocara/engine/map-data.js";
 import {
   authoredCellCentreGround,
   functionalEvent,
@@ -56,7 +57,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import { peasantHarvestExperience } from "@lindocara/engine/peasant.js";
-import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { parseServerMessage, type ServerMessage } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   BODY_RADIUS,
@@ -228,6 +229,11 @@ function fakeSocket(userId: string, heroId: string, connectionId: string): FakeS
     sent,
     closed: undefined,
     sendRaw: (data: string) => {
+      if (parseServerMessage(data) === null) {
+        throw new Error(
+          `the wire refused a '${String((JSON.parse(data) as { t?: unknown }).t)}' frame`,
+        );
+      }
       sent.push(data);
     },
     close: (code?: number, reason?: string) => {
@@ -502,6 +508,7 @@ async function newPlayableParty(
   prefix: string,
   events: readonly MapEvent[],
   heroClass: "warrior" | "peasant" = "warrior",
+  elements: readonly MapElement[] = [],
 ): Promise<PlayableParty> {
   const { token, userId } = await registerAndLogin(prefix);
   const api = authed(token);
@@ -527,7 +534,7 @@ async function newPlayableParty(
     body: JSON.stringify({
       name: "Salle",
       ...grassTerrain(),
-      elements: [],
+      elements,
       events,
       spawn: { col: SPAWN_COL, row: SPAWN_ROW },
     }),
@@ -762,7 +769,15 @@ async function completeWarPigCarcassHit(input: {
 }
 
 function messagesOf(socket: FakeSocket): ServerMessage[] {
-  return socket.sent.map((raw) => JSON.parse(raw) as ServerMessage);
+  return socket.sent.map((raw) => {
+    const message = parseServerMessage(raw);
+    if (message === null) {
+      throw new Error(
+        `the wire refused a '${String((JSON.parse(raw) as { t?: unknown }).t)}' frame`,
+      );
+    }
+    return message;
+  });
 }
 
 async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
@@ -777,6 +792,34 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
+  test("a resized native resource sends a protocol-valid fractional collider", async () => {
+    const assetId = "decoration.terrain-decorations-rocks.rock4";
+    const fixture = await newPlayableParty("scaledresource", [], "warrior", [
+      {
+        col: 5,
+        row: 5,
+        offsetX: 0,
+        offsetY: 0,
+        assetId,
+        scale: 2.1,
+      },
+    ]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+
+    await engine.join(socket);
+
+    const welcome = messagesOf(socket).find((message) => message.t === "welcome");
+    if (!welcome || welcome.t !== "welcome") throw new Error("welcome missing");
+    const resource = welcome.world.events.find((event) => event.graphicAssetId === assetId);
+    const collider = resource?.harvest?.collider;
+    expect(resource).toMatchObject({ scale: 2.1, presentation: "native" });
+    if (!collider) throw new Error("scaled resource collider missing");
+    expect(collider.slice(0, 4).some((value) => !Number.isInteger(value))).toBe(true);
+    engine.dispose();
+  });
+
   test("a page turns a villager hostile, and the room gives it exactly one body", async () => {
     // The whole of "make my peaceful guard unhappy if wrong choice": no command changes what a
     // thing IS, a page does, and the switch that selects the page is the one an authored choice

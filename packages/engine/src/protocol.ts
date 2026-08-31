@@ -64,7 +64,7 @@ import {
 } from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
 import { isLifeState, type LifeState } from "./death.js";
-import { parseElementScale } from "./element-scale.js";
+import { MAX_ELEMENT_SCALE, parseElementScale } from "./element-scale.js";
 import {
   COMMAND_TEXT_MAX,
   ITEM_ID_MAX,
@@ -118,6 +118,7 @@ import { isSoundEffectId } from "./sfx-catalog.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileLayer } from "./tile-layer-codec.js";
+import { TILE_SIZE } from "./tilemap.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
 import {
   type CollisionElevation,
@@ -1973,21 +1974,35 @@ function isQuestSite(value: unknown): value is QuestSite {
   );
 }
 
+const WORLD_EVENT_COLLIDER_OFFSET_LIMIT =
+  HARVEST_PROFILE_LIMITS.collisionOffset.max * MAX_ELEMENT_SCALE;
+const WORLD_EVENT_COLLIDER_COORDINATE_LIMIT =
+  MAX_HEIGHTFIELD_SIZE * TILE_SIZE + WORLD_EVENT_COLLIDER_OFFSET_LIMIT;
+const WORLD_EVENT_COLLIDER_SIZE_LIMIT =
+  HARVEST_PROFILE_LIMITS.collisionSize.max * MAX_ELEMENT_SCALE;
+
+/**
+ * Runtime event colliders inherit the authored scenery scale. Their stored profile is integral,
+ * but a legal scale such as 2.1 makes every projected edge fractional; the wire therefore bounds
+ * finite pixel values instead of incorrectly requiring integers. A footprint may overhang the map,
+ * matching the authoring contract, but can never exceed the largest map plus the largest scaled
+ * authored offset.
+ */
 function isHarvestWorldCollider(value: unknown): boolean {
   if (value === null) return true;
   if (!Array.isArray(value) || (value.length !== 4 && value.length !== 5)) return false;
   const [x, y, width, height, elevation] = value;
   return (
-    Number.isSafeInteger(x) &&
-    Number.isSafeInteger(y) &&
-    (x as number) >= 0 &&
-    (y as number) >= 0 &&
-    Number.isSafeInteger(width) &&
-    Number.isSafeInteger(height) &&
-    (width as number) > 0 &&
-    (height as number) > 0 &&
-    (width as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max &&
-    (height as number) <= HARVEST_PROFILE_LIMITS.collisionSize.max &&
+    isFiniteNumber(x) &&
+    isFiniteNumber(y) &&
+    Math.abs(x) <= WORLD_EVENT_COLLIDER_COORDINATE_LIMIT &&
+    Math.abs(y) <= WORLD_EVENT_COLLIDER_COORDINATE_LIMIT &&
+    isFiniteNumber(width) &&
+    isFiniteNumber(height) &&
+    width > 0 &&
+    height > 0 &&
+    width <= WORLD_EVENT_COLLIDER_SIZE_LIMIT &&
+    height <= WORLD_EVENT_COLLIDER_SIZE_LIMIT &&
     (elevation === undefined || elevation === 1 || elevation === 2 || elevation === 3)
   );
 }

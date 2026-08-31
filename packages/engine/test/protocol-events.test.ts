@@ -386,21 +386,18 @@ describe("events on the wire", () => {
     expect(
       parseServerMessage(JSON.stringify(welcome([event({ presentation: "from-asset" })]))),
     ).toBeNull();
-    expect(
-      parseServerMessage(
-        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [72.5, 96, 48, 24] } })])),
-      ),
-    ).toBeNull();
-    expect(
-      parseServerMessage(
-        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [72, 96, 48.5, 24] } })])),
-      ),
-    ).toBeNull();
-    expect(
-      parseServerMessage(
-        JSON.stringify(welcome([event({ harvest: { ...intact, collider: [-1, 96, 48, 24] } })])),
-      ),
-    ).toBeNull();
+    // A valid scenery scale is decimal (0.25..4 by 0.05), so the server's projection of an
+    // integral authored box is legitimately fractional. It may also overhang the map edge.
+    for (const collider of [
+      [72.5, 96, 48, 24],
+      [72, 96, 48.5, 24],
+      [-1, 96, 48, 24],
+      [8553.4, 8273.8, 109.2, 46.2, 2],
+    ]) {
+      expect(
+        parseServerMessage(JSON.stringify(welcome([event({ harvest: { ...intact, collider } })]))),
+      ).not.toBeNull();
+    }
     expect(
       parseServerMessage(
         JSON.stringify(
