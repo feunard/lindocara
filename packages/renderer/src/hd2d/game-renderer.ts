@@ -64,7 +64,6 @@ import {
 import {
   undergroundDepthAtElevation,
   undergroundFloorHeight,
-  undergroundTransitionAt,
   undergroundVisibleDepthsAtElevation,
 } from "@lindocara/engine/underground.js";
 import type { Facing } from "@lindocara/hd2d/billboard.js";
@@ -125,6 +124,10 @@ import {
 import type { StaticContent, StaticContentEvent, StaticSpriteArt } from "./static-content.js";
 import { authoredMaterialAt, placeStaticContent } from "./static-content.js";
 import type { StructureVolumeKind } from "./structure-volumes.js";
+import {
+  groundedUndergroundVisibilityDepth,
+  undergroundVisibilityTransitionAt,
+} from "./underground-visibility.js";
 import {
   HD2D_SHEEP_EXPLOSION_TEXTURE_URL,
   HD2D_SPLASH_TEXTURE_URL,
@@ -1149,6 +1152,8 @@ export class Hd2dRenderer implements RendererLike {
   #cameraPitch = HD2D_CAMERA.pitch;
   #undergroundDepth: number | null = null;
   #gameplayVisibilityDepth: number | null = null;
+  #gameplayVisibilityElevation = 0;
+  #gameplayVisibilityInitialized = false;
   #frameCallbacks: Array<(nowMs: number, deltaSeconds: number) => void> = [];
   #rafHandle: number | null = null;
   #lastFrameMs: number | null = null;
@@ -1701,7 +1706,14 @@ export class Hd2dRenderer implements RendererLike {
     // A player the view has not sent yet leaves the camera wherever it last was, which is the map's
     // spawn on the very first frames.
     const cameraSelf = sample.players.find((player) => player.id === this.#selfId);
-    if (cameraSelf) scene.focusOn(cameraSelf.x, cameraSelf.z, cameraSelf.y, cameraSelf.airborne);
+    if (cameraSelf)
+      scene.focusOn(
+        cameraSelf.x,
+        cameraSelf.z,
+        cameraSelf.y,
+        cameraSelf.airborne,
+        cameraSelf.vy ?? 0,
+      );
     else if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     const shake = this.#cameraShake.offset(context.now);
     scene.setCameraShake(shake.x, shake.y);
@@ -2000,14 +2012,37 @@ export class Hd2dRenderer implements RendererLike {
       if (!present.has(actorId)) this.#combatAnimations.delete(actorId);
     }
     if (self && this.#map?.underground) {
-      const transitioning = undergroundTransitionAt(
-        this.#map.underground,
-        this.#map.size,
+      if (!this.#gameplayVisibilityInitialized) {
+        this.#gameplayVisibilityDepth = groundedUndergroundVisibilityDepth(
+          this.#map,
+          self.x,
+          self.z,
+          self.y,
+        );
+        this.#gameplayVisibilityElevation = self.y;
+        this.#gameplayVisibilityInitialized = true;
+      }
+      const transitioning = undergroundVisibilityTransitionAt(
+        this.#map,
         self.x,
         self.z,
+        self.y,
+        self.airborne,
+        self.vy ?? 0,
+        this.#gameplayVisibilityDepth,
+        this.#gameplayVisibilityElevation,
       );
-      if (!self.airborne || transitioning) {
+      if (transitioning) {
         this.#gameplayVisibilityDepth = undergroundDepthAtElevation(self.y);
+        if (!self.airborne) this.#gameplayVisibilityElevation = self.y;
+      } else if (!self.airborne) {
+        this.#gameplayVisibilityDepth = groundedUndergroundVisibilityDepth(
+          this.#map,
+          self.x,
+          self.z,
+          self.y,
+        );
+        this.#gameplayVisibilityElevation = self.y;
       }
       const visibleDepths: Array<number | null> = transitioning
         ? [...undergroundVisibleDepthsAtElevation(self.y)]
@@ -2184,6 +2219,8 @@ export class Hd2dRenderer implements RendererLike {
     this.#scene = null;
     this.#map = null;
     this.#gameplayVisibilityDepth = null;
+    this.#gameplayVisibilityElevation = 0;
+    this.#gameplayVisibilityInitialized = false;
   }
 
   destroy(): void {

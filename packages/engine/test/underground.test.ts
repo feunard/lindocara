@@ -428,6 +428,18 @@ describe("multi-storey underground", () => {
     expect(undergroundTransitionAt(underground, 8, 1.5, -1.5)).toBe(false);
   });
 
+  it("ignores a deeper access that does not connect the viewed storey", () => {
+    const deepOnly = {
+      ...underground,
+      stairs: [],
+      shafts: [{ col: 6, row: 5, width: 1, length: 1, fromDepth: 2, depth: 3 }],
+    };
+    expect(undergroundTransitionAt(deepOnly, 8, 2.5, 1.5, 1)).toBe(false);
+    expect(undergroundTransitionAt(deepOnly, 8, 2.5, 1.5, 2)).toBe(true);
+    expect(undergroundTransitionAt(deepOnly, 8, 2.5, 1.5, 3)).toBe(true);
+    expect(undergroundTransitionAt(deepOnly, 8, 2.5, 1.5, null)).toBe(false);
+  });
+
   it("samples a continuous 2.4-unit stair with a flush upper landing", () => {
     const stair = underground.stairs[0];
     if (!stair) throw new Error("fixture stair missing");

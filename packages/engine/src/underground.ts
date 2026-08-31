@@ -672,13 +672,17 @@ export function undergroundTransitionAt(
   size: number,
   x: number,
   z: number,
+  stableDepth?: number | null,
 ): boolean {
   if (!underground) return false;
   const col = Math.floor(x + size / 2);
   const row = Math.floor(z + size / 2);
+  const numericDepth = stableDepth ?? 0;
   if (
     (underground.shafts ?? []).some(
       (shaft) =>
+        (stableDepth === undefined ||
+          (numericDepth >= (shaft.fromDepth ?? 0) && numericDepth <= shaft.depth)) &&
         col >= shaft.col &&
         col < shaft.col + shaft.width &&
         row >= shaft.row &&
@@ -688,7 +692,11 @@ export function undergroundTransitionAt(
     return true;
   return underground.stairs.some((stair) => {
     const footprint = undergroundStairFootprint(stair);
+    const upper = undergroundStairUpperDepth(stair);
+    const minimum = Math.min(upper, stair.depth);
+    const maximum = Math.max(upper, stair.depth);
     return (
+      (stableDepth === undefined || (numericDepth >= minimum && numericDepth <= maximum)) &&
       col >= stair.col &&
       col < stair.col + footprint.cols &&
       row >= stair.row &&

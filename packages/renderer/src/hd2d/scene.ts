@@ -42,7 +42,6 @@ import {
   undergroundFloorHeight,
   undergroundSurfaceOpenings,
   undergroundStyleMaterial,
-  undergroundTransitionAt,
   undergroundVisibleDepthsAtElevation,
 } from "@lindocara/engine/underground.js";
 import { RIM_LAYER } from "@lindocara/hd2d/billboard.js";
@@ -67,6 +66,11 @@ import * as THREE from "three";
 
 import { type DayCycleOverride, mapDayCycleAt } from "./day-cycle.js";
 import { createInteriorShell, INTERIOR_SHELL_TEXTURES } from "./interior-shell.js";
+import {
+  groundedUndergroundVisibilityDepth,
+  undergroundVisibilityElevation,
+  undergroundVisibilityTransitionAt,
+} from "./underground-visibility.js";
 import { createUnderground, undergroundPreviewDepths } from "./underground.js";
 
 // --- art direction ------------------------------------------------------------------------------
@@ -668,10 +672,17 @@ export interface Hd2dScene {
    * axes in tile units. The optional third argument is the followed body's ELEVATION; it bounds the
    * collision-surface lookup so a bridge or roof under that body drives camera height without a
    * higher platform above it stealing focus. The fourth argument makes an airborne body's own
-   * elevation the reference. Recorded here and consumed by the next `render`, which is the only
-   * place that knows the frame's `dt` and can therefore damp towards it.
+   * elevation the reference; the fifth distinguishes a rising jump from an actual fall through an
+   * opening. Recorded here and consumed by the next `render`, which is the only place that knows
+   * the frame's `dt` and can therefore damp towards it.
    */
-  focusOn(x: number, z: number, elevation?: number, airborne?: boolean): void;
+  focusOn(
+    x: number,
+    z: number,
+    elevation?: number,
+    airborne?: boolean,
+    verticalVelocity?: number,
+  ): void;
   /** Sets the diorama zoom as a percentage. 100 is the gameplay camera. */
   setZoom(percent: number): void;
   /** Sets the horizontal orbit while keeping the same target, pitch and distance. */
@@ -903,6 +914,7 @@ export function createHd2dScene(
   scene.add(foam.group);
   let viewedUndergroundDepth: number | null = null;
   let undergroundElevation: number | null = null;
+  let groundedVisibilityElevation = 0;
   let authoringUndergroundView = false;
   let surfaceAccessPreview = true;
   let terrainOpacity = 1;
@@ -1293,24 +1305,43 @@ export function createHd2dScene(
     // The camera follows a player, and a player's position now arrives in the scene's own tile
     // units — there is nothing to convert here any more.
     //
-    focusOn(x: number, z: number, elevation?: number, airborne = false): void {
+    focusOn(
+      x: number,
+      z: number,
+      elevation?: number,
+      airborne = false,
+      verticalVelocity = 0,
+    ): void {
       surfaceAccessPreview = surfaceAccessPreviewAt(currentMap, x, z);
       if (elevation !== undefined && currentMap.underground && !authoringUndergroundView) {
-        const transitioning = undergroundTransitionAt(
-          currentMap.underground,
-          currentMap.size,
+        const transitioning = undergroundVisibilityTransitionAt(
+          currentMap,
           x,
           z,
+          elevation,
+          airborne,
+          verticalVelocity,
+          viewedUndergroundDepth,
+          groundedVisibilityElevation,
         );
         // A jump changes the body's Y but not the room it occupies. Preserve the last grounded
         // storey unless the body is physically inside a stair or shaft; those authored openings
         // are the only places where seeing both floors during vertical travel is intentional.
-        if (airborne && !transitioning) {
-          undergroundElevation =
-            viewedUndergroundDepth === null ? 0 : undergroundFloorHeight(viewedUndergroundDepth);
-        } else {
+        if (transitioning) {
           viewedUndergroundDepth = undergroundDepthAtElevation(elevation);
           undergroundElevation = elevation;
+          if (!airborne) groundedVisibilityElevation = elevation;
+        } else {
+          if (!airborne) {
+            viewedUndergroundDepth = groundedUndergroundVisibilityDepth(
+              currentMap,
+              x,
+              z,
+              elevation,
+            );
+            groundedVisibilityElevation = elevation;
+          }
+          undergroundElevation = undergroundVisibilityElevation(viewedUndergroundDepth);
         }
         applyUndergroundVisibility();
       }
@@ -1371,6 +1402,7 @@ export function createHd2dScene(
               return clamped === 0 ? (depth < 0 ? -1 : 1) : clamped;
             })();
       undergroundElevation = null;
+      groundedVisibilityElevation = undergroundVisibilityElevation(viewedUndergroundDepth);
       authoringUndergroundView = reference && viewedUndergroundDepth !== null;
       applyUndergroundVisibility();
     },
