@@ -1,5 +1,6 @@
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
+import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import {
   canStand,
@@ -7,6 +8,7 @@ import {
   mapEntryPosition,
   withWorldEventColliders,
   worldEventColliderRect,
+  zoneTerrainFromHeightfield,
 } from "@lindocara/engine/terrain-access.js";
 import {
   MAX_UNDERGROUND_DEPTH,
@@ -280,6 +282,49 @@ describe("multi-storey underground", () => {
     state.vy = 1;
     stepHero(state, { ...immobile, x: 1 }, 1 / 60, deps);
     expect(state.x + deps.hero.radius, JSON.stringify(state)).toBeGreaterThan(0);
+  });
+
+  it("keeps a raised direct shaft solid from the side and open from above", () => {
+    const size = 8;
+    const shaft = {
+      levels: [{ depth: 5, style: "cave" as const, cells: [{ col: 3, row: 3, length: 1 }] }],
+      stairs: [],
+      shafts: [{ col: 3, row: 3, width: 1, length: 1, depth: 5 }],
+    };
+    const levels = Array.from({ length: size * size }, () => 0 as number | null);
+    levels[3 * size + 3] = 1;
+    const map: MapData = {
+      version: 1,
+      size,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      levels,
+      materials: Array.from({ length: size * size }, () => "herbe" as const),
+      colliders: undergroundColliders(shaft, size),
+      spawns: [],
+      elements: [],
+      events: [],
+      underground: shaft,
+    };
+    const terrain = zoneTerrainFromHeightfield(map);
+    const deps = { ...depsPlates(), query: terrain.query, colliders: terrain.colliders };
+    const westEdge = 3 - size / 2;
+
+    const walking = createHeroState(westEdge - deps.hero.radius - 0.01, -0.15, 0, 10, 2.2);
+    for (let frame = 0; frame < 120; frame += 1) {
+      stepHero(walking, { ...immobile, x: 1 }, 1 / 60, deps);
+    }
+    expect(walking.x + deps.hero.radius).toBeLessThanOrEqual(westEdge + 1e-3);
+    expect(walking.y).toBeCloseTo(0);
+    expect(walking.airborne).toBe(false);
+
+    const jumping = createHeroState(westEdge - deps.hero.radius - 0.01, -0.15, 0, 10, 2.2);
+    for (let frame = 0; frame < 300 && !(jumping.y < -1 && !jumping.airborne); frame += 1) {
+      stepHero(jumping, { ...immobile, x: 1, jump: frame === 0 }, 1 / 60, deps);
+    }
+    expect(jumping.x).toBeGreaterThan(westEdge + deps.hero.radius);
+    expect(jumping.y).toBeCloseTo(undergroundFloorHeight(5));
+    expect(jumping.airborne).toBe(false);
   });
 
   it("keeps authored water above an excavation and underground collision below the surface", () => {

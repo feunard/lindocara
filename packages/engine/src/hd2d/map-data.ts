@@ -154,6 +154,65 @@ export interface MapData {
   events: readonly HeightfieldEvent[];
 }
 
+const SURFACE_SHAFT_WALL_THICKNESS = 0.16;
+
+/**
+ * A shaft removes the walkable top of its surface cell, not the raised earth below that top.
+ * Retaining the four finite flanks prevents a hero at ground level from walking through the
+ * visible cliff while still leaving the opening fully traversable from above.
+ */
+function raisedSurfaceShaftColliders(map: MapData): ColliderRect[] {
+  const colliders: ColliderRect[] = [];
+  const half = map.size / 2;
+  for (const shaft of map.underground?.shafts ?? []) {
+    if ((shaft.fromDepth ?? 0) !== 0) continue;
+    const bottom = undergroundFloorHeight(shaft.depth);
+    const addSide = (col: number, row: number, side: "west" | "east" | "north" | "south") => {
+      const index = row * map.size + col;
+      const level = map.levels[index];
+      const liquid = map.liquids?.[index] ?? null;
+      if (
+        level === null ||
+        level === undefined ||
+        liquid !== null ||
+        map.materials[index] === "lave"
+      )
+        return;
+      const top = level * map.levelHeight;
+      if (top <= 1e-3) return;
+      const x = col - half;
+      const z = row - half;
+      const alongX = side === "north" || side === "south";
+      colliders.push({
+        x: side === "east" ? x + 1 - SURFACE_SHAFT_WALL_THICKNESS : x,
+        z: side === "south" ? z + 1 - SURFACE_SHAFT_WALL_THICKNESS : z,
+        w: alongX ? 1 : SURFACE_SHAFT_WALL_THICKNESS,
+        h: alongX ? SURFACE_SHAFT_WALL_THICKNESS : 1,
+        bottom,
+        top,
+        support: "center",
+      });
+    };
+    for (let row = shaft.row; row < shaft.row + shaft.length; row += 1) {
+      addSide(shaft.col, row, "west");
+      addSide(shaft.col + shaft.width - 1, row, "east");
+    }
+    for (let col = shaft.col; col < shaft.col + shaft.width; col += 1) {
+      addSide(col, shaft.row, "north");
+      addSide(col, shaft.row + shaft.length - 1, "south");
+    }
+  }
+  return colliders;
+}
+
+/** Every runtime collider implied by one stored heightfield, including legacy access flanks. */
+export function mapColliderRects(map: MapData): ColliderRect[] {
+  return [
+    ...withUndergroundStairSideColliders(map.colliders, map.underground, map.size),
+    ...raisedSurfaceShaftColliders(map),
+  ];
+}
+
 /** Decoration, appearance only. Collision comes from `colliders`, never from this list — the
  *  same rule `WorldInfo.elements` follows on the wire. Coordinates are tile units, grid-centred. */
 export interface HeightfieldElement {
@@ -527,7 +586,7 @@ export function decodeMap(s: string): MapData | null {
  *  accessors as `HeightField` (`island.ts`), read from the serialized grid instead of computed by
  *  procedural noise. */
 export function mapToQuerySource(m: MapData): TerrainQuerySource {
-  const effectiveColliders = withUndergroundStairSideColliders(m.colliders, m.underground, m.size);
+  const effectiveColliders = mapColliderRects(m);
   const inBounds = (i: number, j: number) => i >= 0 && j >= 0 && i < m.size && j < m.size;
   const indexOf = (i: number, j: number): number => j * m.size + i;
   const liquidAt = (i: number, j: number): TerrainLiquid | null => {
