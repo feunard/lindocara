@@ -159,15 +159,16 @@ export function worldEventColliderRect(
     w: tuple[2] / TILE_SIZE,
     h: tuple[3] / TILE_SIZE,
   };
-  const elevation = tuple[4];
-  if (elevation === undefined) return rect;
   const centreX = rect.x + rect.w / 2;
   const centreZ = rect.z + rect.h / 2;
   const base =
     authoredY ??
     terrain.query.heightAt(centreX, centreZ) ??
     terrain.query.waterLevelAt(centreX, centreZ);
-  return { ...rect, top: base + elevation * terrain.levelHeight };
+  const elevation = tuple[4];
+  return elevation === undefined
+    ? { ...rect, bottom: base }
+    : { ...rect, bottom: base, top: base + elevation * terrain.levelHeight };
 }
 
 function withPlatforms(query: TerrainQuery, platforms: readonly TerrainPlatform[]): TerrainQuery {

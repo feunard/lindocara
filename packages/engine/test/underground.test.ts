@@ -1,7 +1,12 @@
 import { createHeroState } from "@lindocara/engine/hd2d/hero-state.js";
 import { stepHero } from "@lindocara/engine/hd2d/hero-step.js";
 import { createTerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
-import { canStand, groundUnder } from "@lindocara/engine/terrain-access.js";
+import {
+  canStand,
+  groundUnder,
+  withWorldEventColliders,
+  worldEventColliderRect,
+} from "@lindocara/engine/terrain-access.js";
 import {
   MAX_UNDERGROUND_DEPTH,
   parseUnderground,
@@ -367,6 +372,30 @@ describe("multi-storey underground", () => {
     expect(state.y).toBeCloseTo(floorY);
     expect(state.swimming).toBe(false);
     expect(state.liquid).toBeNull();
+  });
+
+  it("keeps a surface event collider out of the basement below it", () => {
+    const platforms = undergroundColliders(underground, 8);
+    const query = createTerrainQuery({
+      size: 8,
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      at: () => 0,
+      kindAt: () => "herbe",
+      liquidAt: () => null,
+      platforms,
+    });
+    const colliders = createColliderIndex();
+    for (const collider of platforms) colliders.add(collider);
+    const terrain = { query, colliders, size: 8, levelHeight: 0.9, waterLevel: -0.05 };
+    const tuple = [5.2 * 64, 2.2 * 64, 0.6 * 64, 0.6 * 64, 2] as const;
+    const eventCollider = worldEventColliderRect(terrain, tuple, 0);
+
+    expect(eventCollider).toMatchObject({ bottom: 0, top: 1.8 });
+    const liveTerrain = withWorldEventColliders(terrain, [{ y: 0, collider: tuple }]);
+    expect(liveTerrain.colliders.blocked(1.5, -1.5, 0.2, 0)).toBe(true);
+    expect(liveTerrain.colliders.blocked(1.5, -1.5, 0.2, undergroundFloorHeight(1))).toBe(false);
+    expect(canStand(liveTerrain, 1.5, -1.5, 0.2, undergroundFloorHeight(1))).toBe(true);
   });
 
   it("opens the visual and collision wall at both ends of a stair flight", () => {

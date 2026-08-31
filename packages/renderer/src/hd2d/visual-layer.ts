@@ -493,6 +493,10 @@ export class Hd2dVisualLayer {
   #skidAlpha = 0;
   #skidIntensity = 0;
   #events: readonly WorldEventSnapshot[] = [];
+  /** `undefined` outside a stacked map; otherwise the one storey whose event punctuation belongs
+   *  to the player/editor. Scenery visibility may preview a shaft, but interaction rings must not
+   *  leak through from a floor the player does not occupy. */
+  #eventVisibilityDepth: number | null | undefined = undefined;
   #questState: readonly AuthoredQuestMarker[] = [];
   #questVisualKey = "";
   #merchant: THREE.Object3D | null = null;
@@ -1287,6 +1291,20 @@ export class Hd2dVisualLayer {
     this.#rebuildQuestMarkers();
   }
 
+  setEventVisibilityDepth(depth: number | null | undefined): void {
+    if (this.#eventVisibilityDepth === depth) return;
+    this.#eventVisibilityDepth = depth;
+    this.#syncEventMarkers(this.#events);
+    this.#rebuildQuestMarkers();
+  }
+
+  #eventVisible(event: WorldEventSnapshot): boolean {
+    return (
+      this.#eventVisibilityDepth === undefined ||
+      (event.undergroundDepth ?? null) === this.#eventVisibilityDepth
+    );
+  }
+
   hideQuestSite(id: string, durationMs: number): void {
     this.#hiddenQuestSites.set(id, performance.now() + Math.max(0, durationMs));
     this.#questVisualKey = "";
@@ -1312,6 +1330,7 @@ export class Hd2dVisualLayer {
         transparentMaterial(colors[marker.kind]),
       );
       mesh.position.set(x, this.#eventGroundY(event, x, z, 1.55), z);
+      mesh.visible = this.#eventVisible(event);
       this.#root.add(mesh);
       this.#questMarkers.set(marker.eventId, mesh);
     }
@@ -1694,6 +1713,7 @@ export class Hd2dVisualLayer {
         // and two transforms, never a buffer of its own.
         object = new THREE.Group();
         object.name = "event-marker";
+        object.userData.eventId = event.id;
         object.add(this.#eventMarkerHalo(), this.#eventMarkerDust());
         this.#root.add(object);
         this.#eventMarkers.set(event.id, object);
@@ -1701,6 +1721,7 @@ export class Hd2dVisualLayer {
       const x = event.col + 0.5 - this.#size / 2;
       const z = event.row + 0.5 - this.#size / 2;
       object.position.set(x, this.#eventGroundY(event, x, z, 0.06), z);
+      object.visible = this.#eventVisible(event);
     }
     for (const [id, object] of this.#eventMarkers) {
       if (present.has(id)) continue;

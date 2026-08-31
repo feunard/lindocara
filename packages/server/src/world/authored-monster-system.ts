@@ -145,6 +145,7 @@ export function reconcileActiveMonsters(
       ...existing,
       name: definition.name ?? existing.name,
       spawnX: definition.x,
+      spawnY: definition.y,
       spawnZ: definition.z,
       patrolRadius: definition.patrolRadius,
       attackProfile: resolveMonsterAttackProfile(definition.species, definition.attackProfile),

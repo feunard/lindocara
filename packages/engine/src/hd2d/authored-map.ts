@@ -656,6 +656,10 @@ export function authoredElementColliders(
     h: rect.height / TILE_SIZE,
     ...(rect.rotation ? { rotation: rect.rotation } : {}),
   };
+  const standingOnBase = (volumes: readonly ColliderRect[]): ColliderRect[] =>
+    volumes.map((volume) =>
+      volume.bottom === undefined ? { ...volume, bottom: baseTop } : volume,
+    );
   const architecture = asset?.editor.architecturalVolume;
   const nativeDimensions = asset?.editor.native3d;
   if (architecture && nativeDimensions) {
@@ -675,13 +679,13 @@ export function authoredElementColliders(
         },
       ];
     }
-    return [
+    return standingOnBase([
       {
         ...collider,
         top: base + (architecture.height ?? 2.7) * verticalScale,
         support: "center",
       },
-    ];
+    ]);
   }
   if (asset?.editor.terrainOverride === "walkable") {
     const top = element.undergroundDepth
@@ -699,16 +703,20 @@ export function authoredElementColliders(
   }
   const roofs = buildingRoofParts(collider, element, baseTop);
   if (roofs.length > 0)
-    return roofs.flatMap((part) => [part.roof, ...buildingRoofEdgeColliders(part, element)]);
+    return standingOnBase(
+      roofs.flatMap((part) => [part.roof, ...buildingRoofEdgeColliders(part, element)]),
+    );
   const elevation = asset ? editorAssetCollisionElevation(asset) : null;
-  return elevation === null
-    ? [collider]
-    : [
-        {
-          ...collider,
-          top: baseTop + elevation * AUTHORED_LEVEL_HEIGHT,
-        },
-      ];
+  return standingOnBase(
+    elevation === null
+      ? [collider]
+      : [
+          {
+            ...collider,
+            top: baseTop + elevation * AUTHORED_LEVEL_HEIGHT,
+          },
+        ],
+  );
 }
 
 function authoredContent(

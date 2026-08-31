@@ -29,7 +29,6 @@ import {
   canStand,
   groundLineOfSight,
   groundPathClear,
-  groundUnder,
   groundUnderBody,
   resolveGroundMovement,
   standingCeiling,
@@ -267,11 +266,9 @@ export function resetMonsterAtSpawn(
   monster.hp = monster.maxHp;
   monster.x = monster.spawnX;
   monster.z = monster.spawnZ;
-  // POSITIONAL on purpose, where every mover above is body-aware: a spawn point is authored as a
-  // cell, with no elevation of its own, so "the surface at this point" is the only reading it has.
-  // A monster authored under a bridge would spawn on its deck; that is the ambiguity of a 2D spawn,
-  // not the levitation `groundUnderBody` removes from the movers.
-  monster.y = groundUnder(terrain, monster.spawnX, monster.spawnZ, 0);
+  // The authored elevation selects the storey first; the body-aware read then settles onto that
+  // floor without snapping an underground encounter to a surface or bridge above it.
+  monster.y = groundUnderBody(terrain, monster.spawnX, monster.spawnZ, monster.spawnY);
   monster.vx = 0;
   monster.vz = 0;
   monster.runnerLeap = null;

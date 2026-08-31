@@ -83,7 +83,14 @@ describe("runtime entities use ground x/z and elevation y", () => {
       },
     ])[0];
     if (!monster) throw new Error("missing monster");
-    expect(monster).toMatchObject({ x: 2.5, y: 0, z: -4, spawnX: 2.5, spawnZ: -4 });
+    expect(monster).toMatchObject({
+      x: 2.5,
+      y: 0,
+      z: -4,
+      spawnX: 2.5,
+      spawnY: 0,
+      spawnZ: -4,
+    });
     // Ground velocity follows the same plane: there is no `vy` on the ground any more.
     expect(monster).toMatchObject({ vx: 0, vz: 0 });
   });

@@ -1636,6 +1636,15 @@ export class Hd2dRenderer implements RendererLike {
     if (!scene) return;
 
     this.#actors?.sync(this.#collectActors(sample, context));
+    const self =
+      context.self ?? sample.players.find((player) => player.id === this.#selfId) ?? null;
+    this.#visuals?.setEventVisibilityDepth(
+      this.#map?.underground
+        ? self
+          ? this.#gameplayVisibilityDepth
+          : this.#undergroundDepth
+        : undefined,
+    );
     this.#syncWorldEventContent(sample.events, sample.buildings ?? []);
     const fireIntensity = scene.fireIntensity();
     this.#content?.setFireMood(fireIntensity);
@@ -1682,8 +1691,8 @@ export class Hd2dRenderer implements RendererLike {
     // while the hero crosses a crevasse.
     // A player the view has not sent yet leaves the camera wherever it last was, which is the map's
     // spawn on the very first frames.
-    const self = sample.players.find((player) => player.id === this.#selfId);
-    if (self) scene.focusOn(self.x, self.z, self.y, self.airborne);
+    const cameraSelf = sample.players.find((player) => player.id === this.#selfId);
+    if (cameraSelf) scene.focusOn(cameraSelf.x, cameraSelf.z, cameraSelf.y, cameraSelf.airborne);
     else if (this.#manualFocus) scene.focusOn(this.#manualFocus.x, this.#manualFocus.z);
     const shake = this.#cameraShake.offset(context.now);
     scene.setCameraShake(shake.x, shake.y);
@@ -2576,6 +2585,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#visuals?.setEditorGroundElevation(
       depth === null ? null : undergroundFloorHeight(this.#undergroundDepth ?? depth),
     );
+    this.#visuals?.setEventVisibilityDepth(this.#map?.underground ? depth : undefined);
     if (this.#manualFocus) this.setCameraFocus(this.#manualFocus.x, this.#manualFocus.z);
   }
 

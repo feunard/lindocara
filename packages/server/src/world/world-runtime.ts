@@ -458,8 +458,9 @@ export interface MonsterRuntime extends WorldPosition {
   attackProfile: MonsterAttackProfile;
   graphicAssetId: EditorAssetId | null;
   rank: MonsterRank;
-  /** Where it was spawned, on the ground plane. Elevation is read from the terrain, not stored. */
+  /** Authored start restored on respawn. `spawnY` selects the correct stacked storey. */
   spawnX: number;
+  spawnY: number;
   spawnZ: number;
   patrolRadius: number;
   mayEnterSafeZone?: boolean;
@@ -962,6 +963,10 @@ export function positionFromAttachment(
 export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[] {
   return spawns.map((spawn) => {
     const defaults = defaultMonsterTuning(spawn.species);
+    // Old fixtures and pre-heightfield spawn payloads have no vertical coordinate. Treat those as
+    // surface encounters instead of feeding `undefined` into the body-aware ground query, which
+    // otherwise selects the highest platform in the column (for example a bridge overhead).
+    const spawnY = typeof spawn.y === "number" && Number.isFinite(spawn.y) ? spawn.y : 0;
     const tuning = {
       ...defaults,
       ...(spawn.rank ? { rank: spawn.rank } : {}),
@@ -979,13 +984,14 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       attackProfile: resolveMonsterAttackProfile(spawn.species, spawn.attackProfile),
       graphicAssetId: spawn.graphicAssetId ?? null,
       rank: tuning.rank,
-      // Written explicitly rather than left to the spread: a spawn authors only where on the
-      // ground a monster stands. Elevation is whatever the terrain holds under it, and nothing is
-      // airborne at this point in the increment, so it starts at 0.
+      // Written explicitly rather than left to the spread so the runtime start and respawn anchor
+      // stay together. Authored underground encounters carry their storey in `y`; replacing it
+      // with zero puts every stacked encounter back on the surface.
       x: spawn.x,
-      y: 0,
+      y: spawnY,
       z: spawn.z,
       spawnX: spawn.x,
+      spawnY,
       spawnZ: spawn.z,
       hp: tuning.maxHp,
       maxHp: tuning.maxHp,

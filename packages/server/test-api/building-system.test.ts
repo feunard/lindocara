@@ -106,7 +106,7 @@ describe("building system", () => {
     const compiled = compileAuthoredMap(authored);
     const legacyHeightfield = {
       ...compiled,
-      colliders: compiled.colliders.map(({ top: _top, ...collider }) => collider),
+      colliders: compiled.colliders.map(({ top: _top, bottom: _bottom, ...collider }) => collider),
     };
     const payload: MapPayload = {
       id: "map-1",
@@ -145,6 +145,7 @@ describe("building system", () => {
     ]);
     expect(liveMap?.elements).toEqual([]);
     expect(liveMap?.colliders).toHaveLength(1);
+    expect(liveMap?.colliders[0]?.bottom).toBe(0);
     expect(liveMap?.colliders[0]?.top).toBeCloseTo(2.68);
     expect(liveMap?.colliders[0]?.surface).toMatchObject({ shape: "gable", eave: 1.3, axis: "z" });
     expect(liveMap?.colliders[0]?.surface?.peak).toBeCloseTo(2.68);

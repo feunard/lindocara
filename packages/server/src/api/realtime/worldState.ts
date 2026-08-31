@@ -176,12 +176,12 @@ function withoutStaticNativeResources(
 }
 
 /**
- * Runtime-compatible upgrade for maps saved before finite scenery heights and shaped roofs
+ * Runtime-compatible upgrade for maps saved before finite scenery volumes and shaped roofs
  * existed. Only colliders whose authored element geometry matches are enriched; custom
  * heightfield-only geometry remains untouched. Existing production maps therefore gain the same
- * native roof physics without requiring their owner to open and re-save every map.
+ * storey isolation and native roof physics without requiring their owner to re-save every map.
  */
-function withAuthoredColliderTops(
+function withAuthoredColliderVolumes(
   heightfield: NonNullable<ReturnType<typeof decodeMap>>,
   payload: MapPayload,
 ): NonNullable<ReturnType<typeof decodeMap>> {
@@ -189,8 +189,7 @@ function withAuthoredColliderTops(
     .filter((element) => !isNativeHarvestAsset(element.assetId))
     .flatMap((element) =>
       authoredElementColliders(payload, element, heightfield.levels, heightfield.size),
-    )
-    .filter((collider): collider is ColliderRect & { top: number } => collider.top !== undefined);
+    );
   if (expected.length === 0) return heightfield;
   const sameFootprint = (left: ColliderRect, right: ColliderRect) =>
     Math.abs(left.x - right.x) < 1e-6 &&
@@ -204,7 +203,8 @@ function withAuthoredColliderTops(
       return authored
         ? {
             ...collider,
-            top: authored.top,
+            ...(authored.top === undefined ? {} : { top: authored.top }),
+            ...(authored.bottom === undefined ? {} : { bottom: authored.bottom }),
             ...(authored.footprint === undefined ? {} : { footprint: authored.footprint }),
             ...(authored.support === undefined ? {} : { support: authored.support }),
             ...(authored.surface === undefined ? {} : { surface: authored.surface }),
@@ -292,7 +292,7 @@ export function zoneFromMapPayload(
   const decodedHeightfield = payload.heightfield === null ? null : decodeMap(payload.heightfield);
   const heightfield = decodedHeightfield
     ? withoutStaticBuildingVisuals(
-        withAuthoredColliderTops(
+        withAuthoredColliderVolumes(
           withoutStaticNativeResources(decodedHeightfield, payload),
           payload,
         ),

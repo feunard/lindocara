@@ -312,6 +312,45 @@ describe("Hd2dVisualLayer event marker dust", () => {
     layer.dispose();
   });
 
+  it("shows interaction rings only on the selected event storey", () => {
+    const { layer, root } = harness();
+    layer.setEventVisibilityDepth(1);
+    layer.sync(
+      {
+        ...empty,
+        events: [
+          { ...markerEvent, id: "surface" },
+          { ...markerEvent, id: "basement-1", y: -2.4, undergroundDepth: 1 },
+          { ...markerEvent, id: "basement-2", y: -4.8, undergroundDepth: 2 },
+        ],
+      },
+      0,
+    );
+
+    const markers = new Map(
+      markersIn(root).map((marker) => [marker.userData.eventId as string, marker.visible]),
+    );
+    expect(markers).toEqual(
+      new Map([
+        ["surface", false],
+        ["basement-1", true],
+        ["basement-2", false],
+      ]),
+    );
+
+    layer.setEventVisibilityDepth(null);
+    expect(
+      new Map(markersIn(root).map((marker) => [marker.userData.eventId as string, marker.visible])),
+    ).toEqual(
+      new Map([
+        ["surface", true],
+        ["basement-1", false],
+        ["basement-2", false],
+      ]),
+    );
+    layer.dispose();
+  });
+
   it("turns the dust, and drops a marker without freeing the geometry its neighbours share", () => {
     const { layer, root } = harness();
     layer.sync(

@@ -85,7 +85,7 @@ describe("compileAuthoredMap", () => {
     expect(compileAuthoredMap(source).colliders).toHaveLength(8);
   });
 
-  it("compiles walls as columns and ceilings as raised passable slabs", () => {
+  it("compiles walls as storey-bounded volumes and ceilings as raised passable slabs", () => {
     const cols = 8;
     const ground = emptyLayer(cols, cols);
     ground.ids = ground.ids.map(() => autotileId(TERRAIN_MATERIAL_SLOTS.herbe[0], 0));
@@ -119,7 +119,7 @@ describe("compileAuthoredMap", () => {
     const compiled = compileAuthoredMap(source);
     const [wall, ceiling] = compiled.colliders;
     expect(wall).toMatchObject({ rotation: (37 * Math.PI) / 180, top: 5.4 });
-    expect(wall?.bottom).toBeUndefined();
+    expect(wall?.bottom).toBe(0);
     expect(ceiling?.bottom).toBeCloseTo(2.7);
     expect((ceiling?.top ?? 0) - (ceiling?.bottom ?? 0)).toBeCloseTo(0.84);
     expect(compiled.elements).toEqual([
@@ -147,6 +147,7 @@ describe("compileAuthoredMap", () => {
       throw new Error("compiled architecture fixture missing");
     }
     expect(canStand(terrain, wallPoint.x, wallPoint.z, 0.2, 0)).toBe(false);
+    expect(terrain.colliders.blocked(wallPoint.x, wallPoint.z, 0.2, -2.4)).toBe(false);
     expect(canStand(terrain, ceilingPoint.x, ceilingPoint.z, 0.2, 0)).toBe(true);
     expect(canStand(terrain, ceilingPoint.x, ceilingPoint.z, 0.2, ceiling.top)).toBe(true);
   });

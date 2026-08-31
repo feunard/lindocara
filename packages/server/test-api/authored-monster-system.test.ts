@@ -75,6 +75,22 @@ describe("authored monster projection", () => {
     expect(monster?.attackProfile).toBe("melee");
   });
 
+  it("keeps an underground encounter on its authored storey", () => {
+    const underground = { ...conditionalMonster(), undergroundDepth: 2 };
+    const definition = activeAuthoredMonsterDefinitions(
+      [underground],
+      state({ "0075": true }),
+      GRID_SIZE,
+    )[0];
+    if (!definition) throw new Error("monster definition missing");
+
+    expect(definition.y).toBeLessThan(0);
+    expect(createMonsters([definition])[0]).toMatchObject({
+      y: definition.y,
+      spawnY: definition.y,
+    });
+  });
+
   it("keeps appearance visual while projecting an explicit attack profile", () => {
     const visualOnly = conditionalMonster();
     const explicitArcher = { ...visualOnly, monsterAttackProfile: "arrow" as const };
@@ -225,6 +241,7 @@ describe("authored monster projection", () => {
       hp: 713,
       x: retained.x,
       spawnX: retainedDefinition.x,
+      spawnY: retainedDefinition.y,
       spawnZ: retainedDefinition.z,
       respawnDelayMs: 6_000,
     });

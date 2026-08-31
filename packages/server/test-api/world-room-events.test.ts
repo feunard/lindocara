@@ -635,7 +635,14 @@ function gridSizeOf(state: WorldRoomState): number {
 function harvestGround(state: WorldRoomState, event: MapEvent, at = event): ColliderRect {
   const profile = event.harvestProfile;
   const rect = profile
-    ? harvestGroundColliderAt(profile, at.col, at.row, "intact", gridSizeOf(state))
+    ? harvestGroundColliderAt(
+        profile,
+        at.col,
+        at.row,
+        "intact",
+        gridSizeOf(state),
+        event.graphicScale ?? 1,
+      )
     : null;
   if (!rect) throw new Error(`harvest event ${event.id} has no intact collider`);
   return rect;
@@ -792,9 +799,9 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
-  test("a resized native resource sends a protocol-valid fractional collider", async () => {
+  test("a resized native resource sends a valid collider and can be fully harvested", async () => {
     const assetId = "decoration.terrain-decorations-rocks.rock4";
-    const fixture = await newPlayableParty("scaledresource", [], "warrior", [
+    const fixture = await newPlayableParty("scaledresource", [], "peasant", [
       {
         col: 5,
         row: 5,
@@ -805,6 +812,7 @@ describe("world room events (FakeClock)", () => {
       },
     ]);
     const clock = new FakeClock();
+    vi.spyOn(Date, "now").mockImplementation(() => clock.now());
     const engine = createEngine(fixture.roomId, clock);
     const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
 
@@ -817,6 +825,26 @@ describe("world room events (FakeClock)", () => {
     expect(resource).toMatchObject({ scale: 2.1, presentation: "native" });
     if (!collider) throw new Error("scaled resource collider missing");
     expect(collider.slice(0, 4).some((value) => !Number.isInteger(value))).toBe(true);
+
+    const state = roomState(engine);
+    const authoredResource = state.location?.definition.events?.find(
+      (event) => event.id === resource.id,
+    );
+    if (!authoredResource?.harvestProfile) throw new Error("authored scaled resource missing");
+    for (let hit = 0; hit < authoredResource.harvestProfile.hitsRequired; hit += 1) {
+      await completeHarvestAction({
+        engine,
+        socket,
+        state,
+        clock,
+        event: authoredResource,
+        slot: 1,
+      });
+    }
+    expect(state.adventureState.state.harvestNodes?.[authoredResource.id]).toMatchObject({
+      hits: authoredResource.harvestProfile.hitsRequired,
+      depleted: true,
+    });
     engine.dispose();
   });
 
