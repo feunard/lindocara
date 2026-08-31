@@ -832,8 +832,11 @@ export function detectPlayerTouch(
           if (top !== undefined) return position.y >= centre.y - 0.85 && position.y <= top + 1e-3;
         }
         if (!movementPickup) return Math.abs(position.y - centre.y) <= 0.85;
-        const surface = terrain.query.heightAt(centre.x, centre.z) ?? terrain.waterLevel;
-        const targetY = surface + (page.graphicElevation ?? 0);
+        // `centre.y` is the event's projected ground on its authored storey. Reading `heightAt`
+        // here selects the highest surface in the X/Z column, which turns every basement or upper
+        // floor pickup into a surface-only trigger even though its model is drawn on the right
+        // floor.
+        const targetY = centre.y + (page.graphicElevation ?? 0);
         return Math.abs(position.y - targetY) <= 0.85;
       };
       if (

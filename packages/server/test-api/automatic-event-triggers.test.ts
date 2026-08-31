@@ -151,6 +151,49 @@ describe("authoritative automatic authored-event triggers", () => {
     expect(state.eventRuns.contexts.get(pickup.id)?.heroId).toBe("hero-a");
   });
 
+  it.each([
+    { label: "basement", depth: 2, floorY: -4.8 },
+    { label: "upper floor", depth: -2, floorY: 4.8 },
+  ])("fires a movement pickup on its $label and never from the surface", ({ depth, floorY }) => {
+    const pickup: MapEvent = {
+      ...authoredEvent(`pickup-${depth}`, "player-touch"),
+      col: 1,
+      row: 1,
+      kind: "normal",
+      patrolRadius: null,
+      undergroundDepth: depth,
+      pages: [
+        {
+          ...defaultEventPage(),
+          trigger: "player-touch",
+          commands: [
+            { t: "movementEffect", effect: "speed_boost", durationMs: 6_000, power: 1.35 },
+          ],
+        },
+      ],
+    };
+    const state = stateFor([pickup]);
+    const player = state.players.get("connection-a");
+    if (!player) throw new Error("hero fixture missing");
+    state.activeEvents = [
+      {
+        id: pickup.id,
+        col: pickup.col,
+        row: pickup.row,
+        y: floorY,
+        undergroundDepth: depth,
+      },
+    ] as unknown as typeof state.activeEvents;
+
+    Object.assign(player, { x: -0.5, y: 0, z: -0.5 });
+    detectPlayerTouch(state, player, { x: -1.5, y: 0, z: -0.5 });
+    expect(state.eventRuns.contexts.has(pickup.id)).toBe(false);
+
+    Object.assign(player, { x: -0.5, y: floorY, z: -0.5 });
+    detectPlayerTouch(state, player, { x: -1.5, y: floorY, z: -0.5 });
+    expect(state.eventRuns.contexts.get(pickup.id)?.heroId).toBe("hero-a");
+  });
+
   it("does not fire a level-one trap when the hero clears its top", () => {
     const trap: MapEvent = {
       ...authoredEvent("jumpable-trap", "player-touch"),
