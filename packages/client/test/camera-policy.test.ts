@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   cameraFollowsMovement,
   cameraFollowDirection,
+  keyboardTurnsCamera,
   cameraPitchAfterModeDelta,
   cameraSlopePitchOffset,
   cameraYawAfterModeDelta,
@@ -15,6 +16,11 @@ describe("adventure camera policy", () => {
     expect(cameraFollowsMovement("gamepad")).toBe(false);
     expect(cameraFollowsMovement("keyboard")).toBe(true);
   });
+  it("keeps keyboard left/right on hero movement outside full orbit mode", () => {
+    expect(keyboardTurnsCamera("hd2d")).toBe(false);
+    expect(keyboardTurnsCamera("orbit")).toBe(true);
+  });
+
   it("allows full yaw and bounded pitch when orbit mode is enabled", () => {
     expect(cameraYawAfterModeDelta("orbit", 0, Math.PI)).toBeCloseTo(Math.PI);
     expect(cameraPitchAfterModeDelta("orbit", Math.PI / 4, 0.1)).toBeCloseTo(Math.PI / 4 + 0.1);

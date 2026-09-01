@@ -143,7 +143,10 @@ export interface CameraOrbitTracker {
 }
 
 /** Right-drag, wheel and the standard gamepad's right stick, scoped to the game canvas. */
-export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
+export function trackCameraOrbit(
+  element: HTMLElement,
+  keyboardTurnsCamera: () => boolean = () => false,
+): CameraOrbitTracker {
   let dragging = false;
   let dragAxis: "pitch" | "yaw" | null = null;
   let lastX = 0;
@@ -270,8 +273,12 @@ export function trackCameraOrbit(element: HTMLElement): CameraOrbitTracker {
       const yawAxis = Math.abs(axisX) >= Math.abs(axisY) ? axisX : 0;
       const pitchAxis = Math.abs(axisY) > Math.abs(axisX) ? axisY : 0;
       const sensitivity = getCameraSettings();
-      const keyboardYaw =
-        Number(keyboardYawControls.has("moveLeft")) - Number(keyboardYawControls.has("moveRight"));
+      // Same policy split as `trackInput`, read here rather than at the keydown so the two can
+      // never disagree about a key that is already down: outside full orbit mode these belong to
+      // the hero, and the camera keeps only its pointer drag and right stick.
+      const keyboardYaw = keyboardTurnsCamera()
+        ? Number(keyboardYawControls.has("moveLeft")) - Number(keyboardYawControls.has("moveRight"))
+        : 0;
       // A standard stick reports left/up as negative values. The camera orbits from the opposite
       // side of its focus, so gamepad axes use the opposite pointer-drag sign: the view follows the
       // physical direction in which the player pushes the stick.
@@ -322,7 +329,10 @@ export interface InputTracker {
   stop(): void;
 }
 
-export function trackInput(suppressGamepadJump: () => boolean = () => false): InputTracker {
+export function trackInput(
+  suppressGamepadJump: () => boolean = () => false,
+  keyboardTurnsCamera: () => boolean = () => false,
+): InputTracker {
   let keyboard: Input = { ...NO_INPUT };
   let virtual: Input = { ...NO_INPUT };
 
@@ -330,9 +340,6 @@ export function trackInput(suppressGamepadJump: () => boolean = () => false): In
     const control = keyboardControlForCode(code);
     const action = control ? MOVEMENT_CONTROLS[control] : undefined;
     if (!action) return false;
-    // Keyboard left/right are camera-turn controls. Lateral locomotion remains analogue on the
-    // gamepad's left stick, while A/D can change the view without sliding the hero across a tile.
-    if (action === "left" || action === "right") return false;
     keyboard = { ...keyboard, [action]: pressed };
     return true;
   };
@@ -371,6 +378,13 @@ export function trackInput(suppressGamepadJump: () => boolean = () => false): In
         );
         if (hasAxis || hasAction) setInputMode("gamepad");
       }
+      // Only full orbit mode spends the keyboard's left/right on the camera. HD-2D is a side view
+      // whose whole locomotion vocabulary is lateral, so there the keys must still strafe the hero.
+      // The keys stay RECORDED in either mode and are masked here instead of at the event, so a
+      // policy that changes while one is held cannot strand it in a pressed state.
+      const turnKeysDriveCamera = keyboardTurnsCamera();
+      const keyboardLeft = turnKeysDriveCamera ? false : keyboard.left;
+      const keyboardRight = turnKeysDriveCamera ? false : keyboard.right;
       const movement: Input = {
         up:
           keyboard.up || virtual.up || (gamepad ? gamepadControlPressed("moveUp", gamepad) : false),
@@ -379,11 +393,11 @@ export function trackInput(suppressGamepadJump: () => boolean = () => false): In
           virtual.down ||
           (gamepad ? gamepadControlPressed("moveDown", gamepad) : false),
         left:
-          keyboard.left ||
+          keyboardLeft ||
           virtual.left ||
           (gamepad ? gamepadControlPressed("moveLeft", gamepad) : false),
         right:
-          keyboard.right ||
+          keyboardRight ||
           virtual.right ||
           (gamepad ? gamepadControlPressed("moveRight", gamepad) : false),
         jump:

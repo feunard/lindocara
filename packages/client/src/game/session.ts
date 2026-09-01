@@ -101,6 +101,7 @@ import {
   cameraSlopePitchOffset,
   cameraYawAfterModeDelta,
   cameraYawAfterMovement,
+  keyboardTurnsCamera,
 } from "./camera-policy.js";
 import { ChestFeedbackTracker } from "./chest-feedback.js";
 import {
@@ -504,15 +505,21 @@ async function startGameIdentity(
   let intentionallyClosed = false;
   let ended = false;
   let interactionNearby = false;
-  const input = trackInput(() => interactionNearby);
-  const cameraOrbit = trackCameraOrbit(canvas);
+  // Declared before the trackers because both close over it: the adventure's camera policy decides
+  // whether the keyboard's left/right belong to the hero or to the camera, and the welcome frame
+  // can replace it on any zone change or reconnect.
+  let cameraMode: AdventureCameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
+  const input = trackInput(
+    () => interactionNearby,
+    () => keyboardTurnsCamera(cameraMode),
+  );
+  const cameraOrbit = trackCameraOrbit(canvas, () => keyboardTurnsCamera(cameraMode));
   let cameraYaw = 0;
   let cameraPitch = CAMERA_PITCH_DEFAULT;
   let cameraSlopePitch = 0;
   let renderedCameraPitch = CAMERA_PITCH_DEFAULT;
   let cameraFollowResumeAt = 0;
   let cameraZoom = 100;
-  let cameraMode: AdventureCameraMode = DEFAULT_ADVENTURE_CAMERA_MODE;
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
     chapter: "three_offerings",

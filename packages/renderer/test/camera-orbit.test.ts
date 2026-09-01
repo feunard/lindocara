@@ -92,7 +92,7 @@ describe("camera orbit input", () => {
   });
 
   it("turns the camera with keyboard left/right controls without requiring movement", () => {
-    const tracker = trackCameraOrbit(document.createElement("canvas"));
+    const tracker = trackCameraOrbit(document.createElement("canvas"), () => true);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", cancelable: true }));
     expect(tracker.takeSample(0.1).yawDelta).toBeGreaterThan(0);
@@ -100,6 +100,20 @@ describe("camera orbit input", () => {
     expect(tracker.takeSample(0.1).yawDelta).toBe(0);
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD", cancelable: true }));
     expect(tracker.takeSample(0.1).yawDelta).toBeLessThan(0);
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyD", cancelable: true }));
+
+    tracker.stop();
+  });
+
+  it("leaves keyboard left/right to the hero in the default HD-2D mode", () => {
+    const tracker = trackCameraOrbit(document.createElement("canvas"));
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyA", cancelable: true }));
+    expect(tracker.takeSample(0.1).yawDelta).toBe(0);
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyA", cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD", cancelable: true }));
+    expect(tracker.takeSample(0.1).yawDelta).toBe(0);
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyD", cancelable: true }));
 
     tracker.stop();
   });

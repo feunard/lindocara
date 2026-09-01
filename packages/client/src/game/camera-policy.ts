@@ -18,6 +18,18 @@ export function cameraFollowsMovement(inputMode: InputMode): boolean {
   return inputMode !== "gamepad";
 }
 
+/**
+ * Whether the keyboard's left/right controls steer the CAMERA instead of the hero.
+ *
+ * Only full orbit mode spends them that way. HD-2D is a fixed side view whose locomotion is mostly
+ * lateral, so taking those keys away from the hero left a keyboard player unable to move across the
+ * screen at all; there the camera keeps its pointer drag and right stick, and the keys stay on
+ * movement. The gamepad is unaffected in both modes: its left stick moves, its right stick looks.
+ */
+export function keyboardTurnsCamera(mode: AdventureCameraMode): boolean {
+  return mode === "orbit";
+}
+
 /** Applies the adventure's authored horizontal camera policy. */
 export function cameraYawAfterModeDelta(
   mode: AdventureCameraMode,

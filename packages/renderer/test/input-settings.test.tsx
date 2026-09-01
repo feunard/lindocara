@@ -150,14 +150,32 @@ describe("input remapping", () => {
     tracker.stop();
   });
 
-  it("never turns keyboard camera keys into lateral hero movement", () => {
-    const tracker = trackInput();
+  it("never turns keyboard camera keys into lateral hero movement in full orbit mode", () => {
+    const tracker = trackInput(
+      () => false,
+      () => true,
+    );
 
     fireEvent.keyDown(window, { code: "KeyA" });
     expect(tracker.current()).toMatchObject({ left: false, right: false, axisX: 0 });
     fireEvent.keyUp(window, { code: "KeyA" });
     fireEvent.keyDown(window, { code: "KeyD" });
     expect(tracker.current()).toMatchObject({ left: false, right: false, axisX: 0 });
+    fireEvent.keyUp(window, { code: "KeyD" });
+
+    tracker.stop();
+  });
+
+  it("strafes the hero with keyboard left/right in the default HD-2D mode", () => {
+    const tracker = trackInput();
+
+    fireEvent.keyDown(window, { code: "KeyA" });
+    expect(tracker.current()).toMatchObject({ left: true, right: false });
+    fireEvent.keyUp(window, { code: "KeyA" });
+    expect(tracker.current()).toMatchObject({ left: false, right: false });
+    fireEvent.keyDown(window, { code: "KeyD" });
+    expect(tracker.current()).toMatchObject({ left: false, right: true });
+    fireEvent.keyUp(window, { code: "KeyD" });
 
     tracker.stop();
   });
