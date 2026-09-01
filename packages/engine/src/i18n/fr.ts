@@ -75,6 +75,8 @@ export const fr: Record<keyof typeof en, string> = {
     "Le nom d'utilisateur doit faire 2 à 16 caractères : lettres, chiffres, tiret ou tiret bas.",
   "auth.error.invalid_password": "Le mot de passe doit faire entre 8 et 128 caractères.",
   "auth.error.password_mismatch": "Les mots de passe ne correspondent pas.",
+  "auth.error.conflict":
+    "Cela entre en conflit avec un enregistrement existant. Rechargez puis réessayez.",
   "auth.error.generic": "Une erreur est survenue. Réessayez.",
   "auth.error.session_expired": "Votre session a expiré. Reconnectez-vous.",
   "auth.error.presence": "Le service de présence est indisponible. Réessayez.",

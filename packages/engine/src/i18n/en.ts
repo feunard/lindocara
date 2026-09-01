@@ -79,6 +79,7 @@ export const en = {
     "Username must be 2-16 characters: letters, digits, underscore or hyphen.",
   "auth.error.invalid_password": "Password must be 8-128 characters.",
   "auth.error.password_mismatch": "Passwords do not match.",
+  "auth.error.conflict": "That conflicts with something already saved. Reload and try again.",
   "auth.error.generic": "Something went wrong. Try again.",
   "auth.error.session_expired": "Your session expired. Sign in again.",
   "auth.error.presence": "The character presence service is unavailable. Try again.",

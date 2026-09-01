@@ -129,13 +129,22 @@ export const login = (username: string, password: string) =>
  * nothing else is required to complete it. Phase 2 (`POST /api/users/register/complete`) creates
  * the account from that intent. Neither phase authenticates the browser, unlike the legacy single
  * `/api/register` call, so `register` finishes with an explicit `login()` to keep returning an
- * authenticated `Me` the way every caller already expects. A taken username surfaces as a
- * framework-level `ConflictError` (409) — see `ERROR_KEYS`.
+ * authenticated `Me` the way every caller already expects.
+ *
+ * A taken username surfaces as a framework-level `ConflictError` (409), which is a STATUS name
+ * rather than a code the server chose, and every other 409 in the app answers to it too. Only this
+ * route knows that here it means the username: it translates that one conflict into the app's own
+ * `username_taken` machine code, so `ERROR_KEYS` can leave `ConflictError` meaning nothing more
+ * precise than "something conflicted".
  */
 export async function register(username: string, password: string): Promise<Me> {
   const intent = await api<{ intentId: string }>("/api/users/register", {
     method: "POST",
     body: JSON.stringify({ username, password }),
+  }).catch((error: unknown) => {
+    throw error instanceof ApiError && error.code === "ConflictError"
+      ? new ApiError("username_taken", error.details)
+      : error;
   });
   await api<unknown>("/api/users/register/complete", {
     method: "POST",
@@ -443,9 +452,16 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   // app's `src/api/controllers/*`, so they throw generic HttpError subclasses rather than our
   // snake_case machine codes. These three wire the class names `auth.test.ts` observes back onto
   // the SAME dictionary entries the legacy hand-rolled server used, so player-facing text is
-  // unchanged. Every OTHER `/api/*` route (maps, adventures, parties, heroes, ...) still throws its
-  // own explicit `error:` code (see e.g. `mapAuthoring.ts`), so this mapping cannot shadow those.
-  ConflictError: "auth.error.username_taken",
+  // unchanged.
+  //
+  // `ConflictError` is the one that cannot be read as an auth answer here. It is not a code the
+  // server chose: `HttpError.toJSON` names an uncoded failure by STATUS, so EVERY 409 in the app
+  // arrives under it, the ORM's own `DbConflictError`/`DbForeignKeyError` included. Mapping it to
+  // the registration message told an author their username was taken when a foreign key failed on
+  // `POST /api/adventures`. It now says only what it actually knows, that something conflicted,
+  // and `register()` converts its own 409 into this app's `username_taken` before it reaches here,
+  // so the registration form keeps the precise message.
+  ConflictError: "auth.error.conflict",
   InvalidCredentialsError: "auth.error.invalid_credentials",
   UnauthorizedError: "auth.error.session_expired",
   username_taken: "auth.error.username_taken",
