@@ -375,16 +375,22 @@ describe("WorldClient lifecycle", () => {
     socket?.message(WELCOME);
 
     animate(client, (frame) => {
-      if (frame === 0) {
+      if (frame === 20) {
+        const beforeImpulse = client.sample(0).players.find((player) => player.id === "hero-1");
+        expect(beforeImpulse?.x ?? 0).toBeGreaterThan(0);
         socket?.message({
           t: "state",
           self: {
             ...(WELCOME as unknown as { self: Record<string, unknown> }).self,
+            // The trigger was detected from an older 20 Hz report. Its stamp grants velocity but
+            // must not rewind the client-owned position to that report before launching.
             displacement: { seq: 4, x: 0, y: 0, z: 0, impulse: { x: 0, y: 12, z: 0 } },
           },
         } as unknown as ServerMessage);
+        const afterImpulse = client.sample(0).players.find((player) => player.id === "hero-1");
+        expect(afterImpulse?.x).toBeCloseTo(beforeImpulse?.x ?? Number.NaN, 10);
       }
-      if (frame === 10) {
+      if (frame === 30) {
         const launched = client.sample(0).players.find((player) => player.id === "hero-1");
         expect(launched?.y ?? 0).toBeGreaterThan(0);
         expect(launched?.hp).toBe(100);

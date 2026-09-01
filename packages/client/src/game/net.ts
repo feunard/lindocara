@@ -960,18 +960,25 @@ export class WorldClient {
   }
 
   /**
-   * The room moved this hero, and says so with the position it moved it to (`DisplacementStamp`).
+   * The room moved this hero or granted it one velocity, and says so with a `DisplacementStamp`.
    *
-   * **Position and stamp are adopted together, out of one frame, and that is the whole point.** The
-   * hero goes where the room put it and the echo rises to the stamp that authorises it, in one step:
+   * **A position-changing stamp is adopted with its position, out of one frame.** The hero goes
+   * where the room put it and the echo rises to the stamp that authorises it, in one step:
    * echoing the new stamp a moment earlier would let this client's next report — still computed from
    * where the hero used to be — be accepted, undoing the very displacement the stamp exists to
    * protect. That is why the stamp does not ride the `world.delta` beside the position: it would
    * arrive later than the `state` frame that carries the rest of the news, and the gap is the bug.
    *
+   * An impulse-only stamp is deliberately different: its position is the 20 Hz report on which the
+   * room detected the trap, while the local hero has already advanced by the network round trip.
+   * Re-adopting that old echo immediately before applying the velocity creates a visible backward
+   * snap. The client already owns that movement, so an impulse keeps its present position and only
+   * raises the stamp that its next report must echo.
+   *
    * `seq` is monotone within a room, so a repeat is a no-op — every later `state` frame carries the
-   * same stamp again, and re-teleporting on each would cut the hero's momentum twenty times a
-   * second. It never DECREASES here either: only a welcome resets the counter, and a welcome assigns.
+   * same stamp again, and re-applying its position or velocity on each would cut or restart the
+   * hero's momentum twenty times a second. It never DECREASES here either: only a welcome resets the
+   * counter, and a welcome assigns.
    *
    * A stamp is not lost by going unnoticed. Every `SelfState` is rebuilt from the live player, so the
    * next state frame carries the same `seq` and the same position; nothing has to be re-requested.
@@ -981,9 +988,17 @@ export class WorldClient {
     this.#displacement = stamp.seq;
     const hero = this.#hero;
     if (!hero) return;
+    if (stamp.impulse) {
+      // `impulsePlayer` stamps a velocity without changing the server's stored position. The stamp
+      // coordinates are therefore an echo from an older movement report, not a displacement to
+      // adopt. Keep the report history too: that echo remains legitimate until the first report
+      // carrying the new sequence reaches the room and appears in a later world snapshot.
+      hero.impulse(stamp.impulse);
+      this.#lastReport = null;
+      return;
+    }
     // All three axes, and momentum cut: a hero the room moved did not walk there.
     hero.teleport({ x: stamp.x, y: stamp.y, z: stamp.z });
-    if (stamp.impulse) hero.impulse(stamp.impulse);
     this.#reported = [];
     this.#rememberReportedFromHero();
     // The next report must actually go out even if it encodes identically to the one before the

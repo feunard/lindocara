@@ -394,7 +394,8 @@ export interface DisplacementStamp {
   x: number;
   y: number;
   z: number;
-  /** Optional server-granted velocity applied after the stamped position is adopted. */
+  /** Optional server-granted velocity. Its coordinates remain the last accepted movement echo, so
+   * the client keeps its newer local position and applies only this one-shot impulse. */
   impulse?: { x: number; y: number; z: number };
 }
 

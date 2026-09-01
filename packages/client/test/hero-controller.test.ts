@@ -34,6 +34,36 @@ function plateauTerrain(): ZoneTerrain {
   return zoneTerrainFromHeightfield(map);
 }
 
+function plateauAboveBasementTerrain(): ZoneTerrain {
+  const levels: (number | null)[] = [];
+  for (let row = 0; row < SIZE; row += 1) {
+    for (let col = 0; col < SIZE; col += 1) levels.push(col >= 5 ? 1 : 0);
+  }
+  const underground = {
+    levels: [
+      {
+        depth: 1,
+        style: "cave" as const,
+        cells: Array.from({ length: SIZE }, (_, row) => ({ col: 0, row, length: SIZE })),
+      },
+    ],
+    stairs: [],
+  };
+  return zoneTerrainFromHeightfield({
+    version: 1,
+    size: SIZE,
+    levelHeight: LEVEL_HEIGHT,
+    waterLevel: -0.05,
+    levels,
+    materials: Array.from({ length: SIZE * SIZE }, () => "herbe" as const),
+    colliders: undergroundColliders(underground, SIZE),
+    spawns: [],
+    elements: [],
+    events: [],
+    underground,
+  });
+}
+
 function flatTerrain(): ZoneTerrain {
   return zoneTerrainFromHeightfield({
     version: 1,
@@ -148,6 +178,22 @@ describe("the hero controller", () => {
     for (let frame = 0; frame < 120; frame++) hero.step(press({ x: 1 }), FRAME);
 
     // Stopped by the cliff face at x = 1, its disc biting first, and still on the lower tier.
+    expect(hero.state.x).toBeLessThan(1);
+    expect(hero.state.y).toBe(0);
+    expect(hero.state.airborne).toBe(false);
+  });
+
+  it("does not burrow under raised terrain when already grazing its edge", () => {
+    const hero = createHeroController({
+      terrain: plateauAboveBasementTerrain(),
+      // The footprint already grazes the x=1 cliff, reproducing the corner reached while sliding
+      // along an irregular elevation boundary.
+      spawn: { x: 0.8, y: 0, z: 0 },
+      speed: 4.2,
+    });
+
+    for (let frame = 0; frame < 120; frame += 1) hero.step(press({ x: 1 }), FRAME);
+
     expect(hero.state.x).toBeLessThan(1);
     expect(hero.state.y).toBe(0);
     expect(hero.state.airborne).toBe(false);

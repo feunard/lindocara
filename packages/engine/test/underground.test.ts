@@ -30,7 +30,7 @@ import {
 } from "@lindocara/engine/underground.js";
 import { describe, expect, it } from "vitest";
 
-import { BODY_CLEARANCE, createColliderIndex } from "../src/hd2d/collider-index.js";
+import { createColliderIndex } from "../src/hd2d/collider-index.js";
 import { depsPlates } from "./hd2d/helpers/step-deps.js";
 
 const immobile = { x: 0, z: 0, jump: false, attack: false, souffleTaux: 1, haleineVisible: false };
@@ -1179,18 +1179,26 @@ describe("multi-storey underground", () => {
     launched.groundY = floor;
     launched.airborne = true;
     launched.vy = 13;
-    for (let frame = 0; frame < 60 && launched.vy > 0; frame += 1) {
-      stepHero(launched, immobile, 1 / 60, deps);
+    const launchEvents = [];
+    for (let frame = 0; frame < 180 && (frame === 0 || launched.airborne); frame += 1) {
+      launchEvents.push(...stepHero(launched, immobile, 1 / 60, deps));
     }
-    expect(launched.y + BODY_CLEARANCE).toBeLessThanOrEqual(undergroundFloorHeight(depth - 1));
+    expect(launchEvents.some((event) => event.t === "noyade")).toBe(false);
+    expect(launched).toMatchObject({
+      y: expect.closeTo(floor),
+      groundY: expect.closeTo(floor),
+      airborne: false,
+      swimming: false,
+    });
 
     const pushed = createHeroState(-0.5, -0.15, floor, 10, 2.2);
     pushed.groundY = floor;
     pushed.airborne = true;
     pushed.vy = 9;
     pushed.impulsionX = 20;
-    stepHero(pushed, immobile, 0.1, deps);
-    expect(pushed.x).toBeCloseTo(-0.5);
+    const pushEvents = stepHero(pushed, immobile, 0.1, deps);
+    expect(pushEvents.some((event) => event.t === "noyade")).toBe(false);
+    expect(pushed).toMatchObject({ x: expect.closeTo(-0.5), swimming: false });
     expect(pushed.impulsionX).toBe(0);
   });
 

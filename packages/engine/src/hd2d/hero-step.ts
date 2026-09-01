@@ -119,6 +119,12 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     ? (query.rampAt(x, footprintZ) ?? query.rampAt(state.x, currentFootprintZ))
     : null;
   const rampCeiling = rampSample === null ? null : rampSample.highHeight + 1e-3;
+  const currentTerrain = query.heightAt(state.x, currentFootprintZ);
+  const standingOnSurfaceTerrain =
+    !state.airborne &&
+    !state.swimming &&
+    currentTerrain !== null &&
+    currentTerrain <= state.groundY + maxStep;
   const reachableSurfaceAt = (xx: number, zz: number): number => {
     const ceiling = rampSample?.height ?? state.y + 0.02;
     const surface = query.surfaceAt
@@ -143,6 +149,22 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
   // hero would climb a cliff by leaning into it.
   const centreOk = (xx: number, zz: number): boolean => {
     const foot = empreinte(zz, hero);
+    // A lower platform in the same X/Z column is not a passage under raised surface terrain. Once
+    // the disc already grazed a cliff, the relief escape hatch below compared only maximum HEIGHT,
+    // so it could keep accepting equal-height candidates until the centre crossed the boundary.
+    // `surfaceAt` then selected a basement ceiling below the feet and the hero fell onto it. Keep
+    // the topmost terrain as the hard centre barrier while the hero is still on the surface; a real
+    // underground body has surface terrain above its current ground and therefore skips this test.
+    const destinationTerrain = query.heightAt(xx, foot);
+    if (
+      standingOnSurfaceTerrain &&
+      platformHeight === null &&
+      rampCeiling === null &&
+      destinationTerrain !== null &&
+      destinationTerrain > state.groundY + maxStep
+    ) {
+      return false;
+    }
     const h = platformHeight ?? reachableSurfaceAt(xx, foot);
     // Measured against the surface the swimmer is FLOATING ON — `state.y` — not against a water
     // level sampled somewhere else. "How far must I climb to get out" is a question about the
