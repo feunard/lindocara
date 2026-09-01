@@ -1,0 +1,1 @@
+ALTER TABLE `heroes` ADD `body` text DEFAULT 'wayfarer' NOT NULL;

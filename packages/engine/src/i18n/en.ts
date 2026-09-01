@@ -154,6 +154,8 @@ export const en = {
   "class.priest": "Priest",
   "class.rogue": "Rogue",
   "class.peasant": "Peasant",
+  "hero.bonus.runicGuardian": "Runic Guardian · Prototype",
+  "hero.bonus.runicGuardian.blurb": "Eight-direction 3D bake, with the Warrior's rules.",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",

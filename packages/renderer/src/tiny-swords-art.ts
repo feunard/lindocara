@@ -500,7 +500,48 @@ export interface UnitSheet {
   frameWidth: number;
   frameHeight: number;
   footOffset: number;
+  /** Five authored camera-relative rows: front, front-quarter, side, back-quarter and back. */
+  directionRows?: number;
 }
+
+/** Temporary 3D-to-pixel-art witness. Five authored angles are mirrored into eight apparent
+ * directions at runtime. The run uses four deliberately distinct poses; the longer strips keep
+ * eight frames where those in-betweens remain readable. */
+export const RUNIC_GUARDIAN_SHEETS = {
+  idle: {
+    source: new URL("./assets/bonus/runic-guardian/idle.png", import.meta.url).href,
+    frames: 8,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  run: {
+    source: new URL("./assets/bonus/runic-guardian/run.png", import.meta.url).href,
+    frames: 4,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  attack: {
+    source: new URL("./assets/bonus/runic-guardian/attack.png", import.meta.url).href,
+    frames: 8,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
+
+export const RUNIC_GUARDIAN_DEATH_SHEET = {
+  source: new URL("./assets/bonus/runic-guardian/death.png", import.meta.url).href,
+  frames: 8,
+  frameWidth: TINY_SWORDS_UNIT_FRAME,
+  frameHeight: TINY_SWORDS_UNIT_FRAME,
+  footOffset: 56,
+  directionRows: 5,
+} as const satisfies UnitSheet;
 
 const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
   azure: "Blue Units",
@@ -708,6 +749,7 @@ export function unitSheet(
   appearance: CharacterAppearance,
   motion: UnitMotion,
 ): UnitSheet {
+  if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
@@ -737,6 +779,8 @@ export function allUnitSheets(): UnitSheet[] {
       }
     }
   }
+  for (const sheet of Object.values(RUNIC_GUARDIAN_SHEETS)) result.set(sheet.source, sheet);
+  result.set(RUNIC_GUARDIAN_DEATH_SHEET.source, RUNIC_GUARDIAN_DEATH_SHEET);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

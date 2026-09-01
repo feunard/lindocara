@@ -213,6 +213,7 @@ function corpseSnapshots<TSocket>(
       x: player.corpse.x,
       y: player.corpse.y,
       z: player.corpse.z,
+      facing: { ...player.facing },
     });
   }
   return corpses;

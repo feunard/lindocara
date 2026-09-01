@@ -1,7 +1,11 @@
 import type { PlayerClass } from "./game.js";
 
-export const BODY_VARIANTS = ["wayfarer"] as const;
+export const BODY_VARIANTS = ["wayfarer", "runic_guardian"] as const;
 export type BodyVariant = (typeof BODY_VARIANTS)[number];
+
+export function isBodyVariant(value: unknown): value is BodyVariant {
+  return typeof value === "string" && (BODY_VARIANTS as readonly string[]).includes(value);
+}
 
 export const PRIMARY_COLORS = ["azure", "ember", "moss", "violet"] as const;
 export type PrimaryColor = (typeof PRIMARY_COLORS)[number];
@@ -57,8 +61,7 @@ export function isValidAppearance(value: unknown): value is CharacterAppearanceI
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.body === "string" &&
-    (BODY_VARIANTS as readonly string[]).includes(candidate.body) &&
+    isBodyVariant(candidate.body) &&
     typeof candidate.primaryColor === "string" &&
     (PRIMARY_COLORS as readonly string[]).includes(candidate.primaryColor)
   );

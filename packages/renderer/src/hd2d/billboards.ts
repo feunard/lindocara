@@ -14,6 +14,7 @@
  * backwards and sinks its head into whatever is behind it).
  */
 
+import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { TerrainQuery } from "@lindocara/engine/hd2d/terrain-query.js";
 import { BODY_RADIUS, HERO_FOOTPRINT_OFFSET } from "@lindocara/engine/terrain-access.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
@@ -69,6 +70,8 @@ export interface ActorView {
   /** Which way the actor is turned. The Tiny Swords units are drawn in profile only, so `north`
    *  and `south` deliberately leave the current profile alone (`facingToFlip`). */
   facing: Facing;
+  /** Raw world heading for a camera-relative directional atlas. */
+  directionalFacing?: GroundVector;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
   /** Authored sheets can run vertically and need not use square frames. */
@@ -76,6 +79,8 @@ export interface ActorView {
   frameWidth?: number;
   frameHeight?: number;
   frameAxis?: "x" | "y";
+  /** Authored camera-relative rows. Five rows become eight directions through mirroring. */
+  directionRows?: number;
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
   /** Explicit world height for an authored actor whose measured lab size differs from the shared
@@ -260,7 +265,36 @@ interface Entry {
   textureKey: string;
   canopyTextureKey: string | undefined;
   frames: number;
+  directionRows: number;
   frameHeight: number;
+}
+
+export interface DirectionalFrame {
+  row: number;
+  flipped: boolean;
+}
+
+/** Selects one of five camera-relative views and mirrors the three left-hand directions. */
+export function directionalFrame(
+  facing: GroundVector,
+  cameraYaw: number,
+  directionRows = 5,
+): DirectionalFrame {
+  if (directionRows <= 1) return { row: 0, flipped: false };
+  const length = Math.hypot(facing.x, facing.z);
+  if (!Number.isFinite(length) || length <= 0.000_1 || !Number.isFinite(cameraYaw)) {
+    return { row: Math.floor(directionRows / 2), flipped: false };
+  }
+  const x = facing.x / length;
+  const z = facing.z / length;
+  const cameraX = Math.sin(cameraYaw);
+  const cameraZ = Math.cos(cameraYaw);
+  const dot = THREE.MathUtils.clamp(x * cameraX + z * cameraZ, -1, 1);
+  const step = Math.PI / (directionRows - 1);
+  return {
+    row: THREE.MathUtils.clamp(Math.round(Math.acos(dot) / step), 0, directionRows - 1),
+    flipped: x * cameraZ - z * cameraX < 0,
+  };
 }
 
 interface HealthBarVisual {
@@ -365,8 +399,9 @@ export function createBillboardRegistry(
     const frameWidth = actor.frameWidth ?? inferred.framePx;
     const frameHeight = actor.frameHeight ?? inferred.framePx;
     const vertical = actor.frameAxis === "y";
+    const directionRows = vertical ? 1 : Math.max(1, actor.directionRows ?? 1);
     const cols = vertical ? 1 : frames;
-    const rows = vertical ? frames : 1;
+    const rows = vertical ? frames : directionRows;
     const billboard = makeBillboard(ctx, {
       texture,
       cols,
@@ -390,6 +425,7 @@ export function createBillboardRegistry(
       textureKey: actor.textureKey,
       canopyTextureKey: actor.canopyTextureKey,
       frames,
+      directionRows,
       frameHeight,
     };
   }
@@ -431,7 +467,10 @@ export function createBillboardRegistry(
         if (
           entry &&
           (entry.textureKey !== actor.textureKey ||
-            entry.canopyTextureKey !== actor.canopyTextureKey)
+            entry.canopyTextureKey !== actor.canopyTextureKey ||
+            entry.frames !== Math.max(1, actor.frames ?? entry.frames) ||
+            entry.directionRows !==
+              (actor.frameAxis === "y" ? 1 : Math.max(1, actor.directionRows ?? 1)))
         ) {
           drop(entry);
           entry = undefined;
@@ -453,9 +492,19 @@ export function createBillboardRegistry(
               ? Math.min(entry.frames - 1, Math.floor((elapsed / duration) * entry.frames))
               : Math.floor((elapsed / duration) * entry.frames) % entry.frames
             : Math.floor(elapsed / (actor.frameDurationMs ?? DEFAULT_FRAME_MS)) % entry.frames);
-        entry.billboard.setFrame(
-          fallen ? 0 : Math.max(0, Math.min(entry.frames - 1, animatedFrame)),
-        );
+        const frame = fallen ? 0 : Math.max(0, Math.min(entry.frames - 1, animatedFrame));
+        if (entry.directionRows > 1 && actor.directionalFacing) {
+          const direction = directionalFrame(
+            actor.directionalFacing,
+            ctx.yaw(),
+            entry.directionRows,
+          );
+          entry.billboard.setFrame(direction.row * entry.frames + frame);
+          entry.billboard.setFlip(direction.flipped);
+        } else {
+          entry.billboard.setFrame(frame);
+          entry.billboard.setFacing(actor.facing);
+        }
         const material = entry.billboard.mesh.material;
         const materials = Array.isArray(material) ? material : [material];
         const opacity = actor.opacity ?? (actor.pose === "ghost" ? 0.48 : 1);
@@ -500,7 +549,6 @@ export function createBillboardRegistry(
           elevation - (actor.swimming ? (actor.waterDepth ?? SWIM_DEPTH) : 0),
           actor.z,
         );
-        entry.billboard.setFacing(actor.facing);
         if (actor.gliding && actor.canopyTextureKey) {
           entry.canopy ??= createCanopy(actor.canopyTextureKey);
           entry.canopy.mesh.visible = true;

@@ -6,7 +6,7 @@ export function UnitPortrait({ portrait }: { portrait: PortraitArt }) {
       <span
         style={{
           backgroundImage: `url("${portrait.source}")`,
-          backgroundSize: `${portrait.frames * 100}% 100%`,
+          backgroundSize: `${portrait.frames * 100}% ${portrait.directionRows * 100}%`,
         }}
       />
     </div>

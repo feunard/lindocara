@@ -35,6 +35,16 @@ describe("parseCreateHeroInput", () => {
     });
   });
 
+  it("accepts the temporary Runic Guardian as a Warrior body", () => {
+    expect(
+      parseCreateHeroInput({
+        name: "Aster",
+        class: "warrior",
+        body: "runic_guardian",
+      }),
+    ).toEqual({ name: "Aster", class: "warrior", body: "runic_guardian" });
+  });
+
   it("rejects malformed bodies", () => {
     const bad: unknown[] = [
       null,
@@ -46,6 +56,8 @@ describe("parseCreateHeroInput", () => {
       { name: "   ", class: "warrior" },
       { name: "x".repeat(25), class: "warrior" },
       { name: "Mira", class: "necromancer" },
+      { name: "Mira", class: "warrior", body: "unknown" },
+      { name: "Mira", class: "ranger", body: "runic_guardian" },
       { name: 7, class: "warrior" },
     ];
     for (const value of bad) expect(parseCreateHeroInput(value)).toBeNull();

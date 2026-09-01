@@ -25,7 +25,7 @@ export class HeroController {
     handler: async ({ params, user }) => this.heroService.listHeroes(user.id, params.id),
   });
 
-  /** `POST /api/parties/:id/heroes` body `{name,class}` -> 201 `StoredHero`. Spawn map/position is
+  /** `POST /api/parties/:id/heroes` body `{name,class,body?}` -> 201 `StoredHero`. Spawn map/position is
    *  server-decided (the party's adventure's first map), never client input. */
   createHero = $action({
     method: "POST",

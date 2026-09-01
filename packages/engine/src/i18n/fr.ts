@@ -151,6 +151,8 @@ export const fr: Record<keyof typeof en, string> = {
   "class.priest": "Prêtre",
   "class.rogue": "Rogue",
   "class.peasant": "Paysan",
+  "hero.bonus.runicGuardian": "Gardien runique · Prototype",
+  "hero.bonus.runicGuardian.blurb": "Rendu 3D en huit directions, avec les règles du Guerrier.",
   "class.warrior.blurb": "Frappe fort, au corps à corps.",
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",

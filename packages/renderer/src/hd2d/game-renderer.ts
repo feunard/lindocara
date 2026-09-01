@@ -91,7 +91,7 @@ import {
   multiImpactActionFrameIndex,
   teleportEffectArt,
 } from "../combat-art.js";
-import { mobilityVisual } from "../combat-motion.js";
+import { mobilityRenderOffset, mobilityVisual } from "../combat-motion.js";
 import { CombatVisualAuthority } from "../combat-visual-state.js";
 import { shouldShowHealthBar } from "../display-settings.js";
 import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
@@ -104,13 +104,14 @@ import {
   isPeasantSkillId,
   peasantCarrySheet,
   peasantCasterSheet,
+  RUNIC_GUARDIAN_DEATH_SHEET,
   type UnitSheet,
   unitSheet,
 } from "../tiny-swords-art.js";
 import { tinySwordsSourceUrl } from "../tiny-swords-assets.js";
 import { WorldEventMotionTracker } from "../world-event-motion.js";
 import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
-import { createBillboardRegistry } from "./billboards.js";
+import { createBillboardRegistry, LAB_UNIT_HEIGHT } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
 import type { Hd2dScene } from "./scene.js";
 import {
@@ -153,6 +154,10 @@ const LINDOCARA_BENEFICIAL_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set([
 
 // --- actor art direction --------------------------------------------------------------------------
 
+/** The generated guardian fills more of its 192 px frame than the stock roster. A small
+ * presentation-only reduction aligns its visible stature without changing collision or reach. */
+const RUNIC_GUARDIAN_RENDER_SCALE = 0.92;
+
 /**
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
  * atlases in `scene.ts`. `billboards.ts` never sees a class, a species or a faction colour.
@@ -161,6 +166,16 @@ const LINDOCARA_BENEFICIAL_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set([
  * the server-owned action timeline.
  */
 export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): UnitSheet {
+  // This temporary bonus is intentionally one coherent directional bake. Replacing its attack
+  // pose with the ordinary Warrior caster sheet would make the model change identity mid-swing;
+  // combat effects and authoritative contact timing still render through the normal layers.
+  if (player.appearance.body === "runic_guardian") {
+    // Its shield-bash art is the forward-leaning run cycle: the generic sword attack planted both
+    // feet during the authoritative displacement, so the body looked teleported even once the
+    // position itself was eased. The action timeline still drives this strip as a one-shot charge.
+    const runicMotion = player.action?.skillId === "shield_bash" ? "run" : motion;
+    return unitSheet(player.class, player.appearance, runicMotion);
+  }
   if (motion === "attack" && player.class === "warrior" && player.guarding === true) {
     const guard = combatArt("warrior", "iron_guard", player.appearance.primaryColor).caster;
     return {
@@ -212,6 +227,7 @@ export interface BillboardActorSheet {
   footOffset?: number;
   renderHeight?: number;
   axis?: "x" | "y";
+  directionRows?: number;
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
@@ -307,6 +323,7 @@ function actorSheetView(sheet: BillboardActorSheet) {
     ...(sheet.frameWidth === undefined ? {} : { frameWidth: sheet.frameWidth }),
     ...(sheet.frameHeight === undefined ? {} : { frameHeight: sheet.frameHeight }),
     frameAxis: sheet.axis ?? ("x" as const),
+    ...(sheet.directionRows === undefined ? {} : { directionRows: sheet.directionRows }),
     ...(sheet.renderHeight === undefined ? {} : { renderHeight: sheet.renderHeight }),
     ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
       ? {}
@@ -454,6 +471,7 @@ export function playerActorView(
   isSelf = false,
 ): ActorView {
   const sheet = playerActorSheet(player, motion);
+  const runic = player.appearance.body === "runic_guardian";
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   const lumenCloud = clouded
     ? combatArt("priest", "blink", player.appearance.primaryColor).impact
@@ -470,6 +488,7 @@ export function playerActorView(
     vy: player.vy ?? 0,
     canopyTextureKey: HD2D_GLIDER_TEXTURE_URL,
     facing: facingOf(player.facing),
+    ...(sheet.directionRows === undefined ? {} : { directionalFacing: player.facing }),
     ...(lumenCloud
       ? {
           textureKey: lumenCloud.source,
@@ -485,9 +504,15 @@ export function playerActorView(
           ...(lumenCloud.tint === undefined ? {} : { tint: lumenCloud.tint }),
         }
       : actorSheetView(sheet)),
+    ...(!clouded && runic ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE } : {}),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
-    frameDurationMs: ACTOR_FRAME_MS[motion],
+    // Four distinct Runic Guardian poses form the same half-second cycle as a stock six-frame
+    // warrior at 12 fps. Playing those four at 12 fps made each contact too brief to read.
+    frameDurationMs:
+      player.appearance.body === "runic_guardian" && motion === "run"
+        ? 1_000 / 8
+        : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:
       player.life === "ghost"
@@ -1082,6 +1107,12 @@ interface PlayerPresentationState {
   invisible: boolean;
   actionId: string | null;
   mobilityPlayedActionId: string | null;
+  mobilityTransition?: {
+    offsetX: number;
+    offsetZ: number;
+    startedAt: number;
+    durationMs: number;
+  };
 }
 
 export class Hd2dRenderer implements RendererLike {
@@ -1136,6 +1167,8 @@ export class Hd2dRenderer implements RendererLike {
   #questMarkers: readonly AuthoredQuestMarker[] = [];
   #actorPositions = new Map<string, ActorPosition>();
   #actorMotion = new ActorMotionTracker();
+  /** Local presentation clock for the one-shot runic death animation. */
+  #corpseAnimations = new Map<string, number>();
   #eventMotion = new WorldEventMotionTracker();
   #playerPresentation = new Map<string, PlayerPresentationState>();
   /** Last grounded storey per remote hero. Their live `y` animates a jump but does not change room. */
@@ -1759,7 +1792,7 @@ export class Hd2dRenderer implements RendererLike {
       playerIds.add(player.id);
       present.add(player.id);
       this.#combatVisualAuthority.recordSnapshot(player.id, player.action?.id ?? null);
-      this.#restorePlayerPresentation(player, animationTimeMs);
+      const mobilityOffset = this.#restorePlayerPresentation(player, animationTimeMs);
       const motion = this.#actorMotion.sample(
         player.id,
         player.x,
@@ -1777,6 +1810,8 @@ export class Hd2dRenderer implements RendererLike {
         timing?.duration,
         player.id === this.#selfId,
       );
+      view.x += mobilityOffset.x;
+      view.z += mobilityOffset.z;
       if (this.#map?.underground && player.id !== self?.id) {
         const visibility = actorUndergroundVisibilityAt(
           this.#map,
@@ -1796,10 +1831,18 @@ export class Hd2dRenderer implements RendererLike {
           player.action.skillId ?? "attack",
           player.appearance.primaryColor,
         );
+        const frames =
+          player.appearance.body === "runic_guardian" ? (view.frames ?? 8) : art.caster.frames;
+        const activeFrame =
+          player.appearance.body === "runic_guardian"
+            ? Math.round(
+                (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
+              )
+            : art.caster.activeFrame;
         view.frame = this.#actionFrame(
           player.action,
-          art.caster.frames,
-          art.caster.activeFrame,
+          frames,
+          activeFrame,
           animationTimeMs,
           this.#combatAnimations.get(player.id)?.actionId === player.action.id
             ? this.#combatAnimations.get(player.id)?.impactTimes
@@ -1827,6 +1870,7 @@ export class Hd2dRenderer implements RendererLike {
           vy: 0,
           facing: facingOf(player.facing),
           ...actorSheetView(sheet),
+          ...(sheet.directionRows === undefined ? {} : { directionalFacing: player.facing }),
           animationTimeMs,
           animationLoop: true,
           tint: 0x6ad9ff,
@@ -1977,8 +2021,16 @@ export class Hd2dRenderer implements RendererLike {
     }
     for (const guard of sample.guards)
       this.#actorPositions.set(guard.id, { x: guard.x, y: guard.y, z: guard.z });
+    const corpseIds = new Set<string>();
     for (const corpse of sample.corpses) {
-      const sheet = unitSheet(corpse.class, corpse.appearance, "idle");
+      corpseIds.add(corpse.id);
+      const runic = corpse.appearance.body === "runic_guardian";
+      const sheet = runic
+        ? RUNIC_GUARDIAN_DEATH_SHEET
+        : unitSheet(corpse.class, corpse.appearance, "idle");
+      const deathStartedAt = this.#corpseAnimations.get(corpse.id) ?? animationTimeMs;
+      this.#corpseAnimations.set(corpse.id, deathStartedAt);
+      const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
       views.push({
         id: `corpse:${corpse.id}`,
         kind: "corpse",
@@ -1987,10 +2039,21 @@ export class Hd2dRenderer implements RendererLike {
         z: corpse.z,
         ...GROUNDED,
         vy: 0,
-        facing: "north",
+        facing: facingOf(corpseFacing),
+        ...(sheet.directionRows === undefined ? {} : { directionalFacing: corpseFacing }),
         ...actorSheetView(sheet),
-        pose: "fallen",
+        ...(runic ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE } : {}),
+        ...(runic
+          ? {
+              animationTimeMs: animationTimeMs - deathStartedAt,
+              animationDurationMs: 760,
+              animationLoop: false,
+            }
+          : { pose: "fallen" as const }),
       });
+    }
+    for (const corpseId of this.#corpseAnimations.keys()) {
+      if (!corpseIds.has(corpseId)) this.#corpseAnimations.delete(corpseId);
     }
     const eventIds = new Set<string>();
     const mapSize = this.#map?.size ?? 0;
@@ -2119,11 +2182,13 @@ export class Hd2dRenderer implements RendererLike {
       : combatActionFrameIndex(frames, activeFrame, timeline, now);
   }
 
-  #restorePlayerPresentation(player: PlayerSnapshot, now: number): void {
+  #restorePlayerPresentation(player: PlayerSnapshot, now: number): GroundVector {
     const previous = this.#playerPresentation.get(player.id);
     const actionId = player.action?.id ?? null;
     let mobilityPlayedActionId =
       previous?.actionId === actionId ? previous.mobilityPlayedActionId : null;
+    let mobilityTransition =
+      previous?.actionId === actionId ? previous.mobilityTransition : undefined;
     if (previous) {
       if (previous.invisible && !player.invisible) {
         const vanish = combatArt("rogue", "vanish", player.appearance.primaryColor);
@@ -2176,7 +2241,25 @@ export class Hd2dRenderer implements RendererLike {
           );
         }
         mobilityPlayedActionId = actionId;
+        mobilityTransition = {
+          offsetX: previous.x - player.x,
+          offsetZ: previous.z - player.z,
+          startedAt,
+          durationMs: mobility.durationMs,
+        };
       }
+    }
+    const mobilityOffset = mobilityTransition
+      ? mobilityRenderOffset(
+          mobilityTransition.offsetX,
+          mobilityTransition.offsetZ,
+          mobilityTransition.startedAt,
+          mobilityTransition.durationMs,
+          now,
+        )
+      : { x: 0, y: 0 };
+    if (mobilityTransition && mobilityOffset.x === 0 && mobilityOffset.y === 0) {
+      mobilityTransition = undefined;
     }
     this.#playerPresentation.set(player.id, {
       x: player.x,
@@ -2185,7 +2268,9 @@ export class Hd2dRenderer implements RendererLike {
       invisible: player.invisible === true,
       actionId,
       mobilityPlayedActionId,
+      ...(mobilityTransition ? { mobilityTransition } : {}),
     });
+    return { x: mobilityOffset.x, z: mobilityOffset.y };
   }
 
   #actorAnimationTiming(
@@ -2233,6 +2318,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors?.dispose();
     this.#actors = null;
     this.#actorMotion.reset();
+    this.#corpseAnimations.clear();
     this.#eventMotion.reset();
     this.#playerPresentation.clear();
     this.#playerVisibility.clear();

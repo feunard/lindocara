@@ -318,7 +318,7 @@ export class AdmissionService {
       xp: Math.max(0, row.xp),
       hp: Math.min(maxHpForLevel(level), Math.max(life.life === "alive" ? 1 : 0, row.hp)),
       appearance: normalizeAppearance({
-        body: "wayfarer",
+        body: row.body,
         primaryColor: COLOR_TO_APPEARANCE[membership.color],
       }),
       class: row.class,

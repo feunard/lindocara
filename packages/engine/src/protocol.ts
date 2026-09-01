@@ -257,6 +257,9 @@ export interface CorpseSnapshot {
   x: number;
   y: number;
   z: number;
+  /** Frozen world heading at death, used only to choose directional corpse artwork. Optional for
+   * rolling-deploy compatibility with snapshots emitted before directional bodies existed. */
+  facing?: GroundVector;
 }
 
 export interface MonsterSnapshot {
@@ -1622,7 +1625,8 @@ function isCorpseSnapshot(value: unknown): value is CorpseSnapshot {
     isBoundedString(value.nick, 32) &&
     isValidClass(value.class) &&
     isValidAppearance(value.appearance) &&
-    isWorldPosition(value)
+    isWorldPosition(value) &&
+    (value.facing === undefined || isDirection(value.facing))
   );
 }
 

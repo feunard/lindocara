@@ -5,6 +5,7 @@ import type { PlayerClass } from "@lindocara/engine/game.js";
 export interface PortraitArt {
   source: string;
   frames: number;
+  directionRows: number;
 }
 
 import { unitSheet } from "./tiny-swords-art.js";
@@ -14,5 +15,9 @@ export function playerPortrait(
   appearance: CharacterAppearance,
 ): PortraitArt {
   const sheet = unitSheet(playerClass, appearance, "idle");
-  return { source: sheet.source, frames: sheet.frames };
+  return {
+    source: sheet.source,
+    frames: sheet.frames,
+    directionRows: sheet.directionRows ?? 1,
+  };
 }

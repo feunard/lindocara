@@ -3,7 +3,7 @@ import { createHd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import { ACTOR_FRAME_MS, ActorMotionTracker } from "@lindocara/renderer/actor-motion.js";
 import type { ActorView, BillboardScene } from "@lindocara/renderer/hd2d/billboards.js";
-import { createBillboardRegistry } from "@lindocara/renderer/hd2d/billboards.js";
+import { createBillboardRegistry, directionalFrame } from "@lindocara/renderer/hd2d/billboards.js";
 import {
   monsterActorSheet,
   playerActorSheet,
@@ -84,6 +84,37 @@ describe("actor animation art", () => {
     expect(playerActorSheet(guarding, "attack").source).toContain("Warrior_Guard.png");
   });
 
+  it("keeps the Runic Guardian's coherent directional bake across every motion", () => {
+    const bonus = {
+      ...player,
+      appearance: { body: "runic_guardian", primaryColor: "azure" },
+      action: { skillId: "iron_guard" },
+    } as PlayerSnapshot;
+
+    for (const motion of ["idle", "run", "attack"] as const) {
+      const sheet = playerActorSheet(bonus, motion);
+      expect(sheet.source).toContain("runic-guardian");
+      expect(sheet.frames).toBe(motion === "run" ? 4 : 8);
+      expect(sheet.frameWidth).toBe(192);
+      expect(sheet.frameHeight).toBe(192);
+      expect(sheet.directionRows).toBe(5);
+    }
+    const view = playerActorView(bonus);
+    expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
+    expect(view.renderHeight).toBeCloseTo(2.6 * 0.92);
+    expect(playerActorView(bonus, 0, "run").frameDurationMs).toBe(125);
+  });
+
+  it("runs through the Runic Guardian's charge instead of planting its feet", () => {
+    const charging = {
+      ...player,
+      appearance: { body: "runic_guardian", primaryColor: "azure" },
+      action: { skillId: "shield_bash" },
+    } as PlayerSnapshot;
+
+    expect(playerActorSheet(charging, "attack").source).toContain("runic-guardian/run.png");
+  });
+
   it("keeps Iron Guard's authored strip after its cast action has ended", () => {
     const guarding = { ...player, guarding: true, action: null } as PlayerSnapshot;
 
@@ -127,6 +158,24 @@ describe("actor animation art", () => {
       waterDepth: 0.18,
       opacity: 1,
     });
+  });
+});
+
+describe("camera-relative directional actors", () => {
+  it("selects front, quarters, side and back, mirroring the opposite half", () => {
+    expect(directionalFrame({ x: 0, z: 1 }, 0)).toEqual({ row: 0, flipped: false });
+    expect(directionalFrame({ x: 1, z: 1 }, 0)).toEqual({ row: 1, flipped: false });
+    expect(directionalFrame({ x: 1, z: 0 }, 0)).toEqual({ row: 2, flipped: false });
+    expect(directionalFrame({ x: 1, z: -1 }, 0)).toEqual({ row: 3, flipped: false });
+    expect(directionalFrame({ x: 0, z: -1 }, 0)).toEqual({ row: 4, flipped: false });
+    expect(directionalFrame({ x: -1, z: 1 }, 0)).toEqual({ row: 1, flipped: true });
+    expect(directionalFrame({ x: -1, z: 0 }, 0)).toEqual({ row: 2, flipped: true });
+    expect(directionalFrame({ x: -1, z: -1 }, 0)).toEqual({ row: 3, flipped: true });
+  });
+
+  it("reselects the view when the camera orbits", () => {
+    expect(directionalFrame({ x: 1, z: 0 }, 0).row).toBe(2);
+    expect(directionalFrame({ x: 1, z: 0 }, Math.PI / 2).row).toBe(0);
   });
 });
 

@@ -4,6 +4,7 @@
  * D-pad sweep and one button away. Reached from "New" (with an adventure) or "Join" (with a party).
  */
 
+import type { BodyVariant } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
@@ -73,23 +74,26 @@ export function classMovementPercent(heroClass: PlayerClass): number {
 
 function ClassCard({
   heroClass,
+  body = "wayfarer",
   order,
   onPick,
   disabled,
 }: {
   heroClass: PlayerClass;
+  body?: BodyVariant;
   order: number;
   onPick: () => void;
   disabled: boolean;
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onPick, order, disabled });
+  const bonus = body === "runic_guardian";
   const portrait = playerPortrait(heroClass, {
-    body: "wayfarer",
-    primaryColor: CLASS_PREVIEW_COLOR[heroClass],
+    body,
+    primaryColor: bonus ? "azure" : CLASS_PREVIEW_COLOR[heroClass],
   });
   const portraitStyle = {
     backgroundImage: `url("${portrait.source}")`,
-    backgroundSize: `${portrait.frames * 100}% 100%`,
+    backgroundSize: `${portrait.frames * 100}% ${portrait.directionRows * 100}%`,
   } satisfies CSSProperties;
   return (
     <button
@@ -98,12 +102,21 @@ function ClassCard({
       className={`class-card${focused ? " class-card--focused" : ""}`}
       {...itemProps}
     >
-      <span className="class-card__portrait" data-hero-class={heroClass} aria-hidden="true">
+      <span
+        className="class-card__portrait"
+        data-hero-class={heroClass}
+        data-hero-body={body}
+        aria-hidden="true"
+      >
         <span className="class-card__portrait-sprite" style={portraitStyle} />
-        <span className="class-card__emblem">{CLASS_EMBLEM[heroClass]}</span>
+        <span className="class-card__emblem">{bonus ? "✦" : CLASS_EMBLEM[heroClass]}</span>
       </span>
-      <span className="class-card__name">{t(`class.${heroClass}`)}</span>
-      <span className="class-card__blurb">{t(`class.${heroClass}.blurb`)}</span>
+      <span className="class-card__name">
+        {bonus ? t("hero.bonus.runicGuardian") : t(`class.${heroClass}`)}
+      </span>
+      <span className="class-card__blurb">
+        {bonus ? t("hero.bonus.runicGuardian.blurb") : t(`class.${heroClass}.blurb`)}
+      </span>
       <span className="class-card__stat">
         {t("hero.create.movementSpeed", { percent: classMovementPercent(heroClass) })}
       </span>
@@ -126,7 +139,7 @@ export function HeroCreate({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function launch(heroClass: PlayerClass) {
+  async function launch(heroClass: PlayerClass, body: BodyVariant = "wayfarer") {
     const trimmed = name.trim() || suggestName();
     setBusy(true);
     setError(null);
@@ -140,7 +153,11 @@ export function HeroCreate({
         await joinPartyApi(party.id);
       }
       if (!listing) throw new Error("party_missing");
-      const hero = await createHeroApi(listing.id, { name: trimmed, class: heroClass });
+      const hero = await createHeroApi(listing.id, {
+        name: trimmed,
+        class: heroClass,
+        ...(body === "wayfarer" ? {} : { body }),
+      });
       const { startGameAsHero } = await import("../game/session.js");
       await startGameAsHero(hero, listing);
     } catch {
@@ -194,6 +211,13 @@ export function HeroCreate({
             onPick={() => void launch(heroClass)}
           />
         ))}
+        <ClassCard
+          heroClass="warrior"
+          body="runic_guardian"
+          order={HERO_CLASSES.length}
+          disabled={busy}
+          onPick={() => void launch("warrior", "runic_guardian")}
+        />
       </MenuNav>
 
       <MenuHints>

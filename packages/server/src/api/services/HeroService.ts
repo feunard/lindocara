@@ -47,7 +47,11 @@
  * cheap read-then-clear-error-message experience), but the atomic INSERT is what actually enforces
  * the cap under a race.
  */
-import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import {
+  DEFAULT_APPEARANCE,
+  starterEquipmentFor,
+  type BodyVariant,
+} from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import type { WorldPosition } from "@lindocara/engine/ground.js";
 import { decodeMap } from "@lindocara/engine/hd2d/map-data.js";
@@ -81,6 +85,7 @@ export interface StoredHero {
   accountId: string;
   name: string;
   class: PlayerClass;
+  body: BodyVariant;
   mapId: string;
   x: number;
   y: number;
@@ -101,6 +106,7 @@ function toStored(row: Hero): StoredHero {
     accountId: row.userId,
     name: row.name,
     class: row.class,
+    body: row.body,
     mapId: row.mapId,
     x: row.x,
     y: row.y,
@@ -187,6 +193,7 @@ export class HeroService {
 
     const start = await this.resolveHeroStart(partyRow.adventureId);
     if (!start) throw new Error("not_found: party adventure has no map");
+    const body = input.body ?? DEFAULT_APPEARANCE.body;
 
     const id = crypto.randomUUID();
     // Single-statement conditional INSERT: atomic on SQLite/D1 even with no surrounding transaction
@@ -202,8 +209,8 @@ export class HeroService {
       (table) => sql`
         INSERT INTO ${table}
           (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)}, ${sql.raw(table.userId.name)},
-           name, class, ${sql.raw(table.mapId.name)}, x, y, z)
-        SELECT ${id}, ${partyId}, ${userId}, ${input.name}, ${input.class},
+           name, class, body, ${sql.raw(table.mapId.name)}, x, y, z)
+        SELECT ${id}, ${partyId}, ${userId}, ${input.name}, ${input.class}, ${body},
                ${start.mapId}, ${start.position.x}, ${start.position.y}, ${start.position.z}
         WHERE (SELECT count(*) FROM ${table}
                WHERE ${table.partyId} = ${partyId} AND ${table.userId} = ${userId}) < ${MAX_HEROES_PER_PARTY}

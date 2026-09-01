@@ -520,15 +520,14 @@
   opacity: 0.55;
 }
 
-/* Five classes must remain visible on a laptop-sized viewport. The original flex row was sized
-   for four fixed-width cards, so adding the Peasant left its label beyond the initial scroll
-   position. Keep adventure/party carousels scrollable, but let the finite class roster share the
-   available row width. Very narrow screens retain the swipeable carousel below. */
+/* The five classes plus the temporary bonus body must remain visible on a laptop-sized viewport.
+   Keep adventure/party carousels scrollable, but let this finite roster share the available row
+   width. Very narrow screens retain the swipeable carousel below. */
 .class-track {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 12rem));
+  grid-template-columns: repeat(6, minmax(0, 11rem));
   justify-content: center;
-  width: min(92vw, 68rem);
+  width: min(96vw, 72rem);
   gap: clamp(0.5rem, 1.5vw, 1.5rem);
   overflow-x: visible;
 }

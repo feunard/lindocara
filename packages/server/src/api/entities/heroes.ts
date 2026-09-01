@@ -1,3 +1,4 @@
+import { BODY_VARIANTS } from "@lindocara/engine/character.js";
 import { LIFE_STATES } from "@lindocara/engine/death.js";
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
 import { type Infer, z } from "alepha";
@@ -32,6 +33,8 @@ export const heroes = $entity({
     userId: db.ref(z.uuid(), () => users.cols.id, { onDelete: "cascade" }),
     name: z.string(),
     class: db.default(z.enum(HERO_CLASSES), "warrior"),
+    /** Visual body is durable and independent from combat class; old rows remain wayfarers. */
+    body: db.default(z.enum(BODY_VARIANTS), "wayfarer"),
     /** The D1 map the hero is on; starts at the adventure's start map. No FK — see docblock. */
     mapId: z.string(),
     /**

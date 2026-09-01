@@ -12,6 +12,7 @@ import type {
   MapAudioConfig,
   UploadedMusicTrack,
 } from "@lindocara/engine/audio-catalog.js";
+import type { BodyVariant } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers, UndergroundMap } from "@lindocara/engine/map-data.js";
@@ -363,6 +364,8 @@ export interface StoredHero {
   accountId: string;
   name: string;
   class: PlayerClass;
+  /** Optional while a browser may still be talking to a pre-cosmetics local server. */
+  body?: BodyVariant;
   mapId: string;
   x: number;
   y: number;
@@ -404,7 +407,10 @@ export const abandonPartyApi = (partyId: string) =>
 export const purgeCompletedPartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}/archive`, { method: "DELETE" });
 export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);
-export const createHeroApi = (partyId: string, input: { name: string; class: PlayerClass }) =>
+export const createHeroApi = (
+  partyId: string,
+  input: { name: string; class: PlayerClass; body?: BodyVariant },
+) =>
   api<StoredHero>(`/api/parties/${partyId}/heroes`, {
     method: "POST",
     body: JSON.stringify(input),

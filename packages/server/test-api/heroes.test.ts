@@ -355,6 +355,33 @@ describe("createHero", () => {
     );
   });
 
+  test("persists the Runic Guardian as a Warrior body instead of a new combat class", async () => {
+    const { token } = await registerAndLogin("herorunic");
+    const adventureId = await newPlayableAdventure(token);
+    const partyId = await newParty(token, adventureId);
+
+    const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Aster",
+        class: "warrior",
+        body: "runic_guardian",
+      }),
+    });
+    expect(response.status).toBe(201);
+    const hero = (await response.json()) as { id: string; class: string; body: string };
+    expect(hero).toMatchObject({ class: "warrior", body: "runic_guardian" });
+    expect(await probe.heroes.findById(hero.id)).toMatchObject({
+      class: "warrior",
+      body: "runic_guardian",
+    });
+
+    const listed = await authedFetch(`/api/parties/${partyId}/heroes`, token);
+    expect(await listed.json()).toMatchObject([
+      { id: hero.id, class: "warrior", body: "runic_guardian" },
+    ]);
+  });
+
   test("refuses a non-member with hero_not_member", async () => {
     const { token: hostToken } = await registerAndLogin("heronomh");
     const adventureId = await newPlayableAdventure(hostToken);
