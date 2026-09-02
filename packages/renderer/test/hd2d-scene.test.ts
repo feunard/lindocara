@@ -11,7 +11,9 @@ import { describe, expect, it } from "vitest";
 import {
   cameraDistanceBeforeTerrain,
   cameraFocusSurface,
+  cameraOrbitOffset,
   editorGroundPickPoint,
+  HD2D_CAMERA,
   heightFieldFor,
   stairMaterialKeyFor,
   surfaceAccessPreviewAt,
@@ -697,6 +699,29 @@ describe("the HD-2D scene's terrain", () => {
         distance,
       ),
     ).toBeLessThan(distance);
+  });
+
+  it("keeps a stable distance through a one-cell corridor between level-eight mountains", () => {
+    const size = 17;
+    const corridorCol = Math.floor(size / 2);
+    const map = {
+      ...ground(size),
+      levels: Array.from({ length: size * size }, (_unused, index) =>
+        index % size === corridorCol ? 0 : 8,
+      ),
+    };
+    const distance = 40;
+    const target = { x: 0, y: 1.2, z: 0 };
+    const offset = cameraOrbitOffset(3 * (Math.PI / 180), distance, HD2D_CAMERA.pitch);
+
+    expect(
+      cameraDistanceBeforeTerrain(
+        createTerrainQuery(mapToQuerySource(map)),
+        target,
+        offset,
+        distance,
+      ),
+    ).toBe(distance);
   });
 });
 

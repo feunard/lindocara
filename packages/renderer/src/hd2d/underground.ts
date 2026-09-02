@@ -119,7 +119,7 @@ export function surfaceLiquidOcclusionRuns(
 ): SurfaceLiquidOcclusionRun[] {
   const openings = undergroundSurfaceOpenings(map.underground, map.size);
   const liquidAt = (index: number): boolean =>
-    map.liquids ? map.liquids[index] !== null : map.levels[index] === null;
+    (map.liquids?.[index] ?? null) !== null || map.levels[index] === null;
   const runs: SurfaceLiquidOcclusionRun[] = [];
   for (let row = 0; row < map.size; row += 1) {
     let col = 0;

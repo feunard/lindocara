@@ -173,4 +173,30 @@ describe("underground storey visibility mask", () => {
     expect(covered.has("1:1")).toBe(false);
     expect(covered.has("2:2")).toBe(false);
   });
+
+  it("occludes basements below implicit sea cells when explicit liquids are also present", () => {
+    const runs = surfaceLiquidOcclusionRuns({
+      size: 3,
+      levels: [0, null, 0, 0, 0, 0, 0, 0, 0],
+      liquids: [null, null, null, null, "water", null, null, null, null],
+      liquidLevels: [null, null, null, null, 2, null, null, null, null],
+      levelHeight: 0.9,
+      waterLevel: -0.05,
+      underground: {
+        levels: [
+          {
+            depth: 1,
+            style: "cave",
+            cells: [{ col: 1, row: 0, length: 1 }],
+          },
+        ],
+        stairs: [],
+      },
+    });
+
+    expect(runs).toEqual([
+      { col: 1, row: 0, length: 1, y: -0.05 },
+      { col: 1, row: 1, length: 1, y: 1.8 },
+    ]);
+  });
 });

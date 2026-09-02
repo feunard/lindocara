@@ -798,7 +798,10 @@ export function cameraDistanceBeforeTerrain(
     const x = target.x + offset.x * progress;
     const y = target.y + offset.y * progress;
     const z = target.z + offset.z * progress;
-    const terrainY = query.maxHeightAround(x, z, 0.18);
+    // This is a sight line, not a body footprint. Giving it a radius made the +8 banks beside a
+    // one-cell corridor alternately enter and leave the probe under tiny yaw changes, collapsing
+    // the camera even though its centre ray still cleared the passage.
+    const terrainY = query.maxHeightAround(x, z, 0);
     if (terrainY + CAMERA_TERRAIN_MARGIN >= y) {
       return Math.max(0.75, travelled - CAMERA_TERRAIN_MARGIN);
     }
