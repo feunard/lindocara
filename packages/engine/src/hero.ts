@@ -32,6 +32,7 @@ export interface CreateHeroInput {
 const BONUS_BODY_CLASS = {
   runic_guardian: "warrior",
   assassin: "rogue",
+  peasant: "peasant",
 } as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, PlayerClass>>;
 
 export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {

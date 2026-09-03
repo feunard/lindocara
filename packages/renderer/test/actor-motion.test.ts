@@ -15,7 +15,10 @@ import {
   seaGuardianPresentation,
   seaGuardianSwimTextureUrl,
 } from "@lindocara/renderer/hd2d/game-renderer.js";
-import { assassinSkillActiveFrame } from "@lindocara/renderer/tiny-swords-art.js";
+import {
+  assassinSkillActiveFrame,
+  peasantBonusSkillActiveFrame,
+} from "@lindocara/renderer/tiny-swords-art.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
@@ -153,6 +156,71 @@ describe("actor animation art", () => {
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
     expect(view.frameDurationMs).toBe(62.5);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
+  });
+
+  it("keeps the animated Peasant coherent through tools, skills, cargo, and locomotion", () => {
+    const bonus = {
+      ...player,
+      class: "peasant",
+      appearance: { body: "peasant", primaryColor: "moss" },
+    } as PlayerSnapshot;
+
+    for (const motion of ["idle", "run", "attack"] as const) {
+      const sheet = playerActorSheet(bonus, motion);
+      expect(sheet.source).toContain("bonus/peasant");
+      expect(sheet.frames).toBe(10);
+      expect(sheet.frameWidth).toBe(192);
+      expect(sheet.frameHeight).toBe(192);
+      expect(sheet.directionRows).toBe(5);
+    }
+
+    const skills = [
+      "woodcutters_swing",
+      "prospectors_pick",
+      "butchers_cut",
+      "makeshift_camp",
+      "homemade_bomb",
+    ] as const;
+    const sources = skills.map(
+      (skillId) =>
+        playerActorSheet({ ...bonus, action: { skillId } } as PlayerSnapshot, "attack").source,
+    );
+    expect(new Set(sources).size).toBe(skills.length);
+    expect(sources).toEqual([
+      expect.stringContaining("axe.png"),
+      expect.stringContaining("rally.png"),
+      expect.stringContaining("ration-throw.png"),
+      expect.stringContaining("camp-build.png"),
+      expect.stringContaining("bomb-throw.png"),
+    ]);
+    expect(skills.map(peasantBonusSkillActiveFrame)).toEqual([6, 4, 6, 6, 6]);
+
+    for (const tool of ["axe", "pickaxe", "knife"] as const) {
+      const sheet = playerActorSheet(
+        {
+          ...bonus,
+          action: { skillId: "woodcutters_swing", peasantTool: tool },
+        } as PlayerSnapshot,
+        "attack",
+      );
+      expect(sheet.source).toContain(`${tool}.png`);
+    }
+    for (const kind of ["gold", "meat", "wood"] as const) {
+      for (const motion of ["idle", "run"] as const) {
+        const sheet = playerActorSheet(
+          { ...bonus, peasantCarry: { kind } } as PlayerSnapshot,
+          motion,
+        );
+        expect(sheet.source).toContain(`carry-${kind}-${motion}.png`);
+        expect(sheet.directionRows).toBe(5);
+      }
+    }
+
+    const runView = playerActorView(bonus, 0, "run");
+    expect(runView.directionalFacing).toEqual({ x: 1, z: 0 });
+    expect(runView.renderHeight).toBeCloseTo(2.6 * 0.9);
+    expect(runView.frameDurationMs).toBe(62.5);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
   });
 

@@ -160,6 +160,9 @@ export const en = {
   "hero.bonus.assassin": "Assassin · Prototype",
   "hero.bonus.assassin.blurb":
     "Ten-phase, eight-direction Rogue animation with a unique move for every skill.",
+  "hero.bonus.peasant": "Fieldhand · Prototype",
+  "hero.bonus.peasant.blurb":
+    "Ten-phase, eight-direction Peasant with unique tools, skills, cargo, and defeat.",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",

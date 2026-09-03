@@ -106,6 +106,10 @@ import {
   ASSASSIN_DEATH_SHEET,
   isAssassinSkillId,
   isPeasantSkillId,
+  PEASANT_BONUS_DEATH_SHEET,
+  peasantBonusCarrySheet,
+  peasantBonusSkillActiveFrame,
+  peasantBonusSkillSheet,
   peasantCarrySheet,
   peasantCasterSheet,
   RUNIC_GUARDIAN_DEATH_SHEET,
@@ -164,6 +168,8 @@ const RUNIC_GUARDIAN_RENDER_SCALE = 0.92;
 /** The Assassin bake is normalized smaller than the guardian, then reduced once more here so its
  * visible stature stays close to the compact stock Thief instead of reading as a mini-boss. */
 const ASSASSIN_RENDER_SCALE = 0.9;
+/** The animated Peasant uses the same normalized 96 px body target as the Assassin. */
+const PEASANT_BONUS_RENDER_SCALE = 0.9;
 
 /**
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
@@ -176,6 +182,15 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
   if (player.appearance.body === "assassin") {
     if (motion === "attack" && player.action?.skillId && isAssassinSkillId(player.action.skillId)) {
       return assassinSkillSheet(player.action.skillId);
+    }
+    return unitSheet(player.class, player.appearance, motion);
+  }
+  if (player.appearance.body === "peasant") {
+    if (motion === "attack" && player.action?.skillId && isPeasantSkillId(player.action.skillId)) {
+      return peasantBonusSkillSheet(player.action.skillId, player.action.peasantTool);
+    }
+    if (motion !== "attack" && player.peasantCarry) {
+      return peasantBonusCarrySheet(player.peasantCarry.kind, motion);
     }
     return unitSheet(player.class, player.appearance, motion);
   }
@@ -486,6 +501,7 @@ export function playerActorView(
   const sheet = playerActorSheet(player, motion);
   const runic = player.appearance.body === "runic_guardian";
   const assassin = player.appearance.body === "assassin";
+  const peasantBonus = player.appearance.body === "peasant";
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   const lumenCloud = clouded
     ? combatArt("priest", "blink", player.appearance.primaryColor).impact
@@ -522,7 +538,9 @@ export function playerActorView(
       ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE }
       : !clouded && assassin
         ? { renderHeight: LAB_UNIT_HEIGHT * ASSASSIN_RENDER_SCALE }
-        : {}),
+        : !clouded && peasantBonus
+          ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
+          : {}),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
     // Four distinct Runic Guardian poses form the same half-second cycle as a stock six-frame
@@ -534,7 +552,11 @@ export function playerActorView(
           ? 1_000 / 16
           : assassin && motion === "idle"
             ? 1_000 / 3
-            : ACTOR_FRAME_MS[motion],
+            : peasantBonus && motion === "run"
+              ? 1_000 / 16
+              : peasantBonus && motion === "idle"
+                ? 1_000 / 3
+                : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:
       player.life === "ghost"
@@ -1854,18 +1876,24 @@ export class Hd2dRenderer implements RendererLike {
           player.appearance.primaryColor,
         );
         const directionalBonus =
-          player.appearance.body === "runic_guardian" || player.appearance.body === "assassin";
+          player.appearance.body === "runic_guardian" ||
+          player.appearance.body === "assassin" ||
+          player.appearance.body === "peasant";
         const frames = directionalBonus ? (view.frames ?? 10) : art.caster.frames;
         const activeFrame =
           player.appearance.body === "assassin" &&
           player.action.skillId &&
           isAssassinSkillId(player.action.skillId)
             ? assassinSkillActiveFrame(player.action.skillId)
-            : directionalBonus
-              ? Math.round(
-                  (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
-                )
-              : art.caster.activeFrame;
+            : player.appearance.body === "peasant" &&
+                player.action.skillId &&
+                isPeasantSkillId(player.action.skillId)
+              ? peasantBonusSkillActiveFrame(player.action.skillId)
+              : directionalBonus
+                ? Math.round(
+                    (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
+                  )
+                : art.caster.activeFrame;
         view.frame = this.#actionFrame(
           player.action,
           frames,
@@ -2058,11 +2086,14 @@ export class Hd2dRenderer implements RendererLike {
       corpseIds.add(corpse.id);
       const runic = corpse.appearance.body === "runic_guardian";
       const assassin = corpse.appearance.body === "assassin";
+      const peasantBonus = corpse.appearance.body === "peasant";
       const sheet = runic
         ? RUNIC_GUARDIAN_DEATH_SHEET
         : assassin
           ? ASSASSIN_DEATH_SHEET
-          : unitSheet(corpse.class, corpse.appearance, "idle");
+          : peasantBonus
+            ? PEASANT_BONUS_DEATH_SHEET
+            : unitSheet(corpse.class, corpse.appearance, "idle");
       const deathStartedAt = this.#corpseAnimations.get(corpse.id) ?? animationTimeMs;
       this.#corpseAnimations.set(corpse.id, deathStartedAt);
       const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
@@ -2081,11 +2112,13 @@ export class Hd2dRenderer implements RendererLike {
           ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE }
           : assassin
             ? { renderHeight: LAB_UNIT_HEIGHT * ASSASSIN_RENDER_SCALE }
-            : {}),
-        ...(runic || assassin
+            : peasantBonus
+              ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
+              : {}),
+        ...(runic || assassin || peasantBonus
           ? {
               animationTimeMs: animationTimeMs - deathStartedAt,
-              animationDurationMs: assassin ? 900 : 760,
+              animationDurationMs: assassin ? 900 : peasantBonus ? 1_000 : 760,
               animationLoop: false,
             }
           : { pose: "fallen" as const }),

@@ -721,6 +721,66 @@ export const PEASANT_CONTEXT_TOOL_SPECS = {
   },
 } as const satisfies Readonly<Record<HarvestTool, PeasantToolSpec>>;
 
+function peasantBonusSheet(source: string): UnitSheet {
+  return {
+    source,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  };
+}
+
+const PEASANT_BONUS_AXE_SHEET = peasantBonusSheet(
+  new URL("./assets/bonus/peasant/axe.png", import.meta.url).href,
+);
+
+/**
+ * The generated Peasant body keeps one identity through locomotion and every class technique.
+ * Five authored views become eight apparent directions through the billboard mirror contract.
+ */
+export const PEASANT_BONUS_SHEETS = {
+  idle: peasantBonusSheet(new URL("./assets/bonus/peasant/idle.png", import.meta.url).href),
+  run: peasantBonusSheet(new URL("./assets/bonus/peasant/run.png", import.meta.url).href),
+  attack: PEASANT_BONUS_AXE_SHEET,
+} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
+
+export const PEASANT_BONUS_CONTEXT_TOOL_SHEETS = {
+  axe: PEASANT_BONUS_AXE_SHEET,
+  pickaxe: peasantBonusSheet(new URL("./assets/bonus/peasant/pickaxe.png", import.meta.url).href),
+  knife: peasantBonusSheet(new URL("./assets/bonus/peasant/knife.png", import.meta.url).href),
+} as const satisfies Readonly<Record<HarvestTool, UnitSheet>>;
+
+export const PEASANT_BONUS_SKILL_SHEETS = {
+  woodcutters_swing: PEASANT_BONUS_AXE_SHEET,
+  prospectors_pick: peasantBonusSheet(
+    new URL("./assets/bonus/peasant/rally.png", import.meta.url).href,
+  ),
+  butchers_cut: peasantBonusSheet(
+    new URL("./assets/bonus/peasant/ration-throw.png", import.meta.url).href,
+  ),
+  makeshift_camp: peasantBonusSheet(
+    new URL("./assets/bonus/peasant/camp-build.png", import.meta.url).href,
+  ),
+  homemade_bomb: peasantBonusSheet(
+    new URL("./assets/bonus/peasant/bomb-throw.png", import.meta.url).href,
+  ),
+} as const satisfies Readonly<Record<PeasantSkillId, UnitSheet>>;
+
+/** Key/in-between interleaving puts each authored contact key at an even frame. */
+export const PEASANT_BONUS_SKILL_ACTIVE_FRAMES = {
+  woodcutters_swing: 6,
+  prospectors_pick: 4,
+  butchers_cut: 6,
+  makeshift_camp: 6,
+  homemade_bomb: 6,
+} as const satisfies Readonly<Record<PeasantSkillId, number>>;
+
+export const PEASANT_BONUS_DEATH_SHEET = peasantBonusSheet(
+  new URL("./assets/bonus/peasant/death.png", import.meta.url).href,
+);
+
 const PEASANT_BASE_FILES = {
   idle: ["Pawn_Idle.png", 8, 57],
   run: ["Pawn_Run.png", 6, 57],
@@ -731,6 +791,35 @@ const PEASANT_BASE_FILES = {
 export const PEASANT_CARRY_PRIORITY = ["gold", "meat", "wood"] as const;
 export type PeasantCarryKind = (typeof PEASANT_CARRY_PRIORITY)[number];
 export type PeasantCarryMotion = Exclude<UnitMotion, "attack">;
+
+export const PEASANT_BONUS_CARRY_SHEETS = {
+  gold: {
+    idle: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-gold-idle.png", import.meta.url).href,
+    ),
+    run: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-gold-run.png", import.meta.url).href,
+    ),
+  },
+  meat: {
+    idle: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-meat-idle.png", import.meta.url).href,
+    ),
+    run: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-meat-run.png", import.meta.url).href,
+    ),
+  },
+  wood: {
+    idle: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-wood-idle.png", import.meta.url).href,
+    ),
+    run: peasantBonusSheet(
+      new URL("./assets/bonus/peasant/carry-wood-run.png", import.meta.url).href,
+    ),
+  },
+} as const satisfies Readonly<
+  Record<PeasantCarryKind, Readonly<Record<PeasantCarryMotion, UnitSheet>>>
+>;
 
 const PEASANT_CARRY_FILES = {
   gold: { idle: "Pawn_Idle Gold.png", run: "Pawn_Run Gold.png" },
@@ -805,6 +894,20 @@ export function peasantSkillActiveFrame(
   return 0;
 }
 
+export function peasantBonusSkillSheet(
+  skillId: PeasantSkillId,
+  contextualTool: HarvestTool = "axe",
+): UnitSheet {
+  if (skillId === "woodcutters_swing") {
+    return PEASANT_BONUS_CONTEXT_TOOL_SHEETS[contextualTool];
+  }
+  return PEASANT_BONUS_SKILL_SHEETS[skillId];
+}
+
+export function peasantBonusSkillActiveFrame(skillId: PeasantSkillId): number {
+  return PEASANT_BONUS_SKILL_ACTIVE_FRAMES[skillId];
+}
+
 export function peasantToolSheet(color: PrimaryColor, skillId: PeasantToolSkillId): UnitSheet {
   const spec = PEASANT_TOOL_SPECS[skillId];
   return peasantSheet(color, spec.file, spec.frames, spec.footOffset);
@@ -840,6 +943,13 @@ export function peasantCarrySheet(
   return peasantSheet(color, PEASANT_CARRY_FILES[kind][motion], motion === "idle" ? 8 : 6, 57);
 }
 
+export function peasantBonusCarrySheet(
+  kind: PeasantCarryKind,
+  motion: PeasantCarryMotion,
+): UnitSheet {
+  return PEASANT_BONUS_CARRY_SHEETS[kind][motion];
+}
+
 function peasantUnitSheet(color: PrimaryColor, motion: UnitMotion): UnitSheet {
   if (motion === "attack") return peasantToolSheet(color, "woodcutters_swing");
   const [file, frames, footOffset] = PEASANT_BASE_FILES[motion];
@@ -861,6 +971,7 @@ export function unitSheet(
 ): UnitSheet {
   if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
   if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
+  if (appearance.body === "peasant") return PEASANT_BONUS_SHEETS[motion];
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
@@ -895,6 +1006,17 @@ export function allUnitSheets(): UnitSheet[] {
   for (const sheet of Object.values(ASSASSIN_SHEETS)) result.set(sheet.source, sheet);
   for (const sheet of Object.values(ASSASSIN_SKILL_SHEETS)) result.set(sheet.source, sheet);
   result.set(ASSASSIN_DEATH_SHEET.source, ASSASSIN_DEATH_SHEET);
+  for (const sheet of Object.values(PEASANT_BONUS_SHEETS)) result.set(sheet.source, sheet);
+  for (const sheet of Object.values(PEASANT_BONUS_CONTEXT_TOOL_SHEETS)) {
+    result.set(sheet.source, sheet);
+  }
+  for (const sheet of Object.values(PEASANT_BONUS_SKILL_SHEETS)) {
+    result.set(sheet.source, sheet);
+  }
+  for (const carried of Object.values(PEASANT_BONUS_CARRY_SHEETS)) {
+    for (const sheet of Object.values(carried)) result.set(sheet.source, sheet);
+  }
+  result.set(PEASANT_BONUS_DEATH_SHEET.source, PEASANT_BONUS_DEATH_SHEET);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

@@ -87,9 +87,18 @@ function ClassCard({
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onPick, order, disabled });
   const bonus = body !== "wayfarer";
-  const bonusName = body === "runic_guardian" ? "hero.bonus.runicGuardian" : "hero.bonus.assassin";
+  const bonusName =
+    body === "runic_guardian"
+      ? "hero.bonus.runicGuardian"
+      : body === "assassin"
+        ? "hero.bonus.assassin"
+        : "hero.bonus.peasant";
   const bonusBlurb =
-    body === "runic_guardian" ? "hero.bonus.runicGuardian.blurb" : "hero.bonus.assassin.blurb";
+    body === "runic_guardian"
+      ? "hero.bonus.runicGuardian.blurb"
+      : body === "assassin"
+        ? "hero.bonus.assassin.blurb"
+        : "hero.bonus.peasant.blurb";
   const portrait = playerPortrait(heroClass, {
     body,
     primaryColor:
@@ -97,7 +106,9 @@ function ClassCard({
         ? "azure"
         : body === "assassin"
           ? "violet"
-          : CLASS_PREVIEW_COLOR[heroClass],
+          : body === "peasant"
+            ? "moss"
+            : CLASS_PREVIEW_COLOR[heroClass],
   });
   const portraitStyle = {
     backgroundImage: `url("${portrait.source}")`,
@@ -230,6 +241,13 @@ export function HeroCreate({
           order={HERO_CLASSES.length + 1}
           disabled={busy}
           onPick={() => void launch("rogue", "assassin")}
+        />
+        <ClassCard
+          heroClass="peasant"
+          body="peasant"
+          order={HERO_CLASSES.length + 2}
+          disabled={busy}
+          onPick={() => void launch("peasant", "peasant")}
         />
       </MenuNav>
 
