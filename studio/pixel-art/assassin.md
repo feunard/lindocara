@@ -51,9 +51,14 @@ matching `*-inbetweens-chroma.png` files.
 ## Normalization and runtime
 
 `apps/lab/scripts/animation-sheet.py` selects each row with an 8 px source gutter (28 px for the
-poison row, whose preceding smoke crossed the nominal boundary), removes the magenta background,
+poison row, whose preceding smoke crossed the nominal boundary). The front run row uses a 32 px
+top-only gutter so the preceding idle row cannot contaminate its generated in-betweens. It removes
+the magenta background,
 interleaves five keys and five transitions, and applies hard alpha, 24 colours, the project outline
-and a 56 px foot offset. Sprites are normalized to 96 px content height in 192 px cells.
+and a 56 px foot offset. Its crop measures only pixels that survive the hard-alpha pass: faint
+background-removal residue therefore cannot shrink an otherwise valid pose. The corrected front run
+row targets the same 96 px content height as the four unchanged directional rows. Frames remain in
+192 px cells.
 `stack-animation-strips.py` stacks the five camera rows.
 
 The eight 1920x960 atlases each contain ten phases by five authored angles, for 400 processed source
@@ -69,5 +74,6 @@ cells in total:
 - `packages/renderer/src/assets/bonus/assassin/death.png`
 
 An automated adjacent-frame comparison found no identical neighbours in any row. The renderer runs
-the ten-frame locomotion cycle at 16 fps and maps every skill's authoritative contact to its own
-impact pose; the server still decides movement, damage, stealth, poison and targets.
+the ten-frame locomotion cycle at 16 fps, the guarded-breathing idle at 3 fps, and maps every skill's
+authoritative contact to its own impact pose; the server still decides movement, damage, stealth,
+poison and targets.

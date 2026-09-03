@@ -533,7 +533,7 @@ export function playerActorView(
         : assassin && motion === "run"
           ? 1_000 / 16
           : assassin && motion === "idle"
-            ? 1_000 / 10
+            ? 1_000 / 3
             : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:

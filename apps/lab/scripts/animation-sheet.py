@@ -12,17 +12,36 @@ from pathlib import Path
 
 from PIL import Image
 
-from sprite import couleur_de_fond, detourer, durcir, entourer, quantifier, recadrer, reduire
+from sprite import couleur_de_fond, detourer, durcir, entourer, quantifier, reduire
 
 
-def normalize_frame(
+def crop_visible(image, margin=2, alpha_threshold=128):
+    """Crop from the pixels that survive the hard-alpha pass.
+
+    Background removal can leave sub-threshold alpha across an otherwise empty part of a cell.
+    Measuring that residue made the real character smaller before `durcir` removed it, so key poses
+    and generated in-betweens could alternate between two apparent scales.
+    """
+    alpha = image.getchannel("A").point(
+        lambda value: 255 if value >= alpha_threshold else 0
+    )
+    box = alpha.getbbox()
+    if not box:
+        return image
+    x0, y0, x1, y1 = box
+    return image.crop(
+        (
+            max(0, x0 - margin),
+            max(0, y0 - margin),
+            min(image.width, x1 + margin),
+            min(image.height, y1 + margin),
+        )
+    )
+
+
+def prepare_frame(
     source,
-    content_height,
-    frame_size,
-    colors,
-    rotation,
     precutout,
-    foot_offset,
     background_tolerance,
     pocket_tolerance,
 ):
@@ -36,7 +55,18 @@ def normalize_frame(
         from sprite import vider_poches
 
         cutout = vider_poches(cutout, background, tolerance=pocket_tolerance)
-    sprite = entourer(quantifier(durcir(reduire(recadrer(cutout), content_height)), colors))
+    return crop_visible(cutout)
+
+
+def normalize_frame(
+    source,
+    content_height,
+    frame_size,
+    colors,
+    rotation,
+    foot_offset,
+):
+    sprite = entourer(quantifier(durcir(reduire(source, content_height)), colors))
     if rotation:
         sprite = sprite.rotate(rotation, resample=Image.Resampling.NEAREST, expand=True)
     if sprite.width > frame_size or sprite.height > frame_size:
@@ -80,6 +110,16 @@ def main():
         ),
     )
     parser.add_argument(
+        "--row-gutter-top",
+        type=int,
+        help="Override --row-gutter for only the top edge of the selected row.",
+    )
+    parser.add_argument(
+        "--row-gutter-bottom",
+        type=int,
+        help="Override --row-gutter for only the bottom edge of the selected row.",
+    )
+    parser.add_argument(
         "--sequence",
         help="Comma-separated source-frame indices; for example 0,1,2,1 makes a four-frame loop from three generated poses.",
     )
@@ -115,8 +155,14 @@ def main():
         raise SystemExit("--frames must be positive")
     if args.rows <= 0 or not 0 <= args.row < args.rows:
         raise SystemExit("--row must select one of the positive --rows")
-    if args.row_gutter < 0:
-        raise SystemExit("--row-gutter must be non-negative")
+    row_gutter_top = (
+        args.row_gutter if args.row_gutter_top is None else args.row_gutter_top
+    )
+    row_gutter_bottom = (
+        args.row_gutter if args.row_gutter_bottom is None else args.row_gutter_bottom
+    )
+    if min(args.row_gutter, row_gutter_top, row_gutter_bottom) < 0:
+        raise SystemExit("row gutters must be non-negative")
 
     def select_row(path):
         image = Image.open(path).convert("RGBA")
@@ -124,15 +170,15 @@ def main():
         if usable_height <= 0:
             raise SystemExit(f"{path} is too short for --rows")
         source_row_height = usable_height // args.rows
-        if args.row_gutter * 2 >= source_row_height:
-            raise SystemExit("--row-gutter must leave some pixels in the selected row")
+        if row_gutter_top + row_gutter_bottom >= source_row_height:
+            raise SystemExit("row gutters must leave some pixels in the selected row")
         row_top = args.row * source_row_height
         return image.crop(
             (
                 0,
-                row_top + args.row_gutter,
+                row_top + row_gutter_top,
                 image.width,
-                row_top + source_row_height - args.row_gutter,
+                row_top + source_row_height - row_gutter_bottom,
             )
         )
 
@@ -182,15 +228,17 @@ def main():
             )
             normalized.append(
                 normalize_frame(
-                    cell,
+                    prepare_frame(
+                        cell,
+                        args.precutout,
+                        args.background_tolerance,
+                        args.pocket_tolerance,
+                    ),
                     args.content_height,
                     args.frame_size,
                     args.colors,
                     args.rotate,
-                    args.precutout,
                     args.foot_offset,
-                    args.background_tolerance,
-                    args.pocket_tolerance,
                 )
             )
         return normalized

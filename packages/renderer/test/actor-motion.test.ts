@@ -153,6 +153,7 @@ describe("actor animation art", () => {
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
     expect(view.frameDurationMs).toBe(62.5);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
   });
 
   it("keeps Iron Guard's authored strip after its cast action has ended", () => {
