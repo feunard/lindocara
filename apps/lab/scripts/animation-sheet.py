@@ -71,6 +71,15 @@ def main():
     parser.add_argument("--rows", type=int, default=1)
     parser.add_argument("--row", type=int, default=0)
     parser.add_argument(
+        "--row-gutter",
+        type=int,
+        default=0,
+        help=(
+            "Discard this many pixels from the top and bottom of the selected source row. "
+            "Useful when generated effects bleed across nominal row boundaries."
+        ),
+    )
+    parser.add_argument(
         "--sequence",
         help="Comma-separated source-frame indices; for example 0,1,2,1 makes a four-frame loop from three generated poses.",
     )
@@ -106,6 +115,8 @@ def main():
         raise SystemExit("--frames must be positive")
     if args.rows <= 0 or not 0 <= args.row < args.rows:
         raise SystemExit("--row must select one of the positive --rows")
+    if args.row_gutter < 0:
+        raise SystemExit("--row-gutter must be non-negative")
 
     def select_row(path):
         image = Image.open(path).convert("RGBA")
@@ -113,12 +124,15 @@ def main():
         if usable_height <= 0:
             raise SystemExit(f"{path} is too short for --rows")
         source_row_height = usable_height // args.rows
+        if args.row_gutter * 2 >= source_row_height:
+            raise SystemExit("--row-gutter must leave some pixels in the selected row")
+        row_top = args.row * source_row_height
         return image.crop(
             (
                 0,
-                args.row * source_row_height,
+                row_top + args.row_gutter,
                 image.width,
-                (args.row + 1) * source_row_height,
+                row_top + source_row_height - args.row_gutter,
             )
         )
 

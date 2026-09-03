@@ -45,6 +45,16 @@ describe("parseCreateHeroInput", () => {
     ).toEqual({ name: "Aster", class: "warrior", body: "runic_guardian" });
   });
 
+  it("accepts the temporary Assassin as a Rogue body", () => {
+    expect(
+      parseCreateHeroInput({
+        name: "Nyx",
+        class: "rogue",
+        body: "assassin",
+      }),
+    ).toEqual({ name: "Nyx", class: "rogue", body: "assassin" });
+  });
+
   it("rejects malformed bodies", () => {
     const bad: unknown[] = [
       null,
@@ -58,6 +68,8 @@ describe("parseCreateHeroInput", () => {
       { name: "Mira", class: "necromancer" },
       { name: "Mira", class: "warrior", body: "unknown" },
       { name: "Mira", class: "ranger", body: "runic_guardian" },
+      { name: "Mira", class: "warrior", body: "assassin" },
+      { name: "Mira", class: "rogue", body: "runic_guardian" },
       { name: 7, class: "warrior" },
     ];
     for (const value of bad) expect(parseCreateHeroInput(value)).toBeNull();

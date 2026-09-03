@@ -86,10 +86,18 @@ function ClassCard({
   disabled: boolean;
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onPick, order, disabled });
-  const bonus = body === "runic_guardian";
+  const bonus = body !== "wayfarer";
+  const bonusName = body === "runic_guardian" ? "hero.bonus.runicGuardian" : "hero.bonus.assassin";
+  const bonusBlurb =
+    body === "runic_guardian" ? "hero.bonus.runicGuardian.blurb" : "hero.bonus.assassin.blurb";
   const portrait = playerPortrait(heroClass, {
     body,
-    primaryColor: bonus ? "azure" : CLASS_PREVIEW_COLOR[heroClass],
+    primaryColor:
+      body === "runic_guardian"
+        ? "azure"
+        : body === "assassin"
+          ? "violet"
+          : CLASS_PREVIEW_COLOR[heroClass],
   });
   const portraitStyle = {
     backgroundImage: `url("${portrait.source}")`,
@@ -111,11 +119,9 @@ function ClassCard({
         <span className="class-card__portrait-sprite" style={portraitStyle} />
         <span className="class-card__emblem">{bonus ? "✦" : CLASS_EMBLEM[heroClass]}</span>
       </span>
-      <span className="class-card__name">
-        {bonus ? t("hero.bonus.runicGuardian") : t(`class.${heroClass}`)}
-      </span>
+      <span className="class-card__name">{bonus ? t(bonusName) : t(`class.${heroClass}`)}</span>
       <span className="class-card__blurb">
-        {bonus ? t("hero.bonus.runicGuardian.blurb") : t(`class.${heroClass}.blurb`)}
+        {bonus ? t(bonusBlurb) : t(`class.${heroClass}.blurb`)}
       </span>
       <span className="class-card__stat">
         {t("hero.create.movementSpeed", { percent: classMovementPercent(heroClass) })}
@@ -217,6 +223,13 @@ export function HeroCreate({
           order={HERO_CLASSES.length}
           disabled={busy}
           onPick={() => void launch("warrior", "runic_guardian")}
+        />
+        <ClassCard
+          heroClass="rogue"
+          body="assassin"
+          order={HERO_CLASSES.length + 1}
+          disabled={busy}
+          onPick={() => void launch("rogue", "assassin")}
         />
       </MenuNav>
 

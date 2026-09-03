@@ -543,6 +543,116 @@ export const RUNIC_GUARDIAN_DEATH_SHEET = {
   directionRows: 5,
 } as const satisfies UnitSheet;
 
+export const ASSASSIN_SKILL_IDS = [
+  "dual_slash",
+  "shadow_step",
+  "vanish",
+  "poisoned_shiv",
+  "shadow_dance",
+] as const;
+export type AssassinSkillId = (typeof ASSASSIN_SKILL_IDS)[number];
+
+const ASSASSIN_DUAL_SLASH_SHEET = {
+  source: new URL("./assets/bonus/assassin/dual-slash.png", import.meta.url).href,
+  frames: 10,
+  frameWidth: TINY_SWORDS_UNIT_FRAME,
+  frameHeight: TINY_SWORDS_UNIT_FRAME,
+  footOffset: 56,
+  directionRows: 5,
+} as const satisfies UnitSheet;
+
+/**
+ * The Rogue's temporary Assassin body is a denser successor to the Runic Guardian witness:
+ * five authored angles, mirrored into eight apparent directions, with ten distinct phases per
+ * motion. Each class skill keeps the same body and owns a semantic one-shot instead of borrowing
+ * the stock Thief attack.
+ */
+export const ASSASSIN_SHEETS = {
+  idle: {
+    source: new URL("./assets/bonus/assassin/idle.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  run: {
+    source: new URL("./assets/bonus/assassin/run.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  attack: ASSASSIN_DUAL_SLASH_SHEET,
+} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
+
+export const ASSASSIN_SKILL_SHEETS = {
+  dual_slash: ASSASSIN_DUAL_SLASH_SHEET,
+  shadow_step: {
+    source: new URL("./assets/bonus/assassin/shadow-step.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  vanish: {
+    source: new URL("./assets/bonus/assassin/vanish.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  poisoned_shiv: {
+    source: new URL("./assets/bonus/assassin/poisoned-shiv.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+  shadow_dance: {
+    source: new URL("./assets/bonus/assassin/shadow-dance.png", import.meta.url).href,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  },
+} as const satisfies Readonly<Record<AssassinSkillId, UnitSheet>>;
+
+/** Frame held at the authoritative impact within each ten-phase one-shot. */
+export const ASSASSIN_SKILL_ACTIVE_FRAMES = {
+  dual_slash: 4,
+  shadow_step: 6,
+  vanish: 6,
+  poisoned_shiv: 6,
+  shadow_dance: 4,
+} as const satisfies Readonly<Record<AssassinSkillId, number>>;
+
+export const ASSASSIN_DEATH_SHEET = {
+  source: new URL("./assets/bonus/assassin/death.png", import.meta.url).href,
+  frames: 10,
+  frameWidth: TINY_SWORDS_UNIT_FRAME,
+  frameHeight: TINY_SWORDS_UNIT_FRAME,
+  footOffset: 56,
+  directionRows: 5,
+} as const satisfies UnitSheet;
+
+export function isAssassinSkillId(skillId: string): skillId is AssassinSkillId {
+  return (ASSASSIN_SKILL_IDS as readonly string[]).includes(skillId);
+}
+
+export function assassinSkillSheet(skillId: AssassinSkillId): UnitSheet {
+  return ASSASSIN_SKILL_SHEETS[skillId];
+}
+
+export function assassinSkillActiveFrame(skillId: AssassinSkillId): number {
+  return ASSASSIN_SKILL_ACTIVE_FRAMES[skillId];
+}
+
 const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
   azure: "Blue Units",
   ember: "Red Units",
@@ -750,6 +860,7 @@ export function unitSheet(
   motion: UnitMotion,
 ): UnitSheet {
   if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
+  if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
@@ -781,6 +892,9 @@ export function allUnitSheets(): UnitSheet[] {
   }
   for (const sheet of Object.values(RUNIC_GUARDIAN_SHEETS)) result.set(sheet.source, sheet);
   result.set(RUNIC_GUARDIAN_DEATH_SHEET.source, RUNIC_GUARDIAN_DEATH_SHEET);
+  for (const sheet of Object.values(ASSASSIN_SHEETS)) result.set(sheet.source, sheet);
+  for (const sheet of Object.values(ASSASSIN_SKILL_SHEETS)) result.set(sheet.source, sheet);
+  result.set(ASSASSIN_DEATH_SHEET.source, ASSASSIN_DEATH_SHEET);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

@@ -101,6 +101,10 @@ import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
 import {
   allUnitSheets,
+  assassinSkillActiveFrame,
+  assassinSkillSheet,
+  ASSASSIN_DEATH_SHEET,
+  isAssassinSkillId,
   isPeasantSkillId,
   peasantCarrySheet,
   peasantCasterSheet,
@@ -157,6 +161,9 @@ const LINDOCARA_BENEFICIAL_PICKUP_ASSET_ID_SET: ReadonlySet<string> = new Set([
 /** The generated guardian fills more of its 192 px frame than the stock roster. A small
  * presentation-only reduction aligns its visible stature without changing collision or reach. */
 const RUNIC_GUARDIAN_RENDER_SCALE = 0.92;
+/** The Assassin bake is normalized smaller than the guardian, then reduced once more here so its
+ * visible stature stays close to the compact stock Thief instead of reading as a mini-boss. */
+const ASSASSIN_RENDER_SCALE = 0.9;
 
 /**
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
@@ -166,6 +173,12 @@ const RUNIC_GUARDIAN_RENDER_SCALE = 0.92;
  * the server-owned action timeline.
  */
 export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): UnitSheet {
+  if (player.appearance.body === "assassin") {
+    if (motion === "attack" && player.action?.skillId && isAssassinSkillId(player.action.skillId)) {
+      return assassinSkillSheet(player.action.skillId);
+    }
+    return unitSheet(player.class, player.appearance, motion);
+  }
   // This temporary bonus is intentionally one coherent directional bake. Replacing its attack
   // pose with the ordinary Warrior caster sheet would make the model change identity mid-swing;
   // combat effects and authoritative contact timing still render through the normal layers.
@@ -472,6 +485,7 @@ export function playerActorView(
 ): ActorView {
   const sheet = playerActorSheet(player, motion);
   const runic = player.appearance.body === "runic_guardian";
+  const assassin = player.appearance.body === "assassin";
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   const lumenCloud = clouded
     ? combatArt("priest", "blink", player.appearance.primaryColor).impact
@@ -504,15 +518,23 @@ export function playerActorView(
           ...(lumenCloud.tint === undefined ? {} : { tint: lumenCloud.tint }),
         }
       : actorSheetView(sheet)),
-    ...(!clouded && runic ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE } : {}),
+    ...(!clouded && runic
+      ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE }
+      : !clouded && assassin
+        ? { renderHeight: LAB_UNIT_HEIGHT * ASSASSIN_RENDER_SCALE }
+        : {}),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
     // Four distinct Runic Guardian poses form the same half-second cycle as a stock six-frame
     // warrior at 12 fps. Playing those four at 12 fps made each contact too brief to read.
     frameDurationMs:
-      player.appearance.body === "runic_guardian" && motion === "run"
+      runic && motion === "run"
         ? 1_000 / 8
-        : ACTOR_FRAME_MS[motion],
+        : assassin && motion === "run"
+          ? 1_000 / 16
+          : assassin && motion === "idle"
+            ? 1_000 / 10
+            : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:
       player.life === "ghost"
@@ -1831,14 +1853,19 @@ export class Hd2dRenderer implements RendererLike {
           player.action.skillId ?? "attack",
           player.appearance.primaryColor,
         );
-        const frames =
-          player.appearance.body === "runic_guardian" ? (view.frames ?? 8) : art.caster.frames;
+        const directionalBonus =
+          player.appearance.body === "runic_guardian" || player.appearance.body === "assassin";
+        const frames = directionalBonus ? (view.frames ?? 10) : art.caster.frames;
         const activeFrame =
-          player.appearance.body === "runic_guardian"
-            ? Math.round(
-                (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
-              )
-            : art.caster.activeFrame;
+          player.appearance.body === "assassin" &&
+          player.action.skillId &&
+          isAssassinSkillId(player.action.skillId)
+            ? assassinSkillActiveFrame(player.action.skillId)
+            : directionalBonus
+              ? Math.round(
+                  (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
+                )
+              : art.caster.activeFrame;
         view.frame = this.#actionFrame(
           player.action,
           frames,
@@ -1871,6 +1898,11 @@ export class Hd2dRenderer implements RendererLike {
           facing: facingOf(player.facing),
           ...actorSheetView(sheet),
           ...(sheet.directionRows === undefined ? {} : { directionalFacing: player.facing }),
+          ...(player.appearance.body === "runic_guardian"
+            ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE }
+            : player.appearance.body === "assassin"
+              ? { renderHeight: LAB_UNIT_HEIGHT * ASSASSIN_RENDER_SCALE }
+              : {}),
           animationTimeMs,
           animationLoop: true,
           tint: 0x6ad9ff,
@@ -2025,9 +2057,12 @@ export class Hd2dRenderer implements RendererLike {
     for (const corpse of sample.corpses) {
       corpseIds.add(corpse.id);
       const runic = corpse.appearance.body === "runic_guardian";
+      const assassin = corpse.appearance.body === "assassin";
       const sheet = runic
         ? RUNIC_GUARDIAN_DEATH_SHEET
-        : unitSheet(corpse.class, corpse.appearance, "idle");
+        : assassin
+          ? ASSASSIN_DEATH_SHEET
+          : unitSheet(corpse.class, corpse.appearance, "idle");
       const deathStartedAt = this.#corpseAnimations.get(corpse.id) ?? animationTimeMs;
       this.#corpseAnimations.set(corpse.id, deathStartedAt);
       const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
@@ -2042,11 +2077,15 @@ export class Hd2dRenderer implements RendererLike {
         facing: facingOf(corpseFacing),
         ...(sheet.directionRows === undefined ? {} : { directionalFacing: corpseFacing }),
         ...actorSheetView(sheet),
-        ...(runic ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE } : {}),
         ...(runic
+          ? { renderHeight: LAB_UNIT_HEIGHT * RUNIC_GUARDIAN_RENDER_SCALE }
+          : assassin
+            ? { renderHeight: LAB_UNIT_HEIGHT * ASSASSIN_RENDER_SCALE }
+            : {}),
+        ...(runic || assassin
           ? {
               animationTimeMs: animationTimeMs - deathStartedAt,
-              animationDurationMs: 760,
+              animationDurationMs: assassin ? 900 : 760,
               animationLoop: false,
             }
           : { pose: "fallen" as const }),

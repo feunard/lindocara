@@ -520,15 +520,15 @@
   opacity: 0.55;
 }
 
-/* The five classes plus the temporary bonus body must remain visible on a laptop-sized viewport.
-   Keep adventure/party carousels scrollable, but let this finite roster share the available row
-   width. Very narrow screens retain the swipeable carousel below. */
+/* The five classes plus both temporary bonus bodies must remain visible on a laptop-sized
+   viewport. Keep adventure/party carousels scrollable, but let this finite roster share the
+   available row width. Narrow screens retain the swipeable carousel below. */
 .class-track {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 11rem));
+  grid-template-columns: repeat(7, minmax(0, 9.5rem));
   justify-content: center;
-  width: min(96vw, 72rem);
-  gap: clamp(0.5rem, 1.5vw, 1.5rem);
+  width: min(98vw, 76rem);
+  gap: clamp(0.4rem, 1vw, 0.9rem);
   overflow-x: visible;
 }
 
@@ -537,7 +537,7 @@
   min-width: 0;
 }
 
-@media (max-width: 44rem) {
+@media (max-width: 74rem) {
   .class-track {
     display: flex;
     justify-content: flex-start;

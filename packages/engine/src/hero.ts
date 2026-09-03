@@ -2,7 +2,7 @@
  * A hero belongs to a party (not the account roster) and wears the colour of its owner's slot in
  * that party — so colour is never stored here. Pure rules only: D1 lives in server/heroes.ts.
  */
-import { DEFAULT_APPEARANCE, isBodyVariant, type BodyVariant } from "./character.js";
+import { isBodyVariant, type BodyVariant } from "./character.js";
 import type { PlayerClass } from "./game.js";
 
 /** `satisfies` rejects a listed class that isn't a `PlayerClass`; it does NOT enforce
@@ -29,6 +29,11 @@ export interface CreateHeroInput {
   body?: BodyVariant;
 }
 
+const BONUS_BODY_CLASS = {
+  runic_guardian: "warrior",
+  assassin: "rogue",
+} as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, PlayerClass>>;
+
 export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
@@ -39,7 +44,7 @@ export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {
   if (!isHeroClass(heroClass)) return null;
   if (body === undefined) return { name: trimmed, class: heroClass };
   if (!isBodyVariant(body)) return null;
-  // The temporary bonus is a visual Warrior variant, not a sixth combat class.
-  if (body !== DEFAULT_APPEARANCE.body && heroClass !== "warrior") return null;
+  // Temporary bonus bodies reuse an existing authoritative class; they never create a sixth one.
+  if (body !== "wayfarer" && BONUS_BODY_CLASS[body] !== heroClass) return null;
   return { name: trimmed, class: heroClass, body };
 }
