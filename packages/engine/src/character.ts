@@ -1,6 +1,12 @@
 import type { PlayerClass } from "./game.js";
 
-export const BODY_VARIANTS = ["wayfarer", "runic_guardian", "assassin", "peasant"] as const;
+export const BODY_VARIANTS = [
+  "wayfarer",
+  "runic_guardian",
+  "assassin",
+  "peasant",
+  "ranger",
+] as const;
 export type BodyVariant = (typeof BODY_VARIANTS)[number];
 
 export function isBodyVariant(value: unknown): value is BodyVariant {

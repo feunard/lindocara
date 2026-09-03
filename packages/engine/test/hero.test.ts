@@ -65,6 +65,16 @@ describe("parseCreateHeroInput", () => {
     ).toEqual({ name: "Till", class: "peasant", body: "peasant" });
   });
 
+  it("accepts the animated Ranger body only for the Ranger class", () => {
+    expect(
+      parseCreateHeroInput({
+        name: "Fern",
+        class: "ranger",
+        body: "ranger",
+      }),
+    ).toEqual({ name: "Fern", class: "ranger", body: "ranger" });
+  });
+
   it("rejects malformed bodies", () => {
     const bad: unknown[] = [
       null,
@@ -80,6 +90,7 @@ describe("parseCreateHeroInput", () => {
       { name: "Mira", class: "ranger", body: "runic_guardian" },
       { name: "Mira", class: "warrior", body: "assassin" },
       { name: "Mira", class: "rogue", body: "peasant" },
+      { name: "Mira", class: "priest", body: "ranger" },
       { name: "Mira", class: "rogue", body: "runic_guardian" },
       { name: 7, class: "warrior" },
     ];

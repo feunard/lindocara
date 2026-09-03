@@ -12,7 +12,7 @@ describe("hero creation class cards", () => {
     const classCards = screen
       .getAllByRole("button")
       .filter((button) => button.classList.contains("class-card"));
-    expect(classCards).toHaveLength(8);
+    expect(classCards).toHaveLength(9);
 
     const rogue = screen.getByRole("button", {
       name: /Rogue\s*Opens from shadow, bursts, then escapes\./,
@@ -59,6 +59,15 @@ describe("hero creation class cards", () => {
     );
     expect(animatedPeasantPortrait?.style.backgroundImage).toContain("bonus/peasant");
     expect(animatedPeasant).toBeEnabled();
+
+    const animatedRanger = screen.getByRole("button", {
+      name: /Ranger · Prototype\s*Ten-phase, eight-direction Ranger with a unique draw, release, retreat, and defeat\./,
+    });
+    const animatedRangerPortrait = animatedRanger.querySelector<HTMLElement>(
+      '[data-hero-body="ranger"] .class-card__portrait-sprite',
+    );
+    expect(animatedRangerPortrait?.style.backgroundImage).toContain("bonus/ranger");
+    expect(animatedRanger).toBeEnabled();
   });
 
   it("re-rolls the suggested name to a different one on every dice click", () => {
@@ -85,7 +94,9 @@ describe("hero creation class cards", () => {
     expect(classMovementPercent("peasant")).toBe(95);
     for (const percent of [100, 110, 90, 120, 95]) {
       const labels = screen.getAllByText(`Speed · ${percent}%`);
-      expect(labels).toHaveLength(percent === 95 || percent === 100 || percent === 120 ? 2 : 1);
+      expect(labels).toHaveLength(
+        percent === 95 || percent === 100 || percent === 110 || percent === 120 ? 2 : 1,
+      );
       expect(labels[0]).toBeVisible();
     }
   });

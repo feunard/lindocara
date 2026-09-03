@@ -65,6 +65,31 @@ const CLASS_PREVIEW_COLOR = {
   peasant: "moss",
 } as const;
 
+const BONUS_HERO_PRESENTATION = {
+  runic_guardian: {
+    name: "hero.bonus.runicGuardian",
+    blurb: "hero.bonus.runicGuardian.blurb",
+    color: "azure",
+  },
+  assassin: {
+    name: "hero.bonus.assassin",
+    blurb: "hero.bonus.assassin.blurb",
+    color: "violet",
+  },
+  peasant: {
+    name: "hero.bonus.peasant",
+    blurb: "hero.bonus.peasant.blurb",
+    color: "moss",
+  },
+  ranger: {
+    name: "hero.bonus.ranger",
+    blurb: "hero.bonus.ranger.blurb",
+    color: "moss",
+  },
+} as const satisfies Readonly<
+  Record<Exclude<BodyVariant, "wayfarer">, { name: string; blurb: string; color: string }>
+>;
+
 /** Player-facing comparison; the editable numeric authority remains `CLASS_STATS`. */
 export function classMovementPercent(heroClass: PlayerClass): number {
   return Math.round(
@@ -86,29 +111,10 @@ function ClassCard({
   disabled: boolean;
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onPick, order, disabled });
-  const bonus = body !== "wayfarer";
-  const bonusName =
-    body === "runic_guardian"
-      ? "hero.bonus.runicGuardian"
-      : body === "assassin"
-        ? "hero.bonus.assassin"
-        : "hero.bonus.peasant";
-  const bonusBlurb =
-    body === "runic_guardian"
-      ? "hero.bonus.runicGuardian.blurb"
-      : body === "assassin"
-        ? "hero.bonus.assassin.blurb"
-        : "hero.bonus.peasant.blurb";
+  const bonus = body === "wayfarer" ? null : BONUS_HERO_PRESENTATION[body];
   const portrait = playerPortrait(heroClass, {
     body,
-    primaryColor:
-      body === "runic_guardian"
-        ? "azure"
-        : body === "assassin"
-          ? "violet"
-          : body === "peasant"
-            ? "moss"
-            : CLASS_PREVIEW_COLOR[heroClass],
+    primaryColor: bonus?.color ?? CLASS_PREVIEW_COLOR[heroClass],
   });
   const portraitStyle = {
     backgroundImage: `url("${portrait.source}")`,
@@ -130,9 +136,9 @@ function ClassCard({
         <span className="class-card__portrait-sprite" style={portraitStyle} />
         <span className="class-card__emblem">{bonus ? "✦" : CLASS_EMBLEM[heroClass]}</span>
       </span>
-      <span className="class-card__name">{bonus ? t(bonusName) : t(`class.${heroClass}`)}</span>
+      <span className="class-card__name">{bonus ? t(bonus.name) : t(`class.${heroClass}`)}</span>
       <span className="class-card__blurb">
-        {bonus ? t(bonusBlurb) : t(`class.${heroClass}.blurb`)}
+        {bonus ? t(bonus.blurb) : t(`class.${heroClass}.blurb`)}
       </span>
       <span className="class-card__stat">
         {t("hero.create.movementSpeed", { percent: classMovementPercent(heroClass) })}
@@ -248,6 +254,13 @@ export function HeroCreate({
           order={HERO_CLASSES.length + 2}
           disabled={busy}
           onPick={() => void launch("peasant", "peasant")}
+        />
+        <ClassCard
+          heroClass="ranger"
+          body="ranger"
+          order={HERO_CLASSES.length + 3}
+          disabled={busy}
+          onPick={() => void launch("ranger", "ranger")}
         />
       </MenuNav>
 

@@ -653,6 +653,77 @@ export function assassinSkillActiveFrame(skillId: AssassinSkillId): number {
   return ASSASSIN_SKILL_ACTIVE_FRAMES[skillId];
 }
 
+export const RANGER_BONUS_SKILL_IDS = [
+  "quick_shot",
+  "piercing_arrow",
+  "volley",
+  "dash",
+  "heartseeker",
+] as const;
+export type RangerBonusSkillId = (typeof RANGER_BONUS_SKILL_IDS)[number];
+
+function rangerBonusSheet(source: string): UnitSheet {
+  return {
+    source,
+    frames: 10,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
+    directionRows: 5,
+  };
+}
+
+const RANGER_BONUS_QUICK_SHOT_SHEET = rangerBonusSheet(
+  new URL("./assets/bonus/ranger/quick-shot.png", import.meta.url).href,
+);
+
+/**
+ * Five authored views keep the forest scout's bow, hood, quiver and body readable through every
+ * Ranger action. The runtime mirrors those views into eight apparent directions.
+ */
+export const RANGER_BONUS_SHEETS = {
+  idle: rangerBonusSheet(new URL("./assets/bonus/ranger/idle.png", import.meta.url).href),
+  run: rangerBonusSheet(new URL("./assets/bonus/ranger/run.png", import.meta.url).href),
+  attack: RANGER_BONUS_QUICK_SHOT_SHEET,
+} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
+
+export const RANGER_BONUS_SKILL_SHEETS = {
+  quick_shot: RANGER_BONUS_QUICK_SHOT_SHEET,
+  piercing_arrow: rangerBonusSheet(
+    new URL("./assets/bonus/ranger/piercing-arrow.png", import.meta.url).href,
+  ),
+  volley: rangerBonusSheet(new URL("./assets/bonus/ranger/volley.png", import.meta.url).href),
+  dash: rangerBonusSheet(new URL("./assets/bonus/ranger/dash.png", import.meta.url).href),
+  heartseeker: rangerBonusSheet(
+    new URL("./assets/bonus/ranger/heartseeker.png", import.meta.url).href,
+  ),
+} as const satisfies Readonly<Record<RangerBonusSkillId, UnitSheet>>;
+
+/** Key/in-between interleaving puts each authored release or mobility stride on an even frame. */
+export const RANGER_BONUS_SKILL_ACTIVE_FRAMES = {
+  quick_shot: 6,
+  piercing_arrow: 6,
+  volley: 6,
+  dash: 4,
+  heartseeker: 6,
+} as const satisfies Readonly<Record<RangerBonusSkillId, number>>;
+
+export const RANGER_BONUS_DEATH_SHEET = rangerBonusSheet(
+  new URL("./assets/bonus/ranger/death.png", import.meta.url).href,
+);
+
+export function isRangerBonusSkillId(skillId: string): skillId is RangerBonusSkillId {
+  return (RANGER_BONUS_SKILL_IDS as readonly string[]).includes(skillId);
+}
+
+export function rangerBonusSkillSheet(skillId: RangerBonusSkillId): UnitSheet {
+  return RANGER_BONUS_SKILL_SHEETS[skillId];
+}
+
+export function rangerBonusSkillActiveFrame(skillId: RangerBonusSkillId): number {
+  return RANGER_BONUS_SKILL_ACTIVE_FRAMES[skillId];
+}
+
 const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
   azure: "Blue Units",
   ember: "Red Units",
@@ -972,6 +1043,7 @@ export function unitSheet(
   if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
   if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
   if (appearance.body === "peasant") return PEASANT_BONUS_SHEETS[motion];
+  if (appearance.body === "ranger") return RANGER_BONUS_SHEETS[motion];
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
@@ -1017,6 +1089,11 @@ export function allUnitSheets(): UnitSheet[] {
     for (const sheet of Object.values(carried)) result.set(sheet.source, sheet);
   }
   result.set(PEASANT_BONUS_DEATH_SHEET.source, PEASANT_BONUS_DEATH_SHEET);
+  for (const sheet of Object.values(RANGER_BONUS_SHEETS)) result.set(sheet.source, sheet);
+  for (const sheet of Object.values(RANGER_BONUS_SKILL_SHEETS)) {
+    result.set(sheet.source, sheet);
+  }
+  result.set(RANGER_BONUS_DEATH_SHEET.source, RANGER_BONUS_DEATH_SHEET);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

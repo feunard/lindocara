@@ -11,7 +11,7 @@ import sys
 from PIL import Image
 
 
-def detourer(im, tolerance=42):
+def detourer(im, tolerance=42, background=None):
     """Rend transparent le fond, par propagation depuis les BORDS.
 
     Un simple test de couleur sur toute l'image perce le sujet : les zones
@@ -23,7 +23,7 @@ def detourer(im, tolerance=42):
     """
     im = im.convert("RGBA")
     px = im.load()
-    fond = px[0, 0][:3]
+    fond = px[0, 0][:3] if background is None else background
     proche = lambda c: abs(c[0] - fond[0]) + abs(c[1] - fond[1]) + abs(c[2] - fond[2]) <= tolerance
 
     vus = bytearray(im.width * im.height)

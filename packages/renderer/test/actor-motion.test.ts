@@ -18,6 +18,7 @@ import {
 import {
   assassinSkillActiveFrame,
   peasantBonusSkillActiveFrame,
+  rangerBonusSkillActiveFrame,
 } from "@lindocara/renderer/tiny-swords-art.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
@@ -221,6 +222,40 @@ describe("actor animation art", () => {
     expect(runView.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(runView.renderHeight).toBeCloseTo(2.6 * 0.9);
     expect(runView.frameDurationMs).toBe(62.5);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
+  });
+
+  it("keeps ten directional phases and a semantic strip for every Ranger skill", () => {
+    const bonus = {
+      ...player,
+      class: "ranger",
+      appearance: { body: "ranger", primaryColor: "moss" },
+    } as PlayerSnapshot;
+
+    for (const motion of ["idle", "run", "attack"] as const) {
+      const sheet = playerActorSheet(bonus, motion);
+      expect(sheet.source).toContain("bonus/ranger");
+      expect(sheet.frames).toBe(10);
+      expect(sheet.frameWidth).toBe(192);
+      expect(sheet.frameHeight).toBe(192);
+      expect(sheet.directionRows).toBe(5);
+    }
+
+    const skills = ["quick_shot", "piercing_arrow", "volley", "dash", "heartseeker"] as const;
+    const sources = skills.map(
+      (skillId) =>
+        playerActorSheet({ ...bonus, action: { skillId } } as PlayerSnapshot, "attack").source,
+    );
+    expect(new Set(sources).size).toBe(skills.length);
+    expect(sources).toEqual(
+      skills.map((skillId) => expect.stringContaining(skillId.replaceAll("_", "-"))),
+    );
+    expect(skills.map(rangerBonusSkillActiveFrame)).toEqual([6, 6, 6, 4, 6]);
+
+    const view = playerActorView(bonus, 0, "run");
+    expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
+    expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
+    expect(view.frameDurationMs).toBe(62.5);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
   });
 
