@@ -69,9 +69,12 @@ close the loop without a jump.
 
 `apps/lab/scripts/animation-sheet.py` removes the magenta background, applies hard alpha, a
 24-colour palette and the project outline, and anchors the feet 56 px above the bottom of a 192 px
-frame. Every internal non-run source-row edge discards 28 px to prevent neighbouring tools or
-effects from leaking into another animation. The rebuilt run uses shared 96 px scaling, automatic
-actor-centre detection, hard alpha and a common 32-colour final palette;
+frame. Non-run atlases are extracted by connected actor component across the complete source grid,
+before any row or column crop: this keeps a raised tool attached to its owner without importing a
+neighbouring pose or a detached projectile. Each angle takes its first idle pose as a fixed source
+height reference, so tools, crouches and falls change the silhouette without changing the actor's
+anatomical scale. The rebuilt run uses shared 96 px scaling, automatic actor-centre detection, hard
+alpha and a common 32-colour final palette;
 `stack-animation-strips.py` stacks its five camera rows into one 9216x960 atlas.
 
 Fifteen 1920x960 atlases contain ten phases by five authored angles. The 9216x960 run atlas contains
@@ -82,7 +85,8 @@ Fifteen 1920x960 atlases contain ten phases by five authored angles. The 9216x96
 - `packages/renderer/src/assets/bonus/peasant/{rally,ration-throw,camp-build,bomb-throw}.png`;
 - `packages/renderer/src/assets/bonus/peasant/carry-{wood,meat,gold}-{idle,run}.png`.
 
-Idle runs at 3 fps and the 48-phase main locomotion at 60 fps, producing one 0.8-second loop. The
-existing ten-phase cargo runs remain at 14 fps. Each skill maps authoritative contact to its own
-semantic impact frame; the server still decides harvesting, buffs, healing, construction, bomb
-collision, damage and inventory changes.
+Idle runs at 3 fps. The 48-phase main locomotion is defined as one two-second sequence, so the
+renderer derives a 24 fps cadence from the atlas length instead of treating every additional image
+as permission to accelerate the animation. The existing ten-phase cargo runs remain at 14 fps.
+Each skill maps authoritative contact to its own semantic impact frame; the server still decides
+harvesting, buffs, healing, construction, bomb collision, damage and inventory changes.

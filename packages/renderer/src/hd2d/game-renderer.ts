@@ -184,6 +184,10 @@ const RUNIC_GUARDIAN_RENDER_SCALE = 0.92;
 const ASSASSIN_RENDER_SCALE = 0.9;
 /** The animated Peasant uses the same normalized 96 px body target as the Assassin. */
 const PEASANT_BONUS_RENDER_SCALE = 0.9;
+/** The 48 authored Peasant run phases describe one complete two-second stride sequence. Deriving
+ * each frame's duration from that cycle keeps a denser atlas from making the actor sprint through
+ * its poses faster than a shorter sheet. */
+const PEASANT_BONUS_RUN_CYCLE_DURATION_MS = 2_000;
 /** The hooded Ranger shares the compact player silhouette used by the Assassin and Peasant. */
 const RANGER_BONUS_RENDER_SCALE = 0.9;
 /** The elderly Priest shares the same normalized player height as the other generated bodies. */
@@ -606,7 +610,9 @@ export function playerActorView(
           : assassin && motion === "idle"
             ? 1_000 / 3
             : peasantBonus && motion === "run"
-              ? 1_000 / (player.peasantCarry ? 14 : 60)
+              ? player.peasantCarry
+                ? 1_000 / 14
+                : PEASANT_BONUS_RUN_CYCLE_DURATION_MS / sheet.frames
               : peasantBonus && motion === "idle"
                 ? 1_000 / 3
                 : rangerBonus && motion === "run"

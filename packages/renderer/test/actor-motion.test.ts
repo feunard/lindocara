@@ -220,9 +220,11 @@ describe("actor animation art", () => {
     }
 
     const runView = playerActorView(bonus, 0, "run");
+    const runFrameDurationMs = runView.frameDurationMs ?? Number.NaN;
     expect(runView.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(runView.renderHeight).toBeCloseTo(2.6 * 0.9);
-    expect(runView.frameDurationMs).toBeCloseTo(1_000 / 60);
+    expect(runFrameDurationMs).toBeCloseTo(2_000 / 48);
+    expect(runFrameDurationMs * 48).toBeCloseTo(2_000);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
 
     const carriedRunView = playerActorView(

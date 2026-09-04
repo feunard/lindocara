@@ -195,6 +195,77 @@ def primary_component_centres(
     )
 
 
+def isolated_component(image, component, margin=2):
+    """Return one connected silhouette without pixels owned by neighbouring poses."""
+    width, height = image.size
+    xs = [index % width for index in component]
+    ys = [index // width for index in component]
+    left = max(0, min(xs) - margin)
+    top = max(0, min(ys) - margin)
+    right = min(width, max(xs) + margin + 1)
+    bottom = min(height, max(ys) + margin + 1)
+    result = image.crop((left, top, right, bottom))
+    source_alpha = image.getchannel("A")
+    alpha = Image.new("L", result.size, 0)
+    alpha_pixels = alpha.load()
+    source_pixels = source_alpha.load()
+    for index in component:
+        x = index % width
+        y = index // width
+        alpha_pixels[x - left, y - top] = source_pixels[x, y]
+    result.putalpha(alpha)
+    return result
+
+
+def primary_component_grid(
+    image,
+    row_count,
+    column_count,
+    explicit_background,
+    background_tolerance,
+    pocket_tolerance,
+    precutout=False,
+):
+    """Recover complete actors even when a pose crosses an assumed source-cell boundary.
+
+    Generated action grids often place a raised tool in the nominal row above or a released
+    projectile in the next column. Cutting the sheet into rectangles first either amputates the
+    actor or assigns the projectile to its neighbour. The actor is consistently the dominant
+    connected silhouette in each authored slot, so isolate those silhouettes from the whole sheet
+    before grouping them by their measured centres.
+    """
+    if precutout:
+        cutout = image.convert("RGBA")
+    else:
+        background = (
+            couleur_de_fond(image)
+            if explicit_background is None
+            else explicit_background
+        )
+        cutout = detourer(
+            image,
+            tolerance=background_tolerance,
+            background=explicit_background,
+        )
+        cutout = vider_poches(cutout, background, tolerance=pocket_tolerance)
+    count = row_count * column_count
+    components = sorted(opaque_components(cutout), key=len, reverse=True)[:count]
+    if len(components) != count:
+        raise SystemExit(f"could not find {count} primary sprites for component-grid detection")
+    width = cutout.width
+    records = []
+    for component in components:
+        centre_x = sum(index % width for index in component) / len(component)
+        centre_y = sum(index // width for index in component) / len(component)
+        records.append((centre_x, centre_y, component))
+    records.sort(key=lambda record: record[1])
+    rows = []
+    for index in range(0, count, column_count):
+        row = sorted(records[index : index + column_count], key=lambda record: record[0])
+        rows.append([isolated_component(cutout, record[2]) for record in row])
+    return rows
+
+
 def automatic_cells(
     image,
     count,
@@ -395,6 +466,15 @@ def main():
             "rows in the generated sheet."
         ),
     )
+    parser.add_argument(
+        "--component-grid",
+        action="store_true",
+        help=(
+            "Isolate the dominant connected actor in every grid slot before selecting a row. "
+            "This preserves tools that cross nominal cell boundaries and drops detached "
+            "projectiles that the runtime renders separately."
+        ),
+    )
     parser.add_argument("--rotate", type=int, choices=(0, 180), default=0)
     parser.add_argument("--frame-size", type=int, default=256)
     parser.add_argument("--content-height", type=int, default=150)
@@ -405,6 +485,15 @@ def main():
             "Scale every key and in-between from their shared tallest source frame instead of "
             "making every pose the full content height. This preserves apparent body size when "
             "an animation crouches, falls or lies down."
+        ),
+    )
+    parser.add_argument(
+        "--reference-height",
+        type=int,
+        help=(
+            "Use one explicit prepared-source height as the scale reference. Unlike scaling each "
+            "cell to --content-height, this keeps the actor the same size when a pose raises a "
+            "tool, crouches or lies down."
         ),
     )
     parser.add_argument("--colors", type=int, default=24)
@@ -474,6 +563,22 @@ def main():
         raise SystemExit("--pocket-tolerance must be non-negative and below --background-tolerance")
     if not 0 <= args.minimum_component_area_ratio <= 1:
         raise SystemExit("--minimum-component-area-ratio must be between zero and one")
+    if args.reference_height is not None and args.reference_height <= 0:
+        raise SystemExit("--reference-height must be positive")
+    if args.reference_height is not None and args.shared_scale:
+        raise SystemExit("--reference-height and --shared-scale are mutually exclusive")
+    if args.component_grid and (
+        args.auto_cells
+        or args.auto_rows
+        or args.cutout_before_split
+        or args.row_gutter
+        or args.row_gutter_top is not None
+        or args.row_gutter_bottom is not None
+    ):
+        raise SystemExit(
+            "--component-grid owns cell and row extraction; do not combine it with automatic "
+            "splitting, pre-cutout splitting or row gutters"
+        )
     explicit_background = None
     if args.background_color is not None:
         value = args.background_color.removeprefix("#")
@@ -549,8 +654,6 @@ def main():
             )
         )
 
-    source = select_row(args.input)
-    inbetweens = select_row(args.inbetweens) if args.inbetweens else None
     if args.foot_offset is not None and not 0 <= args.foot_offset < args.frame_size:
         raise SystemExit("--foot-offset must fit inside --frame-size")
 
@@ -578,8 +681,28 @@ def main():
             for index in range(args.frames)
         ]
 
-    source_cells = split_cells(source, args.input)
-    inbetween_cells = split_cells(inbetweens, args.inbetweens) if inbetweens is not None else None
+    def component_row(path):
+        image = Image.open(path).convert("RGBA")
+        return primary_component_grid(
+            image,
+            args.rows,
+            args.frames,
+            explicit_background,
+            args.background_tolerance,
+            args.pocket_tolerance,
+            args.precutout,
+        )[args.row]
+
+    if args.component_grid:
+        source_cells = component_row(args.input)
+        inbetween_cells = component_row(args.inbetweens) if args.inbetweens else None
+    else:
+        source = select_row(args.input)
+        inbetweens = select_row(args.inbetweens) if args.inbetweens else None
+        source_cells = split_cells(source, args.input)
+        inbetween_cells = (
+            split_cells(inbetweens, args.inbetweens) if inbetweens is not None else None
+        )
     try:
         sequence = (
             list(range(args.frames))
@@ -590,7 +713,7 @@ def main():
         raise SystemExit("--sequence must contain comma-separated integers") from error
     if not sequence or any(index < 0 or index >= args.frames for index in sequence):
         raise SystemExit("--sequence contains a source-frame index outside --frames")
-    output_frames = len(sequence) * (2 if inbetweens is not None else 1)
+    output_frames = len(sequence) * (2 if inbetween_cells is not None else 1)
     output = Image.new(
         "RGBA",
         (args.frame_size * output_frames, args.frame_size),
@@ -599,7 +722,7 @@ def main():
     prepared = [
         prepare_frame(
             cell,
-            args.precutout or args.cutout_before_split,
+            args.precutout or args.cutout_before_split or args.component_grid,
             args.background_tolerance,
             args.pocket_tolerance,
             args.minimum_component_area_ratio,
@@ -611,7 +734,7 @@ def main():
         [
             prepare_frame(
                 cell,
-                args.precutout or args.cutout_before_split,
+                args.precutout or args.cutout_before_split or args.component_grid,
                 args.background_tolerance,
                 args.pocket_tolerance,
                 args.minimum_component_area_ratio,
@@ -622,17 +745,15 @@ def main():
         if inbetween_cells is not None
         else None
     )
-    reference_height = (
-        max(
+    reference_height = args.reference_height
+    if reference_height is None and args.shared_scale:
+        reference_height = max(
             frame.height
             for frame in [
                 *prepared,
                 *(prepared_inbetweens if prepared_inbetweens is not None else []),
             ]
         )
-        if args.shared_scale
-        else None
-    )
 
     def normalize_sheet(cells):
         normalized = []
