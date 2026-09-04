@@ -18,6 +18,7 @@ import {
 import {
   assassinSkillActiveFrame,
   peasantBonusSkillActiveFrame,
+  priestBonusSkillActiveFrame,
   rangerBonusSkillActiveFrame,
 } from "@lindocara/renderer/tiny-swords-art.js";
 import * as THREE from "three";
@@ -257,6 +258,40 @@ describe("actor animation art", () => {
     expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
     expect(view.frameDurationMs).toBe(62.5);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
+  });
+
+  it("keeps ten directional phases and a semantic strip for every Priest skill", () => {
+    const bonus = {
+      ...player,
+      class: "priest",
+      appearance: { body: "priest", primaryColor: "azure" },
+    } as PlayerSnapshot;
+
+    for (const motion of ["idle", "run", "attack"] as const) {
+      const sheet = playerActorSheet(bonus, motion);
+      expect(sheet.source).toContain("bonus/priest");
+      expect(sheet.frames).toBe(10);
+      expect(sheet.frameWidth).toBe(192);
+      expect(sheet.frameHeight).toBe(192);
+      expect(sheet.directionRows).toBe(5);
+    }
+
+    const skills = ["radiant_bolt", "mend", "blink", "prayer", "divine_nova"] as const;
+    const sources = skills.map(
+      (skillId) =>
+        playerActorSheet({ ...bonus, action: { skillId } } as PlayerSnapshot, "attack").source,
+    );
+    expect(new Set(sources).size).toBe(skills.length);
+    expect(sources).toEqual(
+      skills.map((skillId) => expect.stringContaining(skillId.replaceAll("_", "-"))),
+    );
+    expect(skills.map(priestBonusSkillActiveFrame)).toEqual([6, 6, 4, 6, 6]);
+
+    const view = playerActorView(bonus, 0, "run");
+    expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
+    expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
+    expect(view.frameDurationMs).toBe(62.5);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(400);
   });
 
   it("keeps Iron Guard's authored strip after its cast action has ended", () => {

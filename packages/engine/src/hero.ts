@@ -34,6 +34,7 @@ const BONUS_BODY_CLASS = {
   assassin: "rogue",
   peasant: "peasant",
   ranger: "ranger",
+  priest: "priest",
 } as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, PlayerClass>>;
 
 export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {

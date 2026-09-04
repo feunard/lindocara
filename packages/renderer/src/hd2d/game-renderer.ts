@@ -106,12 +106,16 @@ import {
   ASSASSIN_DEATH_SHEET,
   isAssassinSkillId,
   isPeasantSkillId,
+  isPriestBonusSkillId,
   PEASANT_BONUS_DEATH_SHEET,
   peasantBonusCarrySheet,
   peasantBonusSkillActiveFrame,
   peasantBonusSkillSheet,
   peasantCarrySheet,
   peasantCasterSheet,
+  PRIEST_BONUS_DEATH_SHEET,
+  priestBonusSkillActiveFrame,
+  priestBonusSkillSheet,
   isRangerBonusSkillId,
   RANGER_BONUS_DEATH_SHEET,
   rangerBonusSkillActiveFrame,
@@ -176,6 +180,8 @@ const ASSASSIN_RENDER_SCALE = 0.9;
 const PEASANT_BONUS_RENDER_SCALE = 0.9;
 /** The hooded Ranger shares the compact player silhouette used by the Assassin and Peasant. */
 const RANGER_BONUS_RENDER_SCALE = 0.9;
+/** The elderly Priest shares the same normalized player height as the other generated bodies. */
+const PRIEST_BONUS_RENDER_SCALE = 0.9;
 
 /**
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
@@ -207,6 +213,14 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
     isRangerBonusSkillId(player.action.skillId)
   ) {
     return rangerBonusSkillSheet(player.action.skillId);
+  }
+  if (
+    player.appearance.body === "priest" &&
+    motion === "attack" &&
+    player.action?.skillId &&
+    isPriestBonusSkillId(player.action.skillId)
+  ) {
+    return priestBonusSkillSheet(player.action.skillId);
   }
   // This temporary bonus is intentionally one coherent directional bake. Replacing its attack
   // pose with the ordinary Warrior caster sheet would make the model change identity mid-swing;
@@ -517,6 +531,7 @@ export function playerActorView(
   const assassin = player.appearance.body === "assassin";
   const peasantBonus = player.appearance.body === "peasant";
   const rangerBonus = player.appearance.body === "ranger";
+  const priestBonus = player.appearance.body === "priest";
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   const lumenCloud = clouded
     ? combatArt("priest", "blink", player.appearance.primaryColor).impact
@@ -557,7 +572,9 @@ export function playerActorView(
           ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
           : !clouded && rangerBonus
             ? { renderHeight: LAB_UNIT_HEIGHT * RANGER_BONUS_RENDER_SCALE }
-            : {}),
+            : !clouded && priestBonus
+              ? { renderHeight: LAB_UNIT_HEIGHT * PRIEST_BONUS_RENDER_SCALE }
+              : {}),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
     // Four distinct Runic Guardian poses form the same half-second cycle as a stock six-frame
@@ -577,7 +594,11 @@ export function playerActorView(
                   ? 1_000 / 16
                   : rangerBonus && motion === "idle"
                     ? 1_000 / 3
-                    : ACTOR_FRAME_MS[motion],
+                    : priestBonus && motion === "run"
+                      ? 1_000 / 16
+                      : priestBonus && motion === "idle"
+                        ? 1_000 / 2.5
+                        : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
     opacity:
       player.life === "ghost"
@@ -1900,7 +1921,8 @@ export class Hd2dRenderer implements RendererLike {
           player.appearance.body === "runic_guardian" ||
           player.appearance.body === "assassin" ||
           player.appearance.body === "peasant" ||
-          player.appearance.body === "ranger";
+          player.appearance.body === "ranger" ||
+          player.appearance.body === "priest";
         const frames = directionalBonus ? (view.frames ?? 10) : art.caster.frames;
         const activeFrame =
           player.appearance.body === "assassin" &&
@@ -1915,11 +1937,16 @@ export class Hd2dRenderer implements RendererLike {
                   player.action.skillId &&
                   isRangerBonusSkillId(player.action.skillId)
                 ? rangerBonusSkillActiveFrame(player.action.skillId)
-                : directionalBonus
-                  ? Math.round(
-                      (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) * (frames - 1),
-                    )
-                  : art.caster.activeFrame;
+                : player.appearance.body === "priest" &&
+                    player.action.skillId &&
+                    isPriestBonusSkillId(player.action.skillId)
+                  ? priestBonusSkillActiveFrame(player.action.skillId)
+                  : directionalBonus
+                    ? Math.round(
+                        (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) *
+                          (frames - 1),
+                      )
+                    : art.caster.activeFrame;
         view.frame = this.#actionFrame(
           player.action,
           frames,
@@ -2114,6 +2141,7 @@ export class Hd2dRenderer implements RendererLike {
       const assassin = corpse.appearance.body === "assassin";
       const peasantBonus = corpse.appearance.body === "peasant";
       const rangerBonus = corpse.appearance.body === "ranger";
+      const priestBonus = corpse.appearance.body === "priest";
       const sheet = runic
         ? RUNIC_GUARDIAN_DEATH_SHEET
         : assassin
@@ -2122,7 +2150,9 @@ export class Hd2dRenderer implements RendererLike {
             ? PEASANT_BONUS_DEATH_SHEET
             : rangerBonus
               ? RANGER_BONUS_DEATH_SHEET
-              : unitSheet(corpse.class, corpse.appearance, "idle");
+              : priestBonus
+                ? PRIEST_BONUS_DEATH_SHEET
+                : unitSheet(corpse.class, corpse.appearance, "idle");
       const deathStartedAt = this.#corpseAnimations.get(corpse.id) ?? animationTimeMs;
       this.#corpseAnimations.set(corpse.id, deathStartedAt);
       const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
@@ -2145,11 +2175,17 @@ export class Hd2dRenderer implements RendererLike {
               ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
               : rangerBonus
                 ? { renderHeight: LAB_UNIT_HEIGHT * RANGER_BONUS_RENDER_SCALE }
-                : {}),
-        ...(runic || assassin || peasantBonus || rangerBonus
+                : priestBonus
+                  ? { renderHeight: LAB_UNIT_HEIGHT * PRIEST_BONUS_RENDER_SCALE }
+                  : {}),
+        ...(runic || assassin || peasantBonus || rangerBonus || priestBonus
           ? {
               animationTimeMs: animationTimeMs - deathStartedAt,
-              animationDurationMs: assassin ? 900 : peasantBonus || rangerBonus ? 1_000 : 760,
+              animationDurationMs: assassin
+                ? 900
+                : peasantBonus || rangerBonus || priestBonus
+                  ? 1_000
+                  : 760,
               animationLoop: false,
             }
           : { pose: "fallen" as const }),

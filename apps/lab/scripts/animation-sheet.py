@@ -111,6 +111,56 @@ def discard_small_components(image, minimum_area_ratio, alpha_threshold=128):
     return result
 
 
+def transparent_gap_boundaries(image, count, axis, alpha_threshold=128):
+    """Split a transparent sheet at its widest fully empty bands.
+
+    Once a generated sheet is cut out, the blank lanes between authored cells are more reliable
+    than connected components: a robe, an open hand or a separated foot can be its own component,
+    but none of them spans the broad gap between two neighbouring actors.
+    """
+    alpha = image.getchannel("A")
+    width, height = image.size
+    pixels = alpha.load()
+    limit = width if axis == "x" else height
+    cross_limit = height if axis == "x" else width
+    occupied = []
+    for position in range(limit):
+        occupied.append(
+            any(
+                (
+                    pixels[position, cross]
+                    if axis == "x"
+                    else pixels[cross, position]
+                )
+                >= alpha_threshold
+                for cross in range(cross_limit)
+            )
+        )
+    visible = [index for index, value in enumerate(occupied) if value]
+    if not visible:
+        raise SystemExit("automatic gap detection found no visible pixels")
+    gaps = []
+    start = None
+    for position in range(visible[0], visible[-1] + 1):
+        if not occupied[position] and start is None:
+            start = position
+        elif occupied[position] and start is not None:
+            gaps.append((position - start, start, position))
+            start = None
+    if start is not None:
+        gaps.append((visible[-1] + 1 - start, start, visible[-1] + 1))
+    if len(gaps) < count - 1:
+        raise SystemExit(f"could not find {count - 1} transparent cell gaps")
+    separators = sorted(
+        round((start + end) / 2)
+        for _, start, end in sorted(gaps, reverse=True)[: count - 1]
+    )
+    boundaries = [0, *separators, limit]
+    if any(left >= right for left, right in zip(boundaries, boundaries[1:])):
+        raise SystemExit("automatic gap detection produced overlapping cells")
+    return boundaries
+
+
 def primary_component_centres(
     image,
     count,
@@ -118,16 +168,22 @@ def primary_component_centres(
     explicit_background,
     background_tolerance,
     pocket_tolerance,
+    precutout=False,
 ):
-    background = (
-        couleur_de_fond(image) if explicit_background is None else explicit_background
-    )
-    cutout = detourer(
-        image,
-        tolerance=background_tolerance,
-        background=explicit_background,
-    )
-    cutout = vider_poches(cutout, background, tolerance=pocket_tolerance)
+    if precutout:
+        cutout = image.convert("RGBA")
+    else:
+        background = (
+            couleur_de_fond(image)
+            if explicit_background is None
+            else explicit_background
+        )
+        cutout = detourer(
+            image,
+            tolerance=background_tolerance,
+            background=explicit_background,
+        )
+        cutout = vider_poches(cutout, background, tolerance=pocket_tolerance)
     components = sorted(opaque_components(cutout), key=len, reverse=True)[:count]
     if len(components) != count:
         raise SystemExit(f"could not find {count} primary sprites for automatic cell detection")
@@ -145,8 +201,15 @@ def automatic_cells(
     explicit_background,
     background_tolerance,
     pocket_tolerance,
+    precutout=False,
 ):
     """Split a generated row around its actual actor centres instead of assumed equal columns."""
+    if precutout:
+        boundaries = transparent_gap_boundaries(image, count, "x")
+        return [
+            image.crop((left, 0, right, image.height))
+            for left, right in zip(boundaries, boundaries[1:])
+        ]
     centres = primary_component_centres(
         image,
         count,
@@ -154,6 +217,7 @@ def automatic_cells(
         explicit_background,
         background_tolerance,
         pocket_tolerance,
+        precutout,
     )
     width = image.width
     boundaries = [0]
@@ -174,8 +238,15 @@ def automatic_rows(
     explicit_background,
     background_tolerance,
     pocket_tolerance,
+    precutout=False,
 ):
     """Split a generated grid between the measured centres of its actor rows."""
+    if precutout:
+        boundaries = transparent_gap_boundaries(image, row_count, "y")
+        return [
+            image.crop((0, top, image.width, bottom))
+            for top, bottom in zip(boundaries, boundaries[1:])
+        ]
     sprite_centres = primary_component_centres(
         image,
         row_count * column_count,
@@ -183,6 +254,7 @@ def automatic_rows(
         explicit_background,
         background_tolerance,
         pocket_tolerance,
+        precutout,
     )
     centres = [
         sum(sprite_centres[index : index + column_count]) / column_count
@@ -315,6 +387,14 @@ def main():
         help="Input already carries transparency; skip flat-background removal.",
     )
     parser.add_argument(
+        "--cutout-before-split",
+        action="store_true",
+        help=(
+            "Remove the sheet background before row and cell detection. This prevents an actor "
+            "that crosses a computed boundary from sealing the background inside a cropped cell."
+        ),
+    )
+    parser.add_argument(
         "--foot-offset",
         type=int,
         help="Anchor the sprite's bottom this many pixels above the frame bottom.",
@@ -381,6 +461,22 @@ def main():
 
     def select_row(path):
         image = Image.open(path).convert("RGBA")
+        if args.cutout_before_split and not args.precutout:
+            background = (
+                couleur_de_fond(image)
+                if explicit_background is None
+                else explicit_background
+            )
+            image = detourer(
+                image,
+                tolerance=args.background_tolerance,
+                background=explicit_background,
+            )
+            image = vider_poches(
+                image,
+                background,
+                tolerance=args.pocket_tolerance,
+            )
         if args.auto_rows:
             rows = automatic_rows(
                 image,
@@ -389,6 +485,7 @@ def main():
                 explicit_background,
                 args.background_tolerance,
                 args.pocket_tolerance,
+                args.precutout or args.cutout_before_split,
             )
             selected = rows[args.row]
             if row_gutter_top + row_gutter_bottom >= selected.height:
@@ -430,6 +527,7 @@ def main():
                 explicit_background,
                 args.background_tolerance,
                 args.pocket_tolerance,
+                args.precutout or args.cutout_before_split,
             )
         # Image generators commonly honour the visual frame count but keep a power-of-two canvas.
         # Trimming at most `frames - 1` trailing pixels preserves equal source cells without
@@ -470,7 +568,7 @@ def main():
                 normalize_frame(
                     prepare_frame(
                         cell,
-                        args.precutout,
+                        args.precutout or args.cutout_before_split,
                         args.background_tolerance,
                         args.pocket_tolerance,
                         args.minimum_component_area_ratio,

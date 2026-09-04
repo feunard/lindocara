@@ -6,6 +6,7 @@ export const BODY_VARIANTS = [
   "assassin",
   "peasant",
   "ranger",
+  "priest",
 ] as const;
 export type BodyVariant = (typeof BODY_VARIANTS)[number];
 

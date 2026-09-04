@@ -86,6 +86,11 @@ const BONUS_HERO_PRESENTATION = {
     blurb: "hero.bonus.ranger.blurb",
     color: "moss",
   },
+  priest: {
+    name: "hero.bonus.priest",
+    blurb: "hero.bonus.priest.blurb",
+    color: "azure",
+  },
 } as const satisfies Readonly<
   Record<Exclude<BodyVariant, "wayfarer">, { name: string; blurb: string; color: string }>
 >;
@@ -261,6 +266,13 @@ export function HeroCreate({
           order={HERO_CLASSES.length + 3}
           disabled={busy}
           onPick={() => void launch("ranger", "ranger")}
+        />
+        <ClassCard
+          heroClass="priest"
+          body="priest"
+          order={HERO_CLASSES.length + 4}
+          disabled={busy}
+          onPick={() => void launch("priest", "priest")}
         />
       </MenuNav>
 
