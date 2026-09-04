@@ -2,7 +2,11 @@ import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { NPC_MODEL_ASSETS } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 
-import { TINY_SWORDS_ENEMIES } from "../src/enemy-art.js";
+import {
+  ROOT_MINOTAUR_DEATH_SHEET,
+  ROOT_MINOTAUR_SKILL_SHEETS,
+  TINY_SWORDS_ENEMIES,
+} from "../src/enemy-art.js";
 import {
   authoredActorSheet,
   guardSheet,
@@ -88,6 +92,25 @@ describe("authored HD-2D actor art", () => {
     expect(monsterActorSheet("war_pig", "idle", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.idle);
     expect(monsterActorSheet("war_pig", "run", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.run);
     expect(monsterActorSheet("war_pig", "attack", null)).toBe(TINY_SWORDS_ENEMIES.war_pig.attack);
+  });
+
+  it("selects and preloads every directional Root Minotaur action", () => {
+    expect(monsterActorSheet("minotaur_brute", "attack", null, "horn_charge")).toBe(
+      ROOT_MINOTAUR_SKILL_SHEETS.horn_charge,
+    );
+    expect(monsterActorSheet("minotaur_brute", "attack", null, "labyrinth_stomp")).toBe(
+      ROOT_MINOTAUR_SKILL_SHEETS.labyrinth_stomp,
+    );
+    expect(monsterActorSheet("minotaur_brute", "attack", null, "unknown")).toBe(
+      TINY_SWORDS_ENEMIES.minotaur_brute.attack,
+    );
+    expect(HD2D_ACTOR_TEXTURE_URLS.map((texture) => texture.url)).toEqual(
+      expect.arrayContaining([
+        ROOT_MINOTAUR_SKILL_SHEETS.horn_charge.source,
+        ROOT_MINOTAUR_SKILL_SHEETS.labyrinth_stomp.source,
+        ROOT_MINOTAUR_DEATH_SHEET.source,
+      ]),
+    );
   });
 
   it("uses the guard model selected by the author", () => {

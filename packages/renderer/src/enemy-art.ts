@@ -31,6 +31,12 @@ export interface EnemySheet {
   /** Width and height of one frame, in pixels. Differs per enemy. */
   readonly frame: number;
   readonly frames: number;
+  readonly frameWidth?: number;
+  readonly frameHeight?: number;
+  readonly footOffset?: number;
+  readonly renderHeight?: number;
+  readonly axis?: "x" | "y";
+  readonly directionRows?: number;
 }
 
 export interface EnemyArt {
@@ -101,11 +107,55 @@ const SKULL = {
   attack: { source: `${ROOT}/skull/attack.png`, frame: 192, frames: 7 },
 } as const satisfies EnemyArt;
 
+const ROOT_MINOTAUR_FRAME = 320;
+const ROOT_MINOTAUR_FRAMES = 10;
+const ROOT_MINOTAUR_FOOT_OFFSET = 96;
+const ROOT_MINOTAUR_DIRECTION_ROWS = 5;
+
+function rootMinotaurSheet(source: string): EnemySheet {
+  return {
+    source,
+    frame: ROOT_MINOTAUR_FRAME,
+    frames: ROOT_MINOTAUR_FRAMES,
+    frameWidth: ROOT_MINOTAUR_FRAME,
+    frameHeight: ROOT_MINOTAUR_FRAME,
+    footOffset: ROOT_MINOTAUR_FOOT_OFFSET,
+    directionRows: ROOT_MINOTAUR_DIRECTION_ROWS,
+  };
+}
+
 const MINOTAUR = {
-  idle: { source: `${ROOT}/minotaur/idle.png`, frame: 320, frames: 16 },
-  run: { source: `${ROOT}/minotaur/run.png`, frame: 320, frames: 8 },
-  attack: { source: `${ROOT}/minotaur/attack.png`, frame: 320, frames: 12 },
+  idle: rootMinotaurSheet(new URL("./assets/bonus/root-minotaur/idle.png", import.meta.url).href),
+  run: rootMinotaurSheet(new URL("./assets/bonus/root-minotaur/run.png", import.meta.url).href),
+  attack: rootMinotaurSheet(
+    new URL("./assets/bonus/root-minotaur/attack.png", import.meta.url).href,
+  ),
 } as const satisfies EnemyArt;
+
+export const ROOT_MINOTAUR_SKILL_SHEETS = {
+  horn_charge: rootMinotaurSheet(
+    new URL("./assets/bonus/root-minotaur/horn-charge.png", import.meta.url).href,
+  ),
+  labyrinth_stomp: rootMinotaurSheet(
+    new URL("./assets/bonus/root-minotaur/labyrinth-stomp.png", import.meta.url).href,
+  ),
+} as const;
+
+export type RootMinotaurSkillId = keyof typeof ROOT_MINOTAUR_SKILL_SHEETS;
+
+export const ROOT_MINOTAUR_DEATH_SHEET = rootMinotaurSheet(
+  new URL("./assets/bonus/root-minotaur/death.png", import.meta.url).href,
+);
+
+export const ROOT_MINOTAUR_ACTIVE_FRAME = 6;
+
+export function isRootMinotaurSkillId(skillId: string): skillId is RootMinotaurSkillId {
+  return skillId === "horn_charge" || skillId === "labyrinth_stomp";
+}
+
+export function rootMinotaurSkillSheet(skillId: RootMinotaurSkillId): EnemySheet {
+  return ROOT_MINOTAUR_SKILL_SHEETS[skillId];
+}
 
 const TROLL = {
   idle: { source: `${ROOT}/troll/idle.png`, frame: 384, frames: 12 },
@@ -149,13 +199,25 @@ export const TINY_SWORDS_ENEMIES: Record<MonsterSpecies, EnemyArt> = {
   pig_rider: PIG_RIDER,
 };
 
+export function allEnemySheets(): EnemySheet[] {
+  const unique = new Map<string, EnemySheet>();
+  for (const art of Object.values(TINY_SWORDS_ENEMIES)) {
+    for (const sheet of [art.idle, art.run, art.attack]) unique.set(sheet.source, sheet);
+  }
+  for (const sheet of Object.values(ROOT_MINOTAUR_SKILL_SHEETS)) {
+    unique.set(sheet.source, sheet);
+  }
+  unique.set(ROOT_MINOTAUR_DEATH_SHEET.source, ROOT_MINOTAUR_DEATH_SHEET);
+  return [...unique.values()];
+}
+
 // The measured idle-strip extents, per sheet: (frame, bodyTop, bodyBottom). Re-measure with any art
 // update — every other number falls out of these three.
 const SPEAR_GOBLIN_METRICS = enemyMetrics(256, 48, 176);
 const TORCH_GOBLIN_METRICS = enemyMetrics(192, 65, 133);
 const GNOLL_METRICS = enemyMetrics(192, 60, 135);
 const SKULL_METRICS = enemyMetrics(192, 57, 130);
-const MINOTAUR_METRICS = enemyMetrics(320, 85, 214);
+const MINOTAUR_METRICS = enemyMetrics(320, 91, 224);
 const TROLL_METRICS = enemyMetrics(384, 86, 297);
 const HEX_SHAMAN_METRICS = enemyMetrics(192, 53, 137);
 const WAR_PIG_METRICS = enemyMetrics(192, 83, 134);

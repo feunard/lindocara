@@ -94,7 +94,13 @@ import {
 import { mobilityRenderOffset, mobilityVisual } from "../combat-motion.js";
 import { CombatVisualAuthority } from "../combat-visual-state.js";
 import { shouldShowHealthBar } from "../display-settings.js";
-import { TINY_SWORDS_ENEMIES } from "../enemy-art.js";
+import {
+  allEnemySheets,
+  isRootMinotaurSkillId,
+  ROOT_MINOTAUR_DEATH_SHEET,
+  rootMinotaurSkillSheet,
+  TINY_SWORDS_ENEMIES,
+} from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
@@ -182,6 +188,8 @@ const PEASANT_BONUS_RENDER_SCALE = 0.9;
 const RANGER_BONUS_RENDER_SCALE = 0.9;
 /** The elderly Priest shares the same normalized player height as the other generated bodies. */
 const PRIEST_BONUS_RENDER_SCALE = 0.9;
+const ROOT_MINOTAUR_FRAME_MS = { idle: 1_000 / 3, run: 1_000 / 16 } as const;
+const ROOT_MINOTAUR_DEATH_DURATION_MS = 1_000;
 
 /**
  * Which sheet each kind of actor draws with — the ADAPTER's knowledge, exactly like the terrain
@@ -368,8 +376,19 @@ export function monsterActorSheet(
   species: MonsterSpecies,
   motion: ActorMotion,
   graphicAssetId?: string | null,
+  skillId?: string,
 ): BillboardActorSheet {
-  return authoredActorSheet(graphicAssetId, motion) ?? TINY_SWORDS_ENEMIES[species][motion];
+  const authored = authoredActorSheet(graphicAssetId, motion);
+  if (authored) return authored;
+  if (
+    species === "minotaur_brute" &&
+    motion === "attack" &&
+    skillId !== undefined &&
+    isRootMinotaurSkillId(skillId)
+  ) {
+    return rootMinotaurSkillSheet(skillId);
+  }
+  return TINY_SWORDS_ENEMIES[species][motion];
 }
 
 function actorSheetView(sheet: BillboardActorSheet) {
@@ -652,11 +671,7 @@ export const HD2D_ACTOR_TEXTURE_URLS: readonly TextureSpec[] = [
       sheets.idle.source,
       sheets.run.source,
     ]),
-    ...Object.values(TINY_SWORDS_ENEMIES).flatMap((art) => [
-      art.idle.source,
-      art.run.source,
-      art.attack.source,
-    ]),
+    ...allEnemySheets().map((sheet) => sheet.source),
     HD2D_GLIDER_TEXTURE_URL,
     SEA_GUARDIAN_SWIM_TEXTURE_URL,
     SEA_GUARDIAN_SWIM_UP_TEXTURE_URL,
@@ -1255,6 +1270,8 @@ export class Hd2dRenderer implements RendererLike {
   #actorMotion = new ActorMotionTracker();
   /** Local presentation clock for the one-shot runic death animation. */
   #corpseAnimations = new Map<string, number>();
+  /** Local presentation clock for dead Root Minotaurs retained in monster snapshots. */
+  #monsterDeathAnimations = new Map<string, number>();
   #eventMotion = new WorldEventMotionTracker();
   #playerPresentation = new Map<string, PlayerPresentationState>();
   /** Last grounded storey per remote hero. Their live `y` animates a jump but does not change room. */
@@ -2036,6 +2053,7 @@ export class Hd2dRenderer implements RendererLike {
         animationLoop: !attacking,
       });
     }
+    const rootMinotaurDeathIds = new Set<string>();
     for (const monster of sample.monsters) {
       present.add(monster.id);
       this.#combatVisualAuthority.recordSnapshot(monster.id, monster.action?.id ?? null);
@@ -2049,11 +2067,26 @@ export class Hd2dRenderer implements RendererLike {
       const timing = monster.action
         ? this.#actorAnimationTiming(monster.action, animationTimeMs)
         : null;
-      const sheet = monsterActorSheet(
-        monster.species,
-        monster.dead ? "idle" : motion.motion,
-        monster.graphicAssetId,
-      );
+      const rootMinotaurArt =
+        monster.species === "minotaur_brute" &&
+        authoredActorSheet(monster.graphicAssetId, "idle") === null;
+      const rootMinotaurDeath = monster.dead && rootMinotaurArt;
+      const deathStartedAt = rootMinotaurDeath
+        ? (this.#monsterDeathAnimations.get(monster.id) ?? animationTimeMs)
+        : null;
+      if (rootMinotaurDeath) {
+        rootMinotaurDeathIds.add(monster.id);
+        this.#monsterDeathAnimations.set(monster.id, deathStartedAt ?? animationTimeMs);
+      }
+      const displayedMotion = monster.dead ? "idle" : motion.motion;
+      const sheet = rootMinotaurDeath
+        ? ROOT_MINOTAUR_DEATH_SHEET
+        : monsterActorSheet(
+            monster.species,
+            displayedMotion,
+            monster.graphicAssetId,
+            monster.action?.skillId,
+          );
       const monsterView: ActorView = {
         id: monster.id,
         kind: monster.dead ? "corpse" : "monster",
@@ -2066,10 +2099,21 @@ export class Hd2dRenderer implements RendererLike {
         vy: 0,
         facing: facingOf(monster.facing),
         ...actorSheetView(sheet),
-        animationTimeMs: timing?.elapsed ?? animationTimeMs,
-        ...(timing ? { animationDurationMs: timing.duration } : {}),
-        frameDurationMs: ACTOR_FRAME_MS[monster.dead ? "idle" : motion.motion],
-        animationLoop: motion.motion !== "attack",
+        ...(sheet.directionRows === undefined ? {} : { directionalFacing: monster.facing }),
+        animationTimeMs:
+          rootMinotaurDeath && deathStartedAt !== null
+            ? animationTimeMs - deathStartedAt
+            : (timing?.elapsed ?? animationTimeMs),
+        ...(rootMinotaurDeath
+          ? { animationDurationMs: ROOT_MINOTAUR_DEATH_DURATION_MS }
+          : timing
+            ? { animationDurationMs: timing.duration }
+            : {}),
+        frameDurationMs:
+          rootMinotaurArt && displayedMotion !== "attack"
+            ? ROOT_MINOTAUR_FRAME_MS[displayedMotion]
+            : ACTOR_FRAME_MS[displayedMotion],
+        animationLoop: rootMinotaurDeath ? false : motion.motion !== "attack",
         healthBar: {
           value: monster.hp,
           max: monster.maxHp,
@@ -2083,9 +2127,9 @@ export class Hd2dRenderer implements RendererLike {
                 : Number.POSITIVE_INFINITY,
             ),
         },
-        ...(monster.dead ? { pose: "fallen" as const } : {}),
+        ...(monster.dead && !rootMinotaurDeath ? { pose: "fallen" as const } : {}),
       };
-      if (monster.action) {
+      if (monster.action && !monster.dead) {
         const art = monsterCombatArt(monster.species);
         monsterView.frame = this.#actionFrame(
           monster.action,
@@ -2104,6 +2148,9 @@ export class Hd2dRenderer implements RendererLike {
         z: monster.z,
         species: monster.species,
       });
+    }
+    for (const monsterId of this.#monsterDeathAnimations.keys()) {
+      if (!rootMinotaurDeathIds.has(monsterId)) this.#monsterDeathAnimations.delete(monsterId);
     }
     for (const guard of sample.guards) {
       present.add(guard.id);
@@ -2458,6 +2505,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors = null;
     this.#actorMotion.reset();
     this.#corpseAnimations.clear();
+    this.#monsterDeathAnimations.clear();
     this.#eventMotion.reset();
     this.#playerPresentation.clear();
     this.#playerVisibility.clear();

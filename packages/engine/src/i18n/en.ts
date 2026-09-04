@@ -966,7 +966,7 @@ export const en = {
   "monster.spear_goblin": "Spear Goblin",
   "monster.torch_goblin": "Briar Goblin",
   "monster.gnoll_marauder": "Sunwake Marauder",
-  "monster.minotaur_brute": "Rootland Brute",
+  "monster.minotaur_brute": "Root Minotaur",
   "monster.skull_guard": "Elderfall Guard",
   "monster.skull_crusader": "Bone Crusader",
   "monster.skull_warden": "Choir Warden",

@@ -205,11 +205,17 @@ def automatic_cells(
 ):
     """Split a generated row around its actual actor centres instead of assumed equal columns."""
     if precutout:
-        boundaries = transparent_gap_boundaries(image, count, "x")
-        return [
-            image.crop((left, 0, right, image.height))
-            for left, right in zip(boundaries, boundaries[1:])
-        ]
+        try:
+            boundaries = transparent_gap_boundaries(image, count, "x")
+        except SystemExit:
+            # Broad action poses can overlap on one axis even though each actor remains a distinct
+            # connected component. Fall back to component centres in that case.
+            pass
+        else:
+            return [
+                image.crop((left, 0, right, image.height))
+                for left, right in zip(boundaries, boundaries[1:])
+            ]
     centres = primary_component_centres(
         image,
         count,
@@ -242,11 +248,17 @@ def automatic_rows(
 ):
     """Split a generated grid between the measured centres of its actor rows."""
     if precutout:
-        boundaries = transparent_gap_boundaries(image, row_count, "y")
-        return [
-            image.crop((0, top, image.width, bottom))
-            for top, bottom in zip(boundaries, boundaries[1:])
-        ]
+        try:
+            boundaries = transparent_gap_boundaries(image, row_count, "y")
+        except SystemExit:
+            # A weapon or low stance can close the last transparent lane between otherwise
+            # distinct rows. Component centres still recover the authored grid reliably.
+            pass
+        else:
+            return [
+                image.crop((0, top, image.width, bottom))
+                for top, bottom in zip(boundaries, boundaries[1:])
+            ]
     sprite_centres = primary_component_centres(
         image,
         row_count * column_count,
@@ -303,8 +315,14 @@ def normalize_frame(
     colors,
     rotation,
     foot_offset,
+    reference_height=None,
 ):
-    sprite = entourer(quantifier(durcir(reduire(source, content_height)), colors))
+    normalized_height = (
+        content_height
+        if reference_height is None
+        else max(1, round(source.height * content_height / reference_height))
+    )
+    sprite = entourer(quantifier(durcir(reduire(source, normalized_height)), colors))
     if rotation:
         sprite = sprite.rotate(rotation, resample=Image.Resampling.NEAREST, expand=True)
     if sprite.width > frame_size or sprite.height > frame_size:
@@ -380,6 +398,15 @@ def main():
     parser.add_argument("--rotate", type=int, choices=(0, 180), default=0)
     parser.add_argument("--frame-size", type=int, default=256)
     parser.add_argument("--content-height", type=int, default=150)
+    parser.add_argument(
+        "--shared-scale",
+        action="store_true",
+        help=(
+            "Scale every key and in-between from their shared tallest source frame instead of "
+            "making every pose the full content height. This preserves apparent body size when "
+            "an animation crouches, falls or lies down."
+        ),
+    )
     parser.add_argument("--colors", type=int, default=24)
     parser.add_argument(
         "--precutout",
@@ -477,6 +504,14 @@ def main():
                 background,
                 tolerance=args.pocket_tolerance,
             )
+            # A generated grid can contain a handful of opaque pixels in an otherwise empty
+            # outer margin. Remove those specks before automatic row/cell detection, otherwise
+            # that margin can look like a more useful separator than the narrow gap between two
+            # action rows and blend neighbouring poses into one normalized frame.
+            image = discard_small_components(
+                image,
+                args.minimum_component_area_ratio,
+            )
         if args.auto_rows:
             rows = automatic_rows(
                 image,
@@ -561,32 +596,64 @@ def main():
         (args.frame_size * output_frames, args.frame_size),
         (0, 0, 0, 0),
     )
+    prepared = [
+        prepare_frame(
+            cell,
+            args.precutout or args.cutout_before_split,
+            args.background_tolerance,
+            args.pocket_tolerance,
+            args.minimum_component_area_ratio,
+            explicit_background,
+        )
+        for cell in source_cells
+    ]
+    prepared_inbetweens = (
+        [
+            prepare_frame(
+                cell,
+                args.precutout or args.cutout_before_split,
+                args.background_tolerance,
+                args.pocket_tolerance,
+                args.minimum_component_area_ratio,
+                explicit_background,
+            )
+            for cell in inbetween_cells
+        ]
+        if inbetween_cells is not None
+        else None
+    )
+    reference_height = (
+        max(
+            frame.height
+            for frame in [
+                *prepared,
+                *(prepared_inbetweens if prepared_inbetweens is not None else []),
+            ]
+        )
+        if args.shared_scale
+        else None
+    )
+
     def normalize_sheet(cells):
         normalized = []
         for cell in cells:
             normalized.append(
                 normalize_frame(
-                    prepare_frame(
-                        cell,
-                        args.precutout or args.cutout_before_split,
-                        args.background_tolerance,
-                        args.pocket_tolerance,
-                        args.minimum_component_area_ratio,
-                        explicit_background,
-                    ),
+                    cell,
                     args.content_height,
                     args.frame_size,
                     args.colors,
                     args.rotate,
                     args.foot_offset,
+                    reference_height,
                 )
             )
         return normalized
 
-    normalized = normalize_sheet(source_cells)
+    normalized = normalize_sheet(prepared)
     normalized_inbetweens = (
-        normalize_sheet(inbetween_cells)
-        if inbetween_cells is not None
+        normalize_sheet(prepared_inbetweens)
+        if prepared_inbetweens is not None
         else None
     )
     for output_index, source_index in enumerate(sequence):

@@ -10,7 +10,7 @@ import type { GroundVector } from "@lindocara/engine/ground.js";
 import type { MonsterSpecialImpact, ProjectileKind } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 
-import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
+import { type EnemySheet, ROOT_MINOTAUR_ACTIVE_FRAME, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
 import {
   isPeasantSkillId,
@@ -679,7 +679,7 @@ const MONSTER_ACTIVE_FRAME: Readonly<Record<MonsterSpecies, number>> = {
   skull_guard: 3,
   skull_crusader: 3,
   skull_warden: 3,
-  minotaur_brute: 7,
+  minotaur_brute: ROOT_MINOTAUR_ACTIVE_FRAME,
   mire_troll: 2,
   gate_troll: 2,
   // The frame the strike lands on, inside each attack sheet: the shaman releases late in its 10, the

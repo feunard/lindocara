@@ -11,8 +11,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  allEnemySheets,
   ENEMY_RENDER_METRICS,
   type EnemyRenderMetrics,
+  ROOT_MINOTAUR_ACTIVE_FRAME,
+  ROOT_MINOTAUR_DEATH_SHEET,
+  ROOT_MINOTAUR_SKILL_SHEETS,
   TINY_SWORDS_ENEMIES,
 } from "../src/enemy-art.js";
 
@@ -31,7 +35,7 @@ const IDLE_BODY: Record<string, { top: number; bottom: number }> = {
   skull_guard: { top: 57, bottom: 130 },
   skull_crusader: { top: 57, bottom: 130 },
   skull_warden: { top: 57, bottom: 130 },
-  minotaur_brute: { top: 85, bottom: 214 },
+  minotaur_brute: { top: 91, bottom: 224 },
   mire_troll: { top: 86, bottom: 297 },
   gate_troll: { top: 86, bottom: 297 },
   hex_shaman: { top: 53, bottom: 137 },
@@ -90,5 +94,30 @@ describe("enemy render metrics", () => {
     expect(size("spear_goblin")).toBeGreaterThan(size("gnoll_marauder"));
     expect(size("mire_troll")).toBe(size("gate_troll"));
     expect(size("skull_guard")).toBe(size("skull_warden"));
+  });
+
+  it("gives the Root Minotaur one coherent directional atlas per motion", () => {
+    const art = TINY_SWORDS_ENEMIES.minotaur_brute;
+    const sheets = [
+      art.idle,
+      art.run,
+      art.attack,
+      ...Object.values(ROOT_MINOTAUR_SKILL_SHEETS),
+      ROOT_MINOTAUR_DEATH_SHEET,
+    ];
+
+    expect(new Set(sheets.map((sheet) => sheet.source)).size).toBe(6);
+    for (const sheet of sheets) {
+      expect(sheet.frames).toBe(10);
+      expect(sheet.frame).toBe(320);
+      expect(sheet.frameWidth).toBe(320);
+      expect(sheet.frameHeight).toBe(320);
+      expect(sheet.footOffset).toBe(96);
+      expect(sheet.directionRows).toBe(5);
+    }
+    expect(ROOT_MINOTAUR_ACTIVE_FRAME).toBe(6);
+    expect(allEnemySheets().map((sheet) => sheet.source)).toEqual(
+      expect.arrayContaining(sheets.map((sheet) => sheet.source)),
+    );
   });
 });

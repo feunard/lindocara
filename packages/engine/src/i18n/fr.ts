@@ -976,7 +976,7 @@ export const fr: Record<keyof typeof en, string> = {
   "monster.spear_goblin": "Gobelin à lance",
   "monster.torch_goblin": "Gobelin des Ronces",
   "monster.gnoll_marauder": "Maraudeur du Levant",
-  "monster.minotaur_brute": "Ogre des Racines",
+  "monster.minotaur_brute": "Minotaure des racines",
   "monster.skull_guard": "Garde d'Elderfall",
   "monster.skull_crusader": "Croisé d'Os",
   "monster.skull_warden": "Gardien du Chœur",
