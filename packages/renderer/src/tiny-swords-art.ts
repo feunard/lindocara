@@ -861,10 +861,10 @@ export const PEASANT_CONTEXT_TOOL_SPECS = {
   },
 } as const satisfies Readonly<Record<HarvestTool, PeasantToolSpec>>;
 
-function peasantBonusSheet(source: string): UnitSheet {
+function peasantBonusSheet(source: string, frames = 10): UnitSheet {
   return {
     source,
-    frames: 10,
+    frames,
     frameWidth: TINY_SWORDS_UNIT_FRAME,
     frameHeight: TINY_SWORDS_UNIT_FRAME,
     footOffset: 56,
@@ -882,7 +882,7 @@ const PEASANT_BONUS_AXE_SHEET = peasantBonusSheet(
  */
 export const PEASANT_BONUS_SHEETS = {
   idle: peasantBonusSheet(new URL("./assets/bonus/peasant/idle.png", import.meta.url).href),
-  run: peasantBonusSheet(new URL("./assets/bonus/peasant/run.png", import.meta.url).href),
+  run: peasantBonusSheet(new URL("./assets/bonus/peasant/run.png", import.meta.url).href, 8),
   attack: PEASANT_BONUS_AXE_SHEET,
 } as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
 

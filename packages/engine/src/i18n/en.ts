@@ -162,7 +162,7 @@ export const en = {
     "Ten-phase, eight-direction Rogue animation with a unique move for every skill.",
   "hero.bonus.peasant": "Fieldhand · Prototype",
   "hero.bonus.peasant.blurb":
-    "Ten-phase, eight-direction Peasant with unique tools, skills, cargo, and defeat.",
+    "Fluid eight-phase, eight-direction run with unique tools, skills, cargo, and defeat.",
   "hero.bonus.ranger": "Ranger · Prototype",
   "hero.bonus.ranger.blurb":
     "Ten-phase, eight-direction Ranger with a unique draw, release, retreat, and defeat.",

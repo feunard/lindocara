@@ -171,7 +171,7 @@ describe("actor animation art", () => {
     for (const motion of ["idle", "run", "attack"] as const) {
       const sheet = playerActorSheet(bonus, motion);
       expect(sheet.source).toContain("bonus/peasant");
-      expect(sheet.frames).toBe(10);
+      expect(sheet.frames).toBe(motion === "run" ? 8 : 10);
       expect(sheet.frameWidth).toBe(192);
       expect(sheet.frameHeight).toBe(192);
       expect(sheet.directionRows).toBe(5);
@@ -222,7 +222,7 @@ describe("actor animation art", () => {
     const runView = playerActorView(bonus, 0, "run");
     expect(runView.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(runView.renderHeight).toBeCloseTo(2.6 * 0.9);
-    expect(runView.frameDurationMs).toBe(62.5);
+    expect(runView.frameDurationMs).toBeCloseTo(1_000 / 14);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
   });
 
