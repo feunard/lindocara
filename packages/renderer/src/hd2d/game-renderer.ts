@@ -606,7 +606,7 @@ export function playerActorView(
           : assassin && motion === "idle"
             ? 1_000 / 3
             : peasantBonus && motion === "run"
-              ? 1_000 / 14
+              ? 1_000 / (player.peasantCarry ? 14 : 60)
               : peasantBonus && motion === "idle"
                 ? 1_000 / 3
                 : rangerBonus && motion === "run"

@@ -882,7 +882,7 @@ const PEASANT_BONUS_AXE_SHEET = peasantBonusSheet(
  */
 export const PEASANT_BONUS_SHEETS = {
   idle: peasantBonusSheet(new URL("./assets/bonus/peasant/idle.png", import.meta.url).href),
-  run: peasantBonusSheet(new URL("./assets/bonus/peasant/run.png", import.meta.url).href, 8),
+  run: peasantBonusSheet(new URL("./assets/bonus/peasant/run.png", import.meta.url).href, 48),
   attack: PEASANT_BONUS_AXE_SHEET,
 } as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
 

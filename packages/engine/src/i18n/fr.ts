@@ -160,7 +160,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Animation en dix phases et huit directions, avec un mouvement propre à chaque compétence.",
   "hero.bonus.peasant": "Paysan · Prototype",
   "hero.bonus.peasant.blurb":
-    "Course fluide en huit phases et huit directions, avec outils, compétences, portage et mort dédiés.",
+    "Course ultra-fluide en 48 phases et huit directions, avec outils, compétences, portage et mort dédiés.",
   "hero.bonus.ranger": "Rôdeur · Prototype",
   "hero.bonus.ranger.blurb":
     "Animation en dix phases et huit directions, avec tirs, recul et mort dédiés.",

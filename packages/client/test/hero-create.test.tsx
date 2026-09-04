@@ -52,7 +52,7 @@ describe("hero creation class cards", () => {
     expect(assassin).toBeEnabled();
 
     const animatedPeasant = screen.getByRole("button", {
-      name: /Fieldhand · Prototype\s*Fluid eight-phase, eight-direction run with unique tools, skills, cargo, and defeat\./,
+      name: /Fieldhand · Prototype\s*Ultra-smooth 48-phase, eight-direction run with unique tools, skills, cargo, and defeat\./,
     });
     const animatedPeasantPortrait = animatedPeasant.querySelector<HTMLElement>(
       '[data-hero-body="peasant"] .class-card__portrait-sprite',
