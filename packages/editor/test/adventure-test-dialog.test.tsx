@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 describe("AdventureTestDialog", () => {
   beforeEach(() => setLocale("en"));
 
-  test("offers every shared hero class and launches a Peasant preview", async () => {
+  test("offers standard classes and every prototype, then launches the Assassin body", async () => {
     const onLaunch = vi.fn();
     render(
       <AdventureTestDialog
@@ -26,9 +26,22 @@ describe("AdventureTestDialog", () => {
     );
 
     await userEvent.click(screen.getByLabelText(t("editor.test.class.label")));
-    await userEvent.click(screen.getByRole("option", { name: t("class.peasant") }));
+    for (const label of [
+      "hero.bonus.runicGuardian",
+      "hero.bonus.assassin",
+      "hero.bonus.peasant",
+      "hero.bonus.ranger",
+      "hero.bonus.priest",
+    ] as const) {
+      expect(screen.getByRole("option", { name: t(label) })).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByRole("option", { name: t("hero.bonus.assassin") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
 
-    expect(onLaunch).toHaveBeenCalledWith({ startMapId: null, heroClass: "peasant" });
+    expect(onLaunch).toHaveBeenCalledWith({
+      startMapId: null,
+      heroClass: "rogue",
+      heroBody: "assassin",
+    });
   });
 });

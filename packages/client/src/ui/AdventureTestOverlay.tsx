@@ -62,6 +62,7 @@ export function AdventureTestOverlay() {
       const replacement = await createAdventureTestSessionApi(session.adventureId, {
         startMapId: session.startMapId,
         heroClass: session.hero.class,
+        heroBody: session.hero.body,
       });
       setTestSession(replacement);
       await startGameAsHero(replacement.hero, replacement.party);

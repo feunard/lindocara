@@ -13,10 +13,12 @@ describe("adventure playtest input", () => {
       parseCreateAdventureTestSessionInput({
         startMapId: "a68d10ea-621d-45eb-a6d4-739221f23111",
         heroClass: "priest",
+        heroBody: "priest",
       }),
     ).toEqual({
       startMapId: "a68d10ea-621d-45eb-a6d4-739221f23111",
       heroClass: "priest",
+      heroBody: "priest",
     });
     expect(ADVENTURE_TEST_SESSION_TTL_MS).toBeGreaterThan(60_000);
   });
@@ -27,6 +29,8 @@ describe("adventure playtest input", () => {
     { startMapId: undefined, heroClass: "warrior" },
     { startMapId: "technical-id", heroClass: "warrior" },
     { startMapId: null, heroClass: "mage" },
+    { startMapId: null, heroClass: "warrior", heroBody: "assassin" },
+    { startMapId: null, heroClass: "rogue", heroBody: "unknown" },
   ])("rejects malformed input %#", (value) => {
     expect(parseCreateAdventureTestSessionInput(value)).toBeNull();
   });

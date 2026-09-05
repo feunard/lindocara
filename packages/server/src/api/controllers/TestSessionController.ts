@@ -37,7 +37,7 @@ import { TestSessionService } from "../services/TestSessionService.ts";
 export class TestSessionController {
   testSessionService = $inject(TestSessionService);
 
-  /** `POST /api/adventures/:id/test-sessions` body `{startMapId,heroClass}` -> 201
+  /** `POST /api/adventures/:id/test-sessions` body `{startMapId,heroClass,heroBody?}` -> 201
    *  `AdventureTestSession`, or 422 `{error:"adventure_test_invalid", diagnostics}` when the
    *  adventure's authored quests fail validation. */
   createTestSession = $action({

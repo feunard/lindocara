@@ -256,6 +256,7 @@ export class TestSessionService {
       hero = await this.heroService.createHero(userId, partyId, {
         name: "Testeur",
         class: input.heroClass,
+        ...(input.heroBody === undefined ? {} : { body: input.heroBody }),
       });
       if (requestedMap) {
         const at = playtestStart(requestedMap);

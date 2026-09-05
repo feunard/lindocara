@@ -1959,7 +1959,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Utilise le départ global : événement Départ, ancien point d’entrée compatible, puis première carte en repli.",
   "editor.test.start.mapHint":
     "Démarre directement au point de repli/test de cette carte. Ce choix ne change pas le début global de l’aventure.",
-  "editor.test.class.label": "Classe du héros de test",
+  "editor.test.class.label": "Personnage du test",
   "editor.test.save.title": "Modifications non enregistrées",
   "editor.test.save.description":
     "La carte ouverte sera enregistrée avec sa révision actuelle avant de lancer le runtime complet.",

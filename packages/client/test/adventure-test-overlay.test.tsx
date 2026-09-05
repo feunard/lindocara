@@ -112,6 +112,7 @@ const testSession = {
     accountId: "account-1",
     name: "Testeur",
     class: "ranger" as const,
+    body: "ranger" as const,
     mapId: "map-2",
     x: 96,
     y: 96,
@@ -270,6 +271,7 @@ describe("AdventureTestOverlay", () => {
     expect(apiMock.create).toHaveBeenCalledWith("adventure-1", {
       startMapId: "map-2",
       heroClass: "ranger",
+      heroBody: "ranger",
     });
     expect(alepha.store.get(adventureTestSessionAtom)).toEqual(replacement);
     expect(sessionMock.start).toHaveBeenCalledWith(replacement.hero, replacement.party);

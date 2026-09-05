@@ -5,7 +5,9 @@
  * authoritative position: `null` means the adventure's global start, while a map id means that
  * map's authored fallback/test point.
  */
+import type { BodyVariant } from "./character.js";
 import { isValidClass, type PlayerClass } from "./game.js";
+import { isHeroBodyForClass } from "./hero.js";
 import { isUuid } from "./identifiers.js";
 
 export const ADVENTURE_TEST_SESSION_TTL_MS = 6 * 60 * 60 * 1_000;
@@ -13,14 +15,16 @@ export const ADVENTURE_TEST_SESSION_TTL_MS = 6 * 60 * 60 * 1_000;
 export interface CreateAdventureTestSessionInput {
   readonly startMapId: string | null;
   readonly heroClass: PlayerClass;
+  readonly heroBody?: BodyVariant;
 }
 
 export function parseCreateAdventureTestSessionInput(
   value: unknown,
 ): CreateAdventureTestSessionInput | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const { startMapId, heroClass } = value as Record<string, unknown>;
+  const { startMapId, heroClass, heroBody } = value as Record<string, unknown>;
   if (startMapId !== null && (typeof startMapId !== "string" || !isUuid(startMapId))) return null;
   if (!isValidClass(heroClass)) return null;
-  return { startMapId, heroClass };
+  if (heroBody !== undefined && !isHeroBodyForClass(heroBody, heroClass)) return null;
+  return { startMapId, heroClass, ...(heroBody === undefined ? {} : { heroBody }) };
 }

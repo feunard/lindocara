@@ -226,7 +226,11 @@ describe("createTestSession", () => {
       owner.token,
       {
         method: "POST",
-        body: JSON.stringify({ startMapId: adventure.secondMapId, heroClass: "ranger" }),
+        body: JSON.stringify({
+          startMapId: adventure.secondMapId,
+          heroClass: "ranger",
+          heroBody: "ranger",
+        }),
       },
     );
     expect(response.status).toBe(201);
@@ -236,7 +240,15 @@ describe("createTestSession", () => {
       startMapId: string | null;
       expiresAt: number;
       party: { id: string; mine: boolean; maxPlayers: number; hostUserId: string };
-      hero: { id: string; mapId: string; class: string; x: number; y: number; z: number };
+      hero: {
+        id: string;
+        mapId: string;
+        class: string;
+        body: string;
+        x: number;
+        y: number;
+        z: number;
+      };
       diagnostics: unknown[];
     };
     expect(created.adventureId).toBe(adventure.id);
@@ -247,7 +259,11 @@ describe("createTestSession", () => {
       maxPlayers: 1,
       hostUserId: owner.userId,
     });
-    expect(created.hero).toMatchObject({ mapId: adventure.secondMapId, class: "ranger" });
+    expect(created.hero).toMatchObject({
+      mapId: adventure.secondMapId,
+      class: "ranger",
+      body: "ranger",
+    });
     // The chosen map's OWN heightfield spawn, in tile units, on all three axes. This used to be the
     // tile-editor cell's pixel centre written into `x`/`y` — and after the conversion `y` was the
     // ELEVATION column while the ground `z` was never written at all, so every playtest hero's row

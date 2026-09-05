@@ -6,7 +6,7 @@
 
 import type { BodyVariant } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
-import { HERO_CLASSES } from "@lindocara/engine/hero.js";
+import { HERO_CLASSES, PROTOTYPE_HEROES } from "@lindocara/engine/hero.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { type CSSProperties, useState } from "react";
 
@@ -239,41 +239,16 @@ export function HeroCreate({
             onPick={() => void launch(heroClass)}
           />
         ))}
-        <ClassCard
-          heroClass="warrior"
-          body="runic_guardian"
-          order={HERO_CLASSES.length}
-          disabled={busy}
-          onPick={() => void launch("warrior", "runic_guardian")}
-        />
-        <ClassCard
-          heroClass="rogue"
-          body="assassin"
-          order={HERO_CLASSES.length + 1}
-          disabled={busy}
-          onPick={() => void launch("rogue", "assassin")}
-        />
-        <ClassCard
-          heroClass="peasant"
-          body="peasant"
-          order={HERO_CLASSES.length + 2}
-          disabled={busy}
-          onPick={() => void launch("peasant", "peasant")}
-        />
-        <ClassCard
-          heroClass="ranger"
-          body="ranger"
-          order={HERO_CLASSES.length + 3}
-          disabled={busy}
-          onPick={() => void launch("ranger", "ranger")}
-        />
-        <ClassCard
-          heroClass="priest"
-          body="priest"
-          order={HERO_CLASSES.length + 4}
-          disabled={busy}
-          onPick={() => void launch("priest", "priest")}
-        />
+        {PROTOTYPE_HEROES.map(({ heroClass, body }, index) => (
+          <ClassCard
+            key={body}
+            heroClass={heroClass}
+            body={body}
+            order={HERO_CLASSES.length + index}
+            disabled={busy}
+            onPick={() => void launch(heroClass, body)}
+          />
+        ))}
       </MenuNav>
 
       <MenuHints>

@@ -17,8 +17,9 @@ import {
   SelectValue,
 } from "@alepha/ui/components/ui/select";
 import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { BodyVariant } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
-import { HERO_CLASSES, isHeroClass } from "@lindocara/engine/hero.js";
+import { HERO_CLASSES, PROTOTYPE_HEROES } from "@lindocara/engine/hero.js";
 import type { AuthoredQuestDefinition, QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { AlertTriangle, FlaskConical, Footprints } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -30,7 +31,16 @@ const ADVENTURE_START = "adventure-start";
 export interface AdventureTestOptions {
   readonly startMapId: string | null;
   readonly heroClass: PlayerClass;
+  readonly heroBody?: BodyVariant;
 }
+
+const PROTOTYPE_LABEL = {
+  runic_guardian: "hero.bonus.runicGuardian",
+  assassin: "hero.bonus.assassin",
+  peasant: "hero.bonus.peasant",
+  ranger: "hero.bonus.ranger",
+  priest: "hero.bonus.priest",
+} as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, string>>;
 
 interface AdventureTestDialogProps {
   open: boolean;
@@ -63,14 +73,29 @@ export function AdventureTestDialog({
   const startId = useId();
   const classId = useId();
   const [start, setStart] = useState(ADVENTURE_START);
-  const [heroClass, setHeroClass] = useState<PlayerClass>("warrior");
+  const [heroChoice, setHeroChoice] = useState("class:warrior");
 
   useEffect(() => {
     if (!open) return;
     setStart(ADVENTURE_START);
   }, [open]);
 
-  const classLabel = t(`class.${heroClass}`);
+  const heroChoices = [
+    ...HERO_CLASSES.map((heroClass) => ({
+      value: `class:${heroClass}`,
+      heroClass,
+      body: "wayfarer" as const,
+      label: t(`class.${heroClass}`),
+    })),
+    ...PROTOTYPE_HEROES.map(({ body, heroClass }) => ({
+      value: `prototype:${body}`,
+      heroClass,
+      body,
+      label: t(PROTOTYPE_LABEL[body]),
+    })),
+  ];
+  const selectedHero = heroChoices.find((choice) => choice.value === heroChoice) ?? heroChoices[0];
+  if (!selectedHero) throw new Error("The playtest hero catalogue is empty");
   const startLabel =
     start === ADVENTURE_START
       ? t("editor.test.start.adventure")
@@ -122,19 +147,21 @@ export function AdventureTestDialog({
           <div className="grid gap-2">
             <Label htmlFor={classId}>{t("editor.test.class.label")}</Label>
             <Select
-              value={heroClass}
+              value={heroChoice}
               disabled={busy}
               onValueChange={(value) => {
-                if (isHeroClass(value)) setHeroClass(value);
+                if (value && heroChoices.some((choice) => choice.value === value)) {
+                  setHeroChoice(value);
+                }
               }}
             >
               <SelectTrigger id={classId} className="w-full">
-                <SelectValue>{classLabel}</SelectValue>
+                <SelectValue>{selectedHero.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {HERO_CLASSES.map((candidate) => (
-                  <SelectItem key={candidate} value={candidate}>
-                    {t(`class.${candidate}`)}
+                {heroChoices.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -214,7 +241,8 @@ export function AdventureTestDialog({
             onClick={() =>
               onLaunch({
                 startMapId: start === ADVENTURE_START ? null : start,
-                heroClass,
+                heroClass: selectedHero.heroClass,
+                ...(selectedHero.body === "wayfarer" ? {} : { heroBody: selectedHero.body }),
               })
             }
           >

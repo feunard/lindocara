@@ -1938,7 +1938,7 @@ export const en = {
     "Uses the global start: Start event, compatible legacy entry, then the first map as a fallback.",
   "editor.test.start.mapHint":
     "Starts directly at this map’s fallback/test point. This does not change the adventure’s global start.",
-  "editor.test.class.label": "Test hero class",
+  "editor.test.class.label": "Test character",
   "editor.test.save.title": "Unsaved changes",
   "editor.test.save.description":
     "The open map will be saved with its current revision before the complete runtime starts.",

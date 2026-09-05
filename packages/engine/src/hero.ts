@@ -29,13 +29,27 @@ export interface CreateHeroInput {
   body?: BodyVariant;
 }
 
-const BONUS_BODY_CLASS = {
-  runic_guardian: "warrior",
-  assassin: "rogue",
-  peasant: "peasant",
-  ranger: "ranger",
-  priest: "priest",
-} as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, PlayerClass>>;
+/**
+ * Special character bodies that reuse an existing authoritative class. Shared by every hero
+ * picker so the editor playtest cannot drift from normal hero creation.
+ */
+export const PROTOTYPE_HEROES = [
+  { body: "runic_guardian", heroClass: "warrior" },
+  { body: "assassin", heroClass: "rogue" },
+  { body: "peasant", heroClass: "peasant" },
+  { body: "ranger", heroClass: "ranger" },
+  { body: "priest", heroClass: "priest" },
+] as const satisfies readonly {
+  body: Exclude<BodyVariant, "wayfarer">;
+  heroClass: PlayerClass;
+}[];
+
+export function isHeroBodyForClass(body: unknown, heroClass: PlayerClass): body is BodyVariant {
+  if (body === "wayfarer") return true;
+  return PROTOTYPE_HEROES.some(
+    (candidate) => candidate.body === body && candidate.heroClass === heroClass,
+  );
+}
 
 export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {
   if (typeof value !== "object" || value === null) return null;
@@ -47,7 +61,7 @@ export function parseCreateHeroInput(value: unknown): CreateHeroInput | null {
   if (!isHeroClass(heroClass)) return null;
   if (body === undefined) return { name: trimmed, class: heroClass };
   if (!isBodyVariant(body)) return null;
-  // Temporary bonus bodies reuse an existing authoritative class; they never create a sixth one.
-  if (body !== "wayfarer" && BONUS_BODY_CLASS[body] !== heroClass) return null;
+  // Prototype bodies reuse an existing authoritative class; they never create a sixth one.
+  if (!isHeroBodyForClass(body, heroClass)) return null;
   return { name: trimmed, class: heroClass, body };
 }
