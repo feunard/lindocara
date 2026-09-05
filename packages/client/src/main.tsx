@@ -22,6 +22,13 @@ installTinySwordsTheme();
  * for the canvas. `import.meta.env.DEV` keeps the route out of production builds.
  */
 export function bootClient(): boolean {
+  if (
+    import.meta.env.DEV &&
+    new URLSearchParams(window.location.search).get("preview") === "priest"
+  ) {
+    void import("./dev/priest-preview.js").then((module) => module.startPriestPreview());
+    return false;
+  }
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).has("preview")) {
     void import("./dev/preview-route.js").then((module) => {
       const request = module.previewRequest(window.location.search);

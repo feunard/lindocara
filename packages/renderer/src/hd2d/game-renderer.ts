@@ -80,10 +80,15 @@ import * as THREE from "three";
 
 import { ACTOR_FRAME_MS, type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
 import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
+import {
+  CharacterAnimationTracker,
+  type CharacterAnimationSample,
+} from "../character-animation.js";
 import { CHARACTER_ATLAS_URL } from "../character-art.js";
 import {
   allCombatSheets,
   combatActionFrameIndex,
+  combatActionPhase,
   combatArt,
   type MonsterImpactSound,
   monsterCombatArt,
@@ -102,6 +107,13 @@ import {
   TINY_SWORDS_ENEMIES,
 } from "../enemy-art.js";
 import { sameRenderedMap } from "../map-render-cache.js";
+import {
+  isPriestSkillId,
+  priestMotionClip,
+  priestSheet,
+  priestSkillActiveFrame,
+  PRIEST_MANIFEST,
+} from "../priest-art.js";
 import type { RenderContext, RendererLike } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import { ServerClock } from "../server-clock.js";
@@ -112,16 +124,12 @@ import {
   ASSASSIN_DEATH_SHEET,
   isAssassinSkillId,
   isPeasantSkillId,
-  isPriestBonusSkillId,
   PEASANT_BONUS_DEATH_SHEET,
   peasantBonusCarrySheet,
   peasantBonusSkillActiveFrame,
   peasantBonusSkillSheet,
   peasantCarrySheet,
   peasantCasterSheet,
-  PRIEST_BONUS_DEATH_SHEET,
-  priestBonusSkillActiveFrame,
-  priestBonusSkillSheet,
   isRangerBonusSkillId,
   RANGER_BONUS_DEATH_SHEET,
   rangerBonusSkillActiveFrame,
@@ -135,6 +143,7 @@ import { WorldEventMotionTracker } from "../world-event-motion.js";
 import type { ActorView, BillboardRegistry, BillboardScene } from "./billboards.js";
 import { createBillboardRegistry, LAB_UNIT_HEIGHT } from "./billboards.js";
 import type { DayCycleOverride } from "./day-cycle.js";
+import { createPriestSpriteSystem, loadPriestRig, type PriestRigAsset } from "./priest-sprites.js";
 import type { Hd2dScene } from "./scene.js";
 import {
   createHd2dScene,
@@ -190,8 +199,8 @@ const PEASANT_BONUS_RENDER_SCALE = 0.9;
 const PEASANT_BONUS_RUN_CYCLE_DURATION_MS = 2_000;
 /** The hooded Ranger shares the compact player silhouette used by the Assassin and Peasant. */
 const RANGER_BONUS_RENDER_SCALE = 0.9;
-/** The elderly Priest shares the same normalized player height as the other generated bodies. */
-const PRIEST_BONUS_RENDER_SCALE = 0.9;
+/** One complete left/right Ranger stride keeps the denser atlas from accelerating locomotion. */
+const RANGER_BONUS_RUN_CYCLE_DURATION_MS = 1_200;
 const ROOT_MINOTAUR_FRAME_MS = { idle: 1_000 / 3, run: 1_000 / 16 } as const;
 const ROOT_MINOTAUR_DEATH_DURATION_MS = 1_000;
 
@@ -226,14 +235,8 @@ export function playerActorSheet(player: PlayerSnapshot, motion: ActorMotion): U
   ) {
     return rangerBonusSkillSheet(player.action.skillId);
   }
-  if (
-    player.appearance.body === "priest" &&
-    motion === "attack" &&
-    player.action?.skillId &&
-    isPriestBonusSkillId(player.action.skillId)
-  ) {
-    return priestBonusSkillSheet(player.action.skillId);
-  }
+  if (player.appearance.body === "priest")
+    return priestSheet(priestMotionClip(motion, player.action?.skillId));
   // This temporary bonus is intentionally one coherent directional bake. Replacing its attack
   // pose with the ordinary Warrior caster sheet would make the model change identity mid-swing;
   // combat effects and authoritative contact timing still render through the normal layers.
@@ -296,6 +299,7 @@ export interface BillboardActorSheet {
   renderHeight?: number;
   axis?: "x" | "y";
   directionRows?: number;
+  directionLayout?: "mirrored" | "full";
 }
 
 const NPC_MODEL_ASSET_IDS = new Set(NPC_MODEL_ASSETS.map((asset) => asset.id));
@@ -403,6 +407,7 @@ function actorSheetView(sheet: BillboardActorSheet) {
     ...(sheet.frameHeight === undefined ? {} : { frameHeight: sheet.frameHeight }),
     frameAxis: sheet.axis ?? ("x" as const),
     ...(sheet.directionRows === undefined ? {} : { directionRows: sheet.directionRows }),
+    ...(sheet.directionLayout === undefined ? {} : { directionLayout: sheet.directionLayout }),
     ...(sheet.renderHeight === undefined ? {} : { renderHeight: sheet.renderHeight }),
     ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
       ? {}
@@ -548,13 +553,16 @@ export function playerActorView(
   motion: ActorMotion = "idle",
   animationDurationMs?: number,
   isSelf = false,
+  animation?: CharacterAnimationSample,
 ): ActorView {
-  const sheet = playerActorSheet(player, motion);
+  const priest = player.appearance.body === "priest";
+  const priestClip = priestMotionClip(animation?.motion ?? motion, player.action?.skillId);
+  const clip = PRIEST_MANIFEST.clips[priestClip];
+  const sheet = priest ? priestSheet(priestClip) : playerActorSheet(player, motion);
   const runic = player.appearance.body === "runic_guardian";
   const assassin = player.appearance.body === "assassin";
   const peasantBonus = player.appearance.body === "peasant";
   const rangerBonus = player.appearance.body === "ranger";
-  const priestBonus = player.appearance.body === "priest";
   const clouded = player.class === "priest" && isLumenStepClouded(player.action, animationTimeMs);
   const lumenCloud = clouded
     ? combatArt("priest", "blink", player.appearance.primaryColor).impact
@@ -595,9 +603,7 @@ export function playerActorView(
           ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
           : !clouded && rangerBonus
             ? { renderHeight: LAB_UNIT_HEIGHT * RANGER_BONUS_RENDER_SCALE }
-            : !clouded && priestBonus
-              ? { renderHeight: LAB_UNIT_HEIGHT * PRIEST_BONUS_RENDER_SCALE }
-              : {}),
+            : {}),
     animationTimeMs,
     ...(animationDurationMs === undefined ? {} : { animationDurationMs }),
     // Four distinct Runic Guardian poses form the same half-second cycle as a stock six-frame
@@ -616,15 +622,38 @@ export function playerActorView(
               : peasantBonus && motion === "idle"
                 ? 1_000 / 3
                 : rangerBonus && motion === "run"
-                  ? 1_000 / 16
+                  ? RANGER_BONUS_RUN_CYCLE_DURATION_MS / sheet.frames
                   : rangerBonus && motion === "idle"
                     ? 1_000 / 3
-                    : priestBonus && motion === "run"
-                      ? 1_000 / 16
-                      : priestBonus && motion === "idle"
-                        ? 1_000 / 2.5
-                        : ACTOR_FRAME_MS[motion],
+                    : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
+    ...(priest && !clouded
+      ? {
+          priestPose: {
+            id: player.id,
+            clip: priestClip,
+            phase: animation?.phase ?? 0,
+            ...(animation ? { animation } : {}),
+            hp: player.hp,
+          },
+          authoredPose: true,
+          animationLoop: clip.loop,
+          frameDurationMs: clip.durationMs / clip.frames,
+          ...(animation
+            ? {
+                animationTimeMs: animation.elapsedMs,
+                ...(["run", "jump", "fall"].includes(animation.motion)
+                  ? {
+                      frame: Math.min(
+                        clip.frames - 1,
+                        Math.floor(animation.phase * (clip.loop ? clip.frames : clip.frames - 1)),
+                      ),
+                    }
+                  : {}),
+              }
+            : {}),
+        }
+      : {}),
     opacity:
       player.life === "ghost"
         ? 0.48
@@ -1274,6 +1303,9 @@ export class Hd2dRenderer implements RendererLike {
   #questMarkers: readonly AuthoredQuestMarker[] = [];
   #actorPositions = new Map<string, ActorPosition>();
   #actorMotion = new ActorMotionTracker();
+  #characterAnimation = new CharacterAnimationTracker();
+  #priestAsset: PriestRigAsset | null = null;
+  #priestSprites: ReturnType<typeof createPriestSpriteSystem> | null = null;
   /** Local presentation clock for the one-shot runic death animation. */
   #corpseAnimations = new Map<string, number>();
   /** Local presentation clock for dead Root Minotaurs retained in monster snapshots. */
@@ -1341,7 +1373,10 @@ export class Hd2dRenderer implements RendererLike {
     );
     const textures = createTextureRegistry(specs);
     await textures.decode(blobs, () => {});
-    return new Hd2dRenderer(canvas, textures, serverClock);
+    const asset = await loadPriestRig();
+    const renderer = new Hd2dRenderer(canvas, textures, serverClock);
+    renderer.#priestAsset = asset;
+    return renderer;
   }
 
   /**
@@ -1358,6 +1393,15 @@ export class Hd2dRenderer implements RendererLike {
       for (const callback of this.#frameCallbacks) callback(now, dt);
     };
     this.#rafHandle = requestAnimationFrame(step);
+  }
+
+  priestAnimationStats(): {
+    actors: number;
+    draws: number;
+    updateMs: number;
+    renderTargetBytes: number;
+  } | null {
+    return this.#priestSprites?.stats() ?? null;
   }
 
   onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void {
@@ -1460,6 +1504,8 @@ export class Hd2dRenderer implements RendererLike {
       this.#sceneFor(scene, heightfield, scene.scene),
       this.#textures,
     );
+    if (this.#priestAsset)
+      this.#priestSprites = createPriestSpriteSystem(scene.renderer, this.#priestAsset);
     // Fire and forget, but never silently: a failed scenery download costs the map its props and
     // must say so, while the ground and the actors carry on.
     void this.#loadStaticContent(scene, heightfield).catch((error: unknown) => {
@@ -1797,7 +1843,14 @@ export class Hd2dRenderer implements RendererLike {
     const scene = this.#scene;
     if (!scene) return;
 
-    this.#actors?.sync(this.#collectActors(sample, context));
+    const actors = this.#collectActors(sample, context);
+    this.#priestSprites?.sync(
+      actors,
+      context.now,
+      scene.ctx.yaw(),
+      scene.ctx.pitch() ?? HD2D_CAMERA.pitch,
+    );
+    this.#actors?.sync(actors);
     const self =
       context.self ?? sample.players.find((player) => player.id === this.#selfId) ?? null;
     this.#visuals?.setEventVisibilityDepth(
@@ -1918,6 +1971,9 @@ export class Hd2dRenderer implements RendererLike {
         motion.motion,
         timing?.duration,
         player.id === this.#selfId,
+        player.appearance.body === "priest"
+          ? this.#characterAnimation.sample(player, animationTimeMs, PRIEST_MANIFEST.strideDistance)
+          : undefined,
       );
       view.x += mobilityOffset.x;
       view.z += mobilityOffset.z;
@@ -1962,8 +2018,8 @@ export class Hd2dRenderer implements RendererLike {
                 ? rangerBonusSkillActiveFrame(player.action.skillId)
                 : player.appearance.body === "priest" &&
                     player.action.skillId &&
-                    isPriestBonusSkillId(player.action.skillId)
-                  ? priestBonusSkillActiveFrame(player.action.skillId)
+                    isPriestSkillId(player.action.skillId)
+                  ? priestSkillActiveFrame(player.action.skillId)
                   : directionalBonus
                     ? Math.round(
                         (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) *
@@ -1979,6 +2035,21 @@ export class Hd2dRenderer implements RendererLike {
             ? this.#combatAnimations.get(player.id)?.impactTimes
             : undefined,
         );
+        if (view.priestPose) {
+          view.priestPose.aim = player.action.direction;
+          const timeline = this.#serverClock.combatTimeline(player.action, animationTimeMs);
+          const released =
+            player.action.skillId === "blink" && player.action.channelEndsAt !== undefined
+              ? this.#serverClock.toLocal(player.action.channelEndsAt)
+              : null;
+          const contact = activeFrame / Math.max(1, frames - 1);
+          view.priestPose.phase = combatActionPhase(
+            contact,
+            timeline,
+            animationTimeMs,
+            released ?? undefined,
+          );
+        }
       }
       views.push(view);
       const afterimageExpiresAt = player.afterimage
@@ -2204,9 +2275,13 @@ export class Hd2dRenderer implements RendererLike {
             : rangerBonus
               ? RANGER_BONUS_DEATH_SHEET
               : priestBonus
-                ? PRIEST_BONUS_DEATH_SHEET
+                ? priestSheet("death")
                 : unitSheet(corpse.class, corpse.appearance, "idle");
-      const deathStartedAt = this.#corpseAnimations.get(corpse.id) ?? animationTimeMs;
+      const deathStartedAt =
+        this.#corpseAnimations.get(corpse.id) ??
+        (priestBonus && !this.#characterAnimation.hasSeen(corpse.id)
+          ? animationTimeMs - PRIEST_MANIFEST.clips.death.durationMs
+          : animationTimeMs);
       this.#corpseAnimations.set(corpse.id, deathStartedAt);
       const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
       views.push({
@@ -2228,17 +2303,31 @@ export class Hd2dRenderer implements RendererLike {
               ? { renderHeight: LAB_UNIT_HEIGHT * PEASANT_BONUS_RENDER_SCALE }
               : rangerBonus
                 ? { renderHeight: LAB_UNIT_HEIGHT * RANGER_BONUS_RENDER_SCALE }
-                : priestBonus
-                  ? { renderHeight: LAB_UNIT_HEIGHT * PRIEST_BONUS_RENDER_SCALE }
-                  : {}),
+                : {}),
+        ...(priestBonus
+          ? {
+              authoredPose: true,
+              priestPose: {
+                id: `corpse:${corpse.id}`,
+                inheritFrom: corpse.id,
+                clip: "death" as const,
+                phase: Math.min(
+                  1,
+                  (animationTimeMs - deathStartedAt) / PRIEST_MANIFEST.clips.death.durationMs,
+                ),
+              },
+            }
+          : {}),
         ...(runic || assassin || peasantBonus || rangerBonus || priestBonus
           ? {
               animationTimeMs: animationTimeMs - deathStartedAt,
               animationDurationMs: assassin
                 ? 900
-                : peasantBonus || rangerBonus || priestBonus
-                  ? 1_000
-                  : 760,
+                : priestBonus
+                  ? PRIEST_MANIFEST.clips.death.durationMs
+                  : peasantBonus || rangerBonus
+                    ? 1_000
+                    : 760,
               animationLoop: false,
             }
           : { pose: "fallen" as const }),
@@ -2281,6 +2370,7 @@ export class Hd2dRenderer implements RendererLike {
     }
     this.#eventMotion.retain(eventIds);
     this.#actorMotion.retain(present);
+    this.#characterAnimation.retain(new Set([...playerIds, ...corpseIds]));
     for (const playerId of this.#playerPresentation.keys()) {
       if (!playerIds.has(playerId)) this.#playerPresentation.delete(playerId);
     }
@@ -2364,6 +2454,10 @@ export class Hd2dRenderer implements RendererLike {
     serverImpactTimes?: readonly number[],
   ): number {
     const timeline = this.#serverClock.combatTimeline(action, now);
+    if (action.skillId === "blink" && action.channelEndsAt !== undefined) {
+      const releasedAt = this.#serverClock.toLocal(action.channelEndsAt);
+      if (releasedAt !== null && now >= releasedAt) timeline.impactAt = releasedAt;
+    }
     const impactTimes = serverImpactTimes?.map(
       (impactAt) =>
         this.#serverClock.toLocal(impactAt) ??
@@ -2487,6 +2581,8 @@ export class Hd2dRenderer implements RendererLike {
    * edit safe rather than a slow leak of meshes nothing can reach.
    */
   #disposeSceneContents(): void {
+    this.#priestSprites?.dispose();
+    this.#priestSprites = null;
     // Billboards first: they are parented to the scene's graph, and disposing that graph out from
     // under them would leave the context's yaw registry holding meshes nothing can reach. The
     // token bump is part of the same teardown — a scenery download still in flight belongs to a
@@ -2510,6 +2606,7 @@ export class Hd2dRenderer implements RendererLike {
     this.#actors?.dispose();
     this.#actors = null;
     this.#actorMotion.reset();
+    this.#characterAnimation.reset();
     this.#corpseAnimations.clear();
     this.#monsterDeathAnimations.clear();
     this.#eventMotion.reset();
@@ -2547,6 +2644,8 @@ export class Hd2dRenderer implements RendererLike {
     this.#water?.dispose();
     this.#water = null;
     this.#textures.dispose();
+    this.#priestAsset?.dispose();
+    this.#priestAsset = null;
   }
 
   /** Which of the frame's players the camera follows. Not a no-op any more: this is the one actor

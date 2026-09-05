@@ -61,7 +61,7 @@ describe("hero creation class cards", () => {
     expect(animatedPeasant).toBeEnabled();
 
     const animatedRanger = screen.getByRole("button", {
-      name: /Ranger · Prototype\s*Ten-phase, eight-direction Ranger with a unique draw, release, retreat, and defeat\./,
+      name: /Ranger · Prototype\s*Sixteen-phase, eight-direction run with unique draws, releases, retreat, and defeat\./,
     });
     const animatedRangerPortrait = animatedRanger.querySelector<HTMLElement>(
       '[data-hero-body="ranger"] .class-card__portrait-sprite',
@@ -70,12 +70,12 @@ describe("hero creation class cards", () => {
     expect(animatedRanger).toBeEnabled();
 
     const animatedPriest = screen.getByRole("button", {
-      name: /Priest · Prototype\s*Ten-phase, eight-direction Priest with distinct bolt, healing, Lumen Step, prayer, nova, and defeat\./,
+      name: /Dawn Priest\s*A sanctuary keeper whose sun crozier guides allies through danger\./,
     });
     const animatedPriestPortrait = animatedPriest.querySelector<HTMLElement>(
       '[data-hero-body="priest"] .class-card__portrait-sprite',
     );
-    expect(animatedPriestPortrait?.style.backgroundImage).toContain("bonus/priest");
+    expect(animatedPriestPortrait?.style.backgroundImage).toContain("characters/priest");
     expect(animatedPriest).toBeEnabled();
   });
 

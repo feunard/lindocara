@@ -15,10 +15,10 @@ import {
   seaGuardianPresentation,
   seaGuardianSwimTextureUrl,
 } from "@lindocara/renderer/hd2d/game-renderer.js";
+import { priestSkillActiveFrame, PRIEST_MANIFEST } from "@lindocara/renderer/priest-art.js";
 import {
   assassinSkillActiveFrame,
   peasantBonusSkillActiveFrame,
-  priestBonusSkillActiveFrame,
   rangerBonusSkillActiveFrame,
 } from "@lindocara/renderer/tiny-swords-art.js";
 import * as THREE from "three";
@@ -235,7 +235,7 @@ describe("actor animation art", () => {
     expect(carriedRunView.frameDurationMs).toBeCloseTo(1_000 / 14);
   });
 
-  it("keeps ten directional phases and a semantic strip for every Ranger skill", () => {
+  it("keeps a balanced sixteen-phase Ranger run and a semantic strip for every skill", () => {
     const bonus = {
       ...player,
       class: "ranger",
@@ -245,7 +245,7 @@ describe("actor animation art", () => {
     for (const motion of ["idle", "run", "attack"] as const) {
       const sheet = playerActorSheet(bonus, motion);
       expect(sheet.source).toContain("bonus/ranger");
-      expect(sheet.frames).toBe(10);
+      expect(sheet.frames).toBe(motion === "run" ? 16 : 10);
       expect(sheet.frameWidth).toBe(192);
       expect(sheet.frameHeight).toBe(192);
       expect(sheet.directionRows).toBe(5);
@@ -263,13 +263,15 @@ describe("actor animation art", () => {
     expect(skills.map(rangerBonusSkillActiveFrame)).toEqual([6, 6, 6, 4, 6]);
 
     const view = playerActorView(bonus, 0, "run");
+    const runFrameDurationMs = view.frameDurationMs ?? Number.NaN;
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
     expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
-    expect(view.frameDurationMs).toBe(62.5);
+    expect(runFrameDurationMs).toBe(75);
+    expect(runFrameDurationMs * 16).toBe(1_200);
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
   });
 
-  it("keeps ten directional phases and a semantic strip for every Priest skill", () => {
+  it("covers eight genuine orientations and a semantic clip for every Priest skill", () => {
     const bonus = {
       ...player,
       class: "priest",
@@ -278,11 +280,12 @@ describe("actor animation art", () => {
 
     for (const motion of ["idle", "run", "attack"] as const) {
       const sheet = playerActorSheet(bonus, motion);
-      expect(sheet.source).toContain("bonus/priest");
-      expect(sheet.frames).toBe(10);
-      expect(sheet.frameWidth).toBe(192);
-      expect(sheet.frameHeight).toBe(192);
-      expect(sheet.directionRows).toBe(5);
+      expect(sheet.source).toContain("characters/priest");
+      expect(sheet.frameWidth).toBeLessThanOrEqual(160);
+      expect(sheet.frameHeight).toBeLessThanOrEqual(160);
+      expect((sheet.renderHeight ?? 0) / sheet.frameHeight).toBeCloseTo(2.24 / 128);
+      expect(sheet.directionRows).toBe(8);
+      expect(sheet.directionLayout).toBe("full");
     }
 
     const skills = ["radiant_bolt", "mend", "blink", "prayer", "divine_nova"] as const;
@@ -294,13 +297,13 @@ describe("actor animation art", () => {
     expect(sources).toEqual(
       skills.map((skillId) => expect.stringContaining(skillId.replaceAll("_", "-"))),
     );
-    expect(skills.map(priestBonusSkillActiveFrame)).toEqual([6, 6, 4, 6, 6]);
+    expect(skills.map(priestSkillActiveFrame)).toEqual([8, 8, 8, 8, 8]);
 
     const view = playerActorView(bonus, 0, "run");
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
-    expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
-    expect(view.frameDurationMs).toBe(62.5);
-    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(400);
+    expect(view.renderHeight).toBeCloseTo(PRIEST_MANIFEST.clips.run.frame.worldHeight);
+    expect(view.frameDurationMs).toBe(PRIEST_MANIFEST.clips.run.durationMs / 24);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(150);
   });
 
   it("keeps Iron Guard's authored strip after its cast action has ended", () => {

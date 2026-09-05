@@ -7200,6 +7200,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^6.0.3"
     alepha: "npm:*"
     jsdom: "npm:^29.1.1"
+    playwright: "npm:1.62.1"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     shadcn: "npm:^4.13.1"

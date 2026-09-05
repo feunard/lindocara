@@ -58,6 +58,7 @@ export default defineConfig({
           await run("yarn catalog:check");
           await run("yarn map:check");
           await run("yarn music:check");
+          await run("yarn priest:check");
 
           await run("yarn build");
 

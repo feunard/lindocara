@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "identity": "dawn-sanctuary-priest",
+  "frame": {
+    "width": 160,
+    "height": 160,
+    "anchor": {
+      "x": 80,
+      "y": 116
+    },
+    "worldHeight": 2.8,
+    "trimmed": false
+  },
+  "directions": [
+    "front",
+    "front-right",
+    "right",
+    "back-right",
+    "back",
+    "back-left",
+    "left",
+    "front-left"
+  ],
+  "directionLayout": "full",
+  "referenceSpeed": 3.65625,
+  "strideDistance": 1.72,
+  "stanceFraction": 0.4,
+  "clips": {
+    "idle": {
+      "frames": 16,
+      "durationMs": 2400,
+      "loop": true,
+      "frame": {
+        "width": 70,
+        "height": 112,
+        "anchor": {
+          "x": 35,
+          "y": 98
+        },
+        "worldHeight": 1.9599999999999997,
+        "trimmed": true
+      },
+      "columns": 16,
+      "directionStride": 16
+    },
+    "run": {
+      "frames": 24,
+      "durationMs": 470.42735042735046,
+      "loop": true,
+      "clock": "distance",
+      "contacts": [
+        0,
+        0.5
+      ],
+      "frame": {
+        "width": 74,
+        "height": 120,
+        "anchor": {
+          "x": 37,
+          "y": 98
+        },
+        "worldHeight": 2.1,
+        "trimmed": true
+      },
+      "columns": 24,
+      "directionStride": 24
+    },
+    "jump": {
+      "frames": 12,
+      "durationMs": 300,
+      "loop": false,
+      "clock": "vertical-velocity",
+      "frame": {
+        "width": 68,
+        "height": 110,
+        "anchor": {
+          "x": 34,
+          "y": 97
+        },
+        "worldHeight": 1.925,
+        "trimmed": true
+      },
+      "columns": 12,
+      "directionStride": 12
+    },
+    "fall": {
+      "frames": 12,
+      "durationMs": 300,
+      "loop": false,
+      "clock": "vertical-velocity",
+      "frame": {
+        "width": 68,
+        "height": 111,
+        "anchor": {
+          "x": 34,
+          "y": 96
+        },
+        "worldHeight": 1.9424999999999997,
+        "trimmed": true
+      },
+      "columns": 12,
+      "directionStride": 12
+    },
+    "land": {
+      "frames": 12,
+      "durationMs": 180,
+      "loop": false,
+      "frame": {
+        "width": 70,
+        "height": 113,
+        "anchor": {
+          "x": 35,
+          "y": 98
+        },
+        "worldHeight": 1.9774999999999998,
+        "trimmed": true
+      },
+      "columns": 12,
+      "directionStride": 12
+    },
+    "swim": {
+      "frames": 16,
+      "durationMs": 1100,
+      "loop": true,
+      "frame": {
+        "width": 74,
+        "height": 113,
+        "anchor": {
+          "x": 37,
+          "y": 96
+        },
+        "worldHeight": 1.9774999999999998,
+        "trimmed": true
+      },
+      "columns": 16,
+      "directionStride": 16
+    },
+    "glide": {
+      "frames": 12,
+      "durationMs": 1800,
+      "loop": true,
+      "frame": {
+        "width": 100,
+        "height": 120,
+        "anchor": {
+          "x": 50,
+          "y": 107
+        },
+        "worldHeight": 2.1,
+        "trimmed": true
+      },
+      "columns": 12,
+      "directionStride": 12
+    },
+    "hurt": {
+      "frames": 10,
+      "durationMs": 200,
+      "loop": false,
+      "frame": {
+        "width": 70,
+        "height": 111,
+        "anchor": {
+          "x": 35,
+          "y": 97
+        },
+        "worldHeight": 1.9424999999999997,
+        "trimmed": true
+      },
+      "columns": 10,
+      "directionStride": 10
+    },
+    "radiant-bolt": {
+      "frames": 21,
+      "durationMs": 325,
+      "loop": false,
+      "releaseFrame": 8,
+      "skill": "radiant_bolt",
+      "frame": {
+        "width": 80,
+        "height": 114,
+        "anchor": {
+          "x": 40,
+          "y": 100
+        },
+        "worldHeight": 1.9949999999999999,
+        "trimmed": true
+      },
+      "columns": 21,
+      "directionStride": 21
+    },
+    "mend": {
+      "frames": 21,
+      "durationMs": 840,
+      "loop": false,
+      "releaseFrame": 8,
+      "skill": "mend",
+      "frame": {
+        "width": 70,
+        "height": 111,
+        "anchor": {
+          "x": 35,
+          "y": 97
+        },
+        "worldHeight": 1.9424999999999997,
+        "trimmed": true
+      },
+      "columns": 21,
+      "directionStride": 21
+    },
+    "blink": {
+      "frames": 21,
+      "durationMs": 600,
+      "loop": false,
+      "releaseFrame": 8,
+      "skill": "blink",
+      "held": true,
+      "frame": {
+        "width": 70,
+        "height": 111,
+        "anchor": {
+          "x": 35,
+          "y": 97
+        },
+        "worldHeight": 1.9424999999999997,
+        "trimmed": true
+      },
+      "columns": 21,
+      "directionStride": 21
+    },
+    "prayer": {
+      "frames": 21,
+      "durationMs": 960,
+      "loop": false,
+      "releaseFrame": 8,
+      "skill": "prayer",
+      "frame": {
+        "width": 70,
+        "height": 117,
+        "anchor": {
+          "x": 35,
+          "y": 103
+        },
+        "worldHeight": 2.0475,
+        "trimmed": true
+      },
+      "columns": 21,
+      "directionStride": 21
+    },
+    "divine-nova": {
+      "frames": 21,
+      "durationMs": 1100,
+      "loop": false,
+      "releaseFrame": 8,
+      "skill": "divine_nova",
+      "frame": {
+        "width": 70,
+        "height": 120,
+        "anchor": {
+          "x": 35,
+          "y": 106
+        },
+        "worldHeight": 2.1,
+        "trimmed": true
+      },
+      "columns": 21,
+      "directionStride": 21
+    },
+    "death": {
+      "frames": 32,
+      "durationMs": 1100,
+      "loop": false,
+      "holdLast": true,
+      "frame": {
+        "width": 160,
+        "height": 132,
+        "anchor": {
+          "x": 80,
+          "y": 102
+        },
+        "worldHeight": 2.3099999999999996,
+        "trimmed": true
+      },
+      "columns": 25,
+      "directionStride": 50
+    }
+  },
+  "sourceHash": "61592999920a9117223e7f849f346a77848b2924fd99044a51021ec523edb11e",
+  "assets": {
+    "rig.glb": "1e1beed8db51610c48b1693d54c37e18b662bd999f03bacf5097b151c380182e",
+    "motion.json": "308b30e26bbb6f1fe4135ebffb37d0cb7e6ab86e8b3ada5266aa034e68482b23",
+    "idle.png": "f8c152eae49fab1fe7e86941517f3e58d01133b18bf8b3859e7da683405fbadf",
+    "run.png": "64f31a09abfeb6db93d5dee20082bd5e5ac7eac227c1855c1e25b76f3305e38a",
+    "jump.png": "3284610fd72854d594e265ce5d9849f5be2f75e6bd2867bc7bc69c4249ce128d",
+    "fall.png": "555f51b950d24675d6b286286e74cb7a9550feeef19fd66438d6a1264dc3a312",
+    "land.png": "6df78600569a01ceebfa7bf715feaee7dc60738c14c758438d0a7234984df692",
+    "swim.png": "a4eb0b5638a0df4f0e6340dad207e6ba1d0282e00491d48a700b22510acd6d5b",
+    "glide.png": "f65bf55a633ee468b4a6a3a1f3981f010ee93c16ebc6e93209f8e18a93ffda63",
+    "hurt.png": "b279acbf30e9c8a0596d8db8dddc3638b24649b76ae74cfb5250a03e16ce48da",
+    "radiant-bolt.png": "eab84a1d7a05620fd54231f4c1e05b27219eeb0e1af0996158d6ce2e1951f2ac",
+    "mend.png": "06d301c4aebb355624115c807600fdf8717985d74a12f5e324314c344faad257",
+    "blink.png": "61ebbbb268669c6b8af96ed83a3eacee56a7a43b3b8c5ab42204dd5d32fa21f9",
+    "prayer.png": "0cdb0f27a6ae83a8117298c84b471555e196d79894eb79ec7e8eb4ae9dbf408c",
+    "divine-nova.png": "52cac4041eb03c1f05427c73be90d4cbdf4deb05354f6862433e66e5568fa1e7",
+    "death.png": "9938a16ccb66eaadd7f4ef46f37cd6629c24aaae1d92f373cd3f945d66e9baae",
+    "portrait.png": "0fb116e1bf949719d5347727937241206de61586a65ad121793fabda692499bd"
+  },
+  "rig": {
+    "bones": 25,
+    "vertices": 78144,
+    "triangles": 26048,
+    "bytes": 4696868
+  }
+}

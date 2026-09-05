@@ -276,6 +276,7 @@ def cmd_sprite(args):
                     "--lora", rooted(t["lora"]),
                     "--lora-scale", str(args.lora_scale or t["lora_scale"]),
                     "--batch-manifest", runtime_manifest,
+                    *(["--offload"] if args.offload else []),
                 ]),
                 "diffusers batch runner",
             )
@@ -349,6 +350,8 @@ def cmd_sprite(args):
             ])
             if ref:
                 cmd += ["--image", ref]
+            if args.offload:
+                cmd += ["--offload"]
             label = "diffusers runner"
 
         elapsed = run(cmd, label)
@@ -793,6 +796,7 @@ def main():
     p.add_argument("--no-ref", action="store_true", help="Ignore the character's sprite_ref.")
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--height", type=int, default=None)
+    p.add_argument("--offload", action="store_true", help="CUDA only: stream weights from RAM when the full pipeline exceeds VRAM.")
     p.add_argument("--lora-scale", type=float, default=None)
     add_common(p, out_required=False)
     p.set_defaults(func=cmd_sprite)

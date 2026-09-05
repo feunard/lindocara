@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "identity": "dawn-sanctuary-priest",
+  "frame": { "width": 160, "height": 160, "anchor": { "x": 80, "y": 116 }, "worldHeight": 2.8, "trimmed": false },
+  "directions": ["front", "front-right", "right", "back-right", "back", "back-left", "left", "front-left"],
+  "directionLayout": "full",
+  "referenceSpeed": 3.65625,
+  "strideDistance": 1.72,
+  "stanceFraction": 0.4,
+  "clips": {
+    "idle": { "frames": 16, "durationMs": 2400, "loop": true },
+    "run": { "frames": 24, "durationMs": 470.42735042735046, "loop": true, "clock": "distance", "contacts": [0, 0.5] },
+    "jump": { "frames": 12, "durationMs": 300, "loop": false, "clock": "vertical-velocity" },
+    "fall": { "frames": 12, "durationMs": 300, "loop": false, "clock": "vertical-velocity" },
+    "land": { "frames": 12, "durationMs": 180, "loop": false },
+    "swim": { "frames": 16, "durationMs": 1100, "loop": true },
+    "glide": { "frames": 12, "durationMs": 1800, "loop": true },
+    "hurt": { "frames": 10, "durationMs": 200, "loop": false },
+    "radiant-bolt": { "frames": 21, "durationMs": 325, "loop": false, "releaseFrame": 8, "skill": "radiant_bolt" },
+    "mend": { "frames": 21, "durationMs": 840, "loop": false, "releaseFrame": 8, "skill": "mend" },
+    "blink": { "frames": 21, "durationMs": 600, "loop": false, "releaseFrame": 8, "skill": "blink", "held": true },
+    "prayer": { "frames": 21, "durationMs": 960, "loop": false, "releaseFrame": 8, "skill": "prayer" },
+    "divine-nova": { "frames": 21, "durationMs": 1100, "loop": false, "releaseFrame": 8, "skill": "divine_nova" },
+    "death": { "frames": 32, "durationMs": 1100, "loop": false, "holdLast": true }
+  }
+}

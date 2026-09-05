@@ -21,6 +21,7 @@
     "packages/server/migrations/meta",
     "apps/lab/public/maps",
     "packages/catalog/assets/index.json",
+    "packages/renderer/src/assets/characters/priest/*.json",
     "packages/catalog/assets/lindocara-asset-catalog.json",
     "packages/server/src/worker-configuration.d.ts",
     "**/.playwright",

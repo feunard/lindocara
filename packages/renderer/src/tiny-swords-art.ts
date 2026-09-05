@@ -4,6 +4,7 @@ import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { HarvestTool } from "@lindocara/engine/harvest.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 
+import { allPriestSheets, priestMotionClip, priestSheet } from "./priest-art.js";
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
@@ -502,6 +503,8 @@ export interface UnitSheet {
   footOffset: number;
   /** Five authored camera-relative rows: front, front-quarter, side, back-quarter and back. */
   directionRows?: number;
+  directionLayout?: "mirrored" | "full";
+  renderHeight?: number;
 }
 
 /** Temporary 3D-to-pixel-art witness. Five authored angles are mirrored into eight apparent
@@ -662,10 +665,10 @@ export const RANGER_BONUS_SKILL_IDS = [
 ] as const;
 export type RangerBonusSkillId = (typeof RANGER_BONUS_SKILL_IDS)[number];
 
-function rangerBonusSheet(source: string): UnitSheet {
+function rangerBonusSheet(source: string, frames = 10): UnitSheet {
   return {
     source,
-    frames: 10,
+    frames,
     frameWidth: TINY_SWORDS_UNIT_FRAME,
     frameHeight: TINY_SWORDS_UNIT_FRAME,
     footOffset: 56,
@@ -683,7 +686,7 @@ const RANGER_BONUS_QUICK_SHOT_SHEET = rangerBonusSheet(
  */
 export const RANGER_BONUS_SHEETS = {
   idle: rangerBonusSheet(new URL("./assets/bonus/ranger/idle.png", import.meta.url).href),
-  run: rangerBonusSheet(new URL("./assets/bonus/ranger/run.png", import.meta.url).href),
+  run: rangerBonusSheet(new URL("./assets/bonus/ranger/run.png", import.meta.url).href, 16),
   attack: RANGER_BONUS_QUICK_SHOT_SHEET,
 } as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
 
@@ -722,75 +725,6 @@ export function rangerBonusSkillSheet(skillId: RangerBonusSkillId): UnitSheet {
 
 export function rangerBonusSkillActiveFrame(skillId: RangerBonusSkillId): number {
   return RANGER_BONUS_SKILL_ACTIVE_FRAMES[skillId];
-}
-
-export const PRIEST_BONUS_SKILL_IDS = [
-  "radiant_bolt",
-  "mend",
-  "blink",
-  "prayer",
-  "divine_nova",
-] as const;
-export type PriestBonusSkillId = (typeof PRIEST_BONUS_SKILL_IDS)[number];
-
-function priestBonusSheet(source: string): UnitSheet {
-  return {
-    source,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  };
-}
-
-const PRIEST_BONUS_RADIANT_BOLT_SHEET = priestBonusSheet(
-  new URL("./assets/bonus/priest/radiant-bolt.png", import.meta.url).href,
-);
-
-/**
- * The generated Priest keeps one tonsured elder and one robe construction through locomotion,
- * casting and defeat. Five authored views are mirrored into eight apparent directions at runtime.
- */
-export const PRIEST_BONUS_SHEETS = {
-  idle: priestBonusSheet(new URL("./assets/bonus/priest/idle.png", import.meta.url).href),
-  run: priestBonusSheet(new URL("./assets/bonus/priest/run.png", import.meta.url).href),
-  attack: PRIEST_BONUS_RADIANT_BOLT_SHEET,
-} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
-
-export const PRIEST_BONUS_SKILL_SHEETS = {
-  radiant_bolt: PRIEST_BONUS_RADIANT_BOLT_SHEET,
-  mend: priestBonusSheet(new URL("./assets/bonus/priest/mend.png", import.meta.url).href),
-  blink: priestBonusSheet(new URL("./assets/bonus/priest/blink.png", import.meta.url).href),
-  prayer: priestBonusSheet(new URL("./assets/bonus/priest/prayer.png", import.meta.url).href),
-  divine_nova: priestBonusSheet(
-    new URL("./assets/bonus/priest/divine-nova.png", import.meta.url).href,
-  ),
-} as const satisfies Readonly<Record<PriestBonusSkillId, UnitSheet>>;
-
-/** Key/in-between interleaving puts each authored release, blessing or stride on an even frame. */
-export const PRIEST_BONUS_SKILL_ACTIVE_FRAMES = {
-  radiant_bolt: 6,
-  mend: 6,
-  blink: 4,
-  prayer: 6,
-  divine_nova: 6,
-} as const satisfies Readonly<Record<PriestBonusSkillId, number>>;
-
-export const PRIEST_BONUS_DEATH_SHEET = priestBonusSheet(
-  new URL("./assets/bonus/priest/death.png", import.meta.url).href,
-);
-
-export function isPriestBonusSkillId(skillId: string): skillId is PriestBonusSkillId {
-  return (PRIEST_BONUS_SKILL_IDS as readonly string[]).includes(skillId);
-}
-
-export function priestBonusSkillSheet(skillId: PriestBonusSkillId): UnitSheet {
-  return PRIEST_BONUS_SKILL_SHEETS[skillId];
-}
-
-export function priestBonusSkillActiveFrame(skillId: PriestBonusSkillId): number {
-  return PRIEST_BONUS_SKILL_ACTIVE_FRAMES[skillId];
 }
 
 const PEASANT_FACTION_FOLDER: Readonly<Record<PrimaryColor, string>> = {
@@ -1113,7 +1047,7 @@ export function unitSheet(
   if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
   if (appearance.body === "peasant") return PEASANT_BONUS_SHEETS[motion];
   if (appearance.body === "ranger") return RANGER_BONUS_SHEETS[motion];
-  if (appearance.body === "priest") return PRIEST_BONUS_SHEETS[motion];
+  if (appearance.body === "priest") return priestSheet(priestMotionClip(motion));
   if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   if (playerClass === "peasant") return peasantUnitSheet(appearance.primaryColor, motion);
   const [file, frames] = FILES[playerClass][motion];
@@ -1164,11 +1098,7 @@ export function allUnitSheets(): UnitSheet[] {
     result.set(sheet.source, sheet);
   }
   result.set(RANGER_BONUS_DEATH_SHEET.source, RANGER_BONUS_DEATH_SHEET);
-  for (const sheet of Object.values(PRIEST_BONUS_SHEETS)) result.set(sheet.source, sheet);
-  for (const sheet of Object.values(PRIEST_BONUS_SKILL_SHEETS)) {
-    result.set(sheet.source, sheet);
-  }
-  result.set(PRIEST_BONUS_DEATH_SHEET.source, PRIEST_BONUS_DEATH_SHEET);
+  for (const sheet of allPriestSheets()) result.set(sheet.source, sheet);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

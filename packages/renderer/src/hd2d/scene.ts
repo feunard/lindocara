@@ -671,6 +671,7 @@ export function editorGroundPickPoint(
 // --- the scene ----------------------------------------------------------------------------------
 
 export interface Hd2dScene {
+  readonly renderer: THREE.WebGLRenderer;
   render(now: number): void;
   gameHour(): number;
   fireIntensity(): number;
@@ -1252,6 +1253,7 @@ export function createHd2dScene(
   return {
     ctx,
     scene,
+    renderer: pipeline.renderer,
     surfaceRoot,
     camera,
     // A GETTER, not the value: `updateTerrain` replaces the query, and anything that had captured

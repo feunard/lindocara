@@ -104,6 +104,28 @@ export interface MonsterSpecialImpactArtDefinition {
   };
 }
 
+/** Continuous counterpart for skeletal clips; the contact pose is exactly at server release. */
+export function combatActionPhase(
+  contact: number,
+  timeline: ServerCombatTimeline,
+  now: number,
+  releasedAt?: number,
+): number {
+  const release = Math.max(timeline.impactAt, releasedAt ?? timeline.impactAt);
+  if (now < timeline.impactAt)
+    return (
+      Math.max(
+        0,
+        (now - timeline.startedAt) / Math.max(1, timeline.impactAt - timeline.startedAt),
+      ) * contact
+    );
+  if (now < release) return contact;
+  return (
+    contact +
+    Math.min(1, (now - release) / Math.max(1, timeline.recoveryEndsAt - release)) * (1 - contact)
+  );
+}
+
 /** Select a visual frame while pinning the declared contact frame to the server impact instant. */
 export function combatActionFrameIndex(
   frameCount: number,

@@ -14,6 +14,12 @@ export function playerPortrait(
   playerClass: PlayerClass,
   appearance: CharacterAppearance,
 ): PortraitArt {
+  if (appearance.body === "priest")
+    return {
+      source: new URL("./assets/characters/priest/portrait.png", import.meta.url).href,
+      frames: 1,
+      directionRows: 1,
+    };
   const sheet = unitSheet(playerClass, appearance, "idle");
   return {
     source: sheet.source,

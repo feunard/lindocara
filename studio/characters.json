@@ -1,5 +1,11 @@
 {
   "_doc": "Cross-lane identity. sprite_ref locks the look (passed to mflux-generate-flux2-edit via --image-paths), voice_ref locks the voice (5-15s of clean speech, passed to the cloning model). Either may be null: a null sprite_ref falls back to text-only generation, a null voice_ref falls back to the archetype's stock voice. description is repeated verbatim on every sheet — it is what holds identity together within a generation.",
+  "dawn-priest": {
+    "description": "a compact young dawn sanctuary priest, warm brown skin, swept chestnut hair, a small ivory forehead band with an amber sunstone, broad short teal shoulder mantle with gold piping, ivory split knee-length tunic, amber stole with a simple rising-sun emblem, brown belt with one small closed prayer book at the left hip, dark leggings and large leather boots fully visible below the tunic, holding in the right hand a slender wooden crozier with a brass open sun arch and one suspended amber crystal; friendly determined face, sturdy two-and-a-half-head chibi proportions, simple clearly separated limbs",
+    "sprite_ref": null,
+    "voice_ref": null,
+    "archetype": "hero_m"
+  },
   "elf-druid": {
     "description": "a female wood elf druid with long braided auburn hair, green hooded cloak worn up, leather bracers, holding a gnarled wooden staff topped with a glowing acorn",
     "sprite_ref": "pixel-art/refs/elf-druid.png",

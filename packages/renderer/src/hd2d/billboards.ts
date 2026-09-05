@@ -24,6 +24,7 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 
+import type { PriestSpriteInput } from "./priest-sprites.js";
 import { HD2D_CAMERA } from "./scene.js";
 
 export type ActorKind = "player" | "sea_guardian" | "monster" | "guard" | "corpse" | "event";
@@ -74,6 +75,9 @@ export interface ActorView {
   directionalFacing?: GroundVector;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
+  /** A small render target composed from precomputed skeletal clips, owned by the scene. */
+  spriteTexture?: THREE.Texture;
+  priestPose?: PriestSpriteInput;
   /** Authored sheets can run vertically and need not use square frames. */
   frames?: number;
   frameWidth?: number;
@@ -81,6 +85,9 @@ export interface ActorView {
   frameAxis?: "x" | "y";
   /** Authored camera-relative rows. Five rows become eight directions through mirroring. */
   directionRows?: number;
+  directionLayout?: "mirrored" | "full";
+  /** Authored airborne clips already deform the body, so they opt out of the legacy scale warp. */
+  authoredPose?: boolean;
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
   /** Explicit world height for an authored actor whose measured lab size differs from the shared
@@ -279,6 +286,7 @@ export function directionalFrame(
   facing: GroundVector,
   cameraYaw: number,
   directionRows = 5,
+  layout: "mirrored" | "full" = "mirrored",
 ): DirectionalFrame {
   if (directionRows <= 1) return { row: 0, flipped: false };
   const length = Math.hypot(facing.x, facing.z);
@@ -289,6 +297,13 @@ export function directionalFrame(
   const z = facing.z / length;
   const cameraX = Math.sin(cameraYaw);
   const cameraZ = Math.cos(cameraYaw);
+  if (layout === "full") {
+    const angle = Math.atan2(x * cameraZ - z * cameraX, x * cameraX + z * cameraZ);
+    return {
+      row: (Math.round((angle * directionRows) / (Math.PI * 2)) + directionRows) % directionRows,
+      flipped: false,
+    };
+  }
   const dot = THREE.MathUtils.clamp(x * cameraX + z * cameraZ, -1, 1);
   const step = Math.PI / (directionRows - 1);
   return {
@@ -393,7 +408,7 @@ export function createBillboardRegistry(
   const entries = new Map<string, Entry>();
 
   function create(actor: ActorView): Entry {
-    const texture = textures.get(actor.textureKey);
+    const texture = actor.spriteTexture ?? textures.get(actor.textureKey);
     const inferred = sheetOf(texture);
     const frames = Math.max(1, actor.frames ?? inferred.cols);
     const frameWidth = actor.frameWidth ?? inferred.framePx;
@@ -413,7 +428,13 @@ export function createBillboardRegistry(
       aspect: frameWidth / frameHeight,
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
+      ...(actor.authoredPose ? { stretch: 1 } : {}),
     });
+    // Render targets cannot be cloned like image textures: only the original GPU attachment is
+    // updated. The billboard still owns/disposes its unused UV clone; the compositor owns this map.
+    if (actor.spriteTexture && billboard.mesh.material instanceof THREE.MeshLambertMaterial) {
+      billboard.mesh.material.map = actor.spriteTexture;
+    }
     billboard.mesh.userData.actorId = actor.id;
     scene.root.add(billboard.mesh);
     const healthBar = actor.healthBar ? makeHealthBar() : null;
@@ -479,7 +500,9 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
-        const stretch = THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
+        const stretch = actor.authoredPose
+          ? 0
+          : THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
         const fallen = actor.pose === "fallen";
         entry.billboard.mesh.scale.set(1 - stretch * 0.6, fallen ? 0.24 : 1 + stretch, 1);
         entry.billboard.mesh.rotation.z = fallen ? Math.PI / 2 : 0;
@@ -491,13 +514,19 @@ export function createBillboardRegistry(
             ? actor.animationLoop === false
               ? Math.min(entry.frames - 1, Math.floor((elapsed / duration) * entry.frames))
               : Math.floor((elapsed / duration) * entry.frames) % entry.frames
-            : Math.floor(elapsed / (actor.frameDurationMs ?? DEFAULT_FRAME_MS)) % entry.frames);
+            : actor.animationLoop === false
+              ? Math.min(
+                  entry.frames - 1,
+                  Math.floor(elapsed / (actor.frameDurationMs ?? DEFAULT_FRAME_MS)),
+                )
+              : Math.floor(elapsed / (actor.frameDurationMs ?? DEFAULT_FRAME_MS)) % entry.frames);
         const frame = fallen ? 0 : Math.max(0, Math.min(entry.frames - 1, animatedFrame));
         if (entry.directionRows > 1 && actor.directionalFacing) {
           const direction = directionalFrame(
             actor.directionalFacing,
             ctx.yaw(),
             entry.directionRows,
+            actor.directionLayout,
           );
           entry.billboard.setFrame(direction.row * entry.frames + frame);
           entry.billboard.setFlip(direction.flipped);

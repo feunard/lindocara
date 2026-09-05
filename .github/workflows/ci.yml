@@ -34,6 +34,9 @@ jobs:
       - name: Music catalogue up to date
         run: yarn music:check
 
+      - name: Priest rig and animation assets
+        run: yarn priest:check
+
       # Two commands, because `yarn lint` is `alepha lint` is `oxlint --fix` followed by `oxfmt`:
       # it REWRITES a badly formatted file and then exits 0, so on its own it would wave through
       # exactly the PR it exists to stop. The diff is what restores the gate: on a runner the tree

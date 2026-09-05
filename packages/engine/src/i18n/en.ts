@@ -165,10 +165,9 @@ export const en = {
     "Ultra-smooth 48-phase, eight-direction run with unique tools, skills, cargo, and defeat.",
   "hero.bonus.ranger": "Ranger · Prototype",
   "hero.bonus.ranger.blurb":
-    "Ten-phase, eight-direction Ranger with a unique draw, release, retreat, and defeat.",
-  "hero.bonus.priest": "Priest · Prototype",
-  "hero.bonus.priest.blurb":
-    "Ten-phase, eight-direction Priest with distinct bolt, healing, Lumen Step, prayer, nova, and defeat.",
+    "Sixteen-phase, eight-direction run with unique draws, releases, retreat, and defeat.",
+  "hero.bonus.priest": "Dawn Priest",
+  "hero.bonus.priest.blurb": "A sanctuary keeper whose sun crozier guides allies through danger.",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",

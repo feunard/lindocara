@@ -6,6 +6,7 @@ import { defineConfig } from "vitest/config";
 // Browser components + Tiny Swords art. jsdom, React, css:false. The `@` alias is the client source
 // root (shared with the editor). Node's own webstorage is disabled so jsdom's Storage wins.
 export default defineConfig({
+  assetsInclude: ["**/*.glb"],
   plugins: [react()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../client/src", import.meta.url)) },

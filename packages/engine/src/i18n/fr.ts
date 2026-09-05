@@ -163,10 +163,10 @@ export const fr: Record<keyof typeof en, string> = {
     "Course ultra-fluide en 48 phases et huit directions, avec outils, compétences, portage et mort dédiés.",
   "hero.bonus.ranger": "Rôdeur · Prototype",
   "hero.bonus.ranger.blurb":
-    "Animation en dix phases et huit directions, avec tirs, recul et mort dédiés.",
-  "hero.bonus.priest": "Prêtre · Prototype",
+    "Course en seize phases et huit directions, avec tirs, recul et mort dédiés.",
+  "hero.bonus.priest": "Prêtre de l’Aube",
   "hero.bonus.priest.blurb":
-    "Prêtre en dix phases et huit directions, avec trait, soins, Pas de Lumen, prière, nova et mort dédiés.",
+    "Un gardien du sanctuaire dont la crosse solaire guide les alliés à travers le danger.",
   "class.warrior.blurb": "Frappe fort, au corps à corps.",
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",
