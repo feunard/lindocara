@@ -156,6 +156,9 @@ export const fr: Record<keyof typeof en, string> = {
   "hero.bonus.runicGuardian": "Gardien runique · Prototype",
   "hero.bonus.runicGuardian.blurb": "Rendu 3D en huit directions, avec les règles du Guerrier.",
   "hero.bonus.assassin": "Assassin · Prototype",
+  "hero.bonus.assassinV2": "Assassin · Prototype 2",
+  "hero.bonus.assassinV2.blurb":
+    "Les compétences de l’Assassin original, avec de nouvelles transitions de course et de saut.",
   "hero.bonus.assassin.blurb":
     "Animation en dix phases et huit directions, avec un mouvement propre à chaque compétence.",
   "hero.bonus.peasant": "Paysan · Prototype",

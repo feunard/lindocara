@@ -85,9 +85,14 @@ export interface ActorView {
   frameAxis?: "x" | "y";
   /** Authored camera-relative rows. Five rows become eight directions through mirroring. */
   directionRows?: number;
+  sheetColumns?: number;
+  directionStride?: number;
+  /** Mirroring swaps anatomical feet; a half stride retains the planted foot through turns. */
+  mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";
   /** Authored airborne clips already deform the body, so they opt out of the legacy scale warp. */
   authoredPose?: boolean;
+  authoredAirborne?: boolean;
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
   /** Explicit world height for an authored actor whose measured lab size differs from the shared
@@ -415,8 +420,10 @@ export function createBillboardRegistry(
     const frameHeight = actor.frameHeight ?? inferred.framePx;
     const vertical = actor.frameAxis === "y";
     const directionRows = vertical ? 1 : Math.max(1, actor.directionRows ?? 1);
-    const cols = vertical ? 1 : frames;
-    const rows = vertical ? frames : directionRows;
+    const cols = vertical ? 1 : (actor.sheetColumns ?? frames);
+    const rows = vertical
+      ? frames
+      : directionRows * Math.ceil((actor.directionStride ?? frames) / cols);
     const billboard = makeBillboard(ctx, {
       texture,
       cols,
@@ -500,9 +507,10 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
-        const stretch = actor.authoredPose
-          ? 0
-          : THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
+        const stretch =
+          actor.authoredPose || actor.authoredAirborne
+            ? 0
+            : THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
         const fallen = actor.pose === "fallen";
         entry.billboard.mesh.scale.set(1 - stretch * 0.6, fallen ? 0.24 : 1 + stretch, 1);
         entry.billboard.mesh.rotation.z = fallen ? Math.PI / 2 : 0;
@@ -528,7 +536,12 @@ export function createBillboardRegistry(
             entry.directionRows,
             actor.directionLayout,
           );
-          entry.billboard.setFrame(direction.row * entry.frames + frame);
+          const directionalPhase = direction.flipped
+            ? (frame + Math.round((actor.mirroredPhaseOffset ?? 0) * entry.frames)) % entry.frames
+            : frame;
+          entry.billboard.setFrame(
+            direction.row * (actor.directionStride ?? entry.frames) + directionalPhase,
+          );
           entry.billboard.setFlip(direction.flipped);
         } else {
           entry.billboard.setFrame(frame);

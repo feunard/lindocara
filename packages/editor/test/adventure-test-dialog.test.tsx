@@ -29,19 +29,20 @@ describe("AdventureTestDialog", () => {
     for (const label of [
       "hero.bonus.runicGuardian",
       "hero.bonus.assassin",
+      "hero.bonus.assassinV2",
       "hero.bonus.peasant",
       "hero.bonus.ranger",
       "hero.bonus.priest",
     ] as const) {
       expect(screen.getByRole("option", { name: t(label) })).toBeInTheDocument();
     }
-    await userEvent.click(screen.getByRole("option", { name: t("hero.bonus.assassin") }));
+    await userEvent.click(screen.getByRole("option", { name: t("hero.bonus.assassinV2") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
 
     expect(onLaunch).toHaveBeenCalledWith({
       startMapId: null,
       heroClass: "rogue",
-      heroBody: "assassin",
+      heroBody: "assassin_v2",
     });
   });
 });

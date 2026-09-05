@@ -4,6 +4,7 @@ import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { HarvestTool } from "@lindocara/engine/harvest.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 
+import { allAssassinV2Sheets, assassinV2MotionClip, assassinV2Sheet } from "./assassin-v2-art.js";
 import { allPriestSheets, priestMotionClip, priestSheet } from "./priest-art.js";
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
@@ -503,6 +504,10 @@ export interface UnitSheet {
   footOffset: number;
   /** Five authored camera-relative rows: front, front-quarter, side, back-quarter and back. */
   directionRows?: number;
+  /** Packed strips may wrap over several texture rows per direction. */
+  sheetColumns?: number;
+  directionStride?: number;
+  mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";
   renderHeight?: number;
 }
@@ -1045,6 +1050,7 @@ export function unitSheet(
 ): UnitSheet {
   if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
   if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
+  if (appearance.body === "assassin_v2") return assassinV2Sheet(assassinV2MotionClip(motion));
   if (appearance.body === "peasant") return PEASANT_BONUS_SHEETS[motion];
   if (appearance.body === "ranger") return RANGER_BONUS_SHEETS[motion];
   if (appearance.body === "priest") return priestSheet(priestMotionClip(motion));
@@ -1099,6 +1105,7 @@ export function allUnitSheets(): UnitSheet[] {
   }
   result.set(RANGER_BONUS_DEATH_SHEET.source, RANGER_BONUS_DEATH_SHEET);
   for (const sheet of allPriestSheets()) result.set(sheet.source, sheet);
+  for (const sheet of allAssassinV2Sheets()) result.set(sheet.source, sheet);
   for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
     for (const skillId of Object.keys(PEASANT_TOOL_SPECS) as PeasantToolSkillId[]) {
       const tool = peasantToolSheet(primaryColor, skillId);

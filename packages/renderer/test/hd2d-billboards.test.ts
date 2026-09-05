@@ -103,6 +103,40 @@ function actor(id: string, x: number, z: number): ActorView {
 }
 
 describe("the billboard registry", () => {
+  it("addresses wrapped directional strips and retains the anatomical contact across a mirror", () => {
+    const scene = sceneFor(flatMap(4)),
+      ctx = createHd2dContext();
+    const registry = createBillboardRegistry(ctx, scene, textureRegistryOf(1600, 1000));
+    const pose: ActorView = {
+      ...actor("packed", 0, 0),
+      frames: 32,
+      sheetColumns: 16,
+      directionStride: 32,
+      directionRows: 5,
+      frameWidth: 100,
+      frameHeight: 100,
+      frame: 3,
+      mirroredPhaseOffset: 0.5,
+      directionalFacing: { x: 1, z: 0 },
+      renderHeight: 1.2,
+      foot: 0.8,
+    };
+    registry.sync([pose]);
+    const mesh = meshes(scene.root)[0];
+    if (!mesh || !(mesh.material instanceof THREE.MeshLambertMaterial) || !mesh.material.map)
+      throw new Error("Expected mapped billboard");
+    const map = mesh.material.map;
+    expect(map.repeat.x).toBeCloseTo(1 / 16);
+    expect(map.repeat.y).toBeCloseTo(1 / 10);
+    expect(map.offset.x).toBeCloseTo(3 / 16);
+    expect(map.offset.y).toBeCloseTo(0.5);
+    registry.sync([{ ...pose, directionalFacing: { x: -1, z: 0 } }]);
+    expect(meshes(scene.root)[0]).toBe(mesh);
+    expect(map.repeat.x).toBeCloseTo(-1 / 16);
+    expect(map.offset.x).toBeCloseTo(4 / 16);
+    expect(map.offset.y).toBeCloseTo(0.4);
+    registry.dispose();
+  });
   it("keeps an authoritative enemy health bar above its billboard", () => {
     const scene = sceneFor(flatMap(4));
     const registry = createBillboardRegistry(createHd2dContext(), scene, textureRegistryOf());

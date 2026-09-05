@@ -24,6 +24,13 @@ installTinySwordsTheme();
 export function bootClient(): boolean {
   if (
     import.meta.env.DEV &&
+    new URLSearchParams(window.location.search).get("preview") === "assassin"
+  ) {
+    void import("./dev/assassin-preview.js").then((module) => module.startAssassinPreview());
+    return false;
+  }
+  if (
+    import.meta.env.DEV &&
     new URLSearchParams(window.location.search).get("preview") === "priest"
   ) {
     void import("./dev/priest-preview.js").then((module) => module.startPriestPreview());

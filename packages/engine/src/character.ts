@@ -4,6 +4,7 @@ export const BODY_VARIANTS = [
   "wayfarer",
   "runic_guardian",
   "assassin",
+  "assassin_v2",
   "peasant",
   "ranger",
   "priest",

@@ -1,0 +1,23 @@
+{
+  "clip": {
+    "frames": 16,
+    "durationMs": 2400,
+    "loop": true,
+    "frame": {
+      "width": 96,
+      "height": 92,
+      "anchor": {
+        "x": 48,
+        "y": 89
+      }
+    },
+    "columns": 16,
+    "directionStride": 16,
+    "directionRows": 5,
+    "bytes": 294075,
+    "decodedBytes": 2826240,
+    "sha256": "2d5b5ef7dac003677199220666acbd50652d18f30ae4f93766816bbb55bb7ffd"
+  },
+  "pixelsPerTile": 71.7948717948718,
+  "runtimeScale": 0.875
+}

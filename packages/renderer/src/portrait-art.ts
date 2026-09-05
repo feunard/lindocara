@@ -14,6 +14,12 @@ export function playerPortrait(
   playerClass: PlayerClass,
   appearance: CharacterAppearance,
 ): PortraitArt {
+  if (appearance.body === "assassin_v2")
+    return {
+      source: new URL("./assets/bonus/assassin-v2/portrait.png", import.meta.url).href,
+      frames: 1,
+      directionRows: 1,
+    };
   if (appearance.body === "priest")
     return {
       source: new URL("./assets/characters/priest/portrait.png", import.meta.url).href,

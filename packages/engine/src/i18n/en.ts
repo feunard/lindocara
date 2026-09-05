@@ -158,6 +158,9 @@ export const en = {
   "hero.bonus.runicGuardian": "Runic Guardian · Prototype",
   "hero.bonus.runicGuardian.blurb": "Eight-direction 3D bake, with the Warrior's rules.",
   "hero.bonus.assassin": "Assassin · Prototype",
+  "hero.bonus.assassinV2": "Assassin · Prototype 2",
+  "hero.bonus.assassinV2.blurb":
+    "The original Assassin's skills, with new running and jumping transitions.",
   "hero.bonus.assassin.blurb":
     "Ten-phase, eight-direction Rogue animation with a unique move for every skill.",
   "hero.bonus.peasant": "Fieldhand · Prototype",

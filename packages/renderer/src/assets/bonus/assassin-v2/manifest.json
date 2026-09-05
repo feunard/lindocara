@@ -1,0 +1,1048 @@
+{
+  "version": 2,
+  "body": "assassin_v2",
+  "method": "original raster body poses, offline inbetweens and rigid front-head registration, distance-driven playback",
+  "sourceFrame": {
+    "width": 192,
+    "height": 192,
+    "anchor": {
+      "x": 96,
+      "y": 136
+    }
+  },
+  "pixelsPerTile": 82.05128205128204,
+  "runtimeScale": 1,
+  "strideDistance": 2.4,
+  "referenceSpeed": 4.875,
+  "directions": [
+    "front",
+    "front-quarter",
+    "side",
+    "back-quarter",
+    "back"
+  ],
+  "headRegistration": {
+    "direction": "front",
+    "sourceAsset": "assassin/run.png",
+    "sourceFrame": 0,
+    "maskRows": [
+      [
+        25,
+        60,
+        136
+      ],
+      [
+        26,
+        60,
+        136
+      ],
+      [
+        27,
+        60,
+        136
+      ],
+      [
+        28,
+        60,
+        136
+      ],
+      [
+        29,
+        60,
+        136
+      ],
+      [
+        30,
+        60,
+        136
+      ],
+      [
+        31,
+        60,
+        136
+      ],
+      [
+        32,
+        60,
+        136
+      ],
+      [
+        33,
+        60,
+        136
+      ],
+      [
+        34,
+        60,
+        136
+      ],
+      [
+        35,
+        60,
+        136
+      ],
+      [
+        36,
+        60,
+        136
+      ],
+      [
+        37,
+        60,
+        136
+      ],
+      [
+        38,
+        60,
+        136
+      ],
+      [
+        39,
+        60,
+        136
+      ],
+      [
+        40,
+        60,
+        136
+      ],
+      [
+        41,
+        60,
+        136
+      ],
+      [
+        42,
+        60,
+        136
+      ],
+      [
+        43,
+        60,
+        136
+      ],
+      [
+        44,
+        60,
+        136
+      ],
+      [
+        45,
+        60,
+        136
+      ],
+      [
+        46,
+        60,
+        136
+      ],
+      [
+        47,
+        60,
+        136
+      ],
+      [
+        48,
+        60,
+        136
+      ],
+      [
+        49,
+        60,
+        136
+      ],
+      [
+        50,
+        60,
+        136
+      ],
+      [
+        51,
+        60,
+        136
+      ],
+      [
+        52,
+        60,
+        136
+      ],
+      [
+        53,
+        60,
+        136
+      ],
+      [
+        54,
+        60,
+        136
+      ],
+      [
+        55,
+        60,
+        136
+      ],
+      [
+        56,
+        60,
+        136
+      ],
+      [
+        57,
+        60,
+        136
+      ],
+      [
+        58,
+        60,
+        136
+      ],
+      [
+        59,
+        60,
+        136
+      ],
+      [
+        60,
+        60,
+        136
+      ],
+      [
+        61,
+        60,
+        136
+      ],
+      [
+        62,
+        60,
+        136
+      ],
+      [
+        63,
+        60,
+        136
+      ],
+      [
+        64,
+        60,
+        136
+      ],
+      [
+        65,
+        60,
+        136
+      ],
+      [
+        66,
+        60,
+        136
+      ],
+      [
+        67,
+        60,
+        136
+      ],
+      [
+        68,
+        60,
+        136
+      ],
+      [
+        69,
+        60,
+        136
+      ],
+      [
+        70,
+        60,
+        136
+      ],
+      [
+        71,
+        60,
+        136
+      ],
+      [
+        72,
+        60,
+        136
+      ],
+      [
+        73,
+        60,
+        136
+      ],
+      [
+        74,
+        60,
+        136
+      ],
+      [
+        75,
+        60,
+        136
+      ],
+      [
+        76,
+        60,
+        136
+      ],
+      [
+        77,
+        60,
+        136
+      ],
+      [
+        78,
+        60,
+        136
+      ],
+      [
+        79,
+        63,
+        132
+      ],
+      [
+        80,
+        65,
+        127
+      ],
+      [
+        81,
+        68,
+        123
+      ],
+      [
+        82,
+        71,
+        121
+      ],
+      [
+        83,
+        73,
+        120
+      ],
+      [
+        84,
+        76,
+        118
+      ],
+      [
+        85,
+        78,
+        117
+      ],
+      [
+        86,
+        79,
+        115
+      ],
+      [
+        87,
+        81,
+        112
+      ],
+      [
+        88,
+        82,
+        110
+      ],
+      [
+        89,
+        84,
+        108
+      ]
+    ],
+    "offsetsY": {
+      "run": [
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -2,
+        -2,
+        -1,
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -2,
+        -2,
+        -1,
+        -1,
+        0,
+        0
+      ],
+      "jump": [
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        -1,
+        -2,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3
+      ],
+      "jump-run": [
+        0,
+        0,
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -1,
+        -1,
+        -2,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -1,
+        -1,
+        -2,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3,
+        0,
+        0,
+        -1,
+        -1,
+        -2,
+        -2,
+        -3,
+        -3,
+        -1,
+        -1,
+        -2,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -1,
+        -1,
+        -2,
+        -2,
+        -2,
+        -3,
+        -3,
+        -3
+      ],
+      "fall": [
+        -3,
+        -3,
+        -3,
+        -2,
+        -2,
+        -2,
+        -1,
+        -1,
+        -1,
+        0,
+        0,
+        0
+      ],
+      "land": [
+        0,
+        0,
+        1,
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "land-run": [
+        0,
+        2,
+        2,
+        1,
+        0,
+        0,
+        2,
+        1,
+        0,
+        -1,
+        0,
+        2,
+        1,
+        -2,
+        -3,
+        0,
+        2,
+        1,
+        0,
+        -1,
+        0,
+        2,
+        2,
+        1,
+        0,
+        0,
+        2,
+        1,
+        0,
+        -1,
+        0,
+        2,
+        1,
+        -2,
+        -3,
+        0,
+        2,
+        1,
+        0,
+        -1
+      ],
+      "stop": [
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        0,
+        0,
+        -3,
+        -2,
+        -1,
+        0,
+        -1,
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        -1,
+        0,
+        0,
+        -3,
+        -2,
+        -1,
+        0,
+        -1,
+        -1,
+        0,
+        0
+      ],
+      "hurt": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "swim": [
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3
+      ],
+      "glide": [
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3,
+        -3
+      ]
+    }
+  },
+  "sourceSha256": {
+    "studio/pixel-art/assassin-v2/build.py": "1c06500fb06c7b5300593cfb64f32186ed758f05e03736b5c506473a150a13be",
+    "studio/pixel-art/assassin-v2/sources/approved-idle.png": "2d5b5ef7dac003677199220666acbd50652d18f30ae4f93766816bbb55bb7ffd",
+    "studio/pixel-art/assassin-v2/sources/approved-idle.json": "0e1be933d940fdfe0da875bea027f9917425c2b63be0f79bdcd6a486c46faca7",
+    "packages/renderer/src/assets/bonus/assassin/idle.png": "8e058ec23e191308486cf594b387967c645103936ba883afdf94f429a0757dbf",
+    "packages/renderer/src/assets/bonus/assassin/run.png": "d173b8488dd1899fe55eeafb9c7a405cb9348bde77fcd19ae29e8b0bf7393988",
+    "packages/renderer/src/assets/bonus/assassin/dual-slash.png": "80ec6195dbce9640523ba8050db4a073784306adff7a5307500714f008e62d8b",
+    "packages/renderer/src/assets/bonus/assassin/shadow-step.png": "4735c58340391d17c9ed0e119fffc657e31d3f26a3666c824a5c19563fa8086f",
+    "packages/renderer/src/assets/bonus/assassin/vanish.png": "8cdf9e70a0bd8ea36698c96be3b6769625186d6dc1a0b58706f8e8bd9b0cc2a3",
+    "packages/renderer/src/assets/bonus/assassin/poisoned-shiv.png": "527201543b4033ba35577c577a2d4b227244055ee17aeb35005aa4f3c049227c",
+    "packages/renderer/src/assets/bonus/assassin/shadow-dance.png": "c57e5f1242cb4a48ec828fdad2d4c06eebb071eea0f3bcd4e8a35080a40ab734",
+    "packages/renderer/src/assets/bonus/assassin/death.png": "5fc8fdc98e713451ee1ec24e7a4ec4b0e187f22f8870f84f02af01ef3f5d9da2"
+  },
+  "clips": {
+    "idle": {
+      "frames": 16,
+      "durationMs": 2400,
+      "loop": true,
+      "frame": {
+        "width": 96,
+        "height": 92,
+        "anchor": {
+          "x": 48,
+          "y": 89
+        }
+      },
+      "columns": 16,
+      "directionStride": 16,
+      "directionRows": 5,
+      "bytes": 294075,
+      "decodedBytes": 2826240,
+      "sha256": "2d5b5ef7dac003677199220666acbd50652d18f30ae4f93766816bbb55bb7ffd",
+      "asset": "assassin-v2/idle.png",
+      "pixelsPerTile": 71.7948717948718
+    },
+    "dual-slash": {
+      "frames": 10,
+      "durationMs": 325,
+      "loop": false,
+      "activeFrame": 4,
+      "asset": "assassin/dual-slash.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 496181,
+      "decodedBytes": 7372800,
+      "sha256": "80ec6195dbce9640523ba8050db4a073784306adff7a5307500714f008e62d8b"
+    },
+    "shadow-step": {
+      "frames": 10,
+      "durationMs": 370,
+      "loop": false,
+      "activeFrame": 6,
+      "asset": "assassin/shadow-step.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 553314,
+      "decodedBytes": 7372800,
+      "sha256": "4735c58340391d17c9ed0e119fffc657e31d3f26a3666c824a5c19563fa8086f"
+    },
+    "vanish": {
+      "frames": 10,
+      "durationMs": 200,
+      "loop": false,
+      "activeFrame": 6,
+      "asset": "assassin/vanish.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 531669,
+      "decodedBytes": 7372800,
+      "sha256": "8cdf9e70a0bd8ea36698c96be3b6769625186d6dc1a0b58706f8e8bd9b0cc2a3"
+    },
+    "poisoned-shiv": {
+      "frames": 10,
+      "durationMs": 425,
+      "loop": false,
+      "activeFrame": 6,
+      "asset": "assassin/poisoned-shiv.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 607888,
+      "decodedBytes": 7372800,
+      "sha256": "527201543b4033ba35577c577a2d4b227244055ee17aeb35005aa4f3c049227c"
+    },
+    "shadow-dance": {
+      "frames": 10,
+      "durationMs": 600,
+      "loop": false,
+      "activeFrame": 4,
+      "asset": "assassin/shadow-dance.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 561988,
+      "decodedBytes": 7372800,
+      "sha256": "c57e5f1242cb4a48ec828fdad2d4c06eebb071eea0f3bcd4e8a35080a40ab734"
+    },
+    "death": {
+      "frames": 10,
+      "durationMs": 900,
+      "loop": false,
+      "asset": "assassin/death.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 192,
+        "height": 192,
+        "anchor": {
+          "x": 96,
+          "y": 136
+        }
+      },
+      "columns": 10,
+      "directionStride": 10,
+      "directionRows": 5,
+      "bytes": 533073,
+      "decodedBytes": 7372800,
+      "sha256": "5fc8fdc98e713451ee1ec24e7a4ec4b0e187f22f8870f84f02af01ef3f5d9da2"
+    },
+    "run": {
+      "frames": 36,
+      "durationMs": 492.30769230769226,
+      "loop": true,
+      "sourceFrames": [
+        0,
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        23,
+        27,
+        32
+      ],
+      "asset": "assassin-v2/run.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 106,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 18,
+      "directionStride": 36,
+      "directionRows": 5,
+      "bytes": 2013963,
+      "decodedBytes": 10684800,
+      "sha256": "e903145115d1a44a501b82f0463d46a060be41450c31219a028f4695c875561a"
+    },
+    "jump": {
+      "frames": 12,
+      "durationMs": 300,
+      "loop": false,
+      "asset": "assassin-v2/jump.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 126,
+        "height": 109,
+        "anchor": {
+          "x": 63,
+          "y": 103
+        }
+      },
+      "columns": 12,
+      "directionStride": 12,
+      "directionRows": 5,
+      "bytes": 684703,
+      "decodedBytes": 3296160,
+      "sha256": "83990763cd212641f401b854a8757dff4b64bdc89070ca11e748ce1a4f56570f"
+    },
+    "jump-run": {
+      "frames": 64,
+      "durationMs": 300,
+      "loop": false,
+      "phaseBuckets": 8,
+      "transitionFrames": 8,
+      "asset": "assassin-v2/jump-run.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 109,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 16,
+      "directionStride": 64,
+      "directionRows": 5,
+      "bytes": 2698005,
+      "decodedBytes": 19532800,
+      "sha256": "28a0390b10087ba49e69a16ce8f41892d3a70899201a671d2394ec6dc3c5e287"
+    },
+    "fall": {
+      "frames": 12,
+      "durationMs": 300,
+      "loop": false,
+      "asset": "assassin-v2/fall.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 138,
+        "height": 106,
+        "anchor": {
+          "x": 69,
+          "y": 103
+        }
+      },
+      "columns": 12,
+      "directionStride": 12,
+      "directionRows": 5,
+      "bytes": 662604,
+      "decodedBytes": 3510720,
+      "sha256": "abdad9da4ff5098e0faa37e88acdad5ef20cbcaf320ec0717ed359c7d861610d"
+    },
+    "land": {
+      "frames": 12,
+      "durationMs": 180,
+      "loop": false,
+      "asset": "assassin-v2/land.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 132,
+        "height": 107,
+        "anchor": {
+          "x": 66,
+          "y": 100
+        }
+      },
+      "columns": 12,
+      "directionStride": 12,
+      "directionRows": 5,
+      "bytes": 720691,
+      "decodedBytes": 3389760,
+      "sha256": "db181852247a7a44b20ef18c2d0bd38355894d89212441bf74ae3d9fd85e8f46"
+    },
+    "land-run": {
+      "frames": 40,
+      "durationMs": 180,
+      "loop": false,
+      "phaseBuckets": 8,
+      "transitionFrames": 5,
+      "asset": "assassin-v2/land-run.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 107,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 20,
+      "directionStride": 40,
+      "directionRows": 5,
+      "bytes": 1589492,
+      "decodedBytes": 11984000,
+      "sha256": "b88ea50349732ac067d6344fffbf4df87e077b9933b758002b844ce93c9d308e"
+    },
+    "stop": {
+      "frames": 32,
+      "durationMs": 120,
+      "loop": false,
+      "phaseBuckets": 8,
+      "transitionFrames": 4,
+      "asset": "assassin-v2/stop.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 110,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 16,
+      "directionStride": 32,
+      "directionRows": 5,
+      "bytes": 1492206,
+      "decodedBytes": 9856000,
+      "sha256": "2155589ceb3bc31ff95141424a4a382623fdbb970cfa5aab12c599db95eeb210"
+    },
+    "hurt": {
+      "frames": 12,
+      "durationMs": 200,
+      "loop": false,
+      "asset": "assassin-v2/hurt.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 124,
+        "height": 103,
+        "anchor": {
+          "x": 62,
+          "y": 100
+        }
+      },
+      "columns": 12,
+      "directionStride": 12,
+      "directionRows": 5,
+      "bytes": 542563,
+      "decodedBytes": 3065280,
+      "sha256": "5bbfa6739a8d0cf94d546efee5f2ca35e0c4295d38d4a7e6ff21eb1c0fe60b0a"
+    },
+    "swim": {
+      "frames": 16,
+      "durationMs": 1000,
+      "loop": true,
+      "asset": "assassin-v2/swim.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 126,
+        "height": 107,
+        "anchor": {
+          "x": 63,
+          "y": 103
+        }
+      },
+      "columns": 16,
+      "directionStride": 16,
+      "directionRows": 5,
+      "bytes": 527085,
+      "decodedBytes": 4314240,
+      "sha256": "18987dafb9d7edbaecf3f238afe41168c8aa39014b7f757944cf351f9c0f10dd"
+    },
+    "glide": {
+      "frames": 16,
+      "durationMs": 1800,
+      "loop": true,
+      "asset": "assassin-v2/glide.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 106,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 16,
+      "directionStride": 16,
+      "directionRows": 5,
+      "bytes": 526665,
+      "decodedBytes": 4748800,
+      "sha256": "d59573e587560ee89d93da8dd4a77b50af2309be1cdaae339ef6bce1d24a5ed6"
+    },
+    "start": {
+      "frames": 32,
+      "durationMs": 100,
+      "loop": false,
+      "phaseBuckets": 8,
+      "transitionFrames": 4,
+      "asset": "assassin-v2/stop.png",
+      "pixelsPerTile": 82.05128205128204,
+      "frame": {
+        "width": 140,
+        "height": 110,
+        "anchor": {
+          "x": 70,
+          "y": 103
+        }
+      },
+      "columns": 16,
+      "directionStride": 32,
+      "directionRows": 5,
+      "bytes": 1492206,
+      "decodedBytes": 9856000,
+      "sha256": "2155589ceb3bc31ff95141424a4a382623fdbb970cfa5aab12c599db95eeb210"
+    }
+  }
+}

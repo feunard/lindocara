@@ -66,6 +66,11 @@ const CLASS_PREVIEW_COLOR = {
 } as const;
 
 const BONUS_HERO_PRESENTATION = {
+  assassin_v2: {
+    name: "hero.bonus.assassinV2",
+    blurb: "hero.bonus.assassinV2.blurb",
+    color: "violet",
+  },
   runic_guardian: {
     name: "hero.bonus.runicGuardian",
     blurb: "hero.bonus.runicGuardian.blurb",

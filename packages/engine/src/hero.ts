@@ -36,6 +36,7 @@ export interface CreateHeroInput {
 export const PROTOTYPE_HEROES = [
   { body: "runic_guardian", heroClass: "warrior" },
   { body: "assassin", heroClass: "rogue" },
+  { body: "assassin_v2", heroClass: "rogue" },
   { body: "peasant", heroClass: "peasant" },
   { body: "ranger", heroClass: "ranger" },
   { body: "priest", heroClass: "priest" },

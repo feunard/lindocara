@@ -79,6 +79,13 @@ import { createTextureCache, createTextureRegistry } from "@lindocara/hd2d/textu
 import * as THREE from "three";
 
 import { ACTOR_FRAME_MS, type ActorMotion, ActorMotionTracker } from "../actor-motion.js";
+import {
+  ASSASSIN_V2_MANIFEST,
+  assassinV2ActiveFrame,
+  assassinV2Frame,
+  assassinV2MotionClip,
+  assassinV2Sheet,
+} from "../assassin-v2-art.js";
 import { CameraShake, heroLandingImpulse, SHEEP_EXPLOSION_SHAKE } from "../camera-shake.js";
 import {
   CharacterAnimationTracker,
@@ -299,6 +306,9 @@ export interface BillboardActorSheet {
   renderHeight?: number;
   axis?: "x" | "y";
   directionRows?: number;
+  sheetColumns?: number;
+  directionStride?: number;
+  mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";
 }
 
@@ -407,6 +417,11 @@ function actorSheetView(sheet: BillboardActorSheet) {
     ...(sheet.frameHeight === undefined ? {} : { frameHeight: sheet.frameHeight }),
     frameAxis: sheet.axis ?? ("x" as const),
     ...(sheet.directionRows === undefined ? {} : { directionRows: sheet.directionRows }),
+    ...(sheet.sheetColumns === undefined ? {} : { sheetColumns: sheet.sheetColumns }),
+    ...(sheet.directionStride === undefined ? {} : { directionStride: sheet.directionStride }),
+    ...(sheet.mirroredPhaseOffset === undefined
+      ? {}
+      : { mirroredPhaseOffset: sheet.mirroredPhaseOffset }),
     ...(sheet.directionLayout === undefined ? {} : { directionLayout: sheet.directionLayout }),
     ...(sheet.renderHeight === undefined ? {} : { renderHeight: sheet.renderHeight }),
     ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
@@ -558,7 +573,19 @@ export function playerActorView(
   const priest = player.appearance.body === "priest";
   const priestClip = priestMotionClip(animation?.motion ?? motion, player.action?.skillId);
   const clip = PRIEST_MANIFEST.clips[priestClip];
-  const sheet = priest ? priestSheet(priestClip) : playerActorSheet(player, motion);
+  const assassinV2 = player.appearance.body === "assassin_v2";
+  const assassinClip = assassinV2MotionClip(
+    animation?.motion ?? motion,
+    player.action?.skillId,
+    animation,
+  );
+  const assassinDefinition = ASSASSIN_V2_MANIFEST.clips[assassinClip];
+  const assassinFrame = animation ? assassinV2Frame(assassinClip, animation) : undefined;
+  const sheet = priest
+    ? priestSheet(priestClip)
+    : assassinV2
+      ? assassinV2Sheet(assassinClip)
+      : playerActorSheet(player, motion);
   const runic = player.appearance.body === "runic_guardian";
   const assassin = player.appearance.body === "assassin";
   const peasantBonus = player.appearance.body === "peasant";
@@ -627,6 +654,15 @@ export function playerActorView(
                     ? 1_000 / 3
                     : ACTOR_FRAME_MS[motion],
     animationLoop: clouded || player.guarding === true || motion !== "attack",
+    ...(assassinV2
+      ? {
+          authoredAirborne: (animation?.motion ?? motion) !== "attack",
+          animationLoop: assassinDefinition.loop,
+          animationTimeMs: animation?.elapsedMs ?? animationTimeMs,
+          frameDurationMs: assassinDefinition.durationMs / assassinDefinition.frames,
+          ...(assassinFrame !== undefined ? { frame: assassinFrame } : {}),
+        }
+      : {}),
     ...(priest && !clouded
       ? {
           priestPose: {
@@ -1965,15 +2001,24 @@ export class Hd2dRenderer implements RendererLike {
       const timing = player.action
         ? this.#actorAnimationTiming(player.action, animationTimeMs)
         : null;
+      const characterAnimation =
+        player.appearance.body === "priest"
+          ? this.#characterAnimation.sample(player, animationTimeMs, PRIEST_MANIFEST.strideDistance)
+          : player.appearance.body === "assassin_v2"
+            ? this.#characterAnimation.sample(
+                player,
+                animationTimeMs,
+                ASSASSIN_V2_MANIFEST.strideDistance,
+                { coordinatedTransitions: true },
+              )
+            : undefined;
       const view = playerActorView(
         player,
         timing?.elapsed ?? animationTimeMs,
         motion.motion,
         timing?.duration,
         player.id === this.#selfId,
-        player.appearance.body === "priest"
-          ? this.#characterAnimation.sample(player, animationTimeMs, PRIEST_MANIFEST.strideDistance)
-          : undefined,
+        characterAnimation,
       );
       view.x += mobilityOffset.x;
       view.z += mobilityOffset.z;
@@ -1999,33 +2044,36 @@ export class Hd2dRenderer implements RendererLike {
         const directionalBonus =
           player.appearance.body === "runic_guardian" ||
           player.appearance.body === "assassin" ||
+          player.appearance.body === "assassin_v2" ||
           player.appearance.body === "peasant" ||
           player.appearance.body === "ranger" ||
           player.appearance.body === "priest";
         const frames = directionalBonus ? (view.frames ?? 10) : art.caster.frames;
         const activeFrame =
-          player.appearance.body === "assassin" &&
-          player.action.skillId &&
-          isAssassinSkillId(player.action.skillId)
-            ? assassinSkillActiveFrame(player.action.skillId)
-            : player.appearance.body === "peasant" &&
+          player.appearance.body === "assassin_v2"
+            ? assassinV2ActiveFrame(player.action.skillId)
+            : player.appearance.body === "assassin" &&
                 player.action.skillId &&
-                isPeasantSkillId(player.action.skillId)
-              ? peasantBonusSkillActiveFrame(player.action.skillId)
-              : player.appearance.body === "ranger" &&
+                isAssassinSkillId(player.action.skillId)
+              ? assassinSkillActiveFrame(player.action.skillId)
+              : player.appearance.body === "peasant" &&
                   player.action.skillId &&
-                  isRangerBonusSkillId(player.action.skillId)
-                ? rangerBonusSkillActiveFrame(player.action.skillId)
-                : player.appearance.body === "priest" &&
+                  isPeasantSkillId(player.action.skillId)
+                ? peasantBonusSkillActiveFrame(player.action.skillId)
+                : player.appearance.body === "ranger" &&
                     player.action.skillId &&
-                    isPriestSkillId(player.action.skillId)
-                  ? priestSkillActiveFrame(player.action.skillId)
-                  : directionalBonus
-                    ? Math.round(
-                        (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) *
-                          (frames - 1),
-                      )
-                    : art.caster.activeFrame;
+                    isRangerBonusSkillId(player.action.skillId)
+                  ? rangerBonusSkillActiveFrame(player.action.skillId)
+                  : player.appearance.body === "priest" &&
+                      player.action.skillId &&
+                      isPriestSkillId(player.action.skillId)
+                    ? priestSkillActiveFrame(player.action.skillId)
+                    : directionalBonus
+                      ? Math.round(
+                          (art.caster.activeFrame / Math.max(1, art.caster.frames - 1)) *
+                            (frames - 1),
+                        )
+                      : art.caster.activeFrame;
         view.frame = this.#actionFrame(
           player.action,
           frames,
@@ -2263,24 +2311,30 @@ export class Hd2dRenderer implements RendererLike {
       corpseIds.add(corpse.id);
       const runic = corpse.appearance.body === "runic_guardian";
       const assassin = corpse.appearance.body === "assassin";
+      const assassinV2 = corpse.appearance.body === "assassin_v2";
       const peasantBonus = corpse.appearance.body === "peasant";
       const rangerBonus = corpse.appearance.body === "ranger";
       const priestBonus = corpse.appearance.body === "priest";
-      const sheet = runic
-        ? RUNIC_GUARDIAN_DEATH_SHEET
-        : assassin
-          ? ASSASSIN_DEATH_SHEET
-          : peasantBonus
-            ? PEASANT_BONUS_DEATH_SHEET
-            : rangerBonus
-              ? RANGER_BONUS_DEATH_SHEET
-              : priestBonus
-                ? priestSheet("death")
-                : unitSheet(corpse.class, corpse.appearance, "idle");
+      const sheet = assassinV2
+        ? assassinV2Sheet("death")
+        : runic
+          ? RUNIC_GUARDIAN_DEATH_SHEET
+          : assassin
+            ? ASSASSIN_DEATH_SHEET
+            : peasantBonus
+              ? PEASANT_BONUS_DEATH_SHEET
+              : rangerBonus
+                ? RANGER_BONUS_DEATH_SHEET
+                : priestBonus
+                  ? priestSheet("death")
+                  : unitSheet(corpse.class, corpse.appearance, "idle");
       const deathStartedAt =
         this.#corpseAnimations.get(corpse.id) ??
-        (priestBonus && !this.#characterAnimation.hasSeen(corpse.id)
-          ? animationTimeMs - PRIEST_MANIFEST.clips.death.durationMs
+        ((priestBonus || assassinV2) && !this.#characterAnimation.hasSeen(corpse.id)
+          ? animationTimeMs -
+            (assassinV2
+              ? ASSASSIN_V2_MANIFEST.clips.death.durationMs
+              : PRIEST_MANIFEST.clips.death.durationMs)
           : animationTimeMs);
       this.#corpseAnimations.set(corpse.id, deathStartedAt);
       const corpseFacing = corpse.facing ?? { x: 0, z: 1 };
@@ -2318,16 +2372,18 @@ export class Hd2dRenderer implements RendererLike {
               },
             }
           : {}),
-        ...(runic || assassin || peasantBonus || rangerBonus || priestBonus
+        ...(runic || assassin || assassinV2 || peasantBonus || rangerBonus || priestBonus
           ? {
               animationTimeMs: animationTimeMs - deathStartedAt,
-              animationDurationMs: assassin
-                ? 900
-                : priestBonus
-                  ? PRIEST_MANIFEST.clips.death.durationMs
-                  : peasantBonus || rangerBonus
-                    ? 1_000
-                    : 760,
+              animationDurationMs: assassinV2
+                ? ASSASSIN_V2_MANIFEST.clips.death.durationMs
+                : assassin
+                  ? 900
+                  : priestBonus
+                    ? PRIEST_MANIFEST.clips.death.durationMs
+                    : peasantBonus || rangerBonus
+                      ? 1_000
+                      : 760,
               animationLoop: false,
             }
           : { pose: "fallen" as const }),

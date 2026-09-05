@@ -17,6 +17,12 @@ export interface CharacterAnimationSample {
   elapsedMs: number;
   speed: number;
   stridePhase: number;
+  /** Frozen phase when leaving locomotion, for a baked settle transition. */
+  stopPhase?: number;
+  /** Run phase at takeoff; stable until landing, even through direction changes. */
+  takeoffPhase?: number;
+  /** Only idle-to-run needs the baked acceleration transition. */
+  startedFromIdle?: boolean;
 }
 
 interface TrackedCharacter {
@@ -39,7 +45,12 @@ interface TrackedCharacter {
 export class CharacterAnimationTracker {
   readonly #actors = new Map<string, TrackedCharacter>();
 
-  sample(player: PlayerSnapshot, now: number, strideDistance: number): CharacterAnimationSample {
+  sample(
+    player: PlayerSnapshot,
+    now: number,
+    strideDistance: number,
+    options: { coordinatedTransitions?: boolean } = {},
+  ): CharacterAnimationSample {
     const previous = this.#actors.get(player.id);
     if (previous && now === previous.at) return previous.sample;
     const elapsed = previous ? now - previous.at : 0;
@@ -54,7 +65,16 @@ export class CharacterAnimationTracker {
     const moving = continuous && speed > 0.025;
     const grounded = !player.airborne && !player.swimming && !player.gliding;
     let stridePhase = previous?.stridePhase ?? 0;
-    if (moving && grounded && !previous?.airborne && strideDistance > 0) {
+    if (
+      moving &&
+      grounded &&
+      !previous?.airborne &&
+      strideDistance > 0 &&
+      !(
+        options.coordinatedTransitions &&
+        (player.action?.skillId === "shadow_step" || player.action?.skillId === "shadow_dance")
+      )
+    ) {
       stridePhase = (stridePhase + distance / strideDistance) % 1;
     }
     let motion: CharacterMotion;
@@ -62,6 +82,17 @@ export class CharacterAnimationTracker {
     else if (player.swimming) motion = "swim";
     else if (player.gliding) motion = "glide";
     else if (player.airborne) motion = (player.vy ?? 0) > 0 ? "jump" : "fall";
+    else if (
+      options.coordinatedTransitions &&
+      (previous?.airborne || (previous?.motion === "land" && now - previous.startedAt < 180))
+    )
+      motion = "land";
+    else if (
+      options.coordinatedTransitions &&
+      ((previous && player.hp < previous.hp) ||
+        (previous?.motion === "hurt" && now - previous.startedAt < 200))
+    )
+      motion = "hurt";
     else if (moving) motion = "run";
     else if (previous?.airborne || (previous?.motion === "land" && now - previous.startedAt < 180))
       motion = "land";
@@ -81,7 +112,34 @@ export class CharacterAnimationTracker {
           : motion === "fall"
             ? Math.max(0, Math.min(1, -(player.vy ?? 0) / 9))
             : 0;
-    const sample = { motion, phase, elapsedMs, speed, stridePhase };
+    const stopPhase =
+      motion === "idle"
+        ? previous?.motion === "run"
+          ? previous.stridePhase
+          : previous?.sample.stopPhase
+        : undefined;
+    const takeoffPhase = player.airborne
+      ? previous?.airborne
+        ? previous.sample.takeoffPhase
+        : previous?.motion === "run"
+          ? previous.stridePhase
+          : undefined
+      : undefined;
+    const startedFromIdle =
+      motion === "run" &&
+      (previous?.motion === "run"
+        ? previous.sample.startedFromIdle === true
+        : previous?.motion === "idle");
+    const sample = {
+      motion,
+      phase,
+      elapsedMs,
+      speed,
+      stridePhase,
+      ...(stopPhase === undefined ? {} : { stopPhase }),
+      ...(takeoffPhase === undefined ? {} : { takeoffPhase }),
+      ...(startedFromIdle ? { startedFromIdle } : {}),
+    };
     this.#actors.set(player.id, {
       x: player.x,
       z: player.z,

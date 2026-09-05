@@ -718,7 +718,9 @@ export function stepHero(
   } else if (!state.airborne && propulsion) {
     state.distanceDepuisLePas += avance;
     if (state.distanceDepuisLePas >= hero.pasTousLes) {
-      state.distanceDepuisLePas = 0;
+      // Retain sub-frame travel: clearing it slowly dephased contacts/audio from a
+      // distance-clocked stride, with a different error at each display refresh rate.
+      state.distanceDepuisLePas -= hero.pasTousLes;
       const matiere =
         query.kindAtElevation?.(state.x, empreinteZ(state.z), state.y) ??
         query.kindAt(state.x, empreinteZ(state.z)) ??

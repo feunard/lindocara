@@ -396,6 +396,31 @@ describe("createHero", () => {
     expect(await response.json()).toMatchObject({ error: "hero_not_member" });
   });
 
+  test("persists Assassin V2 as an optional Rogue body with the original Rogue skills", async () => {
+    const { token } = await registerAndLogin("heroassassinv2");
+    const adventureId = await newPlayableAdventure(token);
+    const partyId = await newParty(token, adventureId);
+    const response = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({ name: "Nyx", class: "rogue", body: "assassin_v2" }),
+    });
+    expect(response.status).toBe(201);
+    const hero = (await response.json()) as { id: string };
+    expect(await probe.heroes.findById(hero.id)).toMatchObject({
+      class: "rogue",
+      body: "assassin_v2",
+    });
+    const listed = await authedFetch(`/api/parties/${partyId}/heroes`, token);
+    expect(await listed.json()).toMatchObject([
+      { id: hero.id, class: "rogue", body: "assassin_v2" },
+    ]);
+    expect(
+      (await probe.heroSkills.findMany({ where: { heroId: { eq: hero.id } } }))
+        .map((skill) => skill.skillId)
+        .sort(),
+    ).toEqual(["dual_slash", "shadow_step", "vanish", "poisoned_shiv", "shadow_dance"].sort());
+  });
+
   test(`caps at ${MAX_HEROES_PER_PARTY} heroes per account per party`, async () => {
     const { token } = await registerAndLogin("herocap");
     const adventureId = await newPlayableAdventure(token);
