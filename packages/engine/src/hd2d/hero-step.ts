@@ -521,7 +521,23 @@ export function stepHero(
   // guarded by `!state.room` so none of these mechanics run indoors.
   if (!state.room) {
     if (!state.swimming) {
-      const ground = sol ?? liquidSurfaceAtElevation(query, state.x, footprintZ, state.y);
+      // `sol` is null for two situations that are not the same, and only one of them is a reason
+      // to read a liquid surface. Nothing is there at all (a void cell, an open water column):
+      // there is no floor, and the liquid plane is the honest answer. Or something IS there and
+      // stands above the ceiling a grounded body may step to, which is a raised cell the hero is
+      // up against rather than an absence of ground.
+      //
+      // Reading the second as the first put the hero on the map's water plane, and a water plane
+      // is not a floor. On level-0 ground it sits below, so the hero went airborne and sank
+      // THROUGH the terrain; on the ground sunk below it by negative elevations it sits above, so
+      // the hero was lifted out of the pit in a single frame. One expression produced both halves
+      // of that symptom. Keep the ground already underfoot instead, which is the same "least wrong
+      // thing to keep" `groundUnder` and `groundUnderBody` fall back to.
+      const ground =
+        sol ??
+        (liquid !== null || query.heightAt(state.x, footprintZ) === null
+          ? liquidSurfaceAtElevation(query, state.x, footprintZ, state.y)
+          : state.groundY);
       if (state.airborne) {
         state.coyote -= dt;
       } else if (ground < state.y - 1e-3 && !suitSurface) {
