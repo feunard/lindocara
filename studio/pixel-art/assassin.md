@@ -61,19 +61,19 @@ row targets the same 96 px content height as the four unchanged directional rows
 192 px cells.
 `stack-animation-strips.py` stacks the five camera rows.
 
-The eight 1920x960 atlases each contain ten phases by five authored angles, for 400 processed source
-cells in total:
+These V1 drawings are retained only as offline sources for [Assassin V2](./assassin-v2/README.md),
+the sole playable Assassin. The eight 1920x960 source atlases each contain ten phases by five
+authored angles, for 400 processed source cells in total:
 
-- `packages/renderer/src/assets/bonus/assassin/idle.png`
-- `packages/renderer/src/assets/bonus/assassin/run.png`
-- `packages/renderer/src/assets/bonus/assassin/dual-slash.png`
-- `packages/renderer/src/assets/bonus/assassin/shadow-step.png`
-- `packages/renderer/src/assets/bonus/assassin/vanish.png`
-- `packages/renderer/src/assets/bonus/assassin/poisoned-shiv.png`
-- `packages/renderer/src/assets/bonus/assassin/shadow-dance.png`
-- `packages/renderer/src/assets/bonus/assassin/death.png`
+- `studio/pixel-art/assassin-v2/sources/v1/idle.png`
+- `studio/pixel-art/assassin-v2/sources/v1/run.png`
+- `studio/pixel-art/assassin-v2/sources/v1/dual-slash.png`
+- `studio/pixel-art/assassin-v2/sources/v1/shadow-step.png`
+- `studio/pixel-art/assassin-v2/sources/v1/vanish.png`
+- `studio/pixel-art/assassin-v2/sources/v1/poisoned-shiv.png`
+- `studio/pixel-art/assassin-v2/sources/v1/shadow-dance.png`
+- `studio/pixel-art/assassin-v2/sources/v1/death.png`
 
-An automated adjacent-frame comparison found no identical neighbours in any row. The renderer runs
-the ten-frame locomotion cycle at 16 fps, the guarded-breathing idle at 3 fps, and maps every skill's
-authoritative contact to its own impact pose; the server still decides movement, damage, stealth,
-poison and targets.
+The historical V1 renderer used a fixed-FPS ten-frame locomotion loop. V2 now uses a
+distance-driven cycle and the original skill contact poses; see its README for the current
+runtime and regeneration commands.

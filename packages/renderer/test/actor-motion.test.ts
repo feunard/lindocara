@@ -130,11 +130,12 @@ describe("actor animation art", () => {
 
     for (const motion of ["idle", "run", "attack"] as const) {
       const sheet = playerActorSheet(bonus, motion);
-      expect(sheet.source).toContain("assassin");
-      expect(sheet.frames).toBe(10);
-      expect(sheet.frameWidth).toBe(192);
-      expect(sheet.frameHeight).toBe(192);
-      expect(sheet.directionRows).toBe(5);
+      const current = {
+        ...bonus,
+        appearance: { ...bonus.appearance, body: "assassin_v2" },
+      } as PlayerSnapshot;
+      expect(sheet).toEqual(playerActorSheet(current, motion));
+      expect(sheet.source).toContain("assassin-v2");
     }
 
     const skills = [
@@ -156,9 +157,12 @@ describe("actor animation art", () => {
 
     const view = playerActorView(bonus, 0, "run");
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
-    expect(view.renderHeight).toBeCloseTo(2.6 * 0.9);
-    expect(view.frameDurationMs).toBe(62.5);
-    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBeCloseTo(1_000 / 3);
+    const current = {
+      ...bonus,
+      appearance: { ...bonus.appearance, body: "assassin_v2" },
+    } as PlayerSnapshot;
+    expect(view).toEqual(playerActorView(current, 0, "run"));
+    expect(playerActorView(bonus, 0, "idle")).toEqual(playerActorView(current, 0, "idle"));
   });
 
   it("keeps the animated Peasant coherent through tools, skills, cargo, and locomotion", () => {
@@ -280,12 +284,14 @@ describe("actor animation art", () => {
 
     for (const motion of ["idle", "run", "attack"] as const) {
       const sheet = playerActorSheet(bonus, motion);
-      expect(sheet.source).toContain("characters/priest");
-      expect(sheet.frameWidth).toBeLessThanOrEqual(160);
-      expect(sheet.frameHeight).toBeLessThanOrEqual(160);
-      expect((sheet.renderHeight ?? 0) / sheet.frameHeight).toBeCloseTo(2.24 / 128);
-      expect(sheet.directionRows).toBe(8);
-      expect(sheet.directionLayout).toBe("full");
+      expect(sheet.source).toContain("bonus/priest-prototype");
+      expect(sheet.frameWidth).toBeLessThanOrEqual(256);
+      expect(sheet.frameHeight).toBeLessThanOrEqual(256);
+      expect((sheet.renderHeight ?? 0) / sheet.frameHeight).toBeCloseTo(
+        1 / PRIEST_MANIFEST.pixelsPerTile,
+      );
+      expect(sheet.directionRows).toBe(5);
+      expect(sheet.directionLayout).toBeUndefined();
     }
 
     const skills = ["radiant_bolt", "mend", "blink", "prayer", "divine_nova"] as const;
@@ -297,13 +303,15 @@ describe("actor animation art", () => {
     expect(sources).toEqual(
       skills.map((skillId) => expect.stringContaining(skillId.replaceAll("_", "-"))),
     );
-    expect(skills.map(priestSkillActiveFrame)).toEqual([8, 8, 8, 8, 8]);
+    expect(skills.map(priestSkillActiveFrame)).toEqual([10, 9, 7, 10, 13]);
 
     const view = playerActorView(bonus, 0, "run");
     expect(view.directionalFacing).toEqual({ x: 1, z: 0 });
-    expect(view.renderHeight).toBeCloseTo(PRIEST_MANIFEST.clips.run.frame.worldHeight);
-    expect(view.frameDurationMs).toBe(PRIEST_MANIFEST.clips.run.durationMs / 24);
-    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(150);
+    expect(view.renderHeight).toBeCloseTo(
+      PRIEST_MANIFEST.clips.run.frame.height / PRIEST_MANIFEST.pixelsPerTile,
+    );
+    expect(view.frameDurationMs).toBe(PRIEST_MANIFEST.clips.run.durationMs / 36);
+    expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(100);
   });
 
   it("keeps Iron Guard's authored strip after its cast action has ended", () => {

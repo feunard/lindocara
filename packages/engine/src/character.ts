@@ -3,7 +3,7 @@ import type { PlayerClass } from "./game.js";
 export const BODY_VARIANTS = [
   "wayfarer",
   "runic_guardian",
-  "assassin",
+  "assassin", // Saved V1 heroes are read as assassin_v2 by normalizeAppearance.
   "assassin_v2",
   "peasant",
   "ranger",
@@ -110,5 +110,5 @@ export function normalizeAppearance(
   const primaryColor = (PRIMARY_COLORS as readonly unknown[]).includes(colorCandidate)
     ? (colorCandidate as PrimaryColor)
     : DEFAULT_APPEARANCE.primaryColor;
-  return { body, primaryColor };
+  return { body: body === "assassin" ? "assassin_v2" : body, primaryColor };
 }

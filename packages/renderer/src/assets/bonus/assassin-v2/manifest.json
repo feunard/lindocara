@@ -23,7 +23,7 @@
   ],
   "headRegistration": {
     "direction": "front",
-    "sourceAsset": "assassin/run.png",
+    "sourceAsset": "studio/pixel-art/assassin-v2/sources/v1/run.png",
     "sourceFrame": 0,
     "maskRows": [
       [
@@ -628,17 +628,18 @@
     }
   },
   "sourceSha256": {
-    "studio/pixel-art/assassin-v2/build.py": "1c06500fb06c7b5300593cfb64f32186ed758f05e03736b5c506473a150a13be",
+    "studio/pixel-art/assassin-v2/build.py": "fa899a2bb9d4522d74c68dff86018eef097c095e60864f69485f63a569b1f315",
+    "studio/pixel-art/lib/raster_animation.py": "37c1819897059902c7c74b5fe9fa823b445838f7d8a7ac2f15b4ccad9d188a7e",
     "studio/pixel-art/assassin-v2/sources/approved-idle.png": "2d5b5ef7dac003677199220666acbd50652d18f30ae4f93766816bbb55bb7ffd",
     "studio/pixel-art/assassin-v2/sources/approved-idle.json": "0e1be933d940fdfe0da875bea027f9917425c2b63be0f79bdcd6a486c46faca7",
-    "packages/renderer/src/assets/bonus/assassin/idle.png": "8e058ec23e191308486cf594b387967c645103936ba883afdf94f429a0757dbf",
-    "packages/renderer/src/assets/bonus/assassin/run.png": "d173b8488dd1899fe55eeafb9c7a405cb9348bde77fcd19ae29e8b0bf7393988",
-    "packages/renderer/src/assets/bonus/assassin/dual-slash.png": "80ec6195dbce9640523ba8050db4a073784306adff7a5307500714f008e62d8b",
-    "packages/renderer/src/assets/bonus/assassin/shadow-step.png": "4735c58340391d17c9ed0e119fffc657e31d3f26a3666c824a5c19563fa8086f",
-    "packages/renderer/src/assets/bonus/assassin/vanish.png": "8cdf9e70a0bd8ea36698c96be3b6769625186d6dc1a0b58706f8e8bd9b0cc2a3",
-    "packages/renderer/src/assets/bonus/assassin/poisoned-shiv.png": "527201543b4033ba35577c577a2d4b227244055ee17aeb35005aa4f3c049227c",
-    "packages/renderer/src/assets/bonus/assassin/shadow-dance.png": "c57e5f1242cb4a48ec828fdad2d4c06eebb071eea0f3bcd4e8a35080a40ab734",
-    "packages/renderer/src/assets/bonus/assassin/death.png": "5fc8fdc98e713451ee1ec24e7a4ec4b0e187f22f8870f84f02af01ef3f5d9da2"
+    "studio/pixel-art/assassin-v2/sources/v1/idle.png": "8e058ec23e191308486cf594b387967c645103936ba883afdf94f429a0757dbf",
+    "studio/pixel-art/assassin-v2/sources/v1/run.png": "d173b8488dd1899fe55eeafb9c7a405cb9348bde77fcd19ae29e8b0bf7393988",
+    "studio/pixel-art/assassin-v2/sources/v1/dual-slash.png": "80ec6195dbce9640523ba8050db4a073784306adff7a5307500714f008e62d8b",
+    "studio/pixel-art/assassin-v2/sources/v1/shadow-step.png": "4735c58340391d17c9ed0e119fffc657e31d3f26a3666c824a5c19563fa8086f",
+    "studio/pixel-art/assassin-v2/sources/v1/vanish.png": "8cdf9e70a0bd8ea36698c96be3b6769625186d6dc1a0b58706f8e8bd9b0cc2a3",
+    "studio/pixel-art/assassin-v2/sources/v1/poisoned-shiv.png": "527201543b4033ba35577c577a2d4b227244055ee17aeb35005aa4f3c049227c",
+    "studio/pixel-art/assassin-v2/sources/v1/shadow-dance.png": "c57e5f1242cb4a48ec828fdad2d4c06eebb071eea0f3bcd4e8a35080a40ab734",
+    "studio/pixel-art/assassin-v2/sources/v1/death.png": "5fc8fdc98e713451ee1ec24e7a4ec4b0e187f22f8870f84f02af01ef3f5d9da2"
   },
   "clips": {
     "idle": {
@@ -667,7 +668,7 @@
       "durationMs": 325,
       "loop": false,
       "activeFrame": 4,
-      "asset": "assassin/dual-slash.png",
+      "asset": "assassin-v2/dual-slash.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,
@@ -689,7 +690,7 @@
       "durationMs": 370,
       "loop": false,
       "activeFrame": 6,
-      "asset": "assassin/shadow-step.png",
+      "asset": "assassin-v2/shadow-step.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,
@@ -711,7 +712,7 @@
       "durationMs": 200,
       "loop": false,
       "activeFrame": 6,
-      "asset": "assassin/vanish.png",
+      "asset": "assassin-v2/vanish.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,
@@ -733,7 +734,7 @@
       "durationMs": 425,
       "loop": false,
       "activeFrame": 6,
-      "asset": "assassin/poisoned-shiv.png",
+      "asset": "assassin-v2/poisoned-shiv.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,
@@ -755,7 +756,7 @@
       "durationMs": 600,
       "loop": false,
       "activeFrame": 4,
-      "asset": "assassin/shadow-dance.png",
+      "asset": "assassin-v2/shadow-dance.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,
@@ -776,7 +777,7 @@
       "frames": 10,
       "durationMs": 900,
       "loop": false,
-      "asset": "assassin/death.png",
+      "asset": "assassin-v2/death.png",
       "pixelsPerTile": 82.05128205128204,
       "frame": {
         "width": 192,

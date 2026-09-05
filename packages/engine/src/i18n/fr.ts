@@ -155,21 +155,18 @@ export const fr: Record<keyof typeof en, string> = {
   "class.peasant": "Paysan",
   "hero.bonus.runicGuardian": "Gardien runique · Prototype",
   "hero.bonus.runicGuardian.blurb": "Rendu 3D en huit directions, avec les règles du Guerrier.",
-  "hero.bonus.assassin": "Assassin · Prototype",
   "hero.bonus.assassinV2": "Assassin · Prototype 2",
   "hero.bonus.assassinV2.blurb":
     "Les compétences de l’Assassin original, avec de nouvelles transitions de course et de saut.",
-  "hero.bonus.assassin.blurb":
-    "Animation en dix phases et huit directions, avec un mouvement propre à chaque compétence.",
   "hero.bonus.peasant": "Paysan · Prototype",
   "hero.bonus.peasant.blurb":
     "Course ultra-fluide en 48 phases et huit directions, avec outils, compétences, portage et mort dédiés.",
   "hero.bonus.ranger": "Rôdeur · Prototype",
   "hero.bonus.ranger.blurb":
     "Course en seize phases et huit directions, avec tirs, recul et mort dédiés.",
-  "hero.bonus.priest": "Prêtre de l’Aube",
+  "hero.bonus.priest": "Prêtre · Prototype",
   "hero.bonus.priest.blurb":
-    "Un gardien du sanctuaire dont la crosse solaire guide les alliés à travers le danger.",
+    "Un lanceur de sorts sacrés dont le bâton protège ses alliés et frappe à distance.",
   "class.warrior.blurb": "Frappe fort, au corps à corps.",
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",

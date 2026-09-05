@@ -7,12 +7,10 @@
 No rig, optical flow model, Python or image generation is loaded by the game.
 """
 
-import hashlib
 import json
 import math
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -44,90 +42,16 @@ head_mask_image = Image.new("L", (CELL, CELL))
 ImageDraw.Draw(head_mask_image).polygon(HEAD_POLYGON, fill=255)
 HEAD_MASK = np.array(head_mask_image) > 0
 
-cv2.setNumThreads(1)
-cv2.setRNGSeed(0)
-Y, X = np.mgrid[:CELL, :CELL].astype("float32")
-GRID = np.stack([X, Y], axis=-1)
+# The Priest and Assassin use the same offline raster pipeline.
+import sys
+sys.path.insert(0, str(ROOT.parent / "lib"))
+from raster_animation import Tween, interpolate, pack as pack_atlas, sha
+
+def pack(name, rows, spec):
+    return pack_atlas(OUT, name, rows, spec, anchor=ANCHOR, pixels_per_tile=PX_PER_TILE)
 
 
-def remap(image, coordinates):
-    return cv2.remap(
-        image,
-        coordinates[:, :, 0].astype("float32"),
-        coordinates[:, :, 1].astype("float32"),
-        cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_CONSTANT,
-    )
-
-
-class Tween:
-    """Bidirectional inverse-warp interpolation. Pixels move before blending, including alpha."""
-
-    def __init__(self, a, b):
-        self.a = a.astype("float32") / 255
-        self.b = b.astype("float32") / 255
-
-        def gray(v):
-            return np.clip(
-                (
-                    cv2.cvtColor(v[:, :, :3], cv2.COLOR_RGB2GRAY) * 0.75
-                    + v[:, :, 3] * 0.25
-                )
-                * 255,
-                0,
-                255,
-            ).astype("uint8")
-
-        self.forward = cv2.DISOpticalFlow_create(
-            cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
-        ).calc(gray(self.a), gray(self.b), None)
-        self.backward = cv2.DISOpticalFlow_create(
-            cv2.DISOPTICAL_FLOW_PRESET_MEDIUM
-        ).calc(gray(self.b), gray(self.a), None)
-        self.a_unmult = self.a.copy()
-        self.b_unmult = self.b.copy()
-        # Premultiplied filtering keeps the black transparent canvas out of coloured edges.
-        self.a[:, :, :3] *= self.a[:, :, 3:]
-        self.b[:, :, :3] *= self.b[:, :, 3:]
-
-    def at(self, t):
-        if t <= 0:
-            return np.round(self.a_unmult * 255).astype("uint8")
-        if t >= 1:
-            return np.round(self.b_unmult * 255).astype("uint8")
-        ca = GRID.copy()
-        cb = GRID.copy()
-        for _ in range(3):
-            ca = GRID - remap(self.forward, ca) * t
-            cb = GRID - remap(self.backward, cb) * (1 - t)
-        a = remap(self.a, ca)
-        b = remap(self.b, cb)
-        out = a * (1 - t) + b * t
-        out[:, :, :3] /= np.maximum(0.001, out[:, :, 3:])
-        out[:, :, 3] = (out[:, :, 3] >= 0.5).astype("float32")
-        out[out[:, :, 3] == 0] = 0
-        return np.clip(np.round(out * 255), 0, 255).astype("uint8")
-
-
-def interpolate(nodes, count, loop=False):
-    nodes = sorted(nodes, key=lambda n: n[0])
-    pairs = [Tween(a[1], b[1]) for a, b in zip(nodes, nodes[1:])]
-    result = []
-    for i in range(count):
-        phase = i / (count if loop else count - 1)
-        segment = min(
-            len(pairs) - 1,
-            next(
-                (j for j in range(len(pairs)) if phase <= nodes[j + 1][0]),
-                len(pairs) - 1,
-            ),
-        )
-        t = (phase - nodes[segment][0]) / (nodes[segment + 1][0] - nodes[segment][0])
-        result.append(pairs[segment].at(float(np.clip(t, 0, 1))))
-    return result
-
-
-ORIGINAL = OUT.parent / "assassin"
+ORIGINAL = ROOT / "sources/v1"
 INHERITED = {
     "dual-slash": (325, 4),
     "shadow-step": (370, 6),
@@ -271,7 +195,7 @@ def stabilize_front(rendered, reference, rest):
             frame[HEAD_MASK] = head[HEAD_MASK]
     return {
         "direction": "front",
-        "sourceAsset": "assassin/run.png",
+        "sourceAsset": "studio/pixel-art/assassin-v2/sources/v1/run.png",
         "sourceFrame": 0,
         "maskRows": [
             [int(y), int(xs[0]), int(xs[-1]) + 1]
@@ -281,58 +205,6 @@ def stabilize_front(rendered, reference, rest):
         "offsetsY": offsets,
     }
 
-
-def sha(path):
-    data = (
-        path.read_bytes()
-        if path.suffix == ".png"
-        else path.read_text(encoding="utf-8").encode("utf-8")
-    )
-    return hashlib.sha256(data).hexdigest()
-
-
-def pack(name, rows, spec):
-    """One union crop, fixed anchor, native V1 density: never resize a body or a limb."""
-    mask = np.maximum.reduce([im[:, :, 3] for row in rows for im in row])
-    yy, xx = np.nonzero(mask > 128)
-    if xx.min() < 1 or yy.min() < 1 or xx.max() > CELL - 2 or yy.max() > CELL - 2:
-        raise ValueError(f"{name}: clipped pose")
-    half = math.ceil(max(ANCHOR[0] - xx.min(), xx.max() - ANCHOR[0]) + 3)
-    left = ANCHOR[0] - half
-    top = max(0, int(yy.min()) - 3)
-    width = half * 2
-    height = int(yy.max()) + 4 - top
-    count = len(rows[0])
-    if count != spec["frames"] or any(len(row) != count for row in rows):
-        raise ValueError(f"{name}: frame count does not match the manifest")
-    columns = max(n for n in range(1, min(count, 4096 // width) + 1) if count % n == 0)
-    lines = math.ceil(count / columns)
-    sheet = np.zeros((5 * lines * height, columns * width, 4), "uint8")
-    for direction, row in enumerate(rows):
-        for i, frame in enumerate(row):
-            y = (direction * lines + i // columns) * height
-            x = i % columns * width
-            sheet[y : y + height, x : x + width] = frame[
-                top : top + height, left : left + width
-            ]
-    path = OUT / f"{name}.png"
-    Image.fromarray(sheet).save(path, optimize=True)
-    return {
-        **spec,
-        "asset": f"assassin-v2/{name}.png",
-        "pixelsPerTile": PX_PER_TILE,
-        "frame": {
-            "width": width,
-            "height": height,
-            "anchor": {"x": half, "y": ANCHOR[1] - top},
-        },
-        "columns": columns,
-        "directionStride": lines * columns,
-        "directionRows": 5,
-        "bytes": path.stat().st_size,
-        "decodedBytes": sheet.nbytes,
-        "sha256": sha(path),
-    }
 
 
 def bake():
@@ -402,13 +274,14 @@ def bake():
         }
     }
     for name, (duration, contact) in INHERITED.items():
-        path = ORIGINAL / f"{name}.png"
+        path = OUT / f"{name}.png"
+        path.write_bytes((ORIGINAL / f"{name}.png").read_bytes())
         clips[name] = {
             "frames": 10,
             "durationMs": duration,
             "loop": False,
             **({"activeFrame": contact} if contact is not None else {}),
-            "asset": f"assassin/{name}.png",
+            "asset": f"assassin-v2/{name}.png",
             "pixelsPerTile": PX_PER_TILE,
             "frame": {"width": 192, "height": 192, "anchor": {"x": 96, "y": 136}},
             "columns": 10,
@@ -424,6 +297,7 @@ def bake():
     clips["start"] = {**clips["stop"], "durationMs": 100}
     inputs = [
         Path(__file__),
+        ROOT.parent / "lib/raster_animation.py",
         ROOT / "sources/approved-idle.png",
         ROOT / "sources/approved-idle.json",
         *[ORIGINAL / f"{name}.png" for name in ["idle", "run", *INHERITED]],
@@ -463,7 +337,7 @@ def bake():
         if c["asset"].startswith("assassin-v2/") and name != "start"
     )
     print(
-        f"Additional atlas memory: {extra / 1048576:.1f} MiB; V1 skills/death shared",
+        f"Unique atlas memory: {extra / 1048576:.1f} MiB; original skills/death retained byte for byte",
         flush=True,
     )
 

@@ -3,7 +3,11 @@ import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import { CLASS_STATS } from "@lindocara/engine/game.js";
 import type { MapData } from "@lindocara/engine/hd2d/map-data.js";
-import type { CombatActionSnapshot, PlayerSnapshot } from "@lindocara/engine/protocol.js";
+import type {
+  CombatActionSnapshot,
+  PlayerSnapshot,
+  ProjectileSnapshot,
+} from "@lindocara/engine/protocol.js";
 import { zoneTerrainFromHeightfield } from "@lindocara/engine/terrain-access.js";
 import { CharacterAnimationTracker } from "@lindocara/renderer/character-animation.js";
 import { Hd2dRenderer } from "@lindocara/renderer/hd2d/game-renderer.js";
@@ -37,6 +41,7 @@ export async function startPriestPreview(): Promise<void> {
     terrain,
     spawn: { x: 0, y: 0, z: 0 },
     speed: CLASS_STATS.priest.movementSpeed,
+    footstepDistance: PRIEST_MANIFEST.strideDistance / 2,
   });
   const clock = new ServerClock();
   clock.sample(0, 0);
@@ -63,6 +68,13 @@ export async function startPriestPreview(): Promise<void> {
   const tracker = new CharacterAnimationTracker();
   let latest: unknown = null;
   let partySize = 1;
+  let showReferences = true;
+  let projectileDelayMs = 0;
+  const projectiles: {
+    snapshot: ProjectileSnapshot;
+    speed: number;
+    origin: { x: number; z: number };
+  }[] = [];
   const cast = (slot: number, heldMs = 0, aim?: { x: number; z: number }): void => {
     const definition = PLAYER_ACTIONS.priest[slot - 1];
     if (!definition || dead) return;
@@ -86,6 +98,7 @@ export async function startPriestPreview(): Promise<void> {
     dead = false;
     hp = 100;
     action = null;
+    projectiles.length = 0;
   };
   const keydown = (event: KeyboardEvent): void => {
     keys.add(event.code);
@@ -118,6 +131,12 @@ export async function startPriestPreview(): Promise<void> {
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
   const api = {
+    references: (show: boolean) => {
+      showReferences = show;
+    },
+    projectileDelay: (ms: number) => {
+      projectileDelayMs = Math.max(0, Math.min(200, ms));
+    },
     read: () => latest,
     auto: (value: boolean) => {
       auto = value;
@@ -181,11 +200,47 @@ export async function startPriestPreview(): Promise<void> {
     forcedJump = false;
     if (keys.has("ArrowLeft")) renderer.rotateCamera(-dt);
     if (keys.has("ArrowRight")) renderer.rotateCamera(dt);
+    if (action && now >= action.impactAt && !action.resolved) {
+      action.resolved = true;
+      const definition = PLAYER_ACTIONS.priest.find((item) => item.skillId === action?.skillId);
+      const spec = definition?.projectile;
+      if (spec) {
+        const origin = {
+          x: hero.state.x + action.direction.x * 0.6,
+          z: hero.state.z + action.direction.z * 0.6,
+        };
+        projectiles.push({
+          snapshot: {
+            id: `${action.id}-projectile`,
+            actionId: action.id,
+            ownerId: "priest-witness",
+            color: "azure",
+            kind: spec.kind,
+            ...origin,
+            y: hero.state.y,
+            radius: spec.radius,
+            direction: { ...action.direction },
+            spawnedAt: action.impactAt,
+            expiresAt: action.impactAt + 900,
+          },
+          speed: spec.speed,
+          origin,
+        });
+      }
+      if (action.skillId === "blink")
+        hero.teleport({
+          x: hero.state.x + action.direction.x * 2,
+          y: hero.state.y,
+          z: hero.state.z + action.direction.z * 2,
+        });
+    }
     if (action && now >= action.recoveryEndsAt) action = null;
+    for (let i = projectiles.length - 1; i >= 0; i--)
+      if (now > (projectiles[i]?.snapshot.expiresAt ?? 0)) projectiles.splice(i, 1);
     const state = hero.state;
     const player: PlayerSnapshot = {
       id: "priest-witness",
-      nick: "Dawn Priest",
+      nick: "Priest Prototype",
       hp,
       maxHp: 100,
       level: 1,
@@ -203,7 +258,9 @@ export async function startPriestPreview(): Promise<void> {
       life: dead ? "corpse" : "alive",
       action,
     };
-    const animation = tracker.sample(player, now, PRIEST_MANIFEST.strideDistance);
+    const animation = tracker.sample(player, now, PRIEST_MANIFEST.strideDistance, {
+      coordinatedTransitions: true,
+    });
     const companions: PlayerSnapshot[] = [
       {
         ...player,
@@ -221,7 +278,7 @@ export async function startPriestPreview(): Promise<void> {
         nick: "Assassin",
         x: player.x - 2.5,
         class: "rogue",
-        appearance: { body: "assassin", primaryColor: "violet" },
+        appearance: { body: "assassin_v2", primaryColor: "violet" },
         action: null,
         life: "alive",
       },
@@ -236,6 +293,7 @@ export async function startPriestPreview(): Promise<void> {
         life: "alive",
       },
     ];
+    if (!showReferences) companions.length = 0;
     if (partySize > 1) {
       companions.length = 0;
       for (let index = 1; index < partySize; index++)
@@ -255,7 +313,13 @@ export async function startPriestPreview(): Promise<void> {
         monsters: [],
         guards: [],
         seaGuardians: [],
-        projectiles: [],
+        projectiles: projectiles
+          .filter((item) => now >= item.snapshot.spawnedAt + projectileDelayMs)
+          .map(({ snapshot, speed, origin }) => ({
+            ...snapshot,
+            x: origin.x + (snapshot.direction.x * speed * (now - snapshot.spawnedAt)) / 1000,
+            z: origin.z + (snapshot.direction.z * speed * (now - snapshot.spawnedAt)) / 1000,
+          })),
         loot: [],
         events: [],
       },
@@ -280,7 +344,7 @@ export async function startPriestPreview(): Promise<void> {
       action,
       animation,
       rate,
-      rig: renderer.priestAnimationStats(),
+      projectilePresentation: renderer.projectileDiagnostics(),
     };
     if (now - lastCaption > 100) {
       caption.textContent = `PRIEST · SHIPPED HD-2D RENDERER\nWASD move · Space jump / glider · 1–5 skills · H hit · K death · R reset\nT auto eight directions · N water · arrows orbit · P pause · [ ] speed\n${animation.motion} · phase ${animation.phase.toFixed(3)} · ${animation.speed.toFixed(3)} tiles/s · ${rate.toFixed(2)}×\n${partySize > 1 ? `${partySize} Priests` : "Ranger · Assassin · Priest · Runic Guardian"} · normal game camera`;

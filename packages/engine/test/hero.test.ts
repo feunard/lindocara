@@ -1,3 +1,4 @@
+import { normalizeAppearance } from "@lindocara/engine/character.js";
 import { HERO_CLASSES, isHeroClass, parseCreateHeroInput } from "@lindocara/engine/hero.js";
 import { describe, expect, it } from "vitest";
 
@@ -45,14 +46,19 @@ describe("parseCreateHeroInput", () => {
     ).toEqual({ name: "Aster", class: "warrior", body: "runic_guardian" });
   });
 
-  it("accepts the temporary Assassin as a Rogue body", () => {
+  it("creates V2 Rogues and reads saved V1 bodies as V2", () => {
     expect(
       parseCreateHeroInput({
         name: "Nyx",
         class: "rogue",
-        body: "assassin",
+        body: "assassin_v2",
       }),
-    ).toEqual({ name: "Nyx", class: "rogue", body: "assassin" });
+    ).toEqual({ name: "Nyx", class: "rogue", body: "assassin_v2" });
+    expect(parseCreateHeroInput({ name: "Nyx", class: "rogue", body: "assassin" })).toBeNull();
+    expect(normalizeAppearance({ body: "assassin", primaryColor: "violet" })).toEqual({
+      body: "assassin_v2",
+      primaryColor: "violet",
+    });
   });
 
   it("accepts the animated Peasant body only for the Peasant class", () => {

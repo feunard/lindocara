@@ -13,7 +13,7 @@ const oldNames = ['idle','run','dual-slash','shadow-step','vanish','poisoned-shi
 // Same release instants as PLAYER_ACTIONS. The in-engine preview uses that table directly.
 const anticipation = {'dual-slash':105,'shadow-step':110,vanish:80,'poisoned-shiv':125,'shadow-dance':180};
 const memory = [...new Map(Object.values(manifest.clips).filter(c=>c.asset.startsWith('assassin-v2/')).map(c=>[c.asset,c.decodedBytes])).values()].reduce((a,b)=>a+b,0);
-await Promise.all(oldNames.map((name) => image('/packages/renderer/src/assets/bonus/assassin/' + name + '.png')));
+await Promise.all(oldNames.map((name) => image('/studio/pixel-art/assassin-v2/sources/v1/' + name + '.png')));
 for (const name of Object.keys(manifest.clips)) get('clip').add(new Option(name, name));
 let elapsed = 0, distance = 0, playing = true, selectedFrame = null;
 get('clip').onchange = () => { elapsed = 0; selectedFrame = null; draw(); };
@@ -56,7 +56,7 @@ function draw() {
       let im, fw, fh, ax, ay, idx, cols;
       if (isOld) {
         const oldName=oldNames.includes(name)?name:'idle';
-        im=images.get('/packages/renderer/src/assets/bonus/assassin/'+oldName+'.png');fw=fh=192;ax=96;ay=136;cols=10;
+        im=images.get('/studio/pixel-art/assassin-v2/sources/v1/'+oldName+'.png');fw=fh=192;ax=96;ay=136;cols=10;
         const oldDuration = name==='run'?625:name==='idle'?3333:clip.durationMs;
         idx=row*10+Math.floor(elapsed/oldDuration*10)%10;
         if(anticipation[name]) idx=row*10+(selectedFrame??localFrame);

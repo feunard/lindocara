@@ -28,6 +28,12 @@ import {
   projectileArt,
 } from "../combat-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS } from "../feedback.js";
+import {
+  launchedProjectilePosition,
+  projectileLaunch,
+  type ProjectileLaunch,
+  type ProjectileMuzzle,
+} from "../projectile-launch.js";
 import type { LocalMovementVisualState } from "../renderer-api.js";
 import type { SceneSample } from "../scene-sample.js";
 import {
@@ -127,6 +133,7 @@ interface ProjectileEntry {
   color: ProjectileSnapshot["color"];
   art: CombatProjectileArt;
   createdAt: number;
+  launch?: ProjectileLaunch;
 }
 
 export interface Hd2dEditorOverlay {
@@ -1350,10 +1357,10 @@ export class Hd2dVisualLayer {
     }
   }
 
-  sync(sample: SceneSample, now: number): void {
+  sync(sample: SceneSample, now: number, muzzles?: ReadonlyMap<string, ProjectileMuzzle>): void {
     this.#events = sample.events;
     this.#syncLoot(sample, now);
-    this.#syncProjectiles(sample, now);
+    this.#syncProjectiles(sample, now, muzzles);
     this.#syncEventMarkers(sample.events);
     this.#updateRations(now);
     const eventById = new Map(sample.events.map((event) => [event.id, event]));
@@ -1450,11 +1457,32 @@ export class Hd2dVisualLayer {
     disposeObject(entry.object);
   }
 
-  #syncProjectiles(sample: SceneSample, now: number): void {
+  projectileDiagnostics(): readonly {
+    id: string;
+    x: number;
+    y: number;
+    z: number;
+    launch?: ProjectileLaunch;
+  }[] {
+    return [...this.#projectiles].map(([id, entry]) => ({
+      id,
+      x: entry.object.position.x,
+      y: entry.object.position.y,
+      z: entry.object.position.z,
+      ...(entry.launch ? { launch: entry.launch } : {}),
+    }));
+  }
+
+  #syncProjectiles(
+    sample: SceneSample,
+    now: number,
+    muzzles?: ReadonlyMap<string, ProjectileMuzzle>,
+  ): void {
     const present = new Set<string>();
     for (const projectile of sample.projectiles) {
       present.add(projectile.id);
       let entry = this.#projectiles.get(projectile.id);
+      let created = false;
       if (entry && (entry.kind !== projectile.kind || entry.color !== projectile.color)) {
         this.#dropProjectile(entry);
         this.#projectiles.delete(projectile.id);
@@ -1463,6 +1491,7 @@ export class Hd2dVisualLayer {
       if (!entry) {
         entry = this.#createProjectile(projectile, now);
         this.#projectiles.set(projectile.id, entry);
+        created = true;
       }
       const angle =
         projectileBillboardAngle(
@@ -1471,9 +1500,10 @@ export class Hd2dVisualLayer {
           this.#scene.ctx.pitch() ?? HD2D_CAMERA.pitch,
         ) + entry.art.rotationOffset;
       const terrainY = this.#scene.query.heightAt(projectile.x, projectile.z);
-      entry.object.position.set(
-        projectile.x,
-        Math.max(projectile.y, terrainY ?? projectile.y) +
+      const base = {
+        x: projectile.x,
+        y:
+          Math.max(projectile.y, terrainY ?? projectile.y) +
           projectileVisualLift(
             entry.art.frameWidth,
             entry.art.frameHeight,
@@ -1481,8 +1511,13 @@ export class Hd2dVisualLayer {
             angle,
             entry.art.trail?.length ?? 0,
           ),
-        projectile.z,
-      );
+        z: projectile.z,
+      };
+      const muzzle = muzzles?.get(projectile.actionId);
+      if (created && muzzle && now - muzzle.updatedAt < 500)
+        entry.launch = projectileLaunch(muzzle.position, base, now);
+      const at = launchedProjectilePosition(base, entry.launch, now);
+      entry.object.position.set(at.x, at.y, at.z);
       if (entry.billboard) {
         entry.billboard.setFrame(
           projectileFrameIndex(entry.art.frames, entry.art.durationMs, now - entry.createdAt),

@@ -49,6 +49,7 @@
  */
 import {
   DEFAULT_APPEARANCE,
+  normalizeAppearance,
   starterEquipmentFor,
   type BodyVariant,
 } from "@lindocara/engine/character.js";
@@ -106,7 +107,7 @@ function toStored(row: Hero): StoredHero {
     accountId: row.userId,
     name: row.name,
     class: row.class,
-    body: row.body,
+    body: normalizeAppearance({ body: row.body }).body,
     mapId: row.mapId,
     x: row.x,
     y: row.y,

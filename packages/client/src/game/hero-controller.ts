@@ -141,6 +141,8 @@ export interface HeroControllerOptions {
   speed: number;
   /** Starting heading. Must be a unit ground vector; defaults to the engine's own default facing. */
   facing?: GroundVector;
+  /** Presentation contact spacing, in tiles, for an authored gait. */
+  footstepDistance?: number;
 }
 
 export interface HeroController {
@@ -192,7 +194,11 @@ export interface HeroController {
 export function createHeroController(options: HeroControllerOptions): HeroController {
   let { terrain } = options;
   const { spawn } = options;
-  const hero: HeroSettings = { ...HERO_PHYSICS, speed: options.speed };
+  const hero: HeroSettings = {
+    ...HERO_PHYSICS,
+    speed: options.speed,
+    pasTousLes: options.footstepDistance ?? HERO_PHYSICS.pasTousLes,
+  };
   const world: WorldSettings = {
     size: terrain.size,
     levelHeight: terrain.levelHeight,

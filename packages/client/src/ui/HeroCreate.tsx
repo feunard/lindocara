@@ -76,11 +76,6 @@ const BONUS_HERO_PRESENTATION = {
     blurb: "hero.bonus.runicGuardian.blurb",
     color: "azure",
   },
-  assassin: {
-    name: "hero.bonus.assassin",
-    blurb: "hero.bonus.assassin.blurb",
-    color: "violet",
-  },
   peasant: {
     name: "hero.bonus.peasant",
     blurb: "hero.bonus.peasant.blurb",
@@ -97,7 +92,7 @@ const BONUS_HERO_PRESENTATION = {
     color: "azure",
   },
 } as const satisfies Readonly<
-  Record<Exclude<BodyVariant, "wayfarer">, { name: string; blurb: string; color: string }>
+  Record<(typeof PROTOTYPE_HEROES)[number]["body"], { name: string; blurb: string; color: string }>
 >;
 
 /** Player-facing comparison; the editable numeric authority remains `CLASS_STATS`. */
@@ -115,7 +110,7 @@ function ClassCard({
   disabled,
 }: {
   heroClass: PlayerClass;
-  body?: BodyVariant;
+  body?: Exclude<BodyVariant, "assassin">;
   order: number;
   onPick: () => void;
   disabled: boolean;

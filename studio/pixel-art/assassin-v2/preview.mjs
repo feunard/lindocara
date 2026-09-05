@@ -6,7 +6,7 @@ const mime = {'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charse
 const server = createServer(async (request,response) => {
   const url = new URL(request.url, 'http://localhost');
   const pathname = decodeURIComponent(url.pathname);
-  const allowed = ['/studio/pixel-art/assassin-v2/', '/packages/renderer/src/assets/bonus/assassin/', '/packages/renderer/src/assets/bonus/assassin-v2/'];
+  const allowed = ['/studio/pixel-art/assassin-v2/', '/studio/pixel-art/assassin-v2/sources/v1/', '/packages/renderer/src/assets/bonus/assassin-v2/'];
   const file = path.resolve(root, '.' + pathname + (pathname.endsWith('/') ? 'index.html' : ''));
   if (!allowed.some((prefix) => pathname.startsWith(prefix)) || !file.startsWith(root+path.sep)) {response.writeHead(404).end();return;}
   try {

@@ -1,6 +1,6 @@
 # Assassin — prototype 2
 
-Optional `assassin_v2` body for the existing Rogue. V1 remains selectable. The five skills
+The `assassin_v2` body is the sole playable Assassin. Saved V1 heroes resolve to V2; V1 source drawings remain only in `sources/v1/` for reproducible baking. The five skills
 (including auto attack and Poisoned Shiv), their ten original frames, their contact frames
 and their authoritative timings are shared with V1. Death also uses V1's original atlas and
 900 ms timing. The idle accepted during review is frozen byte-for-byte in `sources/`.
@@ -43,8 +43,8 @@ the animation. Existing characters keep their previous state priorities.
 Atlases use one union crop per clip and a fixed reconstructed `(96, 136)` ground anchor in
 a 192 px canvas. Each manifest entry declares its own pixel density: this retains the
 approved idle's scale while preserving the native V1 pixels in locomotion and skills.
-Textures are bounded to 4096 px. The additional uncompressed RGBA allocation is about
-74 MiB; original skill/death textures are shared and a four-player party shares its atlases.
+Textures are bounded to 4096 px. The complete uncompressed RGBA allocation is about
+116 MiB, including the preserved skill/death textures; a four-player party shares its atlases.
 
 ## Regenerate and validate
 
@@ -80,7 +80,7 @@ yarn dev
 The studio shows all eight directions side-by-side with V1, at equal world scale. It has
 speed, playback rate, frame scrub, transition-bank selection, previous-frame overlays and
 moving ground markers. The game preview uses the actual controller, renderer, camera and
-lighting, with V1, Ranger and Runic Guardian references.
+lighting, with Ranger and Runic Guardian references. V1 remains an offline source comparison only.
 
 Game preview controls: WASD, Space (jump/glider), 1–5 (skills), H (hurt), K (death),
 R (reset), T (all-direction movement), N (water), arrows (camera), P (pause), [ / ] (rate).

@@ -24,7 +24,6 @@ import type { Hd2dContext } from "@lindocara/hd2d/context.js";
 import type { TextureRegistry } from "@lindocara/hd2d/textures.js";
 import * as THREE from "three";
 
-import type { PriestSpriteInput } from "./priest-sprites.js";
 import { HD2D_CAMERA } from "./scene.js";
 
 export type ActorKind = "player" | "sea_guardian" | "monster" | "guard" | "corpse" | "event";
@@ -75,9 +74,6 @@ export interface ActorView {
   directionalFacing?: GroundVector;
   /** A url in the `TextureRegistry` the registry was built with. */
   textureKey: string;
-  /** A small render target composed from precomputed skeletal clips, owned by the scene. */
-  spriteTexture?: THREE.Texture;
-  priestPose?: PriestSpriteInput;
   /** Authored sheets can run vertically and need not use square frames. */
   frames?: number;
   frameWidth?: number;
@@ -91,7 +87,6 @@ export interface ActorView {
   mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";
   /** Authored airborne clips already deform the body, so they opt out of the legacy scale warp. */
-  authoredPose?: boolean;
   authoredAirborne?: boolean;
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
@@ -216,7 +211,7 @@ function sheetOf(texture: THREE.Texture): { cols: number; framePx: number } {
  *   only when the scene agrees; normal terrain remains the fallback and the only path used by
  *   monsters and guards. `waterLevel` remains the off-map fallback.
  */
-function elevationOf(actor: ActorView, scene: BillboardScene): number {
+export function elevationOf(actor: ActorView, scene: BillboardScene): number {
   if (actor.swimming)
     return (
       scene.query.waterLevelAtElevation?.(actor.x, actor.z, actor.y) ??
@@ -413,7 +408,7 @@ export function createBillboardRegistry(
   const entries = new Map<string, Entry>();
 
   function create(actor: ActorView): Entry {
-    const texture = actor.spriteTexture ?? textures.get(actor.textureKey);
+    const texture = textures.get(actor.textureKey);
     const inferred = sheetOf(texture);
     const frames = Math.max(1, actor.frames ?? inferred.cols);
     const frameWidth = actor.frameWidth ?? inferred.framePx;
@@ -435,13 +430,7 @@ export function createBillboardRegistry(
       aspect: frameWidth / frameHeight,
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
       pitch: HD2D_CAMERA.pitch,
-      ...(actor.authoredPose ? { stretch: 1 } : {}),
     });
-    // Render targets cannot be cloned like image textures: only the original GPU attachment is
-    // updated. The billboard still owns/disposes its unused UV clone; the compositor owns this map.
-    if (actor.spriteTexture && billboard.mesh.material instanceof THREE.MeshLambertMaterial) {
-      billboard.mesh.material.map = actor.spriteTexture;
-    }
     billboard.mesh.userData.actorId = actor.id;
     scene.root.add(billboard.mesh);
     const healthBar = actor.healthBar ? makeHealthBar() : null;
@@ -507,10 +496,9 @@ export function createBillboardRegistry(
           entry = create(actor);
           entries.set(actor.id, entry);
         }
-        const stretch =
-          actor.authoredPose || actor.authoredAirborne
-            ? 0
-            : THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
+        const stretch = actor.authoredAirborne
+          ? 0
+          : THREE.MathUtils.clamp(actor.vy * 0.018, -0.1, 0.13);
         const fallen = actor.pose === "fallen";
         entry.billboard.mesh.scale.set(1 - stretch * 0.6, fallen ? 0.24 : 1 + stretch, 1);
         entry.billboard.mesh.rotation.z = fallen ? Math.PI / 2 : 0;

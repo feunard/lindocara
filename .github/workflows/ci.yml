@@ -34,7 +34,7 @@ jobs:
       - name: Music catalogue up to date
         run: yarn music:check
 
-      - name: Priest rig and animation assets
+      - name: Priest raster animation assets and weapon sockets
         run: yarn priest:check
 
       - name: Assassin V2 animation assets and V1 compatibility

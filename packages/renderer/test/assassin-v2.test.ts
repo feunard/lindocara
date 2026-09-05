@@ -44,12 +44,13 @@ const player: PlayerSnapshot = {
 const options = { coordinatedTransitions: true };
 
 describe("Assassin 2 authored animation", () => {
-  it("remains an optional Rogue body alongside the original, including input validation", () => {
+  it("is the only selectable Assassin and replaces saved V1 bodies", () => {
     expect(parseCreateHeroInput({ name: "Nyx", class: "rogue", body: "assassin_v2" })?.body).toBe(
       "assassin_v2",
     );
     expect(parseCreateHeroInput({ name: "Nyx", class: "warrior", body: "assassin_v2" })).toBeNull();
-    expect(unitSheet("rogue", { ...player.appearance, body: "assassin" }, "run").frames).toBe(10);
+    expect(parseCreateHeroInput({ name: "Nyx", class: "rogue", body: "assassin" })).toBeNull();
+    expect(unitSheet("rogue", { ...player.appearance, body: "assassin" }, "run").frames).toBe(36);
     expect(unitSheet("rogue", player.appearance, "run").frames).toBe(36);
   });
 

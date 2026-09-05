@@ -72,7 +72,9 @@ export class CharacterAnimationTracker {
       strideDistance > 0 &&
       !(
         options.coordinatedTransitions &&
-        (player.action?.skillId === "shadow_step" || player.action?.skillId === "shadow_dance")
+        (player.action?.skillId === "shadow_step" ||
+          player.action?.skillId === "shadow_dance" ||
+          player.action?.skillId === "blink")
       )
     ) {
       stridePhase = (stridePhase + distance / strideDistance) % 1;

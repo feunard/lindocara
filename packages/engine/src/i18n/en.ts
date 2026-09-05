@@ -157,20 +157,18 @@ export const en = {
   "class.peasant": "Peasant",
   "hero.bonus.runicGuardian": "Runic Guardian · Prototype",
   "hero.bonus.runicGuardian.blurb": "Eight-direction 3D bake, with the Warrior's rules.",
-  "hero.bonus.assassin": "Assassin · Prototype",
   "hero.bonus.assassinV2": "Assassin · Prototype 2",
   "hero.bonus.assassinV2.blurb":
     "The original Assassin's skills, with new running and jumping transitions.",
-  "hero.bonus.assassin.blurb":
-    "Ten-phase, eight-direction Rogue animation with a unique move for every skill.",
   "hero.bonus.peasant": "Fieldhand · Prototype",
   "hero.bonus.peasant.blurb":
     "Ultra-smooth 48-phase, eight-direction run with unique tools, skills, cargo, and defeat.",
   "hero.bonus.ranger": "Ranger · Prototype",
   "hero.bonus.ranger.blurb":
     "Sixteen-phase, eight-direction run with unique draws, releases, retreat, and defeat.",
-  "hero.bonus.priest": "Dawn Priest",
-  "hero.bonus.priest.blurb": "A sanctuary keeper whose sun crozier guides allies through danger.",
+  "hero.bonus.priest": "Priest · Prototype",
+  "hero.bonus.priest.blurb":
+    "A sacred spellcaster whose staff protects allies and strikes from afar.",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",

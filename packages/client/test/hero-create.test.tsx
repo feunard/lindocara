@@ -12,7 +12,7 @@ describe("hero creation class cards", () => {
     const classCards = screen
       .getAllByRole("button")
       .filter((button) => button.classList.contains("class-card"));
-    expect(classCards).toHaveLength(11);
+    expect(classCards).toHaveLength(10);
 
     const rogue = screen.getByRole("button", {
       name: /Rogue\s*Opens from shadow, bursts, then escapes\./,
@@ -42,18 +42,10 @@ describe("hero creation class cards", () => {
     expect(bonusPortrait?.style.backgroundImage).toContain("runic-guardian");
     expect(bonus).toBeEnabled();
 
-    const assassin = screen.getByRole("button", {
-      name: /Assassin · Prototype\s*Ten-phase, eight-direction Rogue animation with a unique move for every skill\./,
-    });
-    const assassinPortrait = assassin.querySelector<HTMLElement>(
-      '[data-hero-body="assassin"] .class-card__portrait-sprite',
-    );
-    expect(assassinPortrait?.style.backgroundImage).toContain("assassin");
-    expect(assassin).toBeEnabled();
-    const assassinV2 = document.querySelector(
-      '[data-hero-body="assassin_v2"] .class-card__portrait-sprite',
-    );
-    expect(assassinV2).not.toBeNull();
+    const assassinV2 = screen.getByRole("button", { name: /Assassin.*Prototype 2/ });
+    expect(assassinV2).toBeEnabled();
+    expect(assassinV2.querySelector('[data-hero-body="assassin_v2"]')).not.toBeNull();
+    expect(document.querySelector('[data-hero-body="assassin"]')).toBeNull();
 
     const animatedPeasant = screen.getByRole("button", {
       name: /Fieldhand · Prototype\s*Ultra-smooth 48-phase, eight-direction run with unique tools, skills, cargo, and defeat\./,
@@ -74,12 +66,12 @@ describe("hero creation class cards", () => {
     expect(animatedRanger).toBeEnabled();
 
     const animatedPriest = screen.getByRole("button", {
-      name: /Dawn Priest\s*A sanctuary keeper whose sun crozier guides allies through danger\./,
+      name: /Priest.*Prototype\s*A sacred spellcaster whose staff protects allies and strikes from afar\./,
     });
     const animatedPriestPortrait = animatedPriest.querySelector<HTMLElement>(
       '[data-hero-body="priest"] .class-card__portrait-sprite',
     );
-    expect(animatedPriestPortrait?.style.backgroundImage).toContain("characters/priest");
+    expect(animatedPriestPortrait?.style.backgroundImage).toContain("bonus/priest-prototype");
     expect(animatedPriest).toBeEnabled();
   });
 
@@ -107,13 +99,7 @@ describe("hero creation class cards", () => {
     expect(classMovementPercent("peasant")).toBe(95);
     for (const percent of [100, 110, 90, 120, 95]) {
       const labels = screen.getAllByText(`Speed · ${percent}%`);
-      expect(labels).toHaveLength(
-        percent === 120
-          ? 3
-          : percent === 90 || percent === 95 || percent === 100 || percent === 110
-            ? 2
-            : 1,
-      );
+      expect(labels).toHaveLength(2);
       expect(labels[0]).toBeVisible();
     }
   });

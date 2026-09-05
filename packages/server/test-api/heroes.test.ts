@@ -419,6 +419,17 @@ describe("createHero", () => {
         .map((skill) => skill.skillId)
         .sort(),
     ).toEqual(["dual_slash", "shadow_step", "vanish", "poisoned_shiv", "shadow_dance"].sort());
+    const retired = await authedFetch(`/api/parties/${partyId}/heroes`, token, {
+      method: "POST",
+      body: JSON.stringify({ name: "Retired", class: "rogue", body: "assassin" }),
+    });
+    expect(retired.status).toBe(400);
+    // Existing saves keep their identity, inventory and progress while adopting V2 art.
+    await probe.heroes.updateById(hero.id, { body: "assassin" });
+    const restored = await authedFetch(`/api/parties/${partyId}/heroes`, token);
+    expect(await restored.json()).toMatchObject([
+      { id: hero.id, class: "rogue", body: "assassin_v2" },
+    ]);
   });
 
   test(`caps at ${MAX_HEROES_PER_PARTY} heroes per account per party`, async () => {

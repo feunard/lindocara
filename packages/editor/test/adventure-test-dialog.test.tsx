@@ -28,7 +28,6 @@ describe("AdventureTestDialog", () => {
     await userEvent.click(screen.getByLabelText(t("editor.test.class.label")));
     for (const label of [
       "hero.bonus.runicGuardian",
-      "hero.bonus.assassin",
       "hero.bonus.assassinV2",
       "hero.bonus.peasant",
       "hero.bonus.ranger",

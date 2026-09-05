@@ -27,7 +27,7 @@ for(const [name,clip] of Object.entries(manifest.clips)) {
   assert(clip.frame.anchor.y>0 && clip.pixelsPerTile>0,`${name}: anchor and scale`);
   if(clip.phaseBuckets) assert.equal(clip.frames,clip.phaseBuckets*clip.transitionFrames,`${name}: phase banks`);
   if('activeFrame' in clip) assert(clip.activeFrame>=0&&clip.activeFrame<clip.frames,`${name}: contact`);
-  assert(/^(assassin|assassin-v2)\/[a-z-]+\.png$/.test(clip.asset),`${name}: asset path`);
+  assert(/^assassin-v2\/[a-z-]+\.png$/.test(clip.asset),`${name}: asset path`);
   let texture=textures.get(clip.asset);
   if(!texture) {
     const buffer=await readFile(path.join(assets,clip.asset));
@@ -58,10 +58,10 @@ function cell(name,row,frame) {
   assert(visible>20,`${name}/${row}/${frame}: empty frame`);
   return out;
 }
-const original=await sharp(path.join(assets,'assassin/run.png')).ensureAlpha().raw().toBuffer();
+const original=await sharp(path.join(repo,'studio/pixel-art/assassin-v2/sources/v1/run.png')).ensureAlpha().raw().toBuffer();
 const registration=manifest.headRegistration;
 assert.equal(registration.direction,'front');
-assert.equal(registration.sourceAsset,'assassin/run.png');
+assert.equal(registration.sourceAsset,'studio/pixel-art/assassin-v2/sources/v1/run.png');
 assert.equal(registration.sourceFrame,0);
 const headMask=new Uint8Array(192*192);
 for(const [y,left,right] of registration.maskRows) {
@@ -108,7 +108,8 @@ for(let r=0;r<5;r++) {
 }
 const contacts={'dual-slash':4,'shadow-step':6,vanish:6,'poisoned-shiv':6,'shadow-dance':4};
 for(const [name,contact] of Object.entries(contacts)) {
-  assert.equal(manifest.clips[name].asset,`assassin/${name}.png`);
+  assert.equal(manifest.clips[name].asset,`assassin-v2/${name}.png`);
+  assert.deepEqual(await readFile(path.join(folder, name+'.png')), await readFile(path.join(repo,'studio/pixel-art/assassin-v2/sources/v1',name+'.png')), 'Preserved skill pixels');
   assert.equal(manifest.clips[name].frames,10);
   assert.equal(manifest.clips[name].activeFrame,contact);
 }
@@ -116,5 +117,5 @@ assert.equal(digest(await readFile(path.join(folder,'idle.png'))),'2d5b5ef7dac00
 const runtime=new Set(['manifest.json','portrait.png',...Object.values(manifest.clips).filter(c=>c.asset.startsWith('assassin-v2/')).map(c=>path.basename(c.asset))]);
 assert.deepEqual((await readdir(folder)).sort(),[...runtime].sort(),'Unused/rejected runtime assets remain');
 const bytes=[...textures].filter(([name])=>name.startsWith('assassin-v2/')).reduce((n,[,t])=>n+t.data.length,0);
-assert(bytes<=80*1048576,'New atlas memory exceeds the 80 MiB budget');
-console.log(`Assassin V2: 8 directions, ${Object.keys(manifest.clips).length} clips, stable front hood/eyes, V1 skills and idle intact; ${(bytes/1048576).toFixed(1)} MiB additional RGBA.`);
+assert(bytes<=128*1048576,'Atlas memory exceeds the 128 MiB budget');
+console.log(`Assassin V2: 8 directions, ${Object.keys(manifest.clips).length} clips, stable front hood/eyes, V1 skills and idle intact; ${(bytes/1048576).toFixed(1)} MiB shared RGBA.`);

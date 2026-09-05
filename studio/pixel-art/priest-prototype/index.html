@@ -1,0 +1,15 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><title>Prêtre prototype — Animations</title>
+<style>
+body{margin:24px;background:#202b2d;color:#e8e6df;font:14px system-ui}button,select,input{font:inherit;margin:6px;padding:6px}canvas{display:block;background:#344647;max-width:100%;image-rendering:pixelated}label{white-space:nowrap}a{color:#9dd7ee}pre{white-space:pre-wrap}
+</style>
+<h1>Prêtre · Prototype</h1>
+<p>Huit orientations. Première ligne à l’échelle du jeu, seconde vue agrandie. Les points au sol défilent à la vitesse réelle du personnage.</p>
+<label>Animation <select id="clip"></select></label>
+<label>Appui de transition <select id="bank"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select></label>
+<label>Vitesse <input id="speed" type="range" min="0" max="7.3125" step="0.0125" value="3.65625"></label>
+<label>Lecture <select id="rate"><option>.25</option><option>.5</option><option selected>1</option><option>2</option></select>×</label>
+<button id="pause">Pause</button><label>Frame <input id="frame" type="range" min="0" value="0"></label>
+<label><input id="overlay" type="checkbox"> Ancre, orbe et image précédente</label>
+<canvas id="canvas" width="1280" height="750"></canvas><pre id="stats"></pre>
+<a href="http://localhost:5273/?preview=priest">Preview dans le moteur du jeu (yarn dev)</a>
+<script type="module" src="./viewer.mjs"></script></html>

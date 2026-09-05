@@ -1,5 +1,6 @@
 import type { AmbienceState } from "@lindocara/engine/ambience.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, speedForLife } from "@lindocara/engine/death.js";
 import type { GroundVector, WorldPosition } from "@lindocara/engine/ground.js";
@@ -65,6 +66,7 @@ import {
   seedEventCache,
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
+import { PRIEST_MANIFEST } from "@lindocara/renderer/priest-art.js";
 
 import { resolveJoin } from "../api.js";
 import { createHeroController, type HeroController } from "./hero-controller.js";
@@ -588,6 +590,35 @@ export class WorldClient {
     return {
       ...interpolated,
       players: [...interpolated.players.filter((player) => player.id !== self.id), self],
+      // The local caster is presented on the current clock. Its confirmed spells
+      // must use that clock too, rather than arriving 150 ms into the recovery.
+      // Only extrapolate an existing server projectile, for at most one snapshot;
+      // removals, hits, healing and the lifetime remain entirely authoritative.
+      ...(self.appearance.body === "priest"
+        ? {
+            projectiles: [
+              ...interpolated.projectiles.filter((projectile) => projectile.ownerId !== self.id),
+              ...newest.projectiles
+                .filter((projectile) => projectile.ownerId === self.id)
+                .map((projectile) => {
+                  const definition = PLAYER_ACTIONS.priest.find(
+                    (action) => action.projectile?.kind === projectile.kind,
+                  );
+                  const seconds =
+                    Math.max(
+                      0,
+                      Math.min(TICK_MS * NETWORK_TICKS_PER_SNAPSHOT, now - newest.receivedAt),
+                    ) / 1000;
+                  const distance = (definition?.projectile?.speed ?? 0) * seconds;
+                  return {
+                    ...projectile,
+                    x: projectile.x + projectile.direction.x * distance,
+                    z: projectile.z + projectile.direction.z * distance,
+                  };
+                }),
+            ],
+          }
+        : {}),
     };
   }
 
@@ -660,6 +691,9 @@ export class WorldClient {
                 mapHeroClassSettings(this.#heroSettings, self.class).stats.movementSpeed,
               ),
               facing: self.facing,
+              ...(self.appearance.body === "priest"
+                ? { footstepDistance: PRIEST_MANIFEST.strideDistance / 2 }
+                : {}),
             })
           : null;
         // Seeded, not empty: until the hero has reported anything of its own, the position the

@@ -560,103 +560,35 @@ export const ASSASSIN_SKILL_IDS = [
 ] as const;
 export type AssassinSkillId = (typeof ASSASSIN_SKILL_IDS)[number];
 
-const ASSASSIN_DUAL_SLASH_SHEET = {
-  source: new URL("./assets/bonus/assassin/dual-slash.png", import.meta.url).href,
-  frames: 10,
-  frameWidth: TINY_SWORDS_UNIT_FRAME,
-  frameHeight: TINY_SWORDS_UNIT_FRAME,
-  footOffset: 56,
-  directionRows: 5,
-} as const satisfies UnitSheet;
-
-/**
- * The Rogue's temporary Assassin body is a denser successor to the Runic Guardian witness:
- * five authored angles, mirrored into eight apparent directions, with ten distinct phases per
- * motion. Each class skill keeps the same body and owns a semantic one-shot instead of borrowing
- * the stock Thief attack.
- */
+/** The sole playable Assassin uses V2 locomotion and the preserved Rogue skill drawings. */
 export const ASSASSIN_SHEETS = {
-  idle: {
-    source: new URL("./assets/bonus/assassin/idle.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-  run: {
-    source: new URL("./assets/bonus/assassin/run.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-  attack: ASSASSIN_DUAL_SLASH_SHEET,
-} as const satisfies Readonly<Record<UnitMotion, UnitSheet>>;
+  idle: assassinV2Sheet("idle"),
+  run: assassinV2Sheet("run"),
+  attack: assassinV2Sheet("dual-slash"),
+} satisfies Readonly<Record<UnitMotion, UnitSheet>>;
 
 export const ASSASSIN_SKILL_SHEETS = {
-  dual_slash: ASSASSIN_DUAL_SLASH_SHEET,
-  shadow_step: {
-    source: new URL("./assets/bonus/assassin/shadow-step.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-  vanish: {
-    source: new URL("./assets/bonus/assassin/vanish.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-  poisoned_shiv: {
-    source: new URL("./assets/bonus/assassin/poisoned-shiv.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-  shadow_dance: {
-    source: new URL("./assets/bonus/assassin/shadow-dance.png", import.meta.url).href,
-    frames: 10,
-    frameWidth: TINY_SWORDS_UNIT_FRAME,
-    frameHeight: TINY_SWORDS_UNIT_FRAME,
-    footOffset: 56,
-    directionRows: 5,
-  },
-} as const satisfies Readonly<Record<AssassinSkillId, UnitSheet>>;
+  dual_slash: assassinV2Sheet("dual-slash"),
+  shadow_step: assassinV2Sheet("shadow-step"),
+  vanish: assassinV2Sheet("vanish"),
+  poisoned_shiv: assassinV2Sheet("poisoned-shiv"),
+  shadow_dance: assassinV2Sheet("shadow-dance"),
+} satisfies Readonly<Record<AssassinSkillId, UnitSheet>>;
 
-/** Frame held at the authoritative impact within each ten-phase one-shot. */
 export const ASSASSIN_SKILL_ACTIVE_FRAMES = {
   dual_slash: 4,
   shadow_step: 6,
   vanish: 6,
   poisoned_shiv: 6,
   shadow_dance: 4,
-} as const satisfies Readonly<Record<AssassinSkillId, number>>;
-
-export const ASSASSIN_DEATH_SHEET = {
-  source: new URL("./assets/bonus/assassin/death.png", import.meta.url).href,
-  frames: 10,
-  frameWidth: TINY_SWORDS_UNIT_FRAME,
-  frameHeight: TINY_SWORDS_UNIT_FRAME,
-  footOffset: 56,
-  directionRows: 5,
-} as const satisfies UnitSheet;
-
+} satisfies Readonly<Record<AssassinSkillId, number>>;
+export const ASSASSIN_DEATH_SHEET = assassinV2Sheet("death");
 export function isAssassinSkillId(skillId: string): skillId is AssassinSkillId {
   return (ASSASSIN_SKILL_IDS as readonly string[]).includes(skillId);
 }
-
 export function assassinSkillSheet(skillId: AssassinSkillId): UnitSheet {
   return ASSASSIN_SKILL_SHEETS[skillId];
 }
-
 export function assassinSkillActiveFrame(skillId: AssassinSkillId): number {
   return ASSASSIN_SKILL_ACTIVE_FRAMES[skillId];
 }
@@ -1049,8 +981,8 @@ export function unitSheet(
   motion: UnitMotion,
 ): UnitSheet {
   if (appearance.body === "runic_guardian") return RUNIC_GUARDIAN_SHEETS[motion];
-  if (appearance.body === "assassin") return ASSASSIN_SHEETS[motion];
-  if (appearance.body === "assassin_v2") return assassinV2Sheet(assassinV2MotionClip(motion));
+  if (appearance.body === "assassin" || appearance.body === "assassin_v2")
+    return assassinV2Sheet(assassinV2MotionClip(motion));
   if (appearance.body === "peasant") return PEASANT_BONUS_SHEETS[motion];
   if (appearance.body === "ranger") return RANGER_BONUS_SHEETS[motion];
   if (appearance.body === "priest") return priestSheet(priestMotionClip(motion));
@@ -1085,9 +1017,6 @@ export function allUnitSheets(): UnitSheet[] {
   }
   for (const sheet of Object.values(RUNIC_GUARDIAN_SHEETS)) result.set(sheet.source, sheet);
   result.set(RUNIC_GUARDIAN_DEATH_SHEET.source, RUNIC_GUARDIAN_DEATH_SHEET);
-  for (const sheet of Object.values(ASSASSIN_SHEETS)) result.set(sheet.source, sheet);
-  for (const sheet of Object.values(ASSASSIN_SKILL_SHEETS)) result.set(sheet.source, sheet);
-  result.set(ASSASSIN_DEATH_SHEET.source, ASSASSIN_DEATH_SHEET);
   for (const sheet of Object.values(PEASANT_BONUS_SHEETS)) result.set(sheet.source, sheet);
   for (const sheet of Object.values(PEASANT_BONUS_CONTEXT_TOOL_SHEETS)) {
     result.set(sheet.source, sheet);

@@ -36,12 +36,11 @@ export interface AdventureTestOptions {
 
 const PROTOTYPE_LABEL = {
   runic_guardian: "hero.bonus.runicGuardian",
-  assassin: "hero.bonus.assassin",
   assassin_v2: "hero.bonus.assassinV2",
   peasant: "hero.bonus.peasant",
   ranger: "hero.bonus.ranger",
   priest: "hero.bonus.priest",
-} as const satisfies Readonly<Record<Exclude<BodyVariant, "wayfarer">, string>>;
+} as const satisfies Readonly<Record<(typeof PROTOTYPE_HEROES)[number]["body"], string>>;
 
 interface AdventureTestDialogProps {
   open: boolean;

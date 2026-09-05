@@ -199,6 +199,55 @@ describe("WorldClient lifecycle", () => {
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
 
+  it("presents confirmed local Priest spells on the caster clock and removes them immediately", async () => {
+    stubJoin();
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    await flush();
+    const socket = FakeWebSocket.instances[0];
+    const welcome = structuredClone(WELCOME);
+    if (welcome.t !== "welcome" || !welcome.players[0]) throw new Error("Missing test hero");
+    welcome.players[0].appearance.body = "priest";
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      socket?.message(welcome);
+      const projectile = {
+        id: "spell",
+        actionId: "cast",
+        ownerId: "hero-1",
+        color: "azure",
+        kind: "radiant_bolt",
+        x: 0.6,
+        y: 0,
+        z: 0,
+        direction: { x: 1, z: 0 },
+        radius: 0.125,
+        spawnedAt: 1000,
+        expiresAt: 2000,
+      };
+      for (let tick = 2; tick <= 5; tick++) {
+        now += 50;
+        socket?.message({
+          ...resync(tick, { appearance: { body: "priest", primaryColor: "azure" } }),
+          projectiles: [{ ...projectile, x: 0.6 + (tick - 2) * 0.375 }],
+        });
+      }
+      const atReceipt = client.sample(now).projectiles[0];
+      expect(atReceipt?.x).toBeCloseTo(1.725);
+      expect(client.sample(now + 20).projectiles[0]?.x).toBeCloseTo(1.875);
+      // A stalled socket cannot keep inventing travel indefinitely.
+      expect(client.sample(now + 500).projectiles[0]?.x).toBeLessThanOrEqual(2.475);
+      now += 50;
+      socket?.message(resync(6, { appearance: { body: "priest", primaryColor: "azure" } }));
+      expect(client.sample(now).projectiles).toEqual([]);
+      expect(projectile.x).toBe(0.6);
+    } finally {
+      clock.mockRestore();
+      socket?.close();
+    }
+  });
+
   it("reports its position on a cadence the room's rate window can survive", async () => {
     stubJoin();
     const client = new WorldClient();

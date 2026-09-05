@@ -291,7 +291,7 @@ export async function startAssassinPreview(): Promise<void> {
         nick: "Assassin",
         x: player.x - 2.5,
         class: "rogue",
-        appearance: { body: "assassin", primaryColor: "violet" },
+        appearance: { body: "assassin_v2", primaryColor: "violet" },
         action,
         life: player.life,
       },
