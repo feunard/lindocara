@@ -7,6 +7,16 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 const output = fileURLToPath(new URL('../../../../packages/renderer/src/assets/characters/priest/', import.meta.url));
 const views = ['front', 'front-right', 'right', 'back-right', 'back'];
 const names = ['head', 'torso', 'arm', 'thigh', 'boot', 'staff'];
+// Matching collar seams, measured within the alpha bounds of each illustration. The head has
+// its own short collar; registering this seam prevents two separately projected cards from
+// swallowing the neck when the body leans toward the camera.
+const collarSeams = [
+  { head: [.5, .96], torso: [.5, .20] },
+  { head: [.56, .96], torso: [.51, .20] },
+  { head: [.59, .96], torso: [.40, .12] },
+  { head: [.53, .91], torso: [.50, .09] },
+  { head: [.50, .92], torso: [.50, .09] },
+];
 // Measured shoulder, elbow and fist centres on each source. Unbend the source drawing before
 // letting the rig bend it: retaining the illustrated arm's bend would apply it a second time.
 const arms = [
@@ -80,6 +90,7 @@ for (const [direction, view] of views.entries()) {
     layers.push({ input: tile, left: x, top: y });
     row[name] = { x, y, width: w, height: h, aspect: width / height,
       source: { x: box.left, y: box.top, width: box.width, height: box.height } };
+    if(name==='head'||name==='torso')row[name].collarSeam=collarSeams[direction][name];
   }
   parts.push(row);
 }

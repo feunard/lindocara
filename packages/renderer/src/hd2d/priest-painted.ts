@@ -36,6 +36,7 @@ export function createPaintedPriest(root: THREE.Object3D, texture: THREE.Texture
   });
   const mesh = new THREE.Mesh(geometry, material);
   const partRanges = new Map<string, { start: number; count: number }>();
+  const landmarks = { head: new THREE.Vector2(), neck: new THREE.Vector2() };
   mesh.frustumCulled = false;
   const bones = new Map<string, THREE.Object3D>();
   root.traverse((node) => {
@@ -52,6 +53,7 @@ export function createPaintedPriest(root: THREE.Object3D, texture: THREE.Texture
   return {
     mesh,
     partRanges,
+    landmarks,
     update(camera: THREE.OrthographicCamera, heading: number, pose: PriestPose): void {
       root.updateMatrixWorld(true);
       camera.updateMatrixWorld(true);
@@ -233,6 +235,59 @@ export function createPaintedPriest(root: THREE.Object3D, texture: THREE.Texture
           }
         partRanges.set(strip.key, { start, count: cursor - start });
       }
+      // Both drawings already contain their own perspective. Projecting an independent head
+      // centre against a constant-height torso card compresses the neck in front-facing runs.
+      // Attach their authored collar seams on the actual deformed triangles instead. Head tilt
+      // is retained, with the collar as its pivot; no direction-specific pose or scale correction.
+      const seam = (part: "head" | "torso"): THREE.Vector2 => {
+        const rect = view[part],
+          range = partRanges.get(part);
+        const [u, v] = rect.collarSeam;
+        if (!range || u === undefined || v === undefined)
+          throw new Error("Priest collar has no registration");
+        const x = (rect.x + 0.5 + u * (rect.width - 1)) / art.width;
+        const y = 1 - (rect.y + 0.5 + v * (rect.height - 1)) / art.height;
+        for (let index = range.start; index < range.start + range.count; index += 3) {
+          const a = index * 2,
+            b = (index + 1) * 2,
+            c = (index + 2) * 2;
+          const ax = uvs[a] ?? 0,
+            ay = uvs[a + 1] ?? 0;
+          const bx = (uvs[b] ?? 0) - ax,
+            by = (uvs[b + 1] ?? 0) - ay;
+          const cx = (uvs[c] ?? 0) - ax,
+            cy = (uvs[c + 1] ?? 0) - ay;
+          const det = bx * cy - by * cx;
+          if (Math.abs(det) < 1e-12) continue;
+          const wb = ((x - ax) * cy - (y - ay) * cx) / det;
+          const wc = (bx * (y - ay) - by * (x - ax)) / det;
+          const wa = 1 - wb - wc;
+          if (Math.min(wa, wb, wc) < -0.00001) continue;
+          return new THREE.Vector2(
+            (positions[index * 3] ?? 0) * wa +
+              (positions[(index + 1) * 3] ?? 0) * wb +
+              (positions[(index + 2) * 3] ?? 0) * wc,
+            (positions[index * 3 + 1] ?? 0) * wa +
+              (positions[(index + 1) * 3 + 1] ?? 0) * wb +
+              (positions[(index + 2) * 3 + 1] ?? 0) * wc,
+          );
+        }
+        throw new Error(`Priest ${part} collar lies outside its painted surface`);
+      };
+      const headRange = partRanges.get("head");
+      if (!headRange) throw new Error("Priest head drawing is missing");
+      landmarks.neck.copy(seam("torso"));
+      const attachment = landmarks.neck.clone().sub(seam("head"));
+      for (let index = headRange.start; index < headRange.start + headRange.count; index++) {
+        positions[index * 3] = (positions[index * 3] ?? 0) + attachment.x;
+        positions[index * 3 + 1] = (positions[index * 3 + 1] ?? 0) + attachment.y;
+      }
+      const top = headRange.start * 3,
+        bottom = (headRange.start + 5) * 3;
+      landmarks.head.set(
+        ((positions[top] ?? 0) + (positions[bottom] ?? 0)) / 2,
+        ((positions[top + 1] ?? 0) + (positions[bottom + 1] ?? 0)) / 2,
+      );
       geometry.setDrawRange(0, cursor);
       geometry.getAttribute("position").needsUpdate = true;
       geometry.getAttribute("uv").needsUpdate = true;

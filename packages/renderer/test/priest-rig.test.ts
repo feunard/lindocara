@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
 
 import motionJson from "../src/assets/characters/priest/motion.json?raw";
+import painting from "../src/assets/characters/priest/painted.json";
 import rigData from "../src/assets/characters/priest/skeleton.glb?inline";
 import { combatActionPhase } from "../src/combat-art.js";
 import type { ActorView } from "../src/hd2d/billboards.js";
@@ -13,6 +14,7 @@ import {
   samplePriestPose,
   type MotionAsset,
 } from "../src/hd2d/priest-sprites.js";
+import type { PriestClip } from "../src/priest-art.js";
 
 const motion = JSON.parse(motionJson) as MotionAsset;
 const actor: ActorView = {
@@ -31,6 +33,64 @@ const actor: ActorView = {
 };
 
 describe("compiled Priest rig", () => {
+  it("keeps the illustrated neck attached to the collar in every direction and action", async () => {
+    const decoded = atob(rigData.slice(rigData.indexOf(",") + 1));
+    const binary = new ArrayBuffer(decoded.length);
+    new Uint8Array(binary).set(Uint8Array.from(decoded, (value) => value.charCodeAt(0)));
+    const gltf = await new GLTFLoader().parseAsync(binary, "");
+    const apply = createPriestPoseApplicator(gltf.scene),
+      texture = new THREE.Texture();
+    const painted = createPaintedPriest(gltf.scene, texture);
+    const camera = new THREE.OrthographicCamera(-1.4, 1.4, 1.4, -1.4, 0.1, 50);
+    camera.position.set(0, Math.sin((38 * Math.PI) / 180) * 8, Math.cos((38 * Math.PI) / 180) * 8);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld(true);
+    let worstGap = 0;
+    for (const clip of Object.keys(motion.clips) as PriestClip[])
+      for (let direction = 0; direction < 8; direction++)
+        for (const phase of [0, 0.125, 0.25, 0.5, 0.75, 1]) {
+          const pose = samplePriestPose(motion, clip, phase),
+            heading = (direction * Math.PI) / 4;
+          gltf.scene.rotation.y = heading;
+          apply(pose);
+          painted.update(camera, heading, pose);
+          const view = painting.parts[Math.min(direction, 8 - direction)];
+          if (!view) throw new Error("Missing painted view");
+          // Sample the actual delivered UV triangles independently of the attachment implementation.
+          const sample = (part: "head" | "torso") => {
+            const rect = view[part],
+              range = painted.partRanges.get(part),
+              [u, v] = rect.collarSeam;
+            if (!range || u === undefined || v === undefined) throw new Error("Missing collar");
+            const uv = painted.mesh.geometry.getAttribute("uv"),
+              pos = painted.mesh.geometry.getAttribute("position");
+            const target = new THREE.Vector3(
+              (rect.x + 0.5 + u * (rect.width - 1)) / painting.width,
+              1 - (rect.y + 0.5 + v * (rect.height - 1)) / painting.height,
+              0,
+            );
+            for (let i = range.start; i < range.start + range.count; i += 3) {
+              const triangle = new THREE.Triangle(
+                ...[i, i + 1, i + 2].map(
+                  (index) => new THREE.Vector3(uv.getX(index), uv.getY(index), 0),
+                ),
+              );
+              const bary = triangle.getBarycoord(target, new THREE.Vector3());
+              if (!bary || Math.min(bary.x, bary.y, bary.z) < -0.0001) continue;
+              return new THREE.Vector3()
+                .addScaledVector(new THREE.Vector3().fromBufferAttribute(pos, i), bary.x)
+                .addScaledVector(new THREE.Vector3().fromBufferAttribute(pos, i + 1), bary.y)
+                .addScaledVector(new THREE.Vector3().fromBufferAttribute(pos, i + 2), bary.z);
+            }
+            throw new Error("Collar outside geometry");
+          };
+          worstGap = Math.max(worstGap, sample("head").distanceTo(sample("torso")) * 80);
+        }
+    expect(worstGap).toBeLessThan(0.002);
+    painted.dispose();
+    texture.dispose();
+  });
+
   it("retains travel-relative body motion on a repeated render timestamp during a moving cast", () => {
     const animator = new PriestPosePlayer(motion);
     let now = 0;

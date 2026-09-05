@@ -44,6 +44,12 @@ fixed in world space. The painted torso is a deformable grid driven by those sam
 the garment panels; it is not a rigid image sliding over moving legs. Limbs deform along the solved
 joint chains. Artwork comes from static identity references, never independent animation frames.
 
+The head and torso have matching collar landmarks authored in each source view. The compositor
+attaches these landmarks on the actual deformed painted triangles. An independent 3D head-centre
+projection previously shortened the apparent neck in front-facing runs while the torso drawing
+kept its height; explicit collar registration fixes that mismatch without straightening the gait.
+Diagnostics follow the rendered head and neck, and tests cover the attachment in every action.
+
 The runtime composes precomputed curves on the invisible skeleton, solves contacts, deforms one
 small painted mesh (about 60 triangles) and renders it to the existing 160 × 160 sprite target.
 The fixed 320 × 320 scratch pass preserves the silhouette. This is lightweight skeletal composition,

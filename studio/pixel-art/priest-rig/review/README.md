@@ -9,6 +9,8 @@ Review images are evidence, never runtime inputs or fallback artwork.
   side by side at normal game size, with the reference actors' shipped art and playback unchanged.
 - [Normal-speed recording](locomotion.webm): the live browser's eight-heading route, cropped without
   enlarging the characters. Recorded playback is separate from the performance measurements below.
+- [Collar registration comparison](collar-comparison.png): identical run phase and fixed canvas,
+  before/after the neck attachment correction, with nearest-neighbour enlargement for inspection.
 - [Locomotion and transitions](locomotion.png): successive 47 ms samples across a complete stride,
   followed by a 180-degree reversal, stop/settling and the real controller's jump/landing.
 - [Actions](actions.png): all five casts aimed opposite travel, continuous death plus a further
@@ -21,11 +23,14 @@ weight transfer, opposing pelvis/chest rotation, head compensation and trailing 
 The atlas studio was also checked with its full-body skeleton display and artwork overlay.
 Source arms were unbent before articulation so the illustration does not add a second elbow bend.
 The staff's rest pitch was corrected after its first motion cancelled the body's forward lean.
+The user then identified a head sinking into the shoulders on front-facing runs. Head/torso collar
+landmarks now register the two painted surfaces directly instead of mixing the independently
+projected head centre with a constant-height torso drawing. This retains the forward body lean.
 
 | Twelve-second route at normal speed | One Priest + three references | Four Priests |
 | --- | ---: | ---: |
-| Presented frames/s | 56.96 | 56.91 |
-| CPU composition median / p95 | 0.40 / 0.60 ms | 1.10 / 1.40 ms |
+| Presented frames/s | 57.27 | 57.20 |
+| CPU composition median / p95 | 0.40 / 0.60 ms | 1.10 / 1.60 ms |
 | Additional painted-mesh / pixel draws | 2 | 8 |
 | Intermediate targets | 0.88 MiB | 1.17 MiB |
 | Unexpected airborne/swimming frames | 0 | 0 |
@@ -47,6 +52,8 @@ the travel direction is retained instead of being inferred from a zero displacem
 The complete local `yarn verify` passed: lint, all package typechecks and tests, migration drift,
 catalog/map/music/animation content checks, production build and boot smoke. The final timestamp
 correction additionally passed all seven compiled-Priest renderer tests.
+The subsequent collar correction adds an eighth test: the actual UV-mapped neck and collar seams
+must remain within 0.002 pixel over all fourteen actions, eight headings and six sampled phases.
 
 The artwork revision does not change server outcomes, skill timings, movement speed or the shared
 animation behavior of other classes. Its visual witness uses simulated accepted server timestamps;

@@ -46,7 +46,9 @@ export function createBaker() {
     const position=(name,x=0,y=0,z=0)=>rig.root.getObjectByName(name).localToWorld(new THREE.Vector3(x,y,z)).toArray();
     return { canvas, joints, screen: {
       feet:joints.feet.map(project), knees:joints.knees.map(project), hips:joints.hips.map(project),
-      pelvis:project(joints.pelvis), chest:project(position('torso',0,.30)), head:project(joints.head),
+      pelvis:project(joints.pelvis), chest:project(position('torso',0,.30)),
+      head:[(painted.landmarks.head.x+1)*size/2,(1-painted.landmarks.head.y)*size/2],
+      neck:[(painted.landmarks.neck.x+1)*size/2,(1-painted.landmarks.neck.y)*size/2],
       shoulders:[-1,1].map(side=>project(position('torso',side*.265,.28,.14*Math.sin(pose.spineBend)))),
       elbows:[-1,1].map(side=>project(position(`elbow${side}`))), hands:[-1,1].map(side=>project(position(`hand${side}`))),
     } };

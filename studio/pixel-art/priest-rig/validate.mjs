@@ -33,6 +33,7 @@ assert.equal(paintedImage.info.width,painting.width);assert.equal(paintedImage.i
 for(const parts of painting.parts)for(const name of ['head','torso','arm','thigh','boot','staff']){
   const part=parts[name];assert.ok(part&&part.width>0&&part.height>0,`Missing painted ${name}`);
   assert.ok(part.x>0&&part.y>0&&part.x+part.width<painting.width&&part.y+part.height<painting.height);
+  if(name==='head'||name==='torso')assert.ok(part.collarSeam?.length===2&&part.collarSeam.every(v=>v>0&&v<1),'Missing collar registration');
 }
 const report={clips:[],frames:0,rgbaBytes:0,maxBoneError:0,maxContactDrift:0};
 const rig=createPriest();
