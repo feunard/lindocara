@@ -130,7 +130,15 @@ function canEnter(state: HeroState, x: number, z: number, deps: StepDeps): boole
     const surface = query.surfaceAt
       ? query.surfaceAt(xx, zz, ceiling + 0.02)
       : query.heightAt(xx, zz);
-    return surface ?? liquidSurfaceAtElevation(query, xx, zz, state.y);
+    if (surface !== null) return surface;
+    // Same reading as the vertical rule below: a null surface is either no ground at all or
+    // ground standing above the ceiling, and only the first is a reason to answer a liquid plane.
+    // Answering it for the second INVERTS this function's every caller, because the plane sits
+    // below the hero: a wall reads as a step down and `centreOk` waves the body into it. The
+    // barrier above catches the plain case, a grounded hero on surface terrain, and steps aside
+    // for exactly the three states this now covers on its own -- on a ramp, in the air, swimming.
+    const terrain = query.heightAt(xx, zz);
+    return terrain ?? liquidSurfaceAtElevation(query, xx, zz, state.y);
   };
 
   // Indoors, terrain relief and props no longer apply: the room is a plain rectangle, sitting
