@@ -2,17 +2,22 @@ import * as THREE from 'three';
 import manifest from './manifest.json';
 import { DESIGN, createPriest, poseAt } from './model.mjs';
 import { exportRig } from './export-rig.mjs';
+import { createPaintedPriest } from '../../../packages/renderer/src/hd2d/priest-painted.ts';
+
+const painting = await new THREE.TextureLoader().loadAsync(new URL('../../../packages/renderer/src/assets/characters/priest/painted.png', import.meta.url).href);
+painting.colorSpace = THREE.SRGBColorSpace;
+painting.minFilter = painting.magFilter = THREE.LinearFilter;
+painting.generateMipmaps = false;
 
 export function createBaker() {
   const size = DESIGN.canvas;
   const scene = new THREE.Scene();
   const rig = createPriest(); scene.add(rig.root);
+  rig.root.traverse(node => { if (node.isMesh) node.visible = false; });
+  const painted = createPaintedPriest(rig.root, painting); scene.add(painted.mesh);
   const camera = new THREE.OrthographicCamera(-DESIGN.extent/2, DESIGN.extent/2, DESIGN.extent/2, -DESIGN.extent/2, 0.1, 20);
   const target = new THREE.Vector3(0, (DESIGN.anchor[1] / size - 0.5) * DESIGN.extent / Math.cos(DESIGN.cameraPitch), 0);
   camera.position.copy(target).add(new THREE.Vector3(0, Math.sin(DESIGN.cameraPitch)*8, Math.cos(DESIGN.cameraPitch)*8)); camera.lookAt(target);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.05));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(-3, 6, 4); scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xbad4e3, 0.6); fill.position.set(4, 2, -3); scene.add(fill);
   const renderer = new THREE.WebGLRenderer({alpha:true, antialias:false, preserveDrawingBuffer:true});
   renderer.setSize(size * 2, size * 2); renderer.setPixelRatio(1); renderer.setClearColor(0, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -21,7 +26,9 @@ export function createBaker() {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;
   const output = canvas.getContext('2d');
   function draw(action, phase, direction=0) {
-    const joints = structuredClone(rig.apply(poseAt(action, phase), direction * Math.PI / 4));
+    const pose=poseAt(action,phase);
+    const joints = structuredClone(rig.apply(pose, direction * Math.PI / 4));
+    painted.update(camera, direction * Math.PI / 4, pose);
     renderer.render(scene, camera); ctx.clearRect(0,0,size*2,size*2); ctx.drawImage(renderer.domElement,0,0);
     const pixels = ctx.getImageData(0,0,size*2,size*2).data, reduced = new Uint8ClampedArray(size*size*4);
     for(let y=0;y<size;y++) for(let x=0;x<size;x++) {
@@ -33,17 +40,16 @@ export function createBaker() {
       const i=(y*size+x)*4;
       if(a>=2) { reduced[i]=Math.round(r/a/4)*4;reduced[i+1]=Math.round(g/a/4)*4;reduced[i+2]=Math.round(b/a/4)*4;reduced[i+3]=255; }
     }
-    // A single global silhouette edge. Never crop, re-centre or scale a frame.
-    const edged = new Uint8ClampedArray(reduced);
-    for(let y=1;y<size-1;y++) for(let x=1;x<size-1;x++) {
-      const i=(y*size+x)*4;
-      if(!reduced[i+3] && [i-4,i+4,i-size*4,i+size*4].some(j=>reduced[j+3])) {
-        edged[i]=32;edged[i+1]=38;edged[i+2]=54;edged[i+3]=255;
-      }
-    }
-    output.putImageData(new ImageData(edged,size,size),0,0);
+    // The illustration owns its contour. Adding a second outline thickens small hands and feet.
+    output.putImageData(new ImageData(reduced,size,size),0,0);
     const project = p => { const n = new THREE.Vector3(...p).project(camera); return [(n.x+1)*size/2,(1-n.y)*size/2]; };
-    return { canvas, joints, screen: { feet:joints.feet.map(project), pelvis:project(joints.pelvis), head:project(joints.head) } };
+    const position=(name,x=0,y=0,z=0)=>rig.root.getObjectByName(name).localToWorld(new THREE.Vector3(x,y,z)).toArray();
+    return { canvas, joints, screen: {
+      feet:joints.feet.map(project), knees:joints.knees.map(project), hips:joints.hips.map(project),
+      pelvis:project(joints.pelvis), chest:project(position('torso',0,.30)), head:project(joints.head),
+      shoulders:[-1,1].map(side=>project(position('torso',side*.265,.28,.14*Math.sin(pose.spineBend)))),
+      elbows:[-1,1].map(side=>project(position(`elbow${side}`))), hands:[-1,1].map(side=>project(position(`hand${side}`))),
+    } };
   }
   function clip(action) {
     const config=manifest.clips[action], atlas=document.createElement('canvas');
@@ -56,7 +62,7 @@ export function createBaker() {
     }
     return {png:atlas.toDataURL('image/png').split(',')[1],records};
   }
-  return {draw,clip,dispose(){rig.dispose();renderer.dispose();}};
+  return {draw,clip,dispose(){painted.dispose();rig.dispose();renderer.dispose();}};
 }
 
 window.priestBaker = createBaker();

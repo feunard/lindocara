@@ -31,13 +31,24 @@ function tick(now){
   document.querySelector('#speed-label').value=`${speed.toFixed(2)}×`;
   for(let i=0;i<8;i++){
     const c=canvases[i].getContext('2d');c.clearRect(0,0,cell,cell);c.drawImage(atlases[action],frame%config.columns*packed.width,Math.floor((i*config.directionStride+frame)/config.columns)*packed.height,packed.width,packed.height,offsetX,offsetY,packed.width,packed.height);
-    if(document.querySelector('#overlay').checked){
+    const skeleton=document.querySelector('#skeleton').checked;
+    if(skeleton)c.clearRect(0,0,cell,cell);
+    if(document.querySelector('#overlay').checked||skeleton){
       c.fillStyle='#f16b59';c.fillRect(anchor.x-1,anchor.y-3,2,7);c.fillRect(anchor.x-4,anchor.y-1,8,2);
       const records=diagnostics[`../../../artifacts/priest/${action}-joints.json`]?.filter(r=>r.direction===i)??[];
       for(const side of [0,1]){c.beginPath();c.strokeStyle=side?'#ffe593':'#7ef1b2';c.lineWidth=.7;
         records.forEach((r,index)=>{const [x,y]=r.screen.feet[side];if(index)c.lineTo(x,y);else c.moveTo(x,y);});c.stroke();}
       const current=records[frame]?.screen;
       if(current)for(const [point,color] of [[current.pelvis,'#fa7961'],[current.head,'#c6a4ff'],...current.feet.map(p=>[p,'#7ef1b2'])]){c.fillStyle=color;c.beginPath();c.arc(...point,2,0,Math.PI*2);c.fill();}
+      if(current?.chest){
+        const line=(points,color)=>{c.strokeStyle=color;c.lineWidth=1.2;c.beginPath();points.forEach((p,index)=>index?c.lineTo(...p):c.moveTo(...p));c.stroke();};
+        line([current.pelvis,current.chest,current.head],'#f5b678');
+        line(current.shoulders,'#f5b678');line(current.hips,'#f5b678');
+        for(const side of [0,1]){
+          line([current.hips[side],current.knees[side],current.feet[side]],side?'#ffe593':'#7ef1b2');
+          line([current.shoulders[side],current.elbows[side],current.hands[side]],side?'#ffe593':'#7ef1b2');
+        }
+      }
     }
     if(document.querySelector('#ghost').checked){c.globalAlpha=.18;
       for(const previous of [1,2]){const ghostFrame=config.loop?(frame-previous+config.frames)%config.frames:Math.max(0,frame-previous);
@@ -49,7 +60,7 @@ function tick(now){
   const travel=action==='run'?elapsed/1000*manifest.referenceSpeed*128/2.24:0;
   ctx.strokeStyle='#59715e';ctx.beginPath();for(let x=-128;x<896;x+=32){const at=x-travel%32;ctx.moveTo(at,160);ctx.lineTo(at,256);}ctx.moveTo(0,200);ctx.lineTo(768,200);ctx.stroke();
   for(let direction of [2]){ctx.drawImage(atlases[action],frame%config.columns*packed.width,Math.floor((direction*config.directionStride+frame)/config.columns)*packed.height,packed.width,packed.height,300+offsetX,200-anchor.y+offsetY,packed.width,packed.height);}
-  meta.textContent=`${action} · frame ${frame+1}/${config.frames} · ${config.durationMs} ms · phase ${sampled.toFixed(3)}\n160 px fixed canvas · eight genuine orientations · 1.72 tiles/stride · origin (80,116)`;
+  meta.textContent=`${action} · frame ${frame+1}/${config.frames} · ${config.durationMs} ms · phase ${sampled.toFixed(3)}\n160 px fixed canvas · eight game directions · 1.72 tiles/stride · origin (80,116)`;
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);

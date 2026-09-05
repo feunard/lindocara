@@ -3,9 +3,10 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
 
 import motionJson from "../src/assets/characters/priest/motion.json?raw";
-import rigData from "../src/assets/characters/priest/rig.glb?inline";
+import rigData from "../src/assets/characters/priest/skeleton.glb?inline";
 import { combatActionPhase } from "../src/combat-art.js";
 import type { ActorView } from "../src/hd2d/billboards.js";
+import { createPaintedPriest } from "../src/hd2d/priest-painted.js";
 import { createPriestPoseApplicator } from "../src/hd2d/priest-pose.js";
 import {
   PriestPosePlayer,
@@ -30,6 +31,104 @@ const actor: ActorView = {
 };
 
 describe("compiled Priest rig", () => {
+  it("retains travel-relative body motion on a repeated render timestamp during a moving cast", () => {
+    const animator = new PriestPosePlayer(motion);
+    let now = 0;
+    const moving = { ...actor, directionalFacing: { x: 1, z: 0 } };
+    const input = {
+      id: actor.id,
+      clip: "mend" as const,
+      phase: 0.3,
+      aim: { x: -1, z: 0 },
+      animation: { motion: "run" as const, phase: 0, stridePhase: 0, elapsedMs: 0, speed: 3.65625 },
+    };
+    for (let tick = 0; tick < 60; tick++) {
+      now = (tick * 1000) / 60;
+      moving.x = (now / 1000) * 3.65625;
+      input.animation.stridePhase = (moving.x / 1.72) % 1;
+      animator.sample(moving, input, now);
+    }
+    const previous = animator.lastPose();
+    const repeated = animator.sample(moving, input, now).pose;
+    expect(previous).not.toBeNull();
+    expect(repeated.lean).toBeCloseTo(previous?.lean ?? NaN, 10);
+    expect(repeated.roll).toBeCloseTo(previous?.roll ?? NaN, 10);
+    expect(repeated.feet).toEqual(previous?.feet);
+  });
+
+  it("keeps the painted sole vertices planted while the knee and illustrated torso move", async () => {
+    const decoded = atob(rigData.slice(rigData.indexOf(",") + 1));
+    const binary = new ArrayBuffer(decoded.length);
+    new Uint8Array(binary).set(Uint8Array.from(decoded, (value) => value.charCodeAt(0)));
+    const gltf = await new GLTFLoader().parseAsync(binary, "");
+    const apply = createPriestPoseApplicator(gltf.scene);
+    const texture = new THREE.Texture(),
+      painted = createPaintedPriest(gltf.scene, texture);
+    const camera = new THREE.OrthographicCamera(-1.4, 1.4, 1.4, -1.4, 0.1, 50);
+    camera.position.set(0, 5, 7);
+    camera.lookAt(0, 0.7, 0);
+    camera.updateMatrixWorld(true);
+    let maximumSlip = 0,
+      supports = 0;
+    for (const direction of [0, Math.PI / 4, Math.PI / 2]) {
+      const animator = new PriestPosePlayer(motion);
+      const previous = new Map<number, THREE.Vector2>();
+      for (let tick = 0; tick < 180; tick++) {
+        const now = (tick * 1000) / 60,
+          distance = (now / 1000) * 3.65625,
+          phase = (distance / 1.72) % 1;
+        const moving = {
+          ...actor,
+          x: Math.sin(direction) * distance,
+          z: Math.cos(direction) * distance,
+          directionalFacing: { x: Math.sin(direction), z: Math.cos(direction) },
+        };
+        const { pose, heading } = animator.sample(
+          moving,
+          {
+            id: actor.id,
+            clip: "run",
+            phase,
+            animation: { motion: "run", phase, stridePhase: phase, elapsedMs: now, speed: 3.65625 },
+          },
+          now,
+        );
+        gltf.scene.position.set(moving.x, 0, moving.z);
+        gltf.scene.rotation.y = heading;
+        apply(pose);
+        painted.update(camera, heading, pose);
+        for (const [index, side] of [
+          [0, -1],
+          [1, 1],
+        ] as const) {
+          if (!pose.feet[index].contact) {
+            previous.delete(side);
+            continue;
+          }
+          const range = painted.partRanges.get(`boot${side}`);
+          if (!range) throw new Error("No painted boot geometry");
+          const positions = painted.mesh.geometry.getAttribute("position");
+          // The last quad's lower left and lower right are the actual rendered sole edge.
+          const lastQuad = range.start + range.count - 6;
+          const sole = new THREE.Vector2(
+            (positions.getX(lastQuad + 1) + positions.getX(lastQuad + 5)) / 2,
+            (positions.getY(lastQuad + 1) + positions.getY(lastQuad + 5)) / 2,
+          );
+          const last = previous.get(side);
+          if (last) {
+            maximumSlip = Math.max(maximumSlip, sole.distanceTo(last) * 80);
+            supports++;
+          }
+          previous.set(side, sole);
+        }
+      }
+    }
+    expect(supports).toBeGreaterThan(300);
+    expect(maximumSlip).toBeLessThan(0.3);
+    painted.dispose();
+    texture.dispose();
+  });
+
   it("draws constant-length bones with planted soles at normal speed, also while casting", async () => {
     const decoded = atob(rigData.slice(rigData.indexOf(",") + 1));
     const binary = new ArrayBuffer(decoded.length);

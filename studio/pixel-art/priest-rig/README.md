@@ -1,15 +1,18 @@
 # Dawn sanctuary priest
 
-This replaces the discarded Priest prototype. The canonical design is authored from scratch in
-`model.mjs`: warm skin, chestnut hair, ivory forehead band, teal sanctuary mantle, amber stole,
-prayer book and a sun-arch crozier in the right hand. The split tunic leaves the boots visible.
-One articulated construction fixes the silhouette, materials, equipment and proportions.
-`concept_1.png` is the exploratory design plate; the articulated construction is the canonical
-source. No runtime frame is cut from, or image-interpolated from, that plate.
+The Priest uses illustrated parts on an invisible articulated skeleton. The canonical design is
+[`painted/canonical.png`](painted/canonical.png): warm skin, chestnut hair, an ivory forehead band,
+teal mantle, amber stole, split ivory tunic, brown boots and a sun-ring staff. Five construction
+plates in `painted/` supply the painted head, torso, arm, thigh, boot and staff. Their provenance,
+actual prompts and corrections are recorded in [PROVENANCE.md](painted/PROVENANCE.md).
+
+`model.mjs` authors the movement curves and an offline geometric proxy for diagnostics/contact
+calculations. Its primitive surfaces are neither exported nor rendered in the game. `concept_1.png`
+is a superseded exploratory study, not an input to the current artwork or build.
 
 ## Regenerate everything
 
-Run from the repository root with Yarn 4 (use `corepack yarn` if a machine still has Yarn 1 on PATH):
+Run from the repository root with Yarn 4 (`corepack yarn` if Yarn 1 remains on PATH):
 
 ```sh
 yarn install --immutable
@@ -17,116 +20,105 @@ yarn priest:build
 yarn priest:check
 ```
 
-The baker uses Three, Sharp and Playwright with installed Google Chrome; no model weights or API
-key are required. It compiles `rig.glb`, `motion.json`, a manifest with source/output SHA-256 hashes,
-fourteen PNG review atlases and a square selection/HUD portrait into
-`packages/renderer/src/assets/characters/priest/`. It checks
-source bounds before publishing and validates the delivered files. Joint tracks and screenshots
-are written to the gitignored `artifacts/priest/` directory. Do not edit compiled output.
+The build is deterministic from the committed sources. It needs Three, Sharp and Playwright with
+installed Google Chrome; no model weights, image generation service or API key. `painted/build.mjs`
+removes the source background, straightens bent arm drawings into a common construction space,
+normalizes fixed cells and packs one 1536 × 1280 texture. It then compiles `skeleton.glb` (25 named
+nodes, no visible geometry), `motion.json`, fourteen PNG review atlases, a portrait and a manifest
+with source/output SHA-256 hashes into `packages/renderer/src/assets/characters/priest/`.
+Joint tracks and screenshots go to the gitignored `artifacts/priest/` directory. Do not edit
+compiled output. Re-authoring the AI drawings is a separate, non-deterministic art operation;
+the committed source plates make routine regeneration independent of it.
 
 ## Why the pipeline changed
 
-The local sprite lane is FLUX.2-klein-4B with the Tiny Swords LoRA. Its actual runner exposes
-reference images, seed, size, steps, guidance and CPU offload. It has no temporal conditioning,
-skeletal controls or contact constraints; distilled Klein also ignores the tested guidance value.
-A 12 GB RTX 3060 trial saturated memory. The offload trial completed its four denoising steps but
-the Windows process crashed during decoding. Runtime animation does not depend on those trials.
-`studio.py --offload` now forwards the runner's existing option, rather than inventing a model knob.
+Independent generated frames do not enforce anatomy or floor contact. The original animation
+clock also advanced independently of displacement. Enlarging the generated sheet could not fix
+either problem. The first reconstruction established a distance clock and articulated motion,
+but its visible primitive 3D surfaces did not match the illustrated Assassin, Ranger and Runic
+Guardian. The first painted trial also exposed an overly upright, rigid torso.
 
-Independent image generations cannot lock a foot to the floor. The former renderer also selected
-frames from global elapsed time, so cadence did not follow displacement, and mirrored directional
-views swapped equipment hands. Body squash and sprite perspective compensation could move an
-otherwise fixed anchor. The new distance clock, full orientations and fixed projection address
-those execution problems as well as the authored motion.
+The current gait adds forward weight transfer, pelvis/chest counter-rotation, vertical loading,
+spinal flexion, a stabilized head and delayed arm, staff and cloth movement. Planted feet remain
+fixed in world space. The painted torso is a deformable grid driven by those same curves, including
+the garment panels; it is not a rigid image sliding over moving legs. Limbs deform along the solved
+joint chains. Artwork comes from static identity references, never independent animation frames.
 
-Offline raster clips were evaluated first. Their remaining limitation was concurrent movement
-and casting: a whole-body cast freezes legs while the hero still moves. The delivered runtime
-therefore composes precomputed pose curves on a **25-bone, one-material skin**, solves its limb
-chains, and rasterizes it to a 160×160 pixel sprite in the game's existing WebGL context. This is
-ordinary skeletal animation, not AI generation or image interpolation during gameplay. A fixed
-320×320 scratch target and one pixel pass preserve the pixel silhouette. The resulting billboard
-uses the existing world lighting, shadows, occlusion, water, invisibility and glider systems.
+The runtime composes precomputed curves on the invisible skeleton, solves contacts, deforms one
+small painted mesh (about 60 triangles) and renders it to the existing 160 × 160 sprite target.
+The fixed 320 × 320 scratch pass preserves the silhouette. This is lightweight skeletal composition,
+with no AI or image interpolation during gameplay. Existing HD-2D lighting, shadows, water,
+occlusion, invisibility and glider integration remain in use.
 
-Only the idle atlas is eagerly loaded, for afterimages; selection uses the square portrait. The other PNGs
-are inspectable exports, not a hidden runtime fallback. Old Priest art, references, documentation
-and animation mappings have been removed. Shared class effects and the stock Monk are independent
-roster resources, not recycled Priest prototype assets.
+Five authored view plates supply eight game directions by reflecting individual painted parts.
+The skeleton, equipment hand and equipment trajectory are never reflected. Part widths vary
+continuously with heading; artwork selection follows the game's discrete directional convention.
+The locomotion phase survives direction changes. Only the idle atlas is eagerly loaded for
+afterimages; the other exported clips are review artifacts, not a hidden playback fallback.
+The discarded Priest prototype supplies no runtime resource.
 
 ## Runtime contract
 
-- Eight camera-relative headings are required by the existing game. The atlas covers all eight;
-  the rig also turns continuously between them and preserves the staff hand when the camera orbits.
-- Ground movement, idle, jump impulse/rise/apex/fall/landing, swimming and gliding exist in
-  `engine/hd2d/hero-step.ts`. There is no delayed pre-jump gameplay state.
-- The server owns radiant bolt, mend, held blink, prayer and divine nova, with explicit
-  anticipation/impact/recovery timestamps. Renderer frames must follow those timestamps.
-- Damage does not impose a gameplay stun. Its reaction must remain presentation-only and may
-  not interrupt an authoritative cast or movement.
-- Corpses must hold their final pose, including after a new client joins.
-- Locomotion spends one cycle per 1.72 tiles at the actual 3.65625 tiles/s class speed. Its phase
-  survives turns, stops and action changes. Contact feet are held in world coordinates, swing feet
-  settle on a stop, and a fast reversal releases an overextended support into a catch-up step.
-- All frames share one camera, world scale and ground origin; alpha bounds never rescale a pose.
+- Eight camera-relative game headings, one fixed world scale and ground anchor.
+- Idle, run, jump, fall, land, swim, glide, hurt, death and five Priest actions: fourteen clips.
+- One stride per 1.72 tiles at the actual 3.65625 tiles/s class speed. Phase survives turns, stops
+  and action changes. A stopped swing settles; an overextended support takes a catch-up step.
+- Jump starts immediately as required by `hero-step.ts`; rise/fall follow velocity, and landing
+  compression is additive. There is no artificial pre-jump input delay. Knockback shares this path.
+- Moving casts combine upper-body action with locomotion. Hurt stays presentation-only and cannot
+  interrupt authoritative gameplay. Death inherits the last pose and aim, then holds a stable corpse;
+  a newly observed old corpse starts settled.
 
-The fourteen authored clips cover idle, run, jump, fall, land, swim, glide, hurt, death and all five
-Priest actions. Rise/fall follow `vy`; landing compression is additive even when movement resumes.
-The engine launches jumps immediately, so there is no added input delay for a preparation pose.
-Knockback uses that same airborne path. Historical compatibility ghosts retain their own moving
-rig independently of their corpse. The current ordinary release policy revives immediately at the
-map entry. A newly observed old corpse starts in its settled pose. Death inherits the actual last
-pose and cast orientation, even when auto-aim pointed away from the movement direction.
-
-| Action | Anticipation / recovery at base speed | Visual release |
+| Action | Base anticipation / recovery | Visual release |
 | --- | --- | --- |
 | Radiant Bolt / ordinary attack | 140 / 185 ms | phase 0.4 |
 | Mend | 240 / 600 ms | phase 0.4 |
-| Lumen Step | 180 / 420 ms, plus server-held channel | phase 0.4, cloud during hold |
+| Lumen Step | 180 / 420 ms, plus server-held channel | phase 0.4 |
 | Prayer | 320 / 640 ms | phase 0.4 |
 | Divine Nova | 400 / 700 ms | phase 0.4 |
 
-These are authored defaults, not client deadlines. The continuous phase is mapped through
-`ServerClock` from the accepted action's actual `startedAt`, `impactAt`, `channelEndsAt` and
-`recoveryEndsAt`; haste and held release therefore retain the same contact pose. Damage, healing,
-projectile creation and hitboxes remain authoritative server operations.
+The accepted action's `startedAt`, `impactAt`, `channelEndsAt` and `recoveryEndsAt`, mapped through
+`ServerClock`, control playback, including haste and held release. Damage, healing, projectiles
+and hitboxes remain authoritative server operations. This artwork revision changes none of them.
 
-## Review and tests
+## Preview and tests
 
 ```sh
 yarn priest:studio                   # prints the local atlas-review URL
 yarn dev                            # http://localhost:5273/?preview=priest
 yarn test:renderer priest-rig
 yarn test:renderer character-animation
-yarn verify                         # includes asset hashes, full tests, build and boot smoke
+yarn verify                         # full checks, build and boot smoke
 ```
 
-The atlas studio shows eight views, a ground-speed witness, looping, speed control, frame stepping,
-consecutive-frame ghosts and foot/head/pelvis overlays from the baker's diagnostic tracks.
-The DEV game witness uses the real movement controller and shipped renderer, alongside Assassin
-and Runic Guardian at the normal game camera. WASD moves; Space jumps/toggles the canopy; 1–5 cast;
+The atlas studio shows all eight directions, a ground-speed witness, looping, speed control,
+frame stepping, consecutive-frame ghosts and joint trajectories. **Motion without artwork** exposes
+the feet, knees, hips, spine, head and arms so the gait can be judged independently of the costume.
+The game witness uses the real movement controller and renderer, alongside Ranger, Assassin and
+Runic Guardian at the ordinary game camera. WASD moves; Space jumps/toggles the canopy; 1–5 cast;
 H receives damage; K dies; R resets; N enters water; T runs eight headings; arrows orbit; P pauses.
-It simulates authoritative timestamps for visual rehearsal; server integration tests cover outcomes.
+Its simulated accepted timestamps rehearse visuals; server integration tests cover outcomes.
 
 For repeatable browser capture with the repository's Playwright CLI:
 
 ```sh
 node node_modules/playwright/cli.js cli -s=priest open "http://localhost:5273/?preview=priest"
 node node_modules/playwright/cli.js cli -s=priest run-code --filename=studio/pixel-art/priest-rig/review-run.pw.cjs
-node node_modules/playwright/cli.js cli -s=priest run-code --filename=studio/pixel-art/priest-rig/review-actions.pw.cjs
 node node_modules/playwright/cli.js cli -s=priest run-code --filename=studio/pixel-art/priest-rig/review-sequences.pw.cjs
 node studio/pixel-art/priest-rig/review-sheets.mjs
 ```
 
-`window.priestPreview` also exposes `step(seconds)`, `pause`, `rate`, `party(1..4)`, `heading`,
-`pitch`, `turnCamera`, `jump`, `cast`, `water`, `hurt`, `die`, `reset` and `read` for deterministic
-capture and profiling. Browser evidence is saved under `artifacts/priest/`.
+`window.priestPreview` exposes `step(seconds)`, `pause`, `rate`, `party(1..4)`, `heading`, `pitch`,
+`turnCamera`, `jump`, `cast`, `water`, `hurt`, `die`, `reset` and `read`. Screenshots are saved under
+`artifacts/priest/`; [the review record](review/README.md) records the accepted comparison.
 
-Automated checks cover hashes, clip/direction coverage, dimensions, fixed world pixel scale,
-alpha bounds, missing frames, loop seams, bone lengths, world-space support drift, clock reversal,
-teleports and tab suspension. Tests load the actual compiled GLB, not a substitute skeleton.
-Atlas memory is measured separately from runtime memory: the exported PNG set is about 88 MiB
-decoded, while one active rig's intermediate render targets use 0.88 MiB; each additional Priest
-adds 0.098 MiB. The 4.7 MB mesh is shared between actors. On the local RTX 3060 Chrome witness,
-one Priest measured 57.6 Hz, 0.3 ms median / 0.4 ms p95 CPU composition; four measured 57.6 Hz,
-0.5 / 0.6 ms, eight additional draws and 1.17 MiB of render targets. Both 12-second routes cover
-all eight headings at normal speed and stay on the ground. These are CPU submission measurements,
-not GPU timings or a guarantee for every device. See [the recorded review](review/README.md).
+Checks cover all 2,008 exported frames, hashes, direction/state coverage, dimensions, fixed scale,
+alpha bounds, loop seams, bone lengths, support drift, reversal, teleports and tab suspension.
+Tests load the actual compiled skeleton and also track the rendered boot-sole vertices: planted
+artwork must stay within 0.3 pixel, including torso/limb deformation.
+
+The shared painted texture takes 7.5 MiB decoded; the skeleton takes 4,508 bytes and replaces the
+previous 4.7 MB visible mesh. Render targets use 0.88 MiB for one actor plus 0.098 MiB per additional
+Priest, with two additional draws per actor. The 83.4 MiB decoded review atlases are measured
+separately and are not all loaded during gameplay. CPU measurements are in the review record;
+they are not GPU timings or a mobile-device certification.

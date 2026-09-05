@@ -45,7 +45,7 @@ export function gaitFoot(phase, side) {
 
 export function neutralPose() {
   return {
-    pelvis: [0, DESIGN.hipHeight, 0], lean: 0, twist: 0, roll: 0, headTilt: 0,
+    pelvis: [0, DESIGN.hipHeight, 0], lean: 0, twist: 0, hipTwist: 0, spineBend: 0, roll: 0, headTilt: 0,
     feet: [{ position: [-0.16, 0.07, 0.015], contact: true, pitch: 0 }, { position: [0.16, 0.07, -0.015], contact: true, pitch: 0 }],
     hands: [[-0.39, 0.84, 0.20], [0.36, 0.70, 0.07]],
     staffPitch: 0.04, staffRoll: -0.05, cloth: 0, glow: 0, collapse: 0,
@@ -61,13 +61,23 @@ export function poseAt(action, progress) {
     p.headTilt = 0.015 * wave(t); p.cloth = 0.014 * wave(t - 0.15);
   } else if (action === 'run') {
     p.feet = [gaitFoot(t, -1), gaitFoot(t, 1)];
-    p.pelvis[1] = 0.575 + 0.027 * Math.cos(t * Math.PI * 4);
-    p.pelvis[0] = -0.014 * wave(t); p.lean = 0.13;
-    p.twist = 0.045 * wave(t); p.headTilt = -0.035;
-    p.hands[0] = [-0.39, 0.86 + 0.016 * wave(t), 0.17 + 0.045 * wave(t)];
-    p.hands[1] = [0.36, 0.76, 0.08 - 0.18 * wave(t)];
-    p.staffPitch = -0.20 + 0.045 * wave(t - 0.12);
-    p.cloth = 0.14 + 0.07 * wave(t - 0.13);
+    // Compress after contact, rise through push-off. Hip and shoulder rotation oppose each other;
+    // the head cancels part of the trunk pitch so the gaze does not bob with the load-bearing spine.
+    const load = Math.cos((t - 0.025) * Math.PI * 4), swing = wave(t - 0.07);
+    p.pelvis[1] = 0.565 + 0.031 * load;
+    p.pelvis[0] = -0.027 * wave(t + 0.1);
+    p.pelvis[2] = 0.012 * wave(t * 2 - 0.08);
+    p.lean = 0.25 + 0.025 * load;
+    p.spineBend = 0.045 * wave(t * 2 - 0.12);
+    p.hipTwist = -0.075 * swing; p.twist = 0.105 * swing;
+    p.roll = 0.025 * wave(t + 0.08);
+    p.headTilt = -0.14 - p.spineBend * 0.7 + 0.012 * wave(t * 2 - 0.2);
+    p.hands[0] = [-0.37, p.pelvis[1] + 0.23 + 0.03 * wave(t - 0.06), 0.20 + 0.085 * swing];
+    p.hands[1] = [0.35, p.pelvis[1] + 0.11 + 0.045 * wave(t + 0.18), 0.11 - 0.23 * swing];
+    // Carry the staff behind the shoulder instead of cancelling trunk lean into a vertical rod.
+    p.staffPitch = -0.47 + 0.095 * wave(t - 0.16);
+    p.staffRoll = -0.04 + 0.035 * wave(t - 0.12);
+    p.cloth = 0.18 + 0.095 * wave(t - 0.16);
   } else if (action === 'jump') {
     p.pelvis[1] -= 0.055 * (1 - smooth(t / 0.25));
     p.lean = -0.04 * smooth(t);
@@ -289,19 +299,20 @@ export function createPriest() {
     root.rotation.y = direction;
     body.position.set(0, 0, 0); body.rotation.set(0, 0, 0);
     torso.position.set(...p.pelvis); torso.rotation.set(p.lean, p.twist, p.roll);
-    head.rotation.x = p.headTilt;
+    head.position.z = 0.015 + 0.35 * Math.sin(p.spineBend);
+    head.rotation.x = p.headTilt + p.spineBend;
     cape.rotation.x = -p.cloth;
     for (const panel of panels) {
       const f = p.feet[panel.side < 0 ? 0 : 1];
       panel.group.rotation.x = -f.position[2] * 0.65 + p.cloth * (panel.back < 0 ? -0.6 : 0.15);
     }
     for (let i = 0; i < 2; i++) {
-      const leg = legs[i], f = p.feet[i], hip = [p.pelvis[0] + leg.side * 0.135, p.pelvis[1] - 0.035, p.pelvis[2]];
+      const leg = legs[i], f = p.feet[i], hip = [p.pelvis[0] + leg.side * 0.135 * Math.cos(p.hipTwist), p.pelvis[1] - 0.035, p.pelvis[2] - leg.side * 0.135 * Math.sin(p.hipTwist)];
       const knee = kneeFor(hip, f.position);
       leg.thigh.set(hip, knee); leg.shin.set(knee, f.position); leg.knee.position.set(...knee);
       leg.foot.position.set(...f.position); leg.foot.rotation.x = f.pitch;
       const arm = arms[i], target = v(p.hands[i]).sub(torso.position).applyQuaternion(torso.quaternion.clone().invert());
-      const shoulder = [arm.side * 0.265, 0.28, 0];
+      const shoulder = [arm.side * 0.265, 0.28, 0.14 * Math.sin(p.spineBend)];
       // The elbow hangs below the shoulder. Clamp reach without lengthening either bone.
       const armAxis = target.clone().sub(v(shoulder)), armDistance = Math.min(0.45999, armAxis.length());
       if (armAxis.length() > 0.45999) target.copy(v(shoulder)).add(armAxis.clone().setLength(0.45999));
@@ -327,7 +338,7 @@ export function createPriest() {
     joints.head = head.getWorldPosition(new THREE.Vector3()).toArray();
     joints.feet = legs.map(leg => leg.foot.getWorldPosition(new THREE.Vector3()).toArray());
     joints.knees = legs.map(leg => leg.knee.getWorldPosition(new THREE.Vector3()).toArray());
-    joints.hips = legs.map(leg => body.localToWorld(new THREE.Vector3(p.pelvis[0]+leg.side*0.135,p.pelvis[1]-0.035,p.pelvis[2])).toArray());
+    joints.hips = legs.map(leg => body.localToWorld(new THREE.Vector3(p.pelvis[0]+leg.side*0.135*Math.cos(p.hipTwist),p.pelvis[1]-0.035,p.pelvis[2]-leg.side*0.135*Math.sin(p.hipTwist))).toArray());
     joints.bounds = new THREE.Box3().setFromObject(body).getSize(new THREE.Vector3()).toArray();
     return joints;
   }

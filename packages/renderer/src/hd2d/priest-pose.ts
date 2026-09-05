@@ -10,6 +10,8 @@ export interface PriestPose {
   pelvis: Joint;
   lean: number;
   twist: number;
+  hipTwist: number;
+  spineBend: number;
   roll: number;
   headTilt: number;
   feet: [PriestFoot, PriestFoot];
@@ -39,6 +41,8 @@ export function blendPriestPose(a: PriestPose, b: PriestPose, t: number): Priest
     pelvis: joint(a.pelvis, b.pelvis),
     lean: mix(a.lean, b.lean, t),
     twist: mix(a.twist, b.twist, t),
+    hipTwist: mix(a.hipTwist, b.hipTwist, t),
+    spineBend: mix(a.spineBend, b.spineBend, t),
     roll: mix(a.roll, b.roll, t),
     headTilt: mix(a.headTilt, b.headTilt, t),
     feet: [foot(a.feet[0], b.feet[0]), foot(a.feet[1], b.feet[1])],
@@ -104,7 +108,8 @@ export function createPriestPoseApplicator(root: THREE.Object3D): (pose: PriestP
     body.position.set(-0.28 * pose.collapse, pose.bodyY, 0);
     torso.position.set(...pose.pelvis);
     torso.rotation.set(pose.lean, pose.twist, pose.roll);
-    head.rotation.x = pose.headTilt;
+    head.position.z = 0.015 + 0.35 * Math.sin(pose.spineBend);
+    head.rotation.x = pose.headTilt + pose.spineBend;
     cape.rotation.x = -pose.cloth;
     panels.forEach((panel, index) => {
       const foot = pose.feet[index < 2 ? 0 : 1];
@@ -113,9 +118,9 @@ export function createPriestPoseApplicator(root: THREE.Object3D): (pose: PriestP
     limbs.forEach((limb, index) => {
       const foot = pose.feet[index === 0 ? 0 : 1],
         hip = new THREE.Vector3(
-          pose.pelvis[0] + limb.side * 0.135,
+          pose.pelvis[0] + limb.side * 0.135 * Math.cos(pose.hipTwist),
           pose.pelvis[1] - 0.035,
-          pose.pelvis[2],
+          pose.pelvis[2] - limb.side * 0.135 * Math.sin(pose.hipTwist),
         );
       const ankle = new THREE.Vector3(...foot.position),
         legDelta = ankle.clone().sub(hip);
@@ -126,7 +131,7 @@ export function createPriestPoseApplicator(root: THREE.Object3D): (pose: PriestP
       limb.knee.position.copy(knee);
       limb.foot.position.copy(ankle);
       limb.foot.rotation.x = foot.pitch;
-      const shoulder = new THREE.Vector3(limb.side * 0.265, 0.28, 0);
+      const shoulder = new THREE.Vector3(limb.side * 0.265, 0.28, 0.14 * Math.sin(pose.spineBend));
       const target = new THREE.Vector3(...pose.hands[index === 0 ? 0 : 1])
         .sub(torso.position)
         .applyQuaternion(torso.quaternion.clone().invert());

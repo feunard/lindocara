@@ -32,12 +32,12 @@
       "loop": true,
       "frame": {
         "width": 70,
-        "height": 112,
+        "height": 106,
         "anchor": {
           "x": 35,
-          "y": 98
+          "y": 95
         },
-        "worldHeight": 1.9599999999999997,
+        "worldHeight": 1.8549999999999998,
         "trimmed": true
       },
       "columns": 16,
@@ -53,13 +53,13 @@
         0.5
       ],
       "frame": {
-        "width": 74,
-        "height": 120,
+        "width": 70,
+        "height": 112,
         "anchor": {
-          "x": 37,
-          "y": 98
+          "x": 35,
+          "y": 94
         },
-        "worldHeight": 2.1,
+        "worldHeight": 1.9599999999999997,
         "trimmed": true
       },
       "columns": 24,
@@ -72,12 +72,12 @@
       "clock": "vertical-velocity",
       "frame": {
         "width": 68,
-        "height": 110,
+        "height": 105,
         "anchor": {
           "x": 34,
-          "y": 97
+          "y": 94
         },
-        "worldHeight": 1.925,
+        "worldHeight": 1.8375,
         "trimmed": true
       },
       "columns": 12,
@@ -89,13 +89,13 @@
       "loop": false,
       "clock": "vertical-velocity",
       "frame": {
-        "width": 68,
-        "height": 111,
+        "width": 66,
+        "height": 105,
         "anchor": {
-          "x": 34,
-          "y": 96
+          "x": 33,
+          "y": 94
         },
-        "worldHeight": 1.9424999999999997,
+        "worldHeight": 1.8375,
         "trimmed": true
       },
       "columns": 12,
@@ -106,13 +106,13 @@
       "durationMs": 180,
       "loop": false,
       "frame": {
-        "width": 70,
-        "height": 113,
+        "width": 72,
+        "height": 108,
         "anchor": {
-          "x": 35,
-          "y": 98
+          "x": 36,
+          "y": 96
         },
-        "worldHeight": 1.9774999999999998,
+        "worldHeight": 1.89,
         "trimmed": true
       },
       "columns": 12,
@@ -123,13 +123,13 @@
       "durationMs": 1100,
       "loop": true,
       "frame": {
-        "width": 74,
-        "height": 113,
+        "width": 68,
+        "height": 104,
         "anchor": {
-          "x": 37,
-          "y": 96
+          "x": 34,
+          "y": 92
         },
-        "worldHeight": 1.9774999999999998,
+        "worldHeight": 1.8199999999999998,
         "trimmed": true
       },
       "columns": 16,
@@ -140,13 +140,13 @@
       "durationMs": 1800,
       "loop": true,
       "frame": {
-        "width": 100,
-        "height": 120,
+        "width": 94,
+        "height": 113,
         "anchor": {
-          "x": 50,
-          "y": 107
+          "x": 47,
+          "y": 105
         },
-        "worldHeight": 2.1,
+        "worldHeight": 1.9774999999999998,
         "trimmed": true
       },
       "columns": 12,
@@ -158,12 +158,12 @@
       "loop": false,
       "frame": {
         "width": 70,
-        "height": 111,
+        "height": 106,
         "anchor": {
           "x": 35,
-          "y": 97
+          "y": 95
         },
-        "worldHeight": 1.9424999999999997,
+        "worldHeight": 1.8549999999999998,
         "trimmed": true
       },
       "columns": 10,
@@ -176,13 +176,13 @@
       "releaseFrame": 8,
       "skill": "radiant_bolt",
       "frame": {
-        "width": 80,
-        "height": 114,
+        "width": 78,
+        "height": 109,
         "anchor": {
-          "x": 40,
-          "y": 100
+          "x": 39,
+          "y": 98
         },
-        "worldHeight": 1.9949999999999999,
+        "worldHeight": 1.9075,
         "trimmed": true
       },
       "columns": 21,
@@ -196,12 +196,12 @@
       "skill": "mend",
       "frame": {
         "width": 70,
-        "height": 111,
+        "height": 106,
         "anchor": {
           "x": 35,
-          "y": 97
+          "y": 95
         },
-        "worldHeight": 1.9424999999999997,
+        "worldHeight": 1.8549999999999998,
         "trimmed": true
       },
       "columns": 21,
@@ -216,12 +216,12 @@
       "held": true,
       "frame": {
         "width": 70,
-        "height": 111,
+        "height": 107,
         "anchor": {
           "x": 35,
-          "y": 97
+          "y": 95
         },
-        "worldHeight": 1.9424999999999997,
+        "worldHeight": 1.8724999999999998,
         "trimmed": true
       },
       "columns": 21,
@@ -235,12 +235,12 @@
       "skill": "prayer",
       "frame": {
         "width": 70,
-        "height": 117,
+        "height": 112,
         "anchor": {
           "x": 35,
-          "y": 103
+          "y": 101
         },
-        "worldHeight": 2.0475,
+        "worldHeight": 1.9599999999999997,
         "trimmed": true
       },
       "columns": 21,
@@ -254,12 +254,12 @@
       "skill": "divine_nova",
       "frame": {
         "width": 70,
-        "height": 120,
+        "height": 115,
         "anchor": {
           "x": 35,
-          "y": 106
+          "y": 103
         },
-        "worldHeight": 2.1,
+        "worldHeight": 2.0125,
         "trimmed": true
       },
       "columns": 21,
@@ -272,42 +272,44 @@
       "holdLast": true,
       "frame": {
         "width": 160,
-        "height": 132,
+        "height": 128,
         "anchor": {
           "x": 80,
-          "y": 102
+          "y": 100
         },
-        "worldHeight": 2.3099999999999996,
+        "worldHeight": 2.2399999999999998,
         "trimmed": true
       },
       "columns": 25,
       "directionStride": 50
     }
   },
-  "sourceHash": "61592999920a9117223e7f849f346a77848b2924fd99044a51021ec523edb11e",
+  "sourceHash": "d3e3d250814afcca460936b8baec1553dce432bc17ecd12cd2501098389927a8",
   "assets": {
-    "rig.glb": "1e1beed8db51610c48b1693d54c37e18b662bd999f03bacf5097b151c380182e",
-    "motion.json": "308b30e26bbb6f1fe4135ebffb37d0cb7e6ab86e8b3ada5266aa034e68482b23",
-    "idle.png": "f8c152eae49fab1fe7e86941517f3e58d01133b18bf8b3859e7da683405fbadf",
-    "run.png": "64f31a09abfeb6db93d5dee20082bd5e5ac7eac227c1855c1e25b76f3305e38a",
-    "jump.png": "3284610fd72854d594e265ce5d9849f5be2f75e6bd2867bc7bc69c4249ce128d",
-    "fall.png": "555f51b950d24675d6b286286e74cb7a9550feeef19fd66438d6a1264dc3a312",
-    "land.png": "6df78600569a01ceebfa7bf715feaee7dc60738c14c758438d0a7234984df692",
-    "swim.png": "a4eb0b5638a0df4f0e6340dad207e6ba1d0282e00491d48a700b22510acd6d5b",
-    "glide.png": "f65bf55a633ee468b4a6a3a1f3981f010ee93c16ebc6e93209f8e18a93ffda63",
-    "hurt.png": "b279acbf30e9c8a0596d8db8dddc3638b24649b76ae74cfb5250a03e16ce48da",
-    "radiant-bolt.png": "eab84a1d7a05620fd54231f4c1e05b27219eeb0e1af0996158d6ce2e1951f2ac",
-    "mend.png": "06d301c4aebb355624115c807600fdf8717985d74a12f5e324314c344faad257",
-    "blink.png": "61ebbbb268669c6b8af96ed83a3eacee56a7a43b3b8c5ab42204dd5d32fa21f9",
-    "prayer.png": "0cdb0f27a6ae83a8117298c84b471555e196d79894eb79ec7e8eb4ae9dbf408c",
-    "divine-nova.png": "52cac4041eb03c1f05427c73be90d4cbdf4deb05354f6862433e66e5568fa1e7",
-    "death.png": "9938a16ccb66eaadd7f4ef46f37cd6629c24aaae1d92f373cd3f945d66e9baae",
-    "portrait.png": "0fb116e1bf949719d5347727937241206de61586a65ad121793fabda692499bd"
+    "painted.png": "bddb16437f7024988b7ad4436cb6d6a04a8b80aab3c30bed8eedb3ce7bdfb9fc",
+    "painted.json": "d127b4c8072a5d9414fa3010960b39500eda7c654c224fcb90aaf5cf8624d1d1",
+    "skeleton.glb": "212330a859fac6443afdf688e3f6917319542ca647311c2f6409d2c2d5dff950",
+    "motion.json": "dfd2af9069241ec1de2f623ef967fdf5528ed97f297675857bff4f7d608f6672",
+    "portrait.png": "e26a0eb839a9c8a8689c5fe6e315548fa61e46f386622d246b635de9354823e7",
+    "idle.png": "07a06cc54d756e3dbb27b88ce9b21db4a37c944d5ba15c6a375df22ff07a6a4d",
+    "run.png": "9be023907230e184a0d37dc49097cd0257cb261feded82919245ae32b516f3e2",
+    "jump.png": "46b04a0c10530cbaf77ca2c3ea65e225b4deced03d49b6af5848d282715afbec",
+    "fall.png": "d32f2b34675d8256cc69e742934ccbfacef27f89f4b14ee1c91fce8244ea9d38",
+    "land.png": "65f0b33fdf9a1d1a4bf7ffbdc3466e4dfa08e0d354003e2851ca767c5d8c6804",
+    "swim.png": "9af8a5777b0cb467fe33323d8a9c482673ca4b36c330747867ec570955ff944d",
+    "glide.png": "568bd0ab7c93469b07e7b4a7092a8372688f9d08023e0a684a2005784dedac7a",
+    "hurt.png": "48c15e3e3852f27c002e6df08a0813c08a4760a51e7673068b1696c9bc63741b",
+    "radiant-bolt.png": "ee39d3a9e7081bc7f8192816d6442d0c631ea36e4b77fd6df6ce5c306bd07823",
+    "mend.png": "7f6f685e88d3991dedb26a0738acd67372677ccb74ca3ef6d1275544925e96a9",
+    "blink.png": "a1e816ad7011de25928d41e66c60965417d8887bb50ab1eb2f1db531f7f5b572",
+    "prayer.png": "9448ba658ec9718ad22442a19c96ba407954ef415f231a984b1a100b2cb73c81",
+    "divine-nova.png": "21b1e14f727a1d04d922ab28aac0b4e1c1dd2eaee4731399da0db9a855155d32",
+    "death.png": "c370e2b4775f01663cc8640a17cbac22868184c872a2ee56099e4f0667298511"
   },
   "rig": {
     "bones": 25,
-    "vertices": 78144,
-    "triangles": 26048,
-    "bytes": 4696868
+    "vertices": 0,
+    "triangles": 0,
+    "bytes": 4508
   }
 }

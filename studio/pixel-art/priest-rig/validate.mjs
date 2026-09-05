@@ -14,7 +14,8 @@ assert.equal(manifest.sourceHash,await sourceDigest(),'Priest sources changed; r
 for(const [name,hash] of Object.entries(manifest.assets))assert.equal(digest(await readFile(resolve(out,name))),hash,`${name}: modified output; regenerate from source`);
 const motion=JSON.parse(await readFile(resolve(out,'motion.json'),'utf8'));
 assert.deepEqual(Object.keys(motion.clips),Object.keys(source.clips));
-assert.equal(manifest.rig.bones,25);assert.ok(manifest.rig.triangles<30000);
+assert.equal(manifest.rig.bones,25);assert.equal(manifest.rig.triangles,0,'Only articulation nodes should ship');
+assert.ok(manifest.rig.bytes<20000,'Skeleton unexpectedly contains render geometry');
 for(const oldPath of ['packages/renderer/src/assets/bonus/priest','studio/pixel-art/refs/priest']){
   const remaining=await readdir(resolve(repo,oldPath)).catch(()=>[]);
   assert.equal(remaining.length,0,`Prototype assets remain in ${oldPath}`);
@@ -24,7 +25,15 @@ assert.equal(manifest.directions.length,8);
 assert.deepEqual(Object.keys(manifest.clips),Object.keys(source.clips));
 assert.equal(manifest.strideDistance,DESIGN.stride);
 const files=(await readdir(out)).filter(name=>name.endsWith('.png')).sort();
-assert.deepEqual(files,[...Object.keys(source.clips).map(name=>`${name}.png`),'portrait.png'].sort());
+assert.deepEqual(files,[...Object.keys(source.clips).map(name=>`${name}.png`),'portrait.png','painted.png'].sort());
+const painting=JSON.parse(await readFile(resolve(out,'painted.json'),'utf8'));
+assert.equal(painting.views.length,5);assert.equal(painting.parts.length,5);
+const paintedImage=await sharp(resolve(out,'painted.png')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+assert.equal(paintedImage.info.width,painting.width);assert.equal(paintedImage.info.height,painting.height);
+for(const parts of painting.parts)for(const name of ['head','torso','arm','thigh','boot','staff']){
+  const part=parts[name];assert.ok(part&&part.width>0&&part.height>0,`Missing painted ${name}`);
+  assert.ok(part.x>0&&part.y>0&&part.x+part.width<painting.width&&part.y+part.height<painting.height);
+}
 const report={clips:[],frames:0,rgbaBytes:0,maxBoneError:0,maxContactDrift:0};
 const rig=createPriest();
 const norm=(a,b)=>Math.hypot(...a.map((value,index)=>value-b[index]));

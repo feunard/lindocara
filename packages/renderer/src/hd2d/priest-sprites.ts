@@ -5,6 +5,7 @@ import { clone } from "three/addons/utils/SkeletonUtils.js";
 import type { CharacterAnimationSample } from "../character-animation.js";
 import type { PriestClip } from "../priest-art.js";
 import type { ActorView } from "./billboards.js";
+import { createPaintedPriest } from "./priest-painted.js";
 import {
   blendPriestPose,
   createPriestPoseApplicator,
@@ -35,43 +36,32 @@ export interface MotionAsset {
 export interface PriestRigAsset {
   root: THREE.Group;
   motion: MotionAsset;
+  painting: THREE.Texture;
   dispose(): void;
 }
 
 export async function loadPriestRig(): Promise<PriestRigAsset> {
-  const [gltf, response] = await Promise.all([
+  const [gltf, response, painting] = await Promise.all([
     new GLTFLoader().loadAsync(
-      new URL("../assets/characters/priest/rig.glb", import.meta.url).href,
+      new URL("../assets/characters/priest/skeleton.glb", import.meta.url).href,
     ),
     fetch(new URL("../assets/characters/priest/motion.json", import.meta.url).href),
+    new THREE.TextureLoader().loadAsync(
+      new URL("../assets/characters/priest/painted.png", import.meta.url).href,
+    ),
   ]);
+  painting.colorSpace = THREE.SRGBColorSpace;
+  painting.minFilter = painting.magFilter = THREE.LinearFilter;
+  painting.generateMipmaps = false;
   if (!response.ok) throw new Error(`Priest motion: HTTP ${response.status}`);
   const motion = (await response.json()) as MotionAsset;
   if (motion.version !== 1) throw new Error("Unsupported Priest motion asset");
-  const ramp = new THREE.DataTexture(new Uint8Array([85, 145, 200, 255]), 4, 1, THREE.RedFormat);
-  ramp.needsUpdate = true;
-  ramp.minFilter = ramp.magFilter = THREE.NearestFilter;
-  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: ramp });
-  gltf.scene.traverse((node) => {
-    if (node instanceof THREE.SkinnedMesh) {
-      const previous = Array.isArray(node.material) ? node.material : [node.material];
-      previous.forEach((value) => value.dispose());
-      node.material = material;
-      node.frustumCulled = false;
-    }
-  });
   return {
     root: gltf.scene,
     motion,
+    painting,
     dispose() {
-      gltf.scene.traverse((node) => {
-        if (node instanceof THREE.SkinnedMesh) {
-          node.geometry.dispose();
-          node.skeleton.dispose();
-        }
-      });
-      material.dispose();
-      ramp.dispose();
+      painting.dispose();
     },
   };
 }
@@ -102,13 +92,14 @@ interface FootSupport {
   forcedSwing: boolean;
 }
 
-/** Small pose composition: 25 rigid-weight bones, leg/arm IK, no image morphing. */
+/** Small pose composition: 25 articulation nodes and leg/arm IK. */
 export class PriestPosePlayer {
   readonly #motion: MotionAsset;
   #at: number | null = null;
   #x = 0;
   #z = 0;
   #heading = 0;
+  #travelHeading = 0;
   #moveWeight = 0;
   #lastPose: PriestPose | null = null;
   #airborne = false;
@@ -158,10 +149,14 @@ export class PriestPosePlayer {
     } else this.#deathHeading = null;
     if (discontinuous) {
       this.#heading = heading;
+      const travel = actor.directionalFacing ?? facing;
+      this.#travelHeading = Math.atan2(travel.x, travel.z);
       this.#supports = null;
       this.#lastPose = null;
     } else
       this.#heading += THREE.MathUtils.clamp(angleDelta(this.#heading, heading), -18 * dt, 18 * dt);
+    if (!discontinuous && dt > 0 && Math.hypot(dx, dz) > 0.000001)
+      this.#travelHeading = Math.atan2(dx, dz);
     const airborne = actor.airborne || actor.gliding || actor.swimming;
     const baseMode = actor.swimming
       ? "swim"
@@ -218,8 +213,12 @@ export class PriestPosePlayer {
         );
       // A caster may travel backwards or sideways while aiming. Rotate the stride around each
       // hip, not the feet's lateral separation, before the world-space contact solver runs.
-      if (!airborne && moving && dt > 0 && !discontinuous) {
-        const travel = Math.atan2(dx, dz) - this.#heading;
+      if (!airborne && moving) {
+        // Repeated timestamps and unchanged network positions must not invent forward travel.
+        const travel = this.#travelHeading - this.#heading;
+        const lean = pose.lean;
+        pose.lean *= Math.max(-0.35, Math.cos(travel));
+        pose.roll -= lean * 0.5 * Math.sin(travel);
         for (const foot of pose.feet) {
           const forward = foot.position[2];
           foot.position[0] += forward * Math.sin(travel);
@@ -316,9 +315,9 @@ export class PriestPosePlayer {
             // A sudden reversal can exhaust a support leg before nominal toe-off. Release it into
             // a short lifted catch-up step instead of stretching it or dragging a planted sole.
             const hip = world([
-              pose.pelvis[0] + (side === 0 ? -0.135 : 0.135),
+              pose.pelvis[0] + (side === 0 ? -0.135 : 0.135) * Math.cos(pose.hipTwist),
               pose.pelvis[1] - 0.035,
-              pose.pelvis[2],
+              pose.pelvis[2] - (side === 0 ? -0.135 : 0.135) * Math.sin(pose.hipTwist),
             ]);
             const reach = Math.hypot(
               support.world.distanceTo(hip),
@@ -359,13 +358,13 @@ export class PriestPosePlayer {
 
 interface SpriteEntry {
   root: THREE.Object3D;
-  skin: THREE.SkinnedMesh;
   target: THREE.WebGLRenderTarget;
   apply: (pose: PriestPose) => void;
   player: PriestPosePlayer;
+  painted: ReturnType<typeof createPaintedPriest>;
 }
 
-/** Reuses the game's WebGL context. One skin draw and one 160² pixel pass per visible Priest. */
+/** Reuses the game's WebGL context. One painted mesh draw and one pixel pass per Priest. */
 export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: PriestRigAsset) {
   const entries = new Map<string, SpriteEntry>(),
     scene = new THREE.Scene();
@@ -384,13 +383,6 @@ export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: P
   const target = new THREE.Vector3(0, ((116 / size - 0.5) * extent) / Math.cos(pitch), 0);
   camera.position.copy(target).add(new THREE.Vector3(0, Math.sin(pitch) * 8, Math.cos(pitch) * 8));
   camera.lookAt(target);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.05));
-  const sun = new THREE.DirectionalLight(0xffffff, 2);
-  sun.position.set(-3, 6, 4);
-  scene.add(sun);
-  const fill = new THREE.DirectionalLight(0xbad4e3, 0.6);
-  fill.position.set(4, 2, -3);
-  scene.add(fill);
   const scratch = new THREE.WebGLRenderTarget(size * 2, size * 2, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
@@ -405,13 +397,13 @@ export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: P
     vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}",
     fragmentShader: `uniform sampler2D source;varying vec2 vUv;
       vec4 pixel(vec2 uv){vec4 sum=vec4(0.);for(int y=0;y<2;y++)for(int x=0;x<2;x++){vec4 p=texture2D(source,uv+(vec2(float(x),float(y))-.5)/320.);sum+=vec4(p.rgb*p.a,p.a);}return sum.a>=2.?vec4(sum.rgb/max(sum.a,.001),1.):vec4(0.);}
-      void main(){vec4 p=pixel(vUv);if(p.a<.5){float edge=pixel(vUv+vec2(1./160.,0.)).a+pixel(vUv-vec2(1./160.,0.)).a+pixel(vUv+vec2(0.,1./160.)).a+pixel(vUv-vec2(0.,1./160.)).a;if(edge>.5)p=vec4(.0144,.0194,.0369,1.);}gl_FragColor=p;}`,
+      void main(){gl_FragColor=pixel(vUv);}`,
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), pixelMaterial);
   pixelScene.add(quad);
   const disposeEntry = (entry: SpriteEntry) => {
     entry.root.removeFromParent();
-    entry.skin.skeleton.dispose();
+    entry.painted.dispose();
     entry.target.dispose();
   };
   return {
@@ -447,11 +439,9 @@ export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: P
           let entry = entries.get(input.id);
           if (!entry) {
             const root = clone(asset.root);
-            let skin: THREE.SkinnedMesh | null = null;
-            root.traverse((node) => {
-              if (node instanceof THREE.SkinnedMesh) skin = node;
-            });
-            if (!skin) throw new Error("Priest asset has no skin");
+            const painted = createPaintedPriest(root, asset.painting);
+            painted.mesh.visible = false;
+            scene.add(painted.mesh);
             const renderTarget = new THREE.WebGLRenderTarget(size, size, {
               minFilter: THREE.NearestFilter,
               magFilter: THREE.NearestFilter,
@@ -462,7 +452,7 @@ export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: P
               : undefined;
             entry = {
               root,
-              skin,
+              painted,
               target: renderTarget,
               apply: createPriestPoseApplicator(root),
               player: new PriestPosePlayer(
@@ -478,11 +468,14 @@ export function createPriestSpriteSystem(renderer: THREE.WebGLRenderer, asset: P
           entry.apply(pose);
           entry.root.rotation.y = heading - cameraYaw;
           entry.root.visible = true;
+          entry.painted.update(camera, heading - cameraYaw, pose);
+          entry.painted.mesh.visible = true;
           renderer.setRenderTarget(scratch);
           renderer.render(scene, camera);
           renderer.setRenderTarget(entry.target);
           renderer.render(pixelScene, pixelCamera);
           entry.root.visible = false;
+          entry.painted.mesh.visible = false;
           actor.textureKey = `priest-rig:${input.id}`;
           actor.spriteTexture = entry.target.texture;
           actor.frames = 1;

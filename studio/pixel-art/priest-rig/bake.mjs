@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { sourceDigest, digest } from './provenance.mjs';
+import { buildPainting } from './painted/build.mjs';
+
+await buildPainting();
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const repository=resolve(root,'../../..');
@@ -27,11 +30,12 @@ if(args.has('--serve')){
     const previous=await readFile(resolve(out,'manifest.json'),'utf8').then(JSON.parse).catch(()=>null);
     const runtime=structuredClone(manifest);
     runtime.sourceHash=await sourceDigest();
-    runtime.assets=previous?.assets??{};
+    runtime.assets={};
+    for(const name of ['painted.png','painted.json'])runtime.assets[name]=digest(await readFile(resolve(out,name)));
     for(const [name,clip] of Object.entries(runtime.clips)) clip.frame=previous?.clips[name]?.frame??manifest.frame;
     const outputs=[];
     const rig=await page.evaluate(()=>window.exportPriestRig());
-    outputs.push({path:resolve(out,'rig.glb'),data:Buffer.from(rig.binary,'base64')});
+    outputs.push({path:resolve(out,'skeleton.glb'),data:Buffer.from(rig.binary,'base64')});
     outputs.push({path:resolve(out,'motion.json'),data:JSON.stringify(rig.motion)});
     console.log(`Rig: ${JSON.stringify(rig.stats)}`);
     runtime.rig=rig.stats;

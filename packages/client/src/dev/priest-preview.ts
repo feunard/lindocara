@@ -207,6 +207,16 @@ export async function startPriestPreview(): Promise<void> {
     const companions: PlayerSnapshot[] = [
       {
         ...player,
+        id: "reference-ranger",
+        nick: "Ranger",
+        x: player.x - 5,
+        class: "ranger",
+        appearance: { body: "ranger", primaryColor: "moss" },
+        action: null,
+        life: "alive",
+      },
+      {
+        ...player,
         id: "reference-assassin",
         nick: "Assassin",
         x: player.x - 2.5,
@@ -273,7 +283,7 @@ export async function startPriestPreview(): Promise<void> {
       rig: renderer.priestAnimationStats(),
     };
     if (now - lastCaption > 100) {
-      caption.textContent = `PRIEST · SHIPPED HD-2D RENDERER\nWASD move · Space jump / glider · 1–5 skills · H hit · K death · R reset\nT auto eight directions · N water · arrows orbit · P pause · [ ] speed\n${animation.motion} · phase ${animation.phase.toFixed(3)} · ${animation.speed.toFixed(3)} tiles/s · ${rate.toFixed(2)}×\n${partySize > 1 ? `${partySize} Priests` : "Assassin ←  Priest  → Runic Guardian"} · normal game camera`;
+      caption.textContent = `PRIEST · SHIPPED HD-2D RENDERER\nWASD move · Space jump / glider · 1–5 skills · H hit · K death · R reset\nT auto eight directions · N water · arrows orbit · P pause · [ ] speed\n${animation.motion} · phase ${animation.phase.toFixed(3)} · ${animation.speed.toFixed(3)} tiles/s · ${rate.toFixed(2)}×\n${partySize > 1 ? `${partySize} Priests` : "Ranger · Assassin · Priest · Runic Guardian"} · normal game camera`;
       lastCaption = now;
     }
   };
