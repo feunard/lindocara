@@ -17,13 +17,22 @@ style_text=style_prompt(style)
 identity = "The SAME simplified Priest from the canonical reference: swept charcoal hair, short dark full beard, warm tan skin, ivory short split coat, one bold gold chest cross, simple gold-edged shoulder capelets with two round clasps, brown belt/gloves/boots, charcoal trousers. One straight wooden staff with plain gold halo and yellow-gold orb. No wings, ruby, beads, tassels or extra decorations."
 views = {"front":"directly towards the viewer", "front-quarter":"towards the viewer and image right, three-quarter front", "side":"directly towards image right, exact right profile", "back-quarter":"away from the viewer towards image right, three-quarter rear", "back":"directly away from the viewer"}
 for direction, view in views.items():
-    run = f"""Use case: stylized-concept. Eight authored key drawings of ONE running cycle for the LCPixel Priest, in exactly 4 columns by 2 rows, temporal order left-to-right then next row.
-Input 1: canonical Priest identity and exact compact anatomy. Input 2: Assassin V2 motion witness, for coordinated whole-body motion only, never its costume. All eight Priest poses face {view}; absolutely no turning the camera or character to a different view inside this clip.
+    canonical = f"""Use case: stylized-concept. One complete neutral LCPixel Priest facing {view}.
+Use the existing canonical painting and the locked LCPixel style board as references.
 {style_text}
 {identity}
-The priority is NATURAL WHOLE-BODY RUNNING. The torso must not stay vertical, centered and rigid. Incline the trunk forward about 15 degrees from the hips; visibly compress and recover through the spine. The pelvis transfers weight over each support, the shoulders counter-rotate against the pelvis, the chest cross follows the curved chest plane, the head rides the spine with a small stabilizing nod. The free arm swings opposite the forward leg with bent elbow. The staff arm flexes naturally and carries the staff with subtle lag; it is not a cane planted on the floor. Coat tails follow one beat behind the hips. Keep skull size, chest length and leg bone lengths CONSTANT, including tucked poses. No stretched neck or detached head.
-Draw these EIGHT clearly distinct phases, not eight copies of one leg pose: 1 near-leg forward contact and far leg finishing push-off; 2 near foot supports weight, knee flexes, body settles and far knee swings forward; 3 far knee passes the supporting leg, torso rises and shoulder twist changes smoothly; 4 brief flight after near-leg push-off, near leg recovering behind, far leg reaching forward; 5 FAR-leg forward contact and near leg finishing push-off; 6 far foot supports weight, body settles and near knee swings forward; 7 near knee passes supporting leg, torso rises; 8 brief flight after far-leg push-off, far leg recovering behind, near leg reaching forward. The next frame is pose 1 again. Alternating LEFT and RIGHT legs is essential. Spine flexion, shoulder slope and pelvis tilt must differ appropriately in every phase.
-Identical sprite density and body proportions in all eight cells. Compact 2.65-head body, broad readable boots, no long adult legs. Flat exact magenta #ff00ff background, no floor or shadow, no VFX, no labels, no grid. Separate complete figures with generous margins. Preserve the clean pixel clusters of the canonical design; do not add microtexture.
+Preserve exact compact proportions, contours, material shading and face treatment.
+Show clear garment edges, natural connected shoulders and chin, boots, and the staff grip.
+Flat magenta #ff00ff background; no text, floor, shadow or effects.
+This is one identity painting, not an animation sheet. After review, running keys are
+painted as complete bodies and tweened offline with the Rogue V2 raster pipeline.
+"""
+    (OUTPUT / f"canonical-{direction}.prompt.txt").write_text(canonical,encoding="utf-8")
+    run = f"""Repaint the ten complete running poses of the corresponding Rogue witness as the approved Priest. Image 1 is the Priest identity, image 2 the pose witness (five columns, two rows), image 3 the mandatory LCPixel style board.
+All figures face {view}. {identity}
+Preserve connected whole-body acting: forward lean, shoulder/pelvis opposition, bent knees, ankles, two complementary foot contacts, passing poses and flight. Arms remain restrained near the ribs; staff hand keeps the same grip and carries the complete staff. Keep the same scale and perspective. No independently rotated cut-out limbs, stiff torso, repeated lead leg or idle substitution. No daggers or Rogue costume remain.
+{style_text}
+Flat magenta #ff00ff, complete staff and feet, no text, grid, effects, floor or shadows.
 """
     (OUTPUT / f"run-{direction}.prompt.txt").write_text(run,encoding="utf-8")
     for kind in ["cast","death"]:
@@ -37,4 +46,4 @@ Keep all eight complete figures in the exact original 4-by-2 layout on flat exac
         (OUTPUT/f"{kind}-{direction}.prompt.txt").write_text(prompt,encoding="utf-8")
 
 if __name__ == "__main__":
-    print(f"Wrote fifteen LCPixel run, cast and death prompt templates to {OUTPUT}; accepted source prompts unchanged.")
+    print(f"Wrote twenty LCPixel canonical, run, cast and death prompt templates to {OUTPUT}; accepted source prompts unchanged.")

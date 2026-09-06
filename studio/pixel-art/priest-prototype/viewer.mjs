@@ -1,5 +1,6 @@
 const root='/packages/renderer/src/assets/bonus/';
 const manifest=await(await fetch(root+'priest-prototype/manifest.json')).json();
+const motionReview=await(await fetch('./authoring-report.json')).json();
 const get=id=>document.getElementById(id),canvas=get('canvas'),ctx=canvas.getContext('2d'),images=new Map();
 await Promise.all([...new Set(Object.values(manifest.clips).map(c=>c.asset))].map(async asset=>{
   const image=new Image();image.src=root+asset;await image.decode();images.set(asset,image);
@@ -44,16 +45,17 @@ function draw(){
       ctx.save();ctx.translate(x,anchorY);if(mirror)ctx.scale(-1,1);
       if(get('overlay').checked){ctx.globalAlpha=.25;paint(row*c.directionStride+(f+c.frames-1)%c.frames);ctx.globalAlpha=1;}
       paint(idx);
-      if(get('motion').checked&&name==='run'&&manifest.visibleMotionTracks){
-        const tracks=manifest.visibleMotionTracks[manifest.directions[row]],origin=manifest.sourceFrame.anchor;
-        for(const [point,colour] of [['head','#f6e295'],['chest','#67e2ec'],['pelvis','#b6ef97'],['leftFoot','#f69c9c'],['rightFoot','#ccaff4']]){
+      if(get('motion').checked&&name==='run'){
+        const keys=motionReview.registration[manifest.directions[row]].run;
+        const tracks=keys.map(k=>k.landmarks),origin=manifest.sourceFrame.anchor;
+        for(const [point,colour] of [['head','#f6e295'],['chest','#67e2ec'],['pelvis','#b6ef97']]){
           ctx.strokeStyle=colour;ctx.beginPath();
           let started=false;
           for(const track of [...tracks,tracks[0]])if(track[point]){
             const [px,py]=track[point],x=(px-origin.x)*scale,y=(py-origin.y)*scale;
             if(started)ctx.lineTo(x,y);else ctx.moveTo(x,y);started=true;
           }ctx.stroke();
-          const current=tracks[f][point];
+          const current=keys.find(k=>k.frame===f)?.landmarks[point];
           if(current){ctx.fillStyle=colour;ctx.fillRect((current[0]-origin.x)*scale-2,(current[1]-origin.y)*scale-2,4,4);}
         }
       }

@@ -310,7 +310,9 @@ describe("actor animation art", () => {
     expect(view.renderHeight).toBeCloseTo(
       PRIEST_MANIFEST.clips.run.frame.height / PRIEST_MANIFEST.pixelsPerTile,
     );
-    expect(view.frameDurationMs).toBe(PRIEST_MANIFEST.clips.run.durationMs / 36);
+    expect(view.frameDurationMs).toBe(
+      PRIEST_MANIFEST.clips.run.durationMs / PRIEST_MANIFEST.clips.run.frames,
+    );
     expect(playerActorView(bonus, 0, "idle").frameDurationMs).toBe(100);
   });
 

@@ -16,25 +16,24 @@ REPO = ROOT.parents[2]
 sys.path.insert(0, str(ROOT.parent / "lib"))
 from raster_animation import interpolate, pack, sha
 from source_tools import cells, head_box, NAMES, SOURCE
-from registration import registered, rest_image, body_landmarks, CELL, ANCHOR, PHASES
-from motion_transfer import motion_at, upper_body
+from registration import registered, rest_image, body_landmarks, CELL, ANCHOR
+from run_poses import run_cycle, source_files, STRIDE_DISTANCE, FRAMES
 from palette import colour_frame
 
 OUT = REPO / "packages/renderer/src/assets/bonus/priest-prototype"
 REVIEW = REPO / "artifacts/priest-prototype"
 PP = 192 / 2.34
-STRIDE = 1.4
+STRIDE = STRIDE_DISTANCE
 SPEED = 234 / 64
-MOTION_GAIN = {"front": 1, "front-quarter": .8, "side": .65, "back-quarter": .65, "back": 1}
 SPECS = {
     "idle": dict(frames=16, durationMs=1600, loop=True),
-    "run": dict(frames=36, durationMs=STRIDE / SPEED * 1000, loop=True),
+    "run": dict(frames=FRAMES, durationMs=STRIDE / SPEED * 1000, loop=True),
     "jump": dict(frames=12, durationMs=300, loop=False),
-    "jump-run": dict(frames=64, durationMs=300, loop=False, phaseBuckets=8, transitionFrames=8),
+    "jump-run": dict(frames=80, durationMs=300, loop=False, phaseBuckets=8, transitionFrames=10),
     "fall": dict(frames=12, durationMs=300, loop=False),
     "land": dict(frames=12, durationMs=180, loop=False),
-    "land-run": dict(frames=40, durationMs=180, loop=False, phaseBuckets=8, transitionFrames=5),
-    "stop": dict(frames=32, durationMs=120, loop=False, phaseBuckets=8, transitionFrames=4),
+    "land-run": dict(frames=48, durationMs=180, loop=False, phaseBuckets=8, transitionFrames=6),
+    "stop": dict(frames=48, durationMs=120, loop=False, phaseBuckets=8, transitionFrames=6),
     "hurt": dict(frames=12, durationMs=200, loop=False),
     "swim": dict(frames=16, durationMs=1000, loop=True),
     "glide": dict(frames=16, durationMs=1800, loop=True),
@@ -108,24 +107,6 @@ def whole_pose_tweener():
     return between
 
 
-def run_cycle(direction):
-    keys,registration=registered("run",direction)
-    run=whole_pose_tweener()(list(zip(PHASES,keys))+[(1,keys[0])],36,True)
-    motion=json.loads((SOURCE/"reference-motion.json").read_text(encoding="utf-8"))
-    tracks=[]
-    for i,frame in enumerate(run):
-        phase=i/len(run)
-        section=min(7,next((j for j in range(7) if phase<=PHASES[j+1]),7))
-        start,end=PHASES[section],PHASES[section+1] if section<7 else 1
-        t=(phase-start)/(end-start)
-        pelvis=np.array(registration[section]["landmarks"]["pelvis"])*(1-t)+np.array(registration[(section+1)%8]["landmarks"]["pelvis"])*t
-        sample=motion_at(motion,direction,phase)
-        orb=orb_point(frame,max_y=145)
-        run[i]=upper_body(frame,sample,orb=orb,gain=MOTION_GAIN[direction],pelvis=pelvis)
-        tracks.append({"pelvis":np.round(pelvis,4).tolist(),"upperMotion":np.round(sample*MOTION_GAIN[direction],6).tolist()})
-    return run,registration,tracks
-
-
 def witness(name, frames, sockets=None):
     REVIEW.mkdir(parents=True,exist_ok=True)
     sheet=Image.new("RGBA",(CELL*8,CELL*2),(48,65,68,255))
@@ -156,39 +137,25 @@ def sockets(rows, name):
     return result
 
 
-def visible_motion(frame):
-    m=body_landmarks(Image.fromarray(frame))
-    head=m["head"]
-    points={"head":[(head[0]+head[2])/2,(head[1]+head[3])/2],"neck":m["neck"],"chest":m["chest"],"pelvis":m["pelvis"]}
-    r,g,b=[frame[:,:,i].astype("int16") for i in range(3)]
-    yy,xx=np.mgrid[:CELL,:CELL]
-    boots=(r>25)&(r<180)&(g<130)&(r>g*1.15)&(g>b*1.08)&(yy>m["pelvis"][1]+16)&(frame[:,:,3]>0)&(np.abs(xx-m["pelvis"][0])<46)
-    for name,half in [("leftFoot",xx<m["pelvis"][0]),("rightFoot",xx>=m["pelvis"][0])]:
-        sy,sx=np.nonzero(boots&half)
-        if len(sx):
-            points[name]=[float(np.median(sx)),float(np.quantile(sy,.95))]
-    return {name:np.round(point,3).tolist() for name,point in points.items()}
-
-
 def bake():
     OUT.mkdir(parents=True,exist_ok=True)
     colours=json.loads((SOURCE/"palette.json").read_text(encoding="utf-8"))["colours"]
     rendered={name:[] for name in SPECS}
-    registrations={}; motion_tracks={}; visible_tracks={}
+    registrations={}
     for direction in NAMES:
         rest=np.array(rest_image(direction))
-        run,reg,tracks=run_cycle(direction)
+        run,runreg=run_cycle(direction)
         c,castreg=registered("cast",direction)
         death=death_keys(direction)
-        registrations[direction]={"run":reg,"cast":castreg}
-        motion_tracks[direction]=tracks
+        registrations[direction]={"cast":castreg,"run":runreg}
         between=whole_pose_tweener()
         rendered["run"].append(run)
         yy,xx=np.mgrid[:CELL,:CELL].astype("float32")
         shift=np.clip((ANCHOR[1]-yy)/35,0,1)
         breath=cv2.remap(rest,xx,yy+shift,cv2.INTER_NEAREST,borderMode=cv2.BORDER_CONSTANT)
         rendered["idle"].append(between([(0,rest),(.5,breath),(1,rest)],16,True))
-        apex=run[14];reach=run[0];compress=run[4]
+        at=lambda phase:run[round(phase*len(run))%len(run)]
+        apex=at(1/3);reach=at(0);compress=at(1/6)
         for name,spec in SPECS.items():
             if name in ["run","idle"]:
                 continue
@@ -201,10 +168,10 @@ def bake():
                 rendered[name].append(bank)
                 continue
             if name=="jump": nodes=[(0,rest),(.45,compress),(1,apex)]
-            elif name=="fall": nodes=[(0,apex),(.45,run[32]),(1,reach)]
+            elif name=="fall": nodes=[(0,apex),(.45,at(.9)),(1,reach)]
             elif name=="land": nodes=[(0,reach),(.3,compress),(1,rest)]
             elif name=="hurt": nodes=[(0,rest),(.25,death[0]),(1,rest)]
-            elif name=="swim": nodes=[(0,apex),(.5,run[32]),(1,apex)]
+            elif name=="swim": nodes=[(0,apex),(.5,at(.9)),(1,apex)]
             elif name=="glide": nodes=[(0,apex),(.5,compress),(1,apex)]
             elif name=="death": nodes=[(0,rest)]+list(zip([.10,.23,.35,.47,.59,.73,.88,1],death))
             else:
@@ -217,7 +184,6 @@ def bake():
             rendered[name].append(between(nodes,spec["frames"],spec["loop"],body_guidance=name not in ["death","hurt"]))
         for name in rendered:
             rendered[name][-1]=[colour_frame(frame,colours) for frame in rendered[name][-1]]
-        visible_tracks[direction]=[visible_motion(frame) for frame in rendered["run"][-1]]
         for name in ["run","radiant-bolt","divine-nova","death"]:
             witness(f"{name}-{direction}",rendered[name][-1])
         print(f"Baked {direction}",flush=True)
@@ -225,8 +191,13 @@ def bake():
     for name,rows in rendered.items():
         clips[name]=pack(OUT,name,rows,{**SPECS[name],"weaponSockets":sockets(rows,name)},anchor=ANCHOR,pixels_per_tile=PP)
     clips["start"]={**clips["stop"],"durationMs":100}
-    inputs=[Path(__file__),*[ROOT/name for name in ["source_tools.py","registration.py","motion_transfer.py","palette.py"]],ROOT.parent/"lib/raster_animation.py",*sorted(SOURCE.glob("*.png")),SOURCE/"canonical-registration.json",SOURCE/"reference-motion.json",SOURCE/"palette.json",ROOT.parents[1]/"styles/lcpixel/style.json"]
-    manifest={"version":2,"body":"priest","style":"LCPixel","method":"whole painted poses, uniform clip registration, Assassin V2 motion transfer and offline raster inbetweening","sourceFrame":{"width":CELL,"height":CELL,"anchor":{"x":ANCHOR[0],"y":ANCHOR[1]}},"pixelsPerTile":PP,"strideDistance":STRIDE,"referenceSpeed":SPEED,"runtimeScale":1,"directions":NAMES,"registration":registrations,"motionTracks":motion_tracks,"visibleMotionTracks":visible_tracks,"palette":colours,"sourceSha256":{p.relative_to(REPO).as_posix():sha(p) for p in inputs},"clips":clips}
+    paintings=sorted(p for p in SOURCE.glob('*.png') if p.name.startswith(('canonical-','cast-','death-')))
+    inputs=[Path(__file__),*[ROOT/name for name in ["source_tools.py","registration.py","run_poses.py","palette.py"]],ROOT.parent/"lib/raster_animation.py",*paintings,*source_files(),SOURCE/"canonical-registration.json",SOURCE/"palette.json",ROOT.parents[1]/"styles/lcpixel/style.json"]
+    report={'registration':registrations,
+            'method':'Whole painted keys. Landmarks describe key registration only, not a reconstructed skeleton or proof of foot contact.'}
+    report_path=ROOT/'authoring-report.json'
+    report_path.write_text(json.dumps(report,separators=(',',':'))+'\n',encoding='utf-8')
+    manifest={"version":4,"body":"priest","style":"LCPixel","method":"registered whole painted poses and offline bidirectional raster inbetweening, shared with Rogue V2","sourceFrame":{"width":CELL,"height":CELL,"anchor":{"x":ANCHOR[0],"y":ANCHOR[1]}},"pixelsPerTile":PP,"strideDistance":STRIDE,"referenceSpeed":SPEED,"runtimeScale":1,"directions":NAMES,"palette":colours,"authoringReportSha256":sha(report_path),"sourceSha256":{p.relative_to(REPO).as_posix():sha(p) for p in inputs},"clips":clips}
     (OUT/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
     Image.open(SOURCE/"canonical-front.png").save(OUT/"portrait.png")
     print(f"Packed {len(clips)} clips",flush=True)
@@ -237,12 +208,12 @@ def main():
     parser.add_argument("--pilot",choices=NAMES)
     args=parser.parse_args()
     if args.pilot:
-        run,registration,tracks=run_cycle(args.pilot)
+        run,tracks=run_cycle(args.pilot)
         colours=json.loads((SOURCE/"palette.json").read_text())["colours"]
         run=[colour_frame(frame,colours) for frame in run]
         witness(f"run-{args.pilot}",run,sockets([run],"run")[0])
         REVIEW.mkdir(parents=True,exist_ok=True)
-        (REVIEW/f"motion-{args.pilot}.json").write_text(json.dumps({"registration":registration,"tracks":tracks},indent=2))
+        (REVIEW/f"motion-{args.pilot}.json").write_text(json.dumps({"tracks":tracks},indent=2))
         return
     bake()
 

@@ -15,27 +15,14 @@
     "purpose": "Pose witnesses for the identity edit only; not inputs of the deterministic build, and not retained as a runtime fallback."
   },
   "run": {
-    "front": {
-      "image": "run-front.png",
-      "prompt": "run-front-guided.prompt.txt"
-    },
-    "front-quarter": {
-      "image": "run-front-quarter.png",
-      "prompt": "run-front.prompt.txt",
-      "note": "The first front request produced a valid front-quarter view. Classified by its actual view; a separate corrected front was authored."
-    },
-    "side": {
-      "image": "run-side.png",
-      "prompt": "run-side.prompt.txt"
-    },
-    "back-quarter": {
-      "image": "run-back-quarter.png",
-      "prompt": "run-back-quarter-guided.prompt.txt"
-    },
-    "back": {
-      "image": "run-back.png",
-      "prompt": "run-back-guided.prompt.txt"
-    }
+    "method": "Registered whole painted running poses and shared Rogue V2 raster interpolation",
+    "identity": "canonical-{direction}.png",
+    "sources": "../locomotion/generation.json",
+    "rasterizer": "../../run_poses.py",
+    "views": 5,
+    "directions": 8,
+    "frames": 36,
+    "runtimeGeneration": false
   },
   "actions": {
     "basePrompts": "{cast|death}-{direction}.prompt.txt",
@@ -63,5 +50,9 @@
       }
     ]
   },
-  "delivery": "Accepted PNG drawings are frozen source data. Regenerate runtime deterministically with yarn priest:build. Image generation itself is an authoring step and is not bitwise reproducible."
+  "delivery": "Accepted PNG drawings are frozen source data. Regenerate runtime deterministically with yarn priest:build. Image generation itself is an authoring step and is not bitwise reproducible.",
+  "retiredRun": {
+    "commit": "552a202556ebb7b161633eea27818bf7282b3195",
+    "reason": "Generated key poses repeated the same support; a three-scalar upper-body warp could not repair the gait. Drawings, prompts and transfer data are retired, never a fallback."
+  }
 }

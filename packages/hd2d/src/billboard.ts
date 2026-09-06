@@ -259,6 +259,8 @@ export interface BillboardOptions {
   aspect?: number;
   /** Hauteur des "pieds" dans la frame, depuis le bas (0..1). */
   foot?: number;
+  /** Replie au sol la portion dessinée devant le pivot, sans incliner le corps. */
+  groundedFootprint?: boolean;
   lit?: boolean;
   stretch?: number;
   /** Plongée de la caméra, pour calculer l'étirement. */
@@ -287,13 +289,22 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
     pitch = ctx.pitch() ?? 0,
     graftCloudShadow = (material, graftOpts) => applyCloudShadow(ctx, material, graftOpts),
     uvRect,
+    groundedFootprint = false,
   } = opts;
 
   const w = height * aspect;
   const initialHeight = billboardHeight({ height, pitch, stretch });
-  const geo = new THREE.PlaneGeometry(w, 1);
+  const geo = new THREE.PlaneGeometry(w, 1, 1, groundedFootprint ? 2 : 1);
   geo.translate(0, 0.5, 0); // pivot au bas du plan
   const positions = geo.getAttribute("position");
+  if (groundedFootprint) {
+    // Le rang intermédiaire coupe exactement la texture sur son ancre, même après packing.
+    const uv = geo.getAttribute("uv");
+    for (const index of [2, 3]) {
+      positions.setY(index, foot);
+      uv.setY(index, foot);
+    }
+  }
   const normalizedY = Array.from({ length: positions.count }, (_, index) => positions.getY(index));
 
   if (lit) bombNormals(geo);
@@ -305,7 +316,17 @@ export function makeBillboard(ctx: Hd2dContext, opts: BillboardOptions): Billboa
   const applyPitch = (nextPitch: number): void => {
     drawnHeight = billboardHeight({ height, pitch: nextPitch, stretch });
     for (let index = 0; index < positions.count; index += 1) {
-      positions.setY(index, (normalizedY[index] ?? 0) * drawnHeight);
+      const y = (normalizedY[index] ?? 0) * drawnHeight;
+      // Une foulée avance devant le pivot : placer ces pixels sous le terrain coupait les
+      // bottes. Seule cette marge se replie vers la caméra. Le déplacement suit le rayon
+      // de vue parallèle, préservant la projection et le corps vertical. Deux triangles
+      // supplémentaires, sans texture, shader ou passe de rendu supplémentaire.
+      const lift =
+        groundedFootprint && index >= 2 && nextPitch > 0.05
+          ? Math.max(0, foot * drawnHeight + 0.002 - y)
+          : 0;
+      positions.setY(index, y + lift);
+      positions.setZ(index, lift / Math.tan(Math.max(0.05, nextPitch)));
     }
     positions.needsUpdate = true;
     geo.computeBoundingBox();

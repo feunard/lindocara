@@ -298,6 +298,7 @@ export interface BillboardActorSheet {
   frameWidth?: number;
   frameHeight?: number;
   footOffset?: number;
+  groundedFootprint?: boolean;
   renderHeight?: number;
   axis?: "x" | "y";
   directionRows?: number;
@@ -418,6 +419,9 @@ function actorSheetView(sheet: BillboardActorSheet) {
       ? {}
       : { mirroredPhaseOffset: sheet.mirroredPhaseOffset }),
     ...(sheet.directionLayout === undefined ? {} : { directionLayout: sheet.directionLayout }),
+    ...(sheet.groundedFootprint === undefined
+      ? {}
+      : { groundedFootprint: sheet.groundedFootprint }),
     ...(sheet.renderHeight === undefined ? {} : { renderHeight: sheet.renderHeight }),
     ...(sheet.footOffset === undefined || sheet.frameHeight === undefined
       ? {}

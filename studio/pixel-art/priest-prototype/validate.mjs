@@ -11,7 +11,7 @@ const manifest=JSON.parse(await readFile(path.join(folder,'manifest.json'),'utf8
 const names=['idle','run','jump','jump-run','fall','land','land-run','start','stop','hurt','swim','glide','radiant-bolt','mend','blink','prayer','divine-nova','death'];
 assert.equal(manifest.body,'priest');
 assert.equal(manifest.style,'LCPixel');
-assert.equal(manifest.version,2);
+assert.equal(manifest.version,4);
 assert.equal(manifest.headRegistration,undefined,'Rectangular head replacement must not return');
 assert(manifest.palette.length<=64&&manifest.palette.length>0,'LCPixel palette budget');
 const palette=new Set(manifest.palette.map(rgb=>rgb.join(',')));
@@ -21,6 +21,9 @@ assert.deepEqual(manifest.sourceFrame,{width:256,height:256,anchor:{x:128,y:190}
 assert.equal(manifest.pixelsPerTile,192/2.34);
 assert.equal(manifest.clips.run.durationMs,manifest.strideDistance/manifest.referenceSpeed*1000);
 const digest=data=>createHash('sha256').update(data).digest('hex');
+const reportText=(await readFile(path.join(repo,'studio/pixel-art/priest-prototype/authoring-report.json'),'utf8')).replace(/\r\n/g,'\n');
+assert.equal(digest(reportText),manifest.authoringReportSha256,'Authoring report does not match runtime assets');
+const report=JSON.parse(reportText);
 for(const [name,hash] of Object.entries(manifest.sourceSha256)){
   assert(!name.includes('priest-rig')&&!name.includes('characters/priest'),'Old Priest dependency');
   const buffer=await readFile(path.join(repo,name));
@@ -90,16 +93,10 @@ function difference(a,b){let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]
 const seamReport=[];
 for(let r=0;r<5;r++){
   const direction=manifest.directions[r];
-  const motion=manifest.motionTracks[direction];
-  assert.equal(motion.length,36,`${direction}: whole-body motion track coverage`);
-  const chest=motion.map(p=>p.upperMotion[1]);
-  assert(Math.max(...chest)-Math.min(...chest)>2,`${direction}: chest motion frozen`);
-  for(let f=0;f<36;f++){
-    const a=motion[f],b=motion[(f+1)%36];
-    assert(a.upperMotion.every(Number.isFinite)&&a.pelvis.every(Number.isFinite),`${direction}: invalid movement`);
-    assert(Math.abs(a.upperMotion[0]-b.upperMotion[0])<.035,`${direction}: abrupt chest rotation`);
-    assert(Math.hypot(a.upperMotion[1]-b.upperMotion[1],a.upperMotion[2]-b.upperMotion[2])<2,`${direction}: upper body jump`);
-  }
+  const keys=report.registration[direction].run;
+  assert.deepEqual(keys.map(k=>k.frame),[0,6,12,18,24,30],`${direction}: painted key coverage`);
+  assert.deepEqual(keys.map(k=>k.role),['contact-a','passing-a','flight-a','contact-b','passing-b','flight-b']);
+  assert.equal(report.motionTracks,undefined,'Do not replace painted motion with a cut-out rig');
   for(const name of ['idle','run','swim','glide']){
     const row=cells.get(name)[r],seam=difference(row.at(-1),row[0]);
     const largest=Math.max(...row.slice(1).map((f,i)=>difference(f,row[i])));
@@ -110,13 +107,14 @@ for(let r=0;r<5;r++){
   assert.deepEqual(frame('fall',r,11),frame('land',r,0),'Fall/land continuity');
   assert.deepEqual(frame('land',r,11),frame('idle',r,0),'Landing/rest continuity');
   for(let b=0;b<8;b++){
-    assert.deepEqual(frame('jump-run',r,b*8+7),frame('fall',r,0),'Moving takeoff/apex continuity');
-    assert.deepEqual(frame('land-run',r,b*5),frame('fall',r,11),'Moving landing continuity');
-    assert.deepEqual(frame('stop',r,b*4+3),frame('idle',r,0),'Stop/rest continuity');
+    const jump=manifest.clips['jump-run'].transitionFrames,land=manifest.clips['land-run'].transitionFrames,stop=manifest.clips.stop.transitionFrames;
+    assert.deepEqual(frame('jump-run',r,b*jump+jump-1),frame('fall',r,0),'Moving takeoff/apex continuity');
+    assert.deepEqual(frame('land-run',r,b*land),frame('fall',r,11),'Moving landing continuity');
+    assert.deepEqual(frame('stop',r,b*stop+stop-1),frame('idle',r,0),'Stop/rest continuity');
   }
   assert.deepEqual(frame('death',r,39),frame('death',r,38),'Corpse must stay still');
-  for(const kind of ['run','cast']){
-    const reg=manifest.registration[direction][kind];
+  for(const kind of ['cast','run']){
+    const reg=report.registration[direction][kind];
     for(const pose of reg){
       assert.equal(pose.scale,reg[0].scale,`${kind}: per-frame body resizing`);
       assert(pose.scale>.15&&pose.scale<.5,`${kind}/${direction}: invalid source registration`);
@@ -127,7 +125,7 @@ for(let r=0;r<5;r++){
 }
 const expected=new Set(['manifest.json','portrait.png',...Object.values(manifest.clips).map(c=>path.basename(c.asset))]);
 assert.deepEqual((await readdir(folder)).sort(),[...expected].sort(),'Unexpected runtime assets');
-for(const legacy of ['packages/renderer/src/assets/characters/priest','packages/renderer/src/hd2d/priest-sprites.ts','studio/pixel-art/priest-rig','packages/renderer/src/assets/bonus/assassin']){
+for(const legacy of ['packages/renderer/src/assets/characters/priest','packages/renderer/src/hd2d/priest-sprites.ts','studio/pixel-art/priest-rig','packages/renderer/src/assets/bonus/assassin',...['gait.py','painted_layout.py','painted_motion.py','motion_transfer.py'].map(name=>'studio/pixel-art/priest-prototype/'+name)]){
   await assert.rejects(access(path.join(repo,legacy)),`${legacy} still exists`);
 }
 const bytes=[...textures.values()].reduce((sum,t)=>sum+t.data.length,0);

@@ -2,15 +2,19 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy==2.5.2", "opencv-python-headless==5.0.0.93", "pillow==12.3.0"]
 # ///
-"""Real-source regressions: colour boundaries must not become anatomical boundaries."""
+"""Source and temporal regressions; these cannot certify perceived naturalness."""
 import json
+import sys
 import unittest
+from pathlib import Path
 import numpy as np
 from PIL import Image
-from source_tools import cells, SOURCE
-from registration import body_landmarks, rest_image, registered
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from source_tools import cells, SOURCE, NAMES
+from registration import body_landmarks, registered
 from palette import colour_frame
-from motion_transfer import upper_body
+from run_poses import run_cycle, registered_keys, extract, CONFIG
+from raster_animation import Tween
 
 
 class PriestAuthoringTest(unittest.TestCase):
@@ -24,26 +28,33 @@ class PriestAuthoringTest(unittest.TestCase):
             after=body_landmarks(Image.fromarray(colour_frame(a,colours)))
             self.assertLessEqual(np.linalg.norm(np.array(before["neck"])-after["neck"]),2)
 
-    def test_upper_body_motion_keeps_planted_feet(self):
-        frame=np.array(rest_image("front"))
-        pelvis=body_landmarks(Image.fromarray(frame))["pelvis"]
-        moved=upper_body(frame,np.array([.05,3,1]),orb=[166,94],pelvis=pelvis)
-        # The central boots must keep their exact pixels while the shoulders move.
-        np.testing.assert_array_equal(frame[170:192,109:145],moved[170:192,109:145])
-        self.assertGreater(np.count_nonzero(frame[83:145]!=moved[83:145]),100)
+    def test_every_running_key_survives_tweening_exactly(self):
+        colours=json.loads((SOURCE/"palette.json").read_text())["colours"]
+        for direction in NAMES:
+            keys,records=registered_keys(direction,colours)
+            frames,_=run_cycle(direction)
+            self.assertEqual(len(frames),36)
+            self.assertEqual(len({r['sourceIndex'] for r in records}),6)
+            self.assertEqual(len({r['scale'] for r in records}),1)
+            for key,record in zip(keys,records):
+                np.testing.assert_array_equal(frames[record['frame']],key)
+            self.assertGreater(np.count_nonzero(keys[0][155:,:,3]!=keys[3][155:,:,3]),50)
+            # Closing segment is a true last-key -> first-key tween, not a pause.
+            closing=Tween(keys[-1],keys[0])
+            np.testing.assert_array_equal(closing.at(1),frames[0])
+            np.testing.assert_array_equal(colour_frame(closing.at(5/6),colours),frames[-1])
 
-    def test_source_density_is_uniform_through_both_steps(self):
-        for direction in ["front","front-quarter","side","back-quarter","back"]:
-            frames,records=registered("run",direction)
-            self.assertEqual(len(frames),8)
-            self.assertEqual(len({r["scale"] for r in records}),1)
-            widths=[r["landmarks"]["head"][2]-r["landmarks"]["head"][0] for r in records]
-            self.assertLess(max(widths)-min(widths),3)
+    def test_single_pose_edit_uses_canvas_density_not_a_partial_hair_mask(self):
+        paintings,densities=extract('front')
+        spec=CONFIG['views']['front']
+        self.assertEqual(densities[-1],paintings[spec['extraReferenceCell']].width/paintings[-1].width)
+        self.assertTrue(all(d==1 for d in densities[:-1]))
+
+    def test_action_registration_keeps_one_scale_per_painted_clip(self):
+        for direction in NAMES:
+            frames,records=registered('cast',direction)
+            self.assertEqual(len({r['scale'] for r in records}),1)
             self.assertTrue(all(frame.shape==(256,256,4) for frame in frames))
-            for i in [3,7]:
-                neighbours=[records[j]["landmarks"]["pelvis"][1] for j in [i-1,(i+1)%8]]
-                self.assertLess(records[i]["landmarks"]["pelvis"][1],sum(neighbours)/2,
-                                "Flight must rise from the running support, not sink towards the idle root")
 
 
 if __name__=="__main__":

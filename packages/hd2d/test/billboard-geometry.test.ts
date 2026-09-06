@@ -111,6 +111,57 @@ describe("makeBillboard — plongée dynamique", () => {
   });
 });
 
+describe("makeBillboard — foulée devant le pivot", () => {
+  it("garde les pixels devant l'ancre au-dessus du sol sans déplacer leur projection", () => {
+    const ctx = createHd2dContext({ pitch: PITCH });
+    const folded = makeBillboard(ctx, {
+      texture: new THREE.Texture(),
+      height: 2,
+      foot: 0.18,
+      groundedFootprint: true,
+      lit: false,
+    });
+    folded.placeAt(0, 3, 0);
+    const position = folded.mesh.geometry.getAttribute("position");
+    const uv = folded.mesh.geometry.getAttribute("uv");
+    expect(position.count).toBe(6);
+    for (const pitch of [Math.PI / 12, PITCH, Math.PI / 3]) {
+      ctx.setPitch(pitch);
+      const height = billboardHeight({ height: 2, pitch, stretch: ctx.config.spriteStretch });
+      for (let i = 0; i < position.count; i += 1) {
+        const actualY = position.getY(i) - folded.footOffset;
+        const originalY = (uv.getY(i) - 0.18) * height;
+        expect(actualY).toBeGreaterThanOrEqual(-0.000001);
+        const projected = actualY * Math.cos(pitch) - position.getZ(i) * Math.sin(pitch);
+        expect(projected).toBeCloseTo(originalY * Math.cos(pitch), 6);
+        if (i < 2) expect(position.getZ(i)).toBe(0);
+      }
+      expect(folded.mesh.position.y + folded.footOffset).toBeCloseTo(3);
+    }
+    folded.dispose();
+  });
+
+  it("conserve les quatre sommets verticaux des autres personnages et isole les contextes", () => {
+    const game = createHd2dContext({ pitch: PITCH });
+    const editor = createHd2dContext({ pitch: PITCH });
+    const ordinary = makeBillboard(game, { texture: new THREE.Texture(), height: 2, lit: false });
+    const preview = makeBillboard(editor, {
+      texture: new THREE.Texture(),
+      height: 2,
+      groundedFootprint: true,
+      lit: false,
+    });
+    const positions = ordinary.mesh.geometry.getAttribute("position");
+    const before = Array.from(preview.mesh.geometry.getAttribute("position").array);
+    game.setPitch(Math.PI / 3);
+    expect(positions.count).toBe(4);
+    for (let i = 0; i < positions.count; i += 1) expect(positions.getZ(i)).toBe(0);
+    expect(Array.from(preview.mesh.geometry.getAttribute("position").array)).toEqual(before);
+    ordinary.dispose();
+    preview.dispose();
+  });
+});
+
 // Revue finale (point G2) : `play()` ne comparait que `row`/`frames`, jamais `fps` — deux clips de
 // même ligne et même longueur mais de vitesses différentes ne changeaient donc jamais de cadence,
 // le second `play()` étant pris pour une redemande du même clip.

@@ -58,6 +58,7 @@ describe("Priest raster integration", () => {
         clip.frames - 1,
       );
       expect(priestSheet(name).source).toContain("/bonus/priest-prototype/");
+      expect(priestSheet(name).groundedFootprint).toBe(true);
       for (let direction = 0; direction < 8; direction++) {
         const angle = (direction * Math.PI) / 4;
         for (const yaw of [0, 0.7, 2.2]) {

@@ -46,7 +46,7 @@ export function isPriestSkillId(value: string): value is PriestSkillId {
 }
 
 export function priestSheet(name: PriestClip): UnitSheet {
-  return rasterSheet(SOURCES[name], name, manifest.clips[name]);
+  return { ...rasterSheet(SOURCES[name], name, manifest.clips[name]), groundedFootprint: true };
 }
 
 export function priestMotionClip(

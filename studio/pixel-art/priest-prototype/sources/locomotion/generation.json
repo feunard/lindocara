@@ -1,0 +1,23 @@
+{
+  "style": "LCPixel",
+  "date": "2026-09-06",
+  "tool": "built-in image_gen imagegen",
+  "parameters": ["prompt", "referenced_image_paths"],
+  "identity": "../simplified/canonical-{direction}.png",
+  "styleReference": "../../../../styles/lcpixel/characters.png",
+  "poseWitnesses": {
+    "path": "authoring/rogue-{direction}.png",
+    "source": "studio/pixel-art/assassin-v2/sources/v1/run.png",
+    "layout": "Ten whole drawings of the corresponding row, placed in five columns and two rows. Reference only; no Rogue pixels are sampled by the Priest build."
+  },
+  "edits": [
+    {"output": "run-side.png", "prompt": "run-side.prompt.txt", "references": ["identity/side", "authoring/rogue-side.png", "styleReference"]},
+    {"output": "run-front-quarter.png", "prompt": "run-front-quarter.prompt.txt", "references": ["identity/front-quarter", "authoring/rogue-front-quarter.png", "styleReference"]},
+    {"output": "run-back.png", "prompt": "run-back.prompt.txt", "references": ["identity/back", "authoring/rogue-back.png", "styleReference"]},
+    {"output": "authoring/run-back-quarter.png", "prompt": "authoring/run-back-quarter.prompt.txt", "references": ["identity/back-quarter", "authoring/rogue-back-quarter.png", "styleReference"]},
+    {"output": "run-back-quarter-staff.png", "prompt": "back-quarter-staff.prompt.txt", "references": ["authoring/run-back-quarter.png", "identity/back-quarter", "styleReference"], "reason": "Restore missing staffs without changing body poses."},
+    {"output": "run-front-six.png", "prompt": "run-front-six.prompt.txt", "references": ["authoring/front-six-guide.png", "styleReference"], "reason": "Repaint six complementary whole-body poses after the first sheet repeated one lead leg. The guide contained temporary mirrored lower-body edits; it is never used as a sprite."},
+    {"output": "run-front-passing-opposite.png", "prompt": "passing-opposite.prompt.txt", "references": ["authoring/passing-opposite-guide.png", "styleReference"], "reason": "Paint the missing opposite passing pose separately. Preserve its reference canvas density, not the dimensions of a partial hair-colour mask."}
+  ],
+  "delivery": "clips.json selects six painted keys per view and their temporal order. Only the six top-level PNG sources and clips.json enter run_poses.py. Whole-image registration and the shared Rogue V2 raster tween build the final atlas offline. No cut-out rig or fallback exists. Source generation is not bitwise reproducible; runtime rebuild from these frozen sources is."
+}

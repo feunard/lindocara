@@ -90,6 +90,8 @@ export interface ActorView {
   authoredAirborne?: boolean;
   /** Per-sheet ground line. Defaults to the roster convention for the actor kind. */
   foot?: number;
+  /** The painted stride may extend in front of its ground pivot. */
+  groundedFootprint?: boolean;
   /** Explicit world height for an authored actor whose measured lab size differs from the shared
    * Tiny Swords actor scale. */
   renderHeight?: number;
@@ -429,6 +431,7 @@ export function createBillboardRegistry(
       height: actor.renderHeight ?? actorHeightAtLabScale(frameHeight),
       aspect: frameWidth / frameHeight,
       foot: actor.foot ?? ACTOR_FOOT[actor.kind],
+      groundedFootprint: actor.groundedFootprint ?? false,
       pitch: HD2D_CAMERA.pitch,
     });
     billboard.mesh.userData.actorId = actor.id;

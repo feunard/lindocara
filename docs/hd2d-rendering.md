@@ -616,6 +616,14 @@ must not redo. Everything below was found while porting terrain, actors and scen
   pitch changes through its own `Hd2dContext`, which updates geometry and foot anchoring together.
   A stretch computed for an angle the camera does not have is a whole scene of subtly wrong sprites,
   with nothing on screen naming the cause.
+- **A painted stride can extend in front of its foot pivot.** The Priest opts into
+  `groundedFootprint`: one extra vertex row splits the card at the authored foot UV. Only
+  the margin below that pivot folds onto the supporting plane; the body remains vertical.
+  This prevents boots disappearing under terrain without disabling depth testing. The fold
+  follows parallel camera rays and updates with pitch; at the game's short-FOV, distant camera,
+  the perspective difference is small. It costs two triangles, no extra draw call or texture.
+  Default actor cards retain their original four vertices. Geometry tests cover projection,
+  ground clearance and context isolation; the Priest runtime preview covers the actual camera.
 - **Actor sheets must NOT be declared atlases â€” the exact inverse of the tileset rule above.** A
   tileset is sampled by sub-rectangle and needs its mipmaps suppressed; a sprite is seen at every
   distance and needs them. The lab's own catalogue marks the four tilesets and the foam, and nothing

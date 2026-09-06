@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy==2.5.2", "opencv-python-headless==5.0.0.93", "pillow==12.3.0"]
 # ///
-"""Extract source drawings and build motion references, never runtime animations."""
+"""Extract canonical and action paintings, never runtime animations."""
 import json
 from pathlib import Path
 import cv2
@@ -74,7 +74,7 @@ def diagnostics():
     review.mkdir(parents=True, exist_ok=True)
     measurements = {}
     for name in NAMES:
-        key = f"run-{name}"
+        key = f"cast-{name}"
         if not (SOURCE / f"{key}.png").exists():
             continue
         frames = cells(key)
@@ -141,28 +141,8 @@ def canonical():
     (SOURCE / "canonical-registration.json").write_text(json.dumps(measurements, indent=2))
 
 
-def motion_references():
-    folder = REPO / "packages/renderer/src/assets/bonus/assassin-v2"
-    manifest = json.loads((folder / "manifest.json").read_text())
-    clip = manifest["clips"]["run"]
-    sheet = Image.open(folder / "run.png").convert("RGBA")
-    fw, fh = clip["frame"]["width"], clip["frame"]["height"]
-    for d, name in enumerate(NAMES):
-        result = Image.new("RGBA", (192 * 4, 192 * 2), (255, 0, 255, 255))
-        for n, phase in enumerate([0, 4, 9, 13, 18, 22, 27, 31]):
-            index = d * clip["directionStride"] + phase
-            x, y = index % clip["columns"] * fw, index // clip["columns"] * fh
-            frame = sheet.crop((x, y, x + fw, y + fh))
-            result.alpha_composite(frame, (
-                n % 4 * 192 + 96 - clip["frame"]["anchor"]["x"],
-                n // 4 * 192 + 136 - clip["frame"]["anchor"]["y"],
-            ))
-        result.resize((1536, 768), Image.Resampling.NEAREST).save(SOURCE / f"motion-reference-{name}.png")
-
-
 if __name__ == "__main__":
     import sys
     canonical()
-    motion_references()
     if "--canonical" not in sys.argv:
         diagnostics()

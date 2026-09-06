@@ -502,6 +502,7 @@ export interface UnitSheet {
   frameWidth: number;
   frameHeight: number;
   footOffset: number;
+  groundedFootprint?: boolean;
   /** Five authored camera-relative rows: front, front-quarter, side, back-quarter and back. */
   directionRows?: number;
   /** Packed strips may wrap over several texture rows per direction. */

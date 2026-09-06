@@ -1,161 +1,119 @@
 # Prêtre · Prototype — LCPixel
 
-Le Prêtre est un personnage raster dessiné dans le style **LCPixel**, avec la méthode
-d'interpolation hors ligne de l'Assassin V2. Cette révision simplifie son costume à partir
-du dessin fourni le 6 septembre à 18:47 : cheveux et barbe sombres, manteau court ivoire,
-croix dorée, cuir brun, bâton de bois avec anneau et orbe dorée. Le corps reste lisible
-à la caméra du jeu, à côté de la Rôdeuse, de l'Assassin V2 et du Gardien runique.
+Le dessin simplifié approuvé reste inchangé : cheveux et barbe sombres, manteau ivoire,
+croix dorée, cuir brun et bâton à anneau doré. La [charte LCPixel](../../styles/lcpixel/STYLE.md)
+verrouille proportions, contours, palette, perspective et détails autorisés.
 
-## Style et sources
+## Diagnostic et méthode
 
-La [charte LCPixel](../../styles/lcpixel/STYLE.md) fixe proportions, dimensions natives,
-contours, ombres, détails, visages, armes, vue, palette et interdictions. Son profil JSON
-est injecté par `studio.py sprite`, en génération simple comme en lot. Les références
-sont contrôlées par empreinte avant la génération. `--character priest-prototype`
-ajoute l'identité et sa référence ; `--no-theme` reste une dérogation explicite de recherche.
+Les anciennes clés générées répétaient presque le même appui. Certaines vues latérales
+gardaient la même jambe devant pendant presque tout le cycle. L'interpolation ajoutait
+des intermédiaires sans créer le transfert du poids manquant. Le correctif précédent
+ne transférait que trois valeurs du Rogue : rotation et déplacement du haut du corps.
 
-Les seules sources actives sont dans `sources/simplified/`. Les dessins acceptés, les
-prompts réellement employés et leur provenance sont conservés dans ce dossier.
-`generation.json` décrit aussi les corrections de main et les témoins de pose de la
-révision précédente. Les anciens fichiers de dessin ont été retirés ; ils restent
-récupérables dans Git, sans fallback dans le moteur ou dans le constructeur d'atlas.
+Un essai de membres découpés et pilotés par un squelette a été rejeté visuellement :
+les contraintes géométriques passaient, mais le résultat ressemblait à une marionnette.
+Ce code est retiré. La course utilise maintenant la même méthode raster que le Rogue V2 :
 
-L'outil d'image intégré a créé les dessins. Le générateur local du projet produit lui aussi
-des images fixes ; aucun des deux ne fournit un contrat temporel d'animation. Un nom de
-style ou un prompt ne garantit pas à lui seul la cohérence. Les vues canoniques, la palette
-figée et la revue des clips restent nécessaires.
+1. Partir de dessins du personnage **entier**. Le Rogue fournit des témoins de poses ;
+   le canon approuvé et la charte LCPixel fournissent l'identité du Prêtre.
+2. Sélectionner six poses par vue : contact, passage et suspension de chaque jambe.
+   Le modèle répétait le même passage de face ; cette pose a été repeinte séparément.
+   `sources/locomotion/clips.json` décrit les sources et leur ordre temporel.
+3. `run_poses.py` applique une seule densité d'image par planche, puis translate chaque
+   peinture entière dans le canvas commun. Une édition isolée retrouve la densité de
+   son canvas de référence. Aucun membre n'est étiré, tourné ou collé séparément.
+4. Le même flux optique bidirectionnel OpenCV DIS que le Rogue V2 construit les
+   intermédiaires, y compris le raccord dernière clé → première clé. Les 36 images
+   finales conservent exactement les six clés à la palette approuvée de 48 couleurs.
+5. Les sorts et la mort gardent leurs poses peintes. Le même outil construit les
+   raccords course, saut et réception à partir des nouvelles poses.
+6. Chaque atlas est rogné sur l'union du clip. Le manifest reconstruit le canvas
+   256 × 256 et son ancre (128,190), à 192/2,34 pixels par tuile.
 
-## Ce qui causait les défauts
+L'interpolation accompagne les mouvements déjà dessinés ; elle ne sait pas inventer
+un bon pas depuis une pose immobile. Aucun squelette, flux optique ou modèle IA ne
+tourne en partie. Aucun pixel du Rogue n'entre dans le build du Prêtre.
 
-- La tête était effacée puis recollée par rectangle, avec une partie du col. La jonction
-  pouvait dessiner une barre sous le menton.
-- Le recalage ramenait le bassin à une position imposée et séparait les échelles du
-  torse et des jambes. Des poses déjà trop droites perdaient encore leur mouvement.
-- La détection de couleur confondait parfois le bas de la chevelure avec le cou :
-  séparer la barbe après réduction de palette déplaçait ce repère jusqu'aux yeux.
-- Le sommet du bâton levé modifiait la fenêtre de recherche du crâne.
-- Utiliser le bassin de l'idle pour la phase aérienne d'une foulée faisait descendre
-  certaines vues latérales/arrière au lieu de les laisser monter.
+Une boucle couvre **1,8 tuile**, soit **492,3 ms** à la vitesse normale de **3,65625 tuiles/s**.
+La phase suit la distance réelle, y compris en diagonale, et survit aux changements de
+direction. Les miroirs transfèrent un demi-cycle. Huit banques raccordent départ, arrêt,
+saut en course et réception, avec respectivement 6, 6, 10 et 6 images.
 
-## Construction du mouvement
-
-1. Séparer les dessins par action et vue. La course comporte huit clés par vue, dans
-   l'ordre contact, appui, passage, envol, puis le deuxième pas. Les deux gestes levés
-   du trois-quarts avant ont été dessinés séparément pour corriger la main du bâton.
-2. Retirer le fond magenta et reconstruire un canvas fixe de 256 × 256. Une densité
-   uniforme est calibrée pour chaque source ; aucune normalisation indépendante du
-   torse, des jambes ou de la boîte englobante de chaque frame.
-3. Garder la peinture complète tête–cou–corps. Déduire le repère du cou de la proportion
-   du crâne, sans le faire dépendre de la connexion des couleurs de la barbe.
-   Les appuis se calent sur le sol ; l'envol monte depuis les appuis voisins de la course.
-4. Utiliser le flux bidirectionnel OpenCV DIS partagé avec l'Assassin V2. Les repères du
-   cou, du buste, du bassin et de l'orbe guident les grands déplacements. Les pixels sont
-   déplacés avant leur mélange, puis remis dans la palette fixe de 48 couleurs.
-5. Compléter les poses trop raides par un mouvement de buste extrait de la course
-   approuvée de l'Assassin V2 : rotation et déplacement des épaules relativement au bassin.
-   Seules ces trajectoires numériques sont transférées, jamais son dessin. Une
-   transformation continue de la peinture supérieure conserve les longueurs et la jonction
-   du cou, s'atténue aux hanches et laisse les pieds en place. Le bâton suit son bras.
-   Tout est précalculé ; `reference-motion.json` est une source figée.
-6. Calculer les raccords dernière/première frame et les banques de transition, puis rogner
-   chaque clip une seule fois autour de son union. Reconstruire l'ancre (128,190) et conserver
-   192/2,34 pixels par tuile dans toutes les directions et actions.
-
-Le runtime conserve la cadence liée à la distance : une boucle de course couvre 1,4 tuile
-à 3,65625 tuiles/s. Un changement de direction conserve la phase ; les vues miroir transfèrent
-un demi-cycle. Huit banques raccordent course, impulsion, réception, départ et arrêt.
-Aucune IA, aucun calcul de flux optique et aucune cible de rendu par acteur pendant la partie.
+Le Prêtre active `groundedFootprint` dans le renderer : la petite marge dessinée devant
+l'ancre se replie au sol, car un plan vertical la plaçait sous le terrain et coupait les
+bottes. Le buste reste vertical. Deux triangles sont ajoutés, sans texture ni passe
+supplémentaire. Les autres personnages conservent leur géométrie.
 
 ## États et sorts
 
-Les 18 clips couvrent les états réellement utilisés : idle, run, start, stop, jump,
-jump-run, fall, land, land-run, hurt, swim, glide, death et les cinq sorts.
-Cinq vues dessinées couvrent les huit directions du moteur. Start lit la banque de stop
-à l'envers et partage sa texture. Les fins d'impulsion, d'apex et de réception sont identiques
-aux débuts des états suivants ; la mort termine sur un dessin immobile.
+Les 18 clips couvrent idle, run, start, stop, jump, jump-run, fall, land, land-run, hurt,
+swim, glide, death et les cinq sorts. Cinq vues deviennent huit directions par miroir.
+Start partage l'atlas de stop en lecture inverse. Les extrémités des raccords aériens
+sont identiques ; les deux dernières images de mort sont fixes.
 
-| Sort | Déclenchement | Récupération | Clip |
-| --- | ---: | ---: | --- |
-| Trait radiant | 140 ms | 185 ms | radiant-bolt |
-| Soin | 240 ms | 600 ms | mend |
-| Téléportation | 180 ms | 420 ms | blink |
-| Prière | 320 ms | 640 ms | prayer |
-| Nova divine | 400 ms | 700 ms | divine-nova |
+| Sort | Libération | Récupération |
+| --- | ---: | ---: |
+| Trait radiant | 140 ms | 185 ms |
+| Soin | 240 ms | 600 ms |
+| Téléportation | 180 ms | 420 ms |
+| Prière | 320 ms | 640 ms |
+| Nova divine | 400 ms | 700 ms |
 
-Les événements serveur et `combatActionFrameIndex` restent l'autorité pour anticipation,
-déclenchement et récupération. L'orbe **dorée** fournit le point d'émission par frame.
-Le renderer projette ce point avec la même caméra, le même pivot et la même élévation
-que le personnage. Le projectile confirmé part de l'arme puis rejoint la trajectoire
-serveur. Les dégâts, soins, collisions et créations de projectiles restent côté serveur.
+Les événements serveur restent l'autorité. Un socket par image suit l'orbe dessinée.
+Le projectile confirmé part de cette position puis rejoint la trajectoire serveur.
+Dégâts, soins, collisions et règles de déplacement n'ont pas changé.
 
-## Régénérer et vérifier
+## Reconstruire et tester
 
-Depuis la racine, avec Yarn 4 et uv :
+Depuis la racine avec Yarn 4 et uv ; utiliser `corepack yarn` sur cette machine Windows :
 
 ```sh
-yarn style:check
-yarn priest:authoring:check
 yarn priest:build
+yarn priest:authoring:check
 yarn priest:check
 yarn assassin:check
 yarn verify
 ```
 
-Sur cette machine Windows, utiliser `corepack yarn` si Yarn n'est pas installé directement.
-La reconstruction complète des atlases ne demande ni GPU, ni clé, ni génération IA :
-les PNG sources acceptés suffisent. NumPy, OpenCV et Pillow sont épinglés dans les scripts.
-Les hashes de sources et de textures permettent de contrôler la reproductibilité.
+Le rebuild ne demande ni GPU ni génération d'images. Les versions Python sont épinglées.
+Le manifest porte hashes, dimensions, sockets, durées et banques. Le rapport d'auteur
+séparé conserve les six clés et leurs recalages sans les charger pendant une partie.
+Les textures sont partagées entre tous les Prêtres et respectent le budget existant
+de 176 Mio RGBA et une dimension maximale de 4096 pixels.
 
-Changer le dessin est une opération d'auteur distincte : relire LCPixel, fournir la
-planche de cohérence et la vue canonique, enregistrer le prompt et revoir le résultat.
-Les futurs modèles de prompt se préparent avec
-`python studio/pixel-art/priest-prototype/author_prompts.py` dans le dossier ignoré
-`artifacts/priest-prototype/prompt-templates/`, sans écraser l'historique des dessins acceptés.
-Pour une modification volontaire du canon :
+Les anciennes planches de course et leur extraction de mouvement sont retirées.
+Leur provenance reste dans `sources/simplified/generation.json` et Git. Les nouvelles
+peintures, prompts exacts et références de correction sont dans `sources/locomotion/`.
+Les essais rejetés sont ignorés, sans dépendance du build ni fallback runtime.
 
-```sh
-uv run studio/pixel-art/priest-prototype/source_tools.py --canonical
-uv run --with numpy==2.5.2 --with pillow==12.3.0 studio/pixel-art/priest-prototype/palette.py
-# Revue visuelle du canon avant de renouveler les empreintes :
-uv run studio/styles/lcpixel/build_reference.py
-```
+Changer le canon reste une opération d'auteur : `author_prompts.py` prépare les prompts
+LCPixel pour les vues canoniques et actions. Après revue d'un nouveau dessin, revoir la
+sélection et le recalage des clés, puis les empreintes LCPixel. Une génération d'image n'est
+pas reproductible à l'octet ; la reconstruction depuis les sources acceptées l'est.
 
-Ces commandes redéfinissent les références ; elles ne font pas partie du rebuild habituel.
-
-Le validateur contrôle les 18 états, cinq lignes/huit directions, dimensions, alpha binaire,
-palette, ancres, sources, boucles, banques, fins de mort, mouvements de buste et sockets
-de libération. Les tests d'auteur contrôlent notamment que la palette ne déplace pas le cou
-et que le mouvement du buste ne déplace pas les pieds plantés.
-
-Les textures restent sous 4096 pixels et sous le budget de 176 Mio RGBA décodés, partagé
-par tous les Prêtres. Les diagnostics et sources ne sont pas chargés comme textures en jeu.
-
-## Voir les animations
+## Preview
 
 ```sh
 yarn priest:studio
 # http://localhost:5330/studio/pixel-art/priest-prototype/
+# http://localhost:5330/studio/pixel-art/priest-prototype/compare.html
 yarn dev
 # http://localhost:5273/?preview=priest
 yarn priest:review
 ```
 
-La preview d'atelier montre les huit vues à l'échelle du jeu et agrandies : scrubber,
-cadence, vitesse, banques, image précédente, ancre, orbe et trajectoires de tête/buste/bassin/pieds.
-Les marqueurs de pieds correspondent aux deux côtés de l'image et ne prétendent pas
-identifier un pied anatomique pendant une occlusion.
+L'atelier présente les huit vues à taille normale et agrandies : cadence, scrubber, banques,
+image précédente, ancre et orbe. Les repères montrent le recalage des clés peintes ; ils
+ne reconstruisent pas un squelette ni les appuis cachés. La comparaison place le Rogue V2 à côté du Prêtre,
+à leurs cadences propres ou avec les phases alignées.
 
-La preview moteur utilise le vrai contrôleur et le vrai renderer. WASD : mouvement ;
-Espace : saut/planeur ; 1–5 : sorts ; H : dégâts ; K : mort ; R : remise à zéro ;
-T : parcours des directions ; N : eau ; flèches : caméra ; P : pause ; [ / ] : cadence.
-Elle permet la comparaison avec les trois autres héros à la caméra normale.
+La preview moteur utilise le contrôleur réel : WASD, Espace (saut/planeur), 1–5 (sorts),
+H (dégâts), K (mort), R (reset), T (directions), N (eau), flèches (caméra), P (pause).
+`priest:review` capture huit directions, saut, cinq sorts, mort, nage, planeur et groupe
+de quatre ; il contrôle 48 départs de projectile avec différents délais réseau.
 
-`priest:review` utilise Playwright et Chrome installé. Il capture course, saut, cinq sorts,
-mort, nage, planeur et groupe de quatre Prêtres, ainsi qu'une vidéo à vitesse normale,
-dans `artifacts/priest-prototype/runtime-review/`. Il contrôle aussi 48 départs de projectiles
-(2 sorts × 8 directions × délais de 0/100/200 ms). `--quick` limite la capture à la
-comparaison ; `--launches` ajoute les contrôles de départ sans le parcours complet.
-
-La [revue visuelle](review/README.md) garde les témoins examinés. Les métriques ne certifient
-pas à elles seules des appuis physiquement exacts. Au fort grossissement, quelques contours
-intermédiaires restent plus souples que les clés dessinées, comme avec la méthode de l'Assassin V2.
+La [revue visuelle](review/README.md) conserve les témoins examinés. Les contrôles
+numériques ne certifient pas le naturel perçu ni l'absence de glissement des pieds. À fort
+grossissement, le flux optique peut modifier des pixels de contour entre deux clés ;
+les rotations, chevauchements et croisements de jambes doivent rester sous revue visuelle.

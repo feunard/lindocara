@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
-const allowed=['/studio/pixel-art/priest-prototype/','/studio/styles/lcpixel/','/packages/renderer/src/assets/bonus/priest-prototype/'];
+const allowed=['/studio/pixel-art/priest-prototype/','/studio/styles/lcpixel/','/packages/renderer/src/assets/bonus/priest-prototype/','/packages/renderer/src/assets/bonus/assassin-v2/','/artifacts/priest-motion/candidate/','/artifacts/priest-motion/before/'];
 const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.md':'text/plain; charset=utf-8','.json':'application/json','.png':'image/png'};
 createServer(async(request,response)=>{
   const pathname=decodeURIComponent(new URL(request.url,'http://localhost').pathname);
