@@ -44,6 +44,19 @@ function draw(){
       ctx.save();ctx.translate(x,anchorY);if(mirror)ctx.scale(-1,1);
       if(get('overlay').checked){ctx.globalAlpha=.25;paint(row*c.directionStride+(f+c.frames-1)%c.frames);ctx.globalAlpha=1;}
       paint(idx);
+      if(get('motion').checked&&name==='run'&&manifest.visibleMotionTracks){
+        const tracks=manifest.visibleMotionTracks[manifest.directions[row]],origin=manifest.sourceFrame.anchor;
+        for(const [point,colour] of [['head','#f6e295'],['chest','#67e2ec'],['pelvis','#b6ef97'],['leftFoot','#f69c9c'],['rightFoot','#ccaff4']]){
+          ctx.strokeStyle=colour;ctx.beginPath();
+          let started=false;
+          for(const track of [...tracks,tracks[0]])if(track[point]){
+            const [px,py]=track[point],x=(px-origin.x)*scale,y=(py-origin.y)*scale;
+            if(started)ctx.lineTo(x,y);else ctx.moveTo(x,y);started=true;
+          }ctx.stroke();
+          const current=tracks[f][point];
+          if(current){ctx.fillStyle=colour;ctx.fillRect((current[0]-origin.x)*scale-2,(current[1]-origin.y)*scale-2,4,4);}
+        }
+      }
       if(get('overlay').checked){
         ctx.strokeStyle='#ffd580';ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(5,0);ctx.moveTo(0,-5);ctx.lineTo(0,5);ctx.stroke();
         const socket=c.weaponSockets[row][f];ctx.strokeStyle='#ff7575';ctx.beginPath();ctx.arc((socket.x-manifest.sourceFrame.anchor.x)*scale,(socket.y-manifest.sourceFrame.anchor.y)*scale,4,0,Math.PI*2);ctx.stroke();

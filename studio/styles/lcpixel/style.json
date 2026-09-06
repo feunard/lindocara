@@ -1,0 +1,36 @@
+{
+  "id": "lcpixel",
+  "name": "LCPixel",
+  "version": 1,
+  "guide": "styles/lcpixel/STYLE.md",
+  "referenceBoard": "styles/lcpixel/characters.png",
+  "prompt": "LCPixel, Lindocara's compact fantasy RPG character drawing language: the shipped Assassin V2, Runic Guardian and Ranger are the visual authority. Chunky clear anatomy, readable large head and boots, dark charcoal one-to-two-native-pixel outline, clustered cel shading with four tones per material and a fifth specular tone only for metal or magic. Broad simple cloth planes, controlled warm colour ramps, no tiny ornamental noise. Stable orthographic slightly elevated game-sprite perspective across every orientation and action. Keep the approved character reference's exact proportions, face construction, material palette and equipment. Animate the whole torso with weight transfer, shoulder/pelvis counter-rotation and connected neck motion; do not freeze the upper body or attach the head over a rectangular cut. No realistic adult proportions, smooth 3D rendering, vector gradients, airbrush, dither, film grain, texture noise, glow baked into body sprites, changing outlines, changing garment decorations, changing equipment or per-pose scale normalization.",
+  "humanoid": {
+    "nativeBodyHeight": { "target": 104, "min": 96, "max": 116 },
+    "headsHigh": { "target": 2.65, "min": 2.4, "max": 2.9 },
+    "outlinePixels": { "outer": [1, 2], "inner": 1 },
+    "materialTones": 4,
+    "metalOrMagicTones": 5,
+    "paletteColours": { "target": 48, "max": 64 },
+    "detail": { "minimumDecorativeClusterArea": 4, "maximumMajorCostumeMotifs": 3, "maximumIsolatedPixelsOutsideFaceAndWeaponRatio": 0.01 },
+    "face": { "eyeHeightPixels": [4, 6], "irisHighlightPixels": 1, "nosePixels": [1, 2], "mouthPixels": [2, 4] },
+    "equipmentHeightRatio": { "staff": [0.9, 1.12], "sword": [0.45, 0.8], "dagger": [0.22, 0.4], "bow": [0.5, 0.85] },
+    "saturation": { "broadSurfacesMaximum": 0.7, "accentMaximum": 0.92, "maximumAccentAreaRatio": 0.12 }
+  },
+  "priest": {
+    "referenceBodyHeight": 106,
+    "headHeight": 40,
+    "chinToBelt": 26,
+    "beltToSole": 40,
+    "standingLandmarkTolerancePixels": 2,
+    "sourceCanvas": [256, 256],
+    "sourceAnchor": [128, 190],
+    "pixelsPerTile": 82.05128205128206,
+    "staffOrbDiameterPixels": [6, 10],
+    "staffShaftWidthPixels": [3, 5],
+    "designReference": "pixel-art/priest-prototype/sources/simplified/design-reference.png",
+    "canonicalReference": "pixel-art/priest-prototype/sources/simplified/canonical-native.png"
+  },
+  "view": { "worldCameraPitchDegrees": 38, "billboardStretch": 0.85, "apparentDirections": 8, "authoredDirections": ["front", "front-quarter", "side", "back-quarter", "back"], "directionStepDegrees": 45 },
+  "forbidden": ["rectangular head replacement seams", "stationary torso during locomotion", "per-frame body or limb resizing", "changing face, beard, clothing motifs or weapon", "realistic seven-head adult anatomy", "thin doll limbs", "photorealistic or glossy 3D rendering", "smooth vector gradients or airbrushed shading", "dither, grain or noisy micro-textures", "baked floor shadows or glow in body atlases", "unregistered individual frame trimming", "mass all-direction all-action generation sheets", "runtime AI generation or optical flow"]
+}

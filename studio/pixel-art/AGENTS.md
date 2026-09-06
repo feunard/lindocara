@@ -1,5 +1,12 @@
 # pixel-art — sprites
 
+The game drawing style is **LCPixel**. Its authoritative numeric rules, forbidden treatments
+and approved visual references live in [../styles/lcpixel/STYLE.md](../styles/lcpixel/STYLE.md).
+Use them for every new character generation, including image tools outside the local model.
+`studio.py sprite` injects the LCPixel prompt for both single and batch jobs; character jobs
+must select their entry in `characters.json` to preserve the canonical identity. The LoRA
+below remains the existing model adapter; the name LCPixel is not a newly trained model.
+
 **FLUX.2-klein-4B** (Apache 2.0) plus `models/tinyswords-v2-4000.safetensors`, our LoRA
 trained on the Tiny Swords packs. Trigger word `T1NYSW0RDS`, LoRA scale 1.4, 4 steps,
 768×768.

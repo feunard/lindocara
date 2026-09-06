@@ -10,6 +10,11 @@ const folder=path.join(repo,'packages/renderer/src/assets/bonus/priest-prototype
 const manifest=JSON.parse(await readFile(path.join(folder,'manifest.json'),'utf8'));
 const names=['idle','run','jump','jump-run','fall','land','land-run','start','stop','hurt','swim','glide','radiant-bolt','mend','blink','prayer','divine-nova','death'];
 assert.equal(manifest.body,'priest');
+assert.equal(manifest.style,'LCPixel');
+assert.equal(manifest.version,2);
+assert.equal(manifest.headRegistration,undefined,'Rectangular head replacement must not return');
+assert(manifest.palette.length<=64&&manifest.palette.length>0,'LCPixel palette budget');
+const palette=new Set(manifest.palette.map(rgb=>rgb.join(',')));
 assert.deepEqual(Object.keys(manifest.clips).sort(),names.sort(),'Incomplete animation state graph');
 assert.deepEqual(manifest.directions,['front','front-quarter','side','back-quarter','back']);
 assert.deepEqual(manifest.sourceFrame,{width:256,height:256,anchor:{x:128,y:190}});
@@ -36,7 +41,12 @@ for(const [name,c] of Object.entries(manifest.clips)){
     const buffer=await readFile(path.join(folder,path.basename(c.asset)));
     const {data,info}=await sharp(buffer).ensureAlpha().raw().toBuffer({resolveWithObject:true});
     texture={buffer,data,info};textures.set(c.asset,texture);
-    for(let p=3;p<data.length;p+=4)assert(data[p]===0||data[p]===255,`${name}: soft alpha`);
+    const colours=new Set();
+    for(let p=3;p<data.length;p+=4){
+      assert(data[p]===0||data[p]===255,`${name}: soft alpha`);
+      if(data[p])colours.add(`${data[p-3]},${data[p-2]},${data[p-1]}`);
+    }
+    for(const rgb of colours)assert(palette.has(rgb),`${name}: colour outside the locked LCPixel palette`);
   }
   const {buffer,data,info}=texture;
   assert.equal(digest(buffer),c.sha256,`${name}: atlas hash`);
@@ -62,12 +72,12 @@ for(const [name,c] of Object.entries(manifest.clips)){
       assert(socket.x>0&&socket.x<256&&socket.y>0&&socket.y<256,`${name}: socket outside canvas`);
       if(['radiant-bolt','mend'].includes(name)&&f===c.activeFrame){
         assert(socket.y<145,`${name}/${r}: projectile incorrectly emitted at the feet`);
-        let ruby=false;
+        let orb=false;
         for(let y=Math.floor(socket.y)-6;y<=Math.ceil(socket.y)+6;y++)for(let x=Math.floor(socket.x)-6;x<=Math.ceil(socket.x)+6;x++){
           const p=(y*256+x)*4;const red=frame[p],green=frame[p+1],blue=frame[p+2];
-          if(red>120&&green<95&&blue<85&&red>green*1.8&&frame[p+3])ruby=true;
+          if(red>165&&green>110&&red-blue>85&&green>blue*1.45&&frame[p+3])orb=true;
         }
-        assert(ruby,`${name}/${r}: release socket must touch the visible staff orb`);
+        assert(orb,`${name}/${r}: release socket must touch the visible gold staff orb`);
       }
       row.push(frame);
     }
@@ -77,25 +87,18 @@ for(const [name,c] of Object.entries(manifest.clips)){
 }
 const frame=(name,row,f)=>cells.get(name)[row][f];
 function difference(a,b){let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;}
-const headRects=JSON.parse(await readFile(path.join(repo,'studio/pixel-art/priest-prototype/sources/canonical-registration.json'),'utf8'));
 const seamReport=[];
 for(let r=0;r<5;r++){
   const direction=manifest.directions[r];
-  const head=await sharp(path.join(repo,`studio/pixel-art/priest-prototype/sources/canonical-${direction}.png`)).ensureAlpha().raw().toBuffer();
-  const [left,top,right,bottom]=headRects[r].head;
-  for(const name of ['idle','run','jump','jump-run','fall','land','land-run','stop','swim','glide','radiant-bolt','mend','blink','prayer','divine-nova']){
-    const offsets=manifest.headRegistration[direction][name];
-    assert.equal(offsets.length,manifest.clips[name].frames,`${name}: head coverage`);
-    for(let f=0;f<offsets.length;f++){
-      assert(offsets[f]?.length===2,`${name}/${direction}/${f}: missing head track`);
-      const [dx,dy]=offsets[f],actual=frame(name,r,f);
-      assert(Number.isInteger(dx)&&Number.isInteger(dy),`${name}: fractional head translation`);
-      for(let y=top;y<bottom;y++)for(let x=left;x<right;x++){
-        const s=(y*192+x)*4;if(!head[s+3])continue;
-        const d=((y+54+dy)*256+x+32+dx)*4;
-        for(let channel=0;channel<4;channel++)assert.equal(actual[d+channel],head[s+channel],`${name}/${direction}/${f}: face changed`);
-      }
-    }
+  const motion=manifest.motionTracks[direction];
+  assert.equal(motion.length,36,`${direction}: whole-body motion track coverage`);
+  const chest=motion.map(p=>p.upperMotion[1]);
+  assert(Math.max(...chest)-Math.min(...chest)>2,`${direction}: chest motion frozen`);
+  for(let f=0;f<36;f++){
+    const a=motion[f],b=motion[(f+1)%36];
+    assert(a.upperMotion.every(Number.isFinite)&&a.pelvis.every(Number.isFinite),`${direction}: invalid movement`);
+    assert(Math.abs(a.upperMotion[0]-b.upperMotion[0])<.035,`${direction}: abrupt chest rotation`);
+    assert(Math.hypot(a.upperMotion[1]-b.upperMotion[1],a.upperMotion[2]-b.upperMotion[2])<2,`${direction}: upper body jump`);
   }
   for(const name of ['idle','run','swim','glide']){
     const row=cells.get(name)[r],seam=difference(row.at(-1),row[0]);
@@ -115,10 +118,10 @@ for(let r=0;r<5;r++){
   for(const kind of ['run','cast']){
     const reg=manifest.registration[direction][kind];
     for(const pose of reg){
-      for(const key of ['scale','torsoScale','legScale']){
-        assert.equal(pose[key],reg[0][key],`${kind}: per-frame body resizing`);
-        assert(pose[key]>.15&&pose[key]<.5,`${kind}/${direction}: invalid source registration`);
-      }
+      assert.equal(pose.scale,reg[0].scale,`${kind}: per-frame body resizing`);
+      assert(pose.scale>.15&&pose.scale<.5,`${kind}/${direction}: invalid source registration`);
+      assert.equal(pose.torsoScale,undefined,`${kind}: separate torso stretching`);
+      assert.equal(pose.legScale,undefined,`${kind}: separate leg stretching`);
     }
   }
 }
@@ -129,5 +132,5 @@ for(const legacy of ['packages/renderer/src/assets/characters/priest','packages/
 }
 const bytes=[...textures.values()].reduce((sum,t)=>sum+t.data.length,0);
 assert(bytes<=176*1048576,'Priest atlas budget exceeded');
-console.log(`Priest: 8 directions, ${names.length} clips, stable heads, continuous air/ground endpoints, weapon release sockets, ${(bytes/1048576).toFixed(1)} MiB shared RGBA.`);
+console.log(`Priest LCPixel: 8 directions, ${names.length} clips, whole-body motion, fixed palette, continuous air/ground endpoints, gold weapon release sockets, ${(bytes/1048576).toFixed(1)} MiB shared RGBA.`);
 console.log(`Loop seams checked: ${seamReport.length}. Visual inspection remains required; image metrics do not certify biomechanics.`);

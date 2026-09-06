@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from style_system import sprite_prompt
 
 from music_system import (
     PUBLIC_MUSIC_DIR,
@@ -95,7 +96,7 @@ def runner_cmd(lane, script_args):
 def load_json(name):
     path = os.path.join(ROOT, name)
     try:
-        with open(path) as fh:
+        with open(path, encoding="utf-8") as fh:
             return json.load(fh)
     except IOError:
         sys.exit("missing %s — this script must stay next to theme.json" % name)
@@ -250,18 +251,24 @@ def cmd_sprite(args):
             out = raw.get("out")
             if not isinstance(raw_prompt, str) or not raw_prompt or not isinstance(out, str) or not out:
                 sys.exit("sprite manifest job %d needs non-empty prompt and out strings" % index)
-            prompt = raw_prompt if args.no_theme else " ".join(
-                [t["trigger"], raw_prompt.rstrip(". ") + ".", t["prompt_suffix"]]
-            )
+            character = get_character(raw.get("character"))
+            prompt = sprite_prompt(t, raw_prompt, character, args.no_theme)
+            reference = character.get("sprite_ref") if character and not args.no_ref else None
+            if reference:
+                reference = rooted(reference)
+                if not os.path.isfile(reference):
+                    sys.exit("sprite reference does not exist: %s" % reference)
             width = raw.get("width", args.width or t["width"])
             height = raw.get("height", args.height or t["height"])
             seed = raw.get("seed", args.seed + index - 1)
             if not isinstance(width, int) or not isinstance(height, int) or not isinstance(seed, int):
                 sys.exit("sprite manifest job %d has invalid dimensions or seed" % index)
             ensure_parent(out)
-            jobs.append({"prompt": prompt, "width": width, "height": height, "seed": seed, "out": out})
+            jobs.append({"prompt": prompt, "width": width, "height": height, "seed": seed, "out": out,
+                         **({"image": reference} if reference else {})})
         if DRY_RUN:
             print("[dry-run] diffusers batch runner\n  %d sprites from %s" % (len(jobs), args.manifest))
+            print(json.dumps(jobs, indent=2, ensure_ascii=False))
             return
         with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as target:
             json.dump(jobs, target)
@@ -292,15 +299,7 @@ def cmd_sprite(args):
         sys.exit("sprite needs --prompt with --out, or --manifest")
     char = get_character(args.character)
 
-    if args.no_theme:
-        prompt = args.prompt
-    else:
-        parts = [t["trigger"]]
-        if char and char.get("description"):
-            parts.append(char["description"] + ",")
-        parts.append(args.prompt.rstrip(". ") + ".")
-        parts.append(t["prompt_suffix"])
-        prompt = " ".join(parts)
+    prompt = sprite_prompt(t, args.prompt, char, args.no_theme)
 
     ref = char.get("sprite_ref") if char else None
     if ref and not args.no_ref:

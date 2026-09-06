@@ -12,19 +12,22 @@ from PIL import ImageDraw
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[2]
-SOURCE = ROOT / "sources"
+SOURCE = ROOT / "sources/simplified"
 NAMES = ["front", "front-quarter", "side", "back-quarter", "back"]
 
 
 def head_box(image):
     a = np.array(image)
     r, g, b = [a[:, :, i].astype("int16") for i in range(3)]
-    cream = (r < 135) & (g < 135) & (b > r * .77) & (a[:, :, 3] > 0)
-    # Hair and its outline form a connected region above the raised white collar.
+    cream = (r > 25) & (g > 25) & (r < 155) & (g < 155) & (b > r * .77) & (np.abs(r-g)<35) & (a[:, :, 3] > 0)
+    # Mid-tone charcoal identifies hair without merging the body's black outline.
+    # Do not crop a fraction of total height: a lifted staff raises the image bounds
+    # but does not raise the skull, and would otherwise truncate its measurement.
     bounds = image.getbbox()
     if bounds is None:
         raise ValueError("Empty source drawing")
-    cream[round(bounds[1] + (bounds[3] - bounds[1]) * .39):] = False
+    kernel=max(1,round(image.width/180))
+    cream=cv2.morphologyEx(cream.astype("uint8"),cv2.MORPH_CLOSE,np.ones((kernel,kernel),"uint8"))
     count, _, stats, _ = cv2.connectedComponentsWithStats(cream.astype("uint8"), 8)
     if count < 2:
         raise ValueError("No head in source drawing")
@@ -158,6 +161,8 @@ def motion_references():
 
 
 if __name__ == "__main__":
+    import sys
     canonical()
     motion_references()
-    diagnostics()
+    if "--canonical" not in sys.argv:
+        diagnostics()

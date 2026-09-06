@@ -1,0 +1,24 @@
+{
+  "style": "LCPixel",
+  "styleVersion": 1,
+  "sha256": {
+    "styles/lcpixel/style.json": "2c3b2be9a648058128aa26dfae4883395d93b1e20efcc5d83eba731ab7c7e5f6",
+    "styles/lcpixel/STYLE.md": "74f734f3832e91fd05704be7dbdc209792d21bf807d1646508ebed2726eb1579",
+    "styles/lcpixel/characters.png": "7ba493682ac0bc6eedfb13a568db836f320d0f1949e0100efb6aaf1fbf8fd5e0",
+    "pixel-art/priest-prototype/sources/simplified/canonical-native.png": "b08d9b9c1e99ec7b2d34b15764587c86a413bdb10bd6f3a535442afca17a59da",
+    "pixel-art/priest-prototype/sources/simplified/palette.json": "bed050b8f353e38089e72a1be3a158c45ccdeb923a4286432a1758717de62eda",
+    "pixel-art/priest-prototype/sources/simplified/design-reference.png": "35318700b552a0c6e3532bf8d2474a703a18d7708ad67dc0b98ce9e8df496c2a",
+    "pixel-art/priest-prototype/sources/simplified/turnaround.png": "d346f6913e26c4e811a6f4fe33cf630376afc2d419fe6cc402fdee90e9e79453",
+    "pixel-art/priest-prototype/sources/simplified/style-reference.png": "2440865e226c351b73dde6a731f2c492be7f9bcb2b20db91ea657e382bca2189",
+    "pixel-art/priest-prototype/sources/simplified/canonical-front.png": "cc242d296e4e9fbf0b43845d0eb7662b00cbc0cc25fd5b32770fcf8ec0021741",
+    "pixel-art/priest-prototype/sources/simplified/canonical-front-quarter.png": "7ce1dd8d35d9a6133d5d62c82f8fae767ac01708c47b15086ca34af6a8e6ea67",
+    "pixel-art/priest-prototype/sources/simplified/canonical-side.png": "ad1503ec45bea1ec50597e2851b9833b30b9a188d7f3ee23045dd916d1437207",
+    "pixel-art/priest-prototype/sources/simplified/canonical-back-quarter.png": "a577e2049c996e627e019f356fe1ac6f9be5d628070d66d2e04a0d3b7d6c36f3",
+    "pixel-art/priest-prototype/sources/simplified/canonical-back.png": "08cbfcf9bf5d1d057439aa0f0d8d941d77a28289e32e225f9afd86bacb5a69c7",
+    "pixel-art/priest-prototype/sources/simplified/view-front.png": "0a425e75635d0d38f7d25ee5f26a1c691091b475193702bbe95d2588204633aa",
+    "pixel-art/priest-prototype/sources/simplified/view-front-quarter.png": "feab5796f0ef6505b71aeacd06db6724ecaf93ebfd65ab6ff8b9bb2d703735c1",
+    "pixel-art/priest-prototype/sources/simplified/view-side.png": "dfbe675e9d58bb0e870ad1eb5b8ce5f0efec26c050dbfdc047c73b6ed7298b9b",
+    "pixel-art/priest-prototype/sources/simplified/view-back-quarter.png": "def5d2c9059d8f76b301e888f798d66b70b164a963d393f7517329ab6de03c3f",
+    "pixel-art/priest-prototype/sources/simplified/view-back.png": "11b89e76fef0c383e976d6bcdc3b5abfda46c7e9fb84bc8e8ce38c81f20905f0"
+  }
+}

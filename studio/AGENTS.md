@@ -6,6 +6,15 @@ model is Apache 2.0 or MIT, so generated assets can ship.
 
 ## The one rule
 
+The sprite drawing contract is **LCPixel**, defined in [styles/lcpixel/STYLE.md](styles/lcpixel/STYLE.md)
+and selected by `theme.json`. Read it before creating or changing a character. For image tools,
+include the locked style board and the character's canonical reference, and save the exact prompt.
+Do not replace the style name, proportion targets, palette or approved references implicitly.
+Run `yarn style:check`; intentional style/reference revisions use
+`uv run studio/styles/lcpixel/build_reference.py` after visual review.
+Use `python studio/style_system.py --prompt` to export the full prose contract, including
+the numeric limits from the JSON. Single and batch `studio.py` generation inject it automatically.
+
 Call `studio.py`, not the underlying runtimes. It injects the art direction from
 `theme.json` into every prompt, which is what makes a goblin sprite, a door creak and a
 village theme feel like the same game. `--no-theme` opts out when you want raw output.

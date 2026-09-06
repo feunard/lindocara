@@ -1,0 +1,67 @@
+{
+  "style": "LCPixel",
+  "tool": "built-in image_gen imagegen",
+  "modelParameters": "Only prompt and referenced_image_paths; no invented animation, seed or model controls.",
+  "date": "2026-09-06",
+  "identity": {
+    "source": "design-reference.png",
+    "turnaround": "turnaround.png",
+    "prompt": "turnaround.prompt.txt",
+    "styleWitness": "style-reference.png"
+  },
+  "previousActionWitnesses": {
+    "commit": "99307283400f566397feacff2461c084c8fbb004",
+    "path": "studio/pixel-art/priest-prototype/sources/{cast|death}-{direction}.png",
+    "purpose": "Pose witnesses for the identity edit only; not inputs of the deterministic build, and not retained as a runtime fallback."
+  },
+  "run": {
+    "front": {
+      "image": "run-front.png",
+      "prompt": "run-front-guided.prompt.txt"
+    },
+    "front-quarter": {
+      "image": "run-front-quarter.png",
+      "prompt": "run-front.prompt.txt",
+      "note": "The first front request produced a valid front-quarter view. Classified by its actual view; a separate corrected front was authored."
+    },
+    "side": {
+      "image": "run-side.png",
+      "prompt": "run-side.prompt.txt"
+    },
+    "back-quarter": {
+      "image": "run-back-quarter.png",
+      "prompt": "run-back-quarter-guided.prompt.txt"
+    },
+    "back": {
+      "image": "run-back.png",
+      "prompt": "run-back-guided.prompt.txt"
+    }
+  },
+  "actions": {
+    "basePrompts": "{cast|death}-{direction}.prompt.txt",
+    "references": [
+      "view-{direction}.png",
+      "previousActionWitnesses"
+    ],
+    "sharedStylePromptAppended": "For death in every view and cast in front-quarter/back-quarter/back; cast front/side use the explicit LCPixel contract in their prompt.",
+    "corrections": [
+      {
+        "image": "cast-front.png",
+        "prompt": "cast-front-hand-fix.prompt.txt",
+        "purpose": "Overhead staff stays on screen right."
+      },
+      {
+        "image": "cast-back.png",
+        "prompt": "cast-back-hand-fix.prompt.txt",
+        "purpose": "Release staff stays on screen left."
+      },
+      {
+        "image": "cast-front-quarter-overhead.png",
+        "prompt": "cast-front-quarter-overhead.prompt.txt",
+        "reference": "view-front-quarter.png",
+        "purpose": "Two separately authored overhead poses replace cast keys 6 and 7; the attempted whole-sheet hand edit was rejected."
+      }
+    ]
+  },
+  "delivery": "Accepted PNG drawings are frozen source data. Regenerate runtime deterministically with yarn priest:build. Image generation itself is an authoring step and is not bitwise reproducible."
+}

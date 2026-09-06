@@ -1,42 +1,57 @@
-# Validation — 6 September 2026
+# Validation — Prêtre simplifié LCPixel, 6 septembre 2026
 
-Validated with installed Chrome on Windows, using the real HD-2D renderer, its normal
-camera and the Priest's 3.65625 tiles/s movement speed. The shipped raster textures are
-the inputs; there is no alternate high-quality character in the preview.
+Cette revue concerne le dessin fourni à 18:47, le nouveau recalage du corps entier et le
+mouvement du buste. Les captures utilisent Chrome installé sur Windows, le vrai renderer
+HD-2D, sa caméra normale et la vitesse réelle de 3,65625 tuiles/s. Les textures livrées
+sont celles de la preview et du test serveur de l'éditeur.
 
-![Priest beside Ranger, Assassin V2 and Runic Guardian](lineup.png)
+![Prêtre à côté de la Rôdeuse, de l'Assassin V2 et du Gardien runique](lineup.png)
 
-## Checks performed
+## Vérifications effectuées
 
-- Full `yarn verify`: lint, all package typechecks/tests, migrations, generated content,
-  both character asset validators, production build and built-artifact boot smoke passed.
-- Rebuilt Assassin V2 after sharing the raster interpolation library: approved idle,
-  locomotion source poses, five skills and death remain unchanged; `assassin:check` passed.
-- Repeated both complete raster builds from the committed source drawings: all delivered
-  PNGs were byte-identical to the inspected versions.
-- Examined sequential engine captures of run and jump in all eight directions, every
-  Priest skill and death, plus swim, glide, hurt and four Priests together. Checked body
-  scale, head placement, staff continuity, takeoff/apex/landing and stable death endings.
-- Static studio loaded and scrubbed all 18 clips without browser exceptions.
-- Real editor: selected Prêtre · Prototype, launched the full server test, cast Radiant
-  Bolt, moved and jumped, then returned to the editor. The server sent the action and
-  projectile snapshots; no browser exceptions. The selection exposes only Assassin V2.
-- Engine emission checks: 48 first projectile positions match the displayed weapon ruby
-  within 0.000001 world tile, covering Radiant Bolt/Mend, eight headings and simulated
-  delivery delays of 0/100/200 ms. Server authority is covered separately by network tests.
-- Character validator: all clips/directions present, source/output hashes agree, fixed
-  reconstruction anchors, canonical heads, loop and transition seams, release sockets,
-  stable final death, no old Priest runtime files, 160.3 MiB shared decoded textures.
+- `yarn verify` complet : lint, typechecks et tests de tous les packages, migrations,
+  catalogues/cartes/musiques, validateurs Prêtre et Assassin, build et démarrage de
+  l'artefact compilé. Tous passent.
+- Nouvelle reconstruction complète dans un dossier séparé : les 19 fichiers runtime
+  (17 atlases, portrait et manifest) sont identiques à l'octet près aux fichiers examinés.
+- Comparaison des séquences capturées dans les huit directions : course, saut,
+  les cinq sorts et mort. Inspection des étapes avant/après contact, de la jonction du
+  cou, du mouvement du buste, de l'arme et de l'échelle. Les captures complètes du saut
+  permettent d'examiner impulsion, apex, chute et réception sans le rognage des planches.
+- Inspection de la nage, du planeur, de la réception de dégâts et de quatre Prêtres
+  ensemble à la caméra normale. Comparaison avec les trois personnages de référence.
+- Atelier : 18 clips chargés et examinés au début, au milieu et à la fin, avec les
+  trajectoires du crâne, du buste, du bassin et des deux côtés des appuis affichées.
+- Éditeur réel : sélection Prêtre · Prototype, lancement du test serveur, Trait radiant,
+  déplacement/saut puis retour à l'éditeur. L'action serveur et sept instantanés du
+  projectile sont reçus, sans exception navigateur. Le choix Assassin expose seulement V2.
+- 48 contrôles de départ de projectile : Trait radiant et Soin, huit directions, délais
+  simulés de 0/100/200 ms. Le premier point affiché rejoint l'orbe de l'arme à moins de
+  0,000001 tuile. L'autorité serveur est couverte séparément par les tests réseau.
+- Contrôles d'assets : 18 clips/huit directions, sources et textures identifiées par hash,
+  palette fixe de 48 couleurs, alpha binaire, ancres reconstruites, densité uniforme par
+  source, mouvement du buste, raccords de boucles/transitions, sockets de libération,
+  fin de mort stable, aucun ancien dessin requis. Textures partagées : 161,8 Mio RGBA.
+- Tests d'auteur : la réduction de palette ne fait pas remonter le cou vers les yeux,
+  le transfert du buste conserve les pieds plantés, l'envol monte depuis les appuis voisins.
+- LCPixel : 18 références verrouillées, même contrat chiffré en génération simple et en lot.
+  Les fichiers et animations de l'Assassin V2 n'ont pas changé dans cette révision.
 
-The [normal-speed capture](all-directions.webm) is retained for replay. The visual review
-used sequential frame captures; generating this video is not itself a perceptual test.
-The preview script regenerates full-resolution witnesses, including each frame before
-contact-sheet cropping, under ignored `artifacts/priest-prototype/runtime-review/`.
+La [vidéo à vitesse normale](all-directions.webm), la
+[séquence de course dans les huit directions](run-review.png) et les
+[trajectoires de diagnostic](studio-trajectories.png) sont conservées pour comparaison.
+La revue visuelle a utilisé les captures successives du moteur ; produire la vidéo ne
+constitue pas en soi un contrôle perceptuel. `yarn priest:review` recrée les témoins complets
+sous `artifacts/priest-prototype/runtime-review/`, y compris les images avant rognage.
 
-## Practical limits
+## Limites observées
 
-At enlarged source scale, motion-compensated cloth and equipment edges can look softer
-between authored keys. Exact physical foot contact is not inferred from image hashes;
-the gait was evaluated at the normal game camera and tied to actual ground distance.
-The delivered result uses the same offline raster method as Assassin V2, with no per-frame
-AI, no runtime optical flow and no per-actor render targets.
+Au fort grossissement, les contours de tissu et d'équipement interpolés restent parfois
+plus souples que les poses dessinées. Le flux optique n'est pas une simulation anatomique :
+les empreintes ne prouvent pas des contacts de pieds physiquement exacts. Les appuis ont été
+évalués à la caméra normale et la cadence reste asservie à la distance réellement parcourue.
+
+Les règles LCPixel sont des cibles de production explicites. Les références, la palette et
+les invariants mesurables sont contrôlés ; la lecture du visage, la densité des détails et
+le naturel du geste restent soumis à une revue visuelle. Le nom LCPixel ne désigne pas un
+nouveau modèle entraîné. Le jeu n'exécute ni IA, ni flux optique, ni cible de rendu par acteur.

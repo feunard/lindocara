@@ -1,8 +1,8 @@
 {
   "_doc": "Cross-lane identity. sprite_ref locks the look (passed to mflux-generate-flux2-edit via --image-paths), voice_ref locks the voice (5-15s of clean speech, passed to the cloning model). Either may be null: a null sprite_ref falls back to text-only generation, a null voice_ref falls back to the archetype's stock voice. description is repeated verbatim on every sheet — it is what holds identity together within a generation.",
-  "dawn-priest": {
-    "description": "a compact young dawn sanctuary priest, warm brown skin, swept chestnut hair, a small ivory forehead band with an amber sunstone, broad short teal shoulder mantle with gold piping, ivory split knee-length tunic, amber stole with a simple rising-sun emblem, brown belt with one small closed prayer book at the left hip, dark leggings and large leather boots fully visible below the tunic, holding in the right hand a slender wooden crozier with a brass open sun arch and one suspended amber crystal; friendly determined face, sturdy two-and-a-half-head chibi proportions, simple clearly separated limbs",
-    "sprite_ref": null,
+  "priest-prototype": {
+    "description": "the LCPixel Priest prototype: compact 2.65-head anatomy, warm tan skin, swept charcoal hair, short full dark beard, large readable dark eyes, simple ivory short split coat with one bold gold chest cross, small gold-edged shoulder capelets with two round fasteners, brown belt with square gold buckle, brown gloves and boots, charcoal trousers, one straight dark wooden staff in the left hand with a plain gold halo enclosing a warm yellow-gold orb; no wings, no ruby, no tassels, no extra jewelry; connected neck and natural torso motion",
+    "sprite_ref": "pixel-art/priest-prototype/sources/simplified/canonical-native.png",
     "voice_ref": null,
     "archetype": "hero_m"
   },

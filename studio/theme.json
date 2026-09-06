@@ -1,10 +1,11 @@
 {
-  "name": "Tiny Swords",
-  "description": "Chunky HD pixel art, warm cartoon fantasy. Clean readable silhouettes, saturated palette, thick outlines, cel shading. Audio matches: dry close-mic foley, no lo-fi crunch unless asked, light orchestral score.",
+  "name": "Lindocara — LCPixel",
+  "description": "LCPixel: compact fantasy sprites, stable proportions, charcoal outlines, clustered material ramps and restrained detail, consistent with the shipped heroes. Audio: dry close-mic foley, no lo-fi crunch unless asked, light orchestral score.",
 
   "_doc": "Each lane holds its art direction at the top and its plumbing under `backends`. The backend is chosen by the machine: `mlx` on Apple Silicon, `cuda` everywhere else. Art direction is shared by both — that is the point.",
 
   "pixel_art": {
+    "style_profile": "styles/lcpixel/style.json",
     "trigger": "T1NYSW0RDS.",
     "prompt_suffix": "video game sprite on a dark navy background",
     "lora": "models/tinyswords-v2-4000.safetensors",

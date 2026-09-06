@@ -45,10 +45,10 @@ try {
       assert.ok(!launch.missing,JSON.stringify(launch));
       assert.ok(launch.muzzle,'Missing muzzle '+JSON.stringify(launch));
       const p=launch.projectile,m=launch.muzzle.position;
-      assert.ok(Math.hypot(p.x-m.x,p.y-m.y,p.z-m.z)<.000001,'Projectile missed staff ruby');
+      assert.ok(Math.hypot(p.x-m.x,p.y-m.y,p.z-m.z)<.000001,'Projectile missed staff orb');
     }
     await writeFile(path.join(out,'weapon-launches.json'),JSON.stringify(launches,null,2)+'\n');
-    console.log(`${launches.length} weapon launches matched the displayed ruby (8 directions, 0/100/200 ms delay).`);
+    console.log(`${launches.length} weapon launches matched the displayed orb (8 directions, 0/100/200 ms delay).`);
   }
   if(!process.argv.includes('--quick')&&!process.argv.includes('--launches')) {
     const samples=[];
