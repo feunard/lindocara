@@ -61,8 +61,13 @@ class PriestAuthoringTest(unittest.TestCase):
         # The previous brown-mask anchor jumped from the belt to a boot: the
         # entire head snapped sideways by ten native pixels at the loop end.
         self.assertLess(np.ptp(heads[:,0]),2)
-        self.assertLess(np.ptp(heads[:,1]),6)
-        self.assertEqual([r['landmarks']['pelvis'][1] for r in records],[143,146,141,143,146,141])
+        # Preserve the accepted left view's body excursion instead of pinning the
+        # previous over-leaning torso to its six obsolete belt heights.
+        _,left=registered_keys('back-left',colours)
+        left_heads=np.array([r['landmarks']['head'] for r in left])
+        np.testing.assert_allclose(heads[:,0],256-left_heads[:,0],atol=.001)
+        self.assertLessEqual(np.ptp(heads[:,1]),np.ptp(left_heads[:,1])+1)
+        self.assertEqual(CONFIG['views']['back-quarter']['keys'],[3,4,5,0,1,2])
 
     def test_compact_atlas_reconstructs_every_direction_and_duplicate_exactly(self):
         # Different bounds and shared endpoints exercise packing rather than a mock.

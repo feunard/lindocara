@@ -21,6 +21,11 @@ Ce code est retiré. La course utilise maintenant la même méthode raster que l
    La face regarde réellement le joueur. Les diagonales arrière reprennent l'amplitude
    compacte des diagonales avant, avec des poses différentes pour les deux appuis.
    `sources/locomotion/clips.json` décrit les sources et leur ordre temporel.
+   La haut droite reprend précisément les poses compactes de la haut gauche :
+   conversion des dessins vers l'autre orientation, puis correction peinte de la
+   main du bâton. L'ordre commence à la quatrième pose pour conserver l'alternance
+   anatomique des jambes. `sources/locomotion/back-quarter-revision.json` conserve
+   les deux prompts, références et décisions de cette correction.
 3. `run_poses.py` applique une seule densité d'image par planche, puis translate chaque
    peinture entière dans le canvas commun. Une édition isolée retrouve la densité de
    son canvas de référence. Aucun membre n'est étiré, tourné ou collé séparément.
