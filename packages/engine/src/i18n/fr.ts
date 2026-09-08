@@ -938,6 +938,8 @@ export const fr: Record<keyof typeof en, string> = {
   "loading.hero.progress": "Progression du chargement",
   "status.connected": "connecté - La Combe Sauvage",
   "status.connected_zone": "connecté - {zone}",
+  "status.fps": "{fps} FPS",
+  "status.fps_label": "Images par seconde",
   "status.disconnected": "déconnecté - {reason}",
   "status.connection_lost": "Connexion perdue. Rechargez pour revenir.",
   "status.close.elsewhere": "Ce personnage s'est connecté ailleurs.",

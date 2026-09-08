@@ -1684,7 +1684,12 @@ kbd {
 }
 
 #status {
-  right: 0.8rem;
+  left: calc(0.8rem + var(--safe-left));
+  bottom: calc(0.75rem + var(--safe-bottom));
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: calc(100vw - 1.6rem - var(--safe-left) - var(--safe-right));
   padding: 0.28rem 0.55rem;
   border-radius: 999px;
   background: rgb(4 19 15 / 72%);
@@ -1694,12 +1699,29 @@ kbd {
 #status::before {
   content: "";
   display: inline-block;
+  flex-shrink: 0;
   width: 0.38rem;
   height: 0.38rem;
   margin-right: 0.32rem;
   border-radius: 50%;
   background: currentcolor;
   box-shadow: 0 0 7px currentcolor;
+}
+
+.status-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-fps {
+  flex-shrink: 0;
+  min-width: 5.5ch;
+  padding-left: 0.4rem;
+  border-left: 1px solid rgb(141 216 161 / 35%);
+  color: #eef4ed;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .pulse {
@@ -3165,9 +3187,14 @@ kbd {
     font-size: 0.4rem;
   }
 
-  #minimap,
-  #status {
+  #minimap {
     display: none;
+  }
+
+  #status {
+    left: calc(0.45rem + var(--safe-left));
+    bottom: calc(0.4rem + var(--safe-bottom));
+    font-size: 0.65rem;
   }
 
   #event-log {
@@ -3210,7 +3237,7 @@ kbd {
 
   .mobile-joystick {
     position: absolute;
-    bottom: calc(0.7rem + var(--safe-bottom));
+    bottom: calc(2.15rem + var(--safe-bottom));
     left: calc(0.7rem + var(--safe-left));
     width: 7rem;
     height: 7rem;
@@ -3268,7 +3295,7 @@ kbd {
 
   .mobile-utilities {
     position: absolute;
-    bottom: calc(8.15rem + var(--safe-bottom));
+    bottom: calc(9.6rem + var(--safe-bottom));
     left: calc(0.55rem + var(--safe-left));
     display: flex;
     gap: 0.34rem;

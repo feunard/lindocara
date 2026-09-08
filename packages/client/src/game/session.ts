@@ -112,6 +112,7 @@ import {
 } from "./cooldown-sync.js";
 import { escapeIntent } from "./escape-intent.js";
 import { shouldLogEvent } from "./event-log-policy.js";
+import { createFrameRateMeter } from "./frame-rate.js";
 import {
   hasNearbyInteraction,
   nearestInteractiveBuilding,
@@ -442,6 +443,7 @@ async function startGameIdentity(
 ): Promise<void> {
   const loadingStartedAt = performance.now();
   const initialStore = useUiStore.getState();
+  initialStore.setFrameRate(null);
   getGameNavigation()?.setActiveParty(persistentParty);
   initialStore.setAdventureVictory(false);
   // Claims store ownership of this launch's `heroLoading`/`game` state synchronously, before the
@@ -495,6 +497,11 @@ async function startGameIdentity(
     progress: 32,
   });
   let client = new WorldClient();
+  const frameRate = createFrameRateMeter();
+  const resetFrameRate = () => {
+    frameRate.reset();
+    useUiStore.getState().setFrameRate(null);
+  };
   let connection: Connection | null = null;
   const combatAudio = new SessionCombatAudio(sound, () => connection);
   let reconnectTimer: number | null = null;
@@ -1008,6 +1015,7 @@ async function startGameIdentity(
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
     window.removeEventListener("beforeunload", beforeUnload);
+    document.removeEventListener("visibilitychange", resetFrameRate);
     canvas.removeEventListener("pointermove", onWorldPointerMove);
     canvas.removeEventListener("pointerleave", onWorldPointerLeave);
     canvas.removeEventListener("pointerdown", onWorldPointerDown);
@@ -1448,6 +1456,7 @@ async function startGameIdentity(
     sound.thunder();
   }
 
+  document.addEventListener("visibilitychange", resetFrameRate);
   renderer.onFrame((now, dt) => {
     sound.setNightWeight(
       mapDayCycleAt(Date.now(), activeZoneId, effectiveDayCycleOverride()).nightWeight,
@@ -1575,6 +1584,10 @@ async function startGameIdentity(
         : {}),
     };
     renderer.render(sample, context);
+    if (!document.hidden) {
+      const fps = frameRate.sample(now);
+      if (fps !== undefined) useUiStore.getState().setFrameRate(fps);
+    }
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse, movementStatus);
     updatePrompt(

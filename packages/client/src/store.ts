@@ -172,6 +172,7 @@ interface UiState {
   questStatus: QuestStatus;
   prompt: LocalizedText | null;
   status: LocalizedText | null;
+  frameRate: number | null;
   events: EventLine[];
   chat: ChatLine[];
   party: PartyState | null;
@@ -224,6 +225,7 @@ interface UiState {
   setQuestStatus(status: QuestStatus): void;
   setPrompt(prompt: LocalizedText | null): void;
   setStatus(status: LocalizedText): void;
+  setFrameRate(fps: number | null): void;
   addEvent(text: string, tone: EventLine["tone"]): void;
   removeEvent(id: number): void;
   addChat(from: string, text: string, channel?: "local" | "party"): void;
@@ -330,6 +332,7 @@ function clearedGameSessionFields() {
     questStatus: "available" as const,
     prompt: null,
     status: null,
+    frameRate: null,
     events: [],
     chat: [],
     party: null,
@@ -365,6 +368,7 @@ export const useUiStore = create<UiState>((set) => ({
   questStatus: "available",
   prompt: null,
   status: null,
+  frameRate: null,
   events: [],
   chat: [],
   party: null,
@@ -410,6 +414,8 @@ export const useUiStore = create<UiState>((set) => ({
       if (localizedTextEqual(state.status, status)) return {};
       return { status };
     }),
+  setFrameRate: (frameRate) =>
+    set((state) => (state.frameRate === frameRate ? state : { frameRate })),
   addEvent: (text, tone) =>
     set((state) => {
       const line: EventLine = {

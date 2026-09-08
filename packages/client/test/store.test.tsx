@@ -78,6 +78,7 @@ describe("ui store", () => {
         attachWorldMap: () => {},
       },
       reconnect: { kind: "network", attempt: 2, cancelReconnect: () => {} },
+      frameRate: 60,
       heroLoading: {
         name: "Mira",
         class: "priest",
@@ -131,6 +132,7 @@ describe("ui store", () => {
     const state = useUiStore.getState();
     expect(state.game).toBeNull();
     expect(state.reconnect).toBeNull();
+    expect(state.frameRate).toBeNull();
     expect(state.heroLoading).toBeNull();
     expect(state.mapOpen).toBe(false);
     expect(state.talentsOpen).toBe(false);

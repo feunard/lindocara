@@ -928,6 +928,8 @@ export const en = {
   "loading.hero.progress": "Loading progress",
   "status.connected": "connected - Everwild Hollow",
   "status.connected_zone": "connected - {zone}",
+  "status.fps": "{fps} FPS",
+  "status.fps_label": "Frames per second",
   "status.disconnected": "disconnected - {reason}",
   "status.connection_lost": "Connection lost. Reload to rejoin.",
   "status.close.elsewhere": "This character connected somewhere else.",
