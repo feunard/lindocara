@@ -18,6 +18,8 @@
     "priest:authoring:check": "uv run studio/pixel-art/priest-prototype/test_authoring.py",
     "priest:check": "yarn style:check && node studio/pixel-art/priest-prototype/validate.mjs",
     "style:check": "python studio/style_system.py && python -m unittest discover -s studio -p test_style_system.py",
+    "quality:check": "python studio/quality_floor.py",
+    "quality:reference": "python studio/quality_floor.py --extract",
     "priest:studio": "node studio/pixel-art/priest-prototype/preview.mjs",
     "priest:review": "node studio/pixel-art/priest-prototype/review.mjs",
     "dev": "yarn workspace @lindocara/main run dev",

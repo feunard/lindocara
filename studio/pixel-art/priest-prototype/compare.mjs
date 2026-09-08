@@ -1,6 +1,6 @@
 const root='/packages/renderer/src/assets/bonus/';
 const params=new URLSearchParams(location.search),requested=params.get('priest');
-const priestUrl=(requested?.startsWith('/artifacts/priest-motion/')||requested?.startsWith('/artifacts/priest-handedness/')||requested?.startsWith('/artifacts/priest-prototype/pilot/'))?requested:root+'priest-prototype/manifest.json';
+const priestUrl=(requested?.startsWith('/artifacts/actor-quality/')||requested?.startsWith('/artifacts/priest-motion/')||requested?.startsWith('/artifacts/priest-handedness/')||requested?.startsWith('/artifacts/priest-prototype/pilot/'))?requested:root+'priest-prototype/manifest.json';
 const get=id=>document.getElementById(id),canvas=get('comparison'),ctx=canvas.getContext('2d');
 const selected=params.has('direction')?Number(params.get('direction')):null;
 // PLAYER_ACTIONS (engine/combat-actions.ts), presentation only.

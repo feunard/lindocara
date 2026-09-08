@@ -3,6 +3,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from quality_floor import check_quality_floor, QUALITY_PROMPT
 
 ROOT = Path(__file__).resolve().parent
 
@@ -52,7 +53,7 @@ def style_prompt(style):
         f"Keep the approved orthographic sprite perspective for the {style['view']['worldCameraPitchDegrees']}-degree game camera "
         f"and {style['view']['directionStepDegrees']}-degree direction steps."
     )
-    return style["prompt"]+" "+limits+" Forbidden: "+"; ".join(style["forbidden"])+"."
+    return style["prompt"]+" "+limits+" Forbidden: "+"; ".join(style["forbidden"])+". "+QUALITY_PROMPT
 
 
 def check_references():
@@ -68,6 +69,7 @@ def check_references():
         data = path.read_bytes() if path.suffix == ".png" else path.read_text(encoding="utf-8").replace("\r\n", "\n").encode("utf-8")
         if hashlib.sha256(data).hexdigest() != expected:
             raise ValueError("LCPixel approved reference changed: " + name)
+    check_quality_floor()
     return style, lock
 
 

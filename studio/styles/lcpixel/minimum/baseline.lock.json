@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "LCPixel-Priest-e9f4b440",
+  "referenceCommit": "e9f4b4402e3f2de5ec8feccf234bdebbe7245c0b",
+  "scope": [
+    "new-character",
+    "modified-character",
+    "new-monster",
+    "modified-monster"
+  ],
+  "witnessSha256": {
+    "manifest.json": "b26fdeb59f767bb45794b2779e4c39946df847bdb1c7a9e192ea60a2c5b4de32",
+    "run-review.png": "0c0cb05c8863333e25632fccbd3fc527e02c30a31033508f1214d751832ca3cf",
+    "jump-review.png": "af3af9e4377a6da7f02f304156ad3705bd0b3297fec6f0c469e1f546b6e2a4cb",
+    "all-directions.webm": "d20249b3cbd0cefb9b460ad38ab8b82c740304cc07ad2b721ca5402107235de1",
+    "paired-keys.png": "4723af2e533728f08a1e05d7c27e52e89b711cef30c7017e04c9d25f59fa0d13",
+    "turn-detail.png": "632de01890a712839ac7ad829e82f1e5faa5d6a8bc8c01039e8001eed97fa002"
+  },
+  "runtimeSha256": {
+    "blink.png": "28dbb4fbb30f4953e9d17438cdf28feb801927a295101ea4ad65ee4fa04abd9a",
+    "death.png": "54befd4b9dea3545168b207fec0a0774d49068c37508614953210cc8b4cdb977",
+    "divine-nova.png": "094ea7f42d3b4a82e2d1aa2623b7d92bc1e57519847621c1086c4281bb54738e",
+    "fall.png": "3f09aca7b734921546f659b97cd96c90b1f8354fdb25b226ea98757afd9585ef",
+    "glide.png": "75f815b0a8c087b471caf71d9e1fe1202585b8887bbe20db49cde5ed40a9915e",
+    "hurt.png": "e1df3d1744e68ca23810f1471bbf7ab80fb44fce3696a249b02f2cc6b38f7968",
+    "idle.png": "3b4103be481992f594a630861fa72f22d50d309744f2c37715e1099646bfca4f",
+    "jump-run.png": "fa7ab9a8636bbb77bd08acf40f997d4748338b7080bdeb1e00d80a4556b9d38e",
+    "jump.png": "aa45aa176efbd058023de4ad2506bf15535be25d5e6f3da336f25bb5aae18237",
+    "land-run.png": "8a3f87e03d385044a8a99e8af38156bffffd1c68d6cd1d986b6a1b57d8f5121e",
+    "land.png": "44fb0b82cf9c6b8453fc8f1c141737d599fef927908e9c69c79a37d0a4a7fd04",
+    "manifest.json": "b26fdeb59f767bb45794b2779e4c39946df847bdb1c7a9e192ea60a2c5b4de32",
+    "mend.png": "5697017fa09249db1ad54d8e18ed4fcdb6df7d682056019b309aa68106f2c4cb",
+    "portrait.png": "cc242d296e4e9fbf0b43845d0eb7662b00cbc0cc25fd5b32770fcf8ec0021741",
+    "prayer.png": "1172b21ccfdbcc4e10161a83928914e9ed29abf19a0ca52175e8e16dc8a1890a",
+    "radiant-bolt.png": "94021cdec39f74bfe8ed628e567757057b22f236a1ea59249c67fb479f520ea9",
+    "run.png": "39f87f9dbb9c70a9308e4c0514e9b8b977c61434815db2e3a00e458a3a5c36d7",
+    "stop.png": "61f5d5c3c22f48a4e3717f9389573865ee6f67c686f7356fe4a367c2bcfe736c",
+    "swim.png": "86440984e23403b19c57527391cf8c49a46a155ef5488008897291c0c6be6876"
+  }
+}

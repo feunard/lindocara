@@ -15,6 +15,13 @@ Run `yarn style:check`; intentional style/reference revisions use
 Use `python studio/style_system.py --prompt` to export the full prose contract, including
 the numeric limits from the JSON. Single and batch `studio.py` generation inject it automatically.
 
+Every new or modified character or monster must meet or exceed the frozen **Priest e9f4b440**
+quality floor in [styles/lcpixel/QUALITY.md](styles/lcpixel/QUALITY.md). This applies to every
+required action and direction, not just idle or a favourite view. Review the motion in the game
+at normal size/speed and record the comparison before calling it validated. `yarn quality:check`
+protects the frozen reference; it does not automatically approve a candidate. `yarn quality:reference`
+restores the exact reference clips. A creature keeps its own anatomy, size and required states.
+
 Call `studio.py`, not the underlying runtimes. It injects the art direction from
 `theme.json` into every prompt, which is what makes a goblin sprite, a door creak and a
 village theme feel like the same game. `--no-theme` opts out when you want raw output.

@@ -24,6 +24,13 @@ accroupie ou un saut pour lui faire remplir la boîte d'une pose debout.
 
 ## Interdictions
 
+Le Prêtre approuvé au commit `e9f4b440` constitue le **minimum de qualité acceptable**
+pour tout personnage ou monstre créé ou modifié. Le [contrat de qualité](QUALITY.md)
+fige les témoins, impose la couverture des actions/directions réelles et la comparaison
+dans le moteur à taille et vitesse normales. Chaque créature garde sa morphologie ;
+le seuil ne lui impose pas les proportions ou les états du Prêtre. Aucun résultat
+inférieur ne doit être déclaré validé, même si les tests automatiques passent.
+
 Anatomie réaliste élancée, membres de poupée, 3D brillante, rendu vectoriel lisse, airbrush,
 dithering, grain, textures photographiques, broderies illisibles, accumulation de bijoux,
 ombres au sol intégrées aux personnages, halo permanent intégré au corps, changements de

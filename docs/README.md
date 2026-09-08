@@ -9,6 +9,7 @@ the task is in its subject, not before.
 | --- | --- |
 | [hd2d-rendering.md](./hd2d-rendering.md) | anything in the render path — what makes the HD-2D style, and what the deleted PixiJS renderer knew that nothing else records |
 | [Priest animation pipeline](../studio/pixel-art/priest-prototype/README.md) | regenerating the Priest raster clips, distance clock, weapon sockets, preview and validation |
+| [LCPixel character/monster quality floor](../studio/styles/lcpixel/QUALITY.md) | creating, modifying or validating any character or monster; frozen Priest reference, acceptance criteria and visual evidence |
 | [adventure-runtime-architecture.md](./adventure-runtime-architecture.md) | world routing, room ownership, hero location persistence |
 | [directional-action-combat.md](./directional-action-combat.md) | skill geometry, timings, limits, Tiny Swords mappings |
 | [cooperative-combat.md](./cooperative-combat.md) | threat, contribution eligibility, XP split, resource costs |

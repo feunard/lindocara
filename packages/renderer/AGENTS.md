@@ -82,6 +82,11 @@ yarn workspace @lindocara/renderer run test   # or: yarn test:renderer â€” 
 
 ## Rules
 
+- Every new or modified character/monster must meet the frozen Priest e9f4b440
+  [quality floor](../../studio/styles/lcpixel/QUALITY.md). Review all required actions,
+  directions and transitions at normal gameplay size/speed; preserve cadence, phase,
+  anchors, identity, scale and impact/socket synchronization. Passing tests alone is
+  insufficient. Anatomy and required states remain specific to the creature.
 - No React. If a change needs a hook or JSX, it belongs in `client` or `editor`.
 - One render engine. `three`, through `@lindocara/hd2d`. Two coexisting render paths is the
   arrangement S3 spent an increment ending; do not start a second one.

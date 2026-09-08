@@ -7,6 +7,13 @@ Use them for every new character generation, including image tools outside the l
 must select their entry in `characters.json` to preserve the canonical identity. The LoRA
 below remains the existing model adapter; the name LCPixel is not a newly trained model.
 
+**Minimum acceptable finish: the frozen Priest e9f4b440**, for every newly created or modified
+character and monster. Read [the quality contract](../styles/lcpixel/QUALITY.md), restore the
+reference with `yarn quality:reference`, and record an in-engine comparison for all required
+actions/directions at gameplay size and speed. Do not call a lower-quality candidate validated.
+Creature morphology is its own; the quality floor is not a requirement to copy Priest proportions,
+equipment, frame counts or animation states. More generated frames do not demonstrate fluid motion.
+
 **FLUX.2-klein-4B** (Apache 2.0) plus `models/tinyswords-v2-4000.safetensors`, our LoRA
 trained on the Tiny Swords packs. Trigger word `T1NYSW0RDS`, LoRA scale 1.4, 4 steps,
 768×768.
@@ -50,9 +57,10 @@ Two mechanisms, both driven from `characters.json`:
    reference image passed to the pipeline on CUDA. Pick one hero frame, point the field at
    it, and every later sheet matches it.
 
-Trade-off worth knowing: reference conditioning also freezes poses. Counter it with
-exaggerated motion language ("legs lifted high, big strides, every frame a clearly
-different phase"). And **retrying a failed edit-mode sheet with a new seed reproduces the
+Trade-off worth knowing: reference conditioning also freezes poses. Specify distinct contact,
+passing and suspension phases, weight transfer and controlled, anatomically appropriate amplitude.
+Do not demand huge strides or exaggerated arm motion just to make frames look different.
+**Retrying a failed edit-mode sheet with a new seed reproduces the
 same failure** — the reference dominates. Change the wording instead, or generate the
 problem frame standalone and pair it with the good ones.
 

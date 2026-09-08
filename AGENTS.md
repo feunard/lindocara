@@ -224,6 +224,15 @@ is precisely why they are written down.
     per finished faction building), record the comparison screenshot in the handoff, and never call
     a pack complete from unit tests alone. → [maps-and-editor.md](./docs/maps-and-editor.md)
 
+15. **The approved Priest is the minimum quality for every new or modified character and
+    monster**, including NPCs and variants. Compare every required action/direction and its
+    transitions at normal gameplay camera, size and speed against the frozen Priest at
+    `e9f4b440`. A weaker result remains unfinished even if tests pass. Preserve LCPixel identity,
+    coordinated motion, credible contacts, stable scale/anchors and gameplay synchronization;
+    adapt anatomy and actions to the creature. Never lower or silently replace the floor.
+    Record visual evidence before declaring an actor validated.
+    → [LCPixel actor quality floor](./studio/styles/lcpixel/QUALITY.md)
+
 ## Where the rest lives
 
 Read one when the task is in its subject — not before, and not all of them.

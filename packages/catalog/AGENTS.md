@@ -36,6 +36,10 @@ yarn workspace @lindocara/catalog run test     # or: yarn test:catalog — Node
 
 ## Rules
 
+- New or modified characters and monsters must meet the frozen Priest e9f4b440
+  [quality floor](../../studio/styles/lcpixel/QUALITY.md), including visual review of
+  every required action/direction at gameplay size and speed. Catalogue validation
+  alone does not approve the quality of an actor's appearance or animation.
 - After changing the source catalogue or the generators, run `yarn catalog:build` and commit the
   regenerated files in `engine`/`client`/`docs` — `catalog:check` (and CI) fails otherwise.
 - The generated files are excluded from oxlint and oxfmt alike (`**/generated` in both configs),
