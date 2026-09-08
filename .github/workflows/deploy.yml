@@ -175,6 +175,25 @@ jobs:
           printf '%s\n' "$BAY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+      # Bay's flat app-environment layout replaced the historical nested one. The adapter refuses
+      # to create a fresh empty instance while the old directory exists, so migrate that one exact
+      # lab path before deploying. This remains safe on later runs: an already-migrated instance is
+      # left alone, while two populated paths stop the job instead of choosing one implicitly.
+      - name: Migrate the legacy lab directory
+        run: |
+          ssh "$BAY_HOST" '
+            set -eu
+            old=/opt/bay/data/apps/lindocara-lab/production
+            current=/opt/bay/data/apps/lindocara-lab-production
+            if [ -e "$old" ] && [ -e "$current" ]; then
+              echo "Both legacy and current lab directories exist; refusing to overwrite either." >&2
+              exit 1
+            fi
+            if [ -e "$old" ]; then
+              mv "$old" "$current"
+            fi
+          '
+
       # `yarn workspace @lindocara/lab run deploy` is two halves: `vite build` fills `dist-client/`,
       # then `alepha platform up` builds the static artifact around it, packs, uploads and waits
       # for the release to serve. The vite half has to run FIRST and outside `dist/` — the alepha
