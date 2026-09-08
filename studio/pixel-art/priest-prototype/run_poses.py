@@ -7,8 +7,8 @@ import json
 import cv2
 import numpy as np
 from PIL import Image
-from source_tools import transparent, head_box, SOURCE
-from registration import body_landmarks, rest_image, CELL, ANCHOR
+from source_tools import transparent, SOURCE
+from registration import body_landmarks, CELL, ANCHOR
 from palette import colour_frame
 from raster_animation import interpolate
 
@@ -38,32 +38,41 @@ def extract(direction):
 def registered_keys(direction, colours):
     paintings, densities = extract(direction)
     spec = CONFIG["views"][direction]
-    primary = paintings[:spec["columns"] * spec["rows"]]
-    widths = [head_box(im)[2] - head_box(im)[0] for im in primary]
-    canonical = head_box(rest_image(direction))
-    scale = float((canonical[2] - canonical[0]) / np.median(widths))
+    measurements = {i: body_landmarks(paintings[i]) for i in spec["keys"]}
+    # Hair width varies with perspective and is not a body-size measurement. Use
+    # the six SELECTED whole poses to calibrate ONE density for the entire clip.
+    # The staff is excluded, as is the flight translation applied below. Never
+    # resize individual frames to a standing bounding box: knee flexion survives.
+    heights = [(measurements[i]["ground"] - measurements[i]["head"][1]) * densities[i]
+               for i in spec["keys"]]
+    source_height = float(np.median(heights))
+    scale = CONFIG["bodyHeight"] / source_height
+    horizontal = spec.get("horizontalRegistration")
+    reference_track = None
+    if horizontal:
+        reference = horizontal["reference"]
+        if CONFIG["views"][reference].get("horizontalRegistration"):
+            raise ValueError("Registration references must be independent authored views")
+        _, reference_track = registered_keys(reference, colours)
     keys, records = [], []
     for index, phase, role in zip(spec["keys"], CONFIG["keyPhases"], CONFIG["keyRoles"]):
         source = paintings[index]
-        m = body_landmarks(source)
+        m = measurements[index]
         density = densities[index]
         s = scale * density
         lift = CONFIG["flightLift"] if role.startswith("flight") else 0
-        placement = spec.get("registration", {}).get(str(index))
-        if placement:
-            # Rear views can put a lifted sole below the planted foot in screen
-            # space. The brown-pixel heuristic also confuses belt and boots.
-            # Reviewed whole-painting anchors avoid both errors. They describe a
-            # translation only; they never reconstruct or deform body parts.
-            source_root, target_root = placement["sourceRoot"], placement["targetRoot"]
-            m["pelvis"] = source_root
-            m["chest"] = [m["neck"][0] * .4 + source_root[0] * .6,
-                           m["neck"][1] + (source_root[1] - m["neck"][1]) * .48]
-            dx = target_root[0] - source_root[0] * s
-            dy = target_root[1] - source_root[1] * s
-        else:
-            dx = ANCHOR[0] - m["pelvis"][0] * s
-            dy = ANCHOR[1] - m["ground"] * s - lift
+        dx = ANCHOR[0] - m["pelvis"][0] * s
+        dy = ANCHOR[1] - m["ground"] * s - lift
+        if reference_track is not None:
+            # A staff-holding forearm crosses the belt in the left profile. The
+            # brown mask alternated between that hand and the belt, snapping the
+            # whole body sideways. Register the WHOLE painting to the approved
+            # opposite view's horizontal head trajectory. Keep the painted spine,
+            # feet, y placement and the single source density intact.
+            target_x = reference_track[len(keys)]["landmarks"]["head"][0]
+            if horizontal.get("reflect"):
+                target_x = CELL - target_x
+            dx = target_x - (m["head"][0] + m["head"][2]) / 2 * s
         matrix = np.array([[s, 0, dx], [0, s, dy]], dtype="float32")
         frame = cv2.warpAffine(np.array(source), matrix, (CELL, CELL),
                                flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_CONSTANT)
@@ -76,8 +85,9 @@ def registered_keys(direction, colours):
         keys.append(frame)
         records.append({"sourceIndex": index, "phase": phase, "role": role,
                         "frame": round(phase * FRAMES), "scale": scale,
+                        "sourceBodyHeight": source_height, "targetBodyHeight": CONFIG["bodyHeight"],
                         "sourceSheetDensity": density, "offset": [dx, dy],
-                        "registration": "reviewed-whole-pose" if placement else "automatic-foot",
+                        "registration": "opposite-view-horizontal" if horizontal else "automatic-foot",
                         "source": m, "landmarks": landmarks})
     return keys, records
 

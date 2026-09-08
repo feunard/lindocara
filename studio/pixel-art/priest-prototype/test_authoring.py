@@ -9,9 +9,10 @@ import unittest
 import tempfile
 from pathlib import Path
 import numpy as np
+import cv2
 from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
-from source_tools import cells, SOURCE, NAMES
+from source_tools import cells, SOURCE, NAMES, head_box
 from registration import body_landmarks, registered
 from palette import colour_frame
 from run_poses import run_cycle, registered_keys, extract, CONFIG
@@ -53,21 +54,43 @@ class PriestAuthoringTest(unittest.TestCase):
         self.assertEqual(spec['keys'],list(range(6)))
         self.assertTrue(all(d==1 for d in densities))
 
-    def test_rear_quarter_registration_does_not_snap_to_a_boot(self):
+    def test_directional_body_size_and_compact_stride(self):
         colours=json.loads((SOURCE/'palette.json').read_text())['colours']
-        _,records=registered_keys('back-quarter',colours)
-        self.assertTrue(all(r['registration']=='reviewed-whole-pose' for r in records))
-        heads=np.array([r['landmarks']['head'] for r in records])
-        # The previous brown-mask anchor jumped from the belt to a boot: the
-        # entire head snapped sideways by ten native pixels at the loop end.
-        self.assertLess(np.ptp(heads[:,0]),2)
-        # Preserve the accepted left view's body excursion instead of pinning the
-        # previous over-leaning torso to its six obsolete belt heights.
-        _,left=registered_keys('back-left',colours)
-        left_heads=np.array([r['landmarks']['head'] for r in left])
-        np.testing.assert_allclose(heads[:,0],256-left_heads[:,0],atol=.001)
-        self.assertLessEqual(np.ptp(heads[:,1]),np.ptp(left_heads[:,1])+1)
-        self.assertEqual(CONFIG['views']['back-quarter']['keys'],[3,4,5,0,1,2])
+        heights,spans={},{}
+        for direction in NAMES:
+            keys,records=registered_keys(direction,colours)
+            for r in records:
+                self.assertAlmostEqual(r['scale']*r['sourceBodyHeight'],96.5)
+            # Measure rendered bodies, excluding the staff and the small flight
+            # translation. This catches a bad source landmark or wrong placement,
+            # not just a configuration value copied into the report.
+            measured=[];widths=[]
+            for key,r in zip(keys,records):
+                a=key.astype('int16');red,green,blue=a[:,:,0],a[:,:,1],a[:,:,2]
+                boots=(red>25)&(red<180)&(green<130)&(blue<100)&(red>green*1.08)&(green>blue*1.04)&(a[:,:,3]>0)
+                boots[:155]=False
+                # The brown staff can extend below the hips too. Its narrow
+                # component is not a foot and must not inflate the stride width.
+                count,labels,stats,_=cv2.connectedComponentsWithStats(boots.astype('uint8'),8)
+                boots=np.isin(labels,[i for i in range(1,count) if stats[i,cv2.CC_STAT_WIDTH]>=7 and stats[i,cv2.CC_STAT_AREA]>=25 and stats[i,cv2.CC_STAT_HEIGHT]<stats[i,cv2.CC_STAT_WIDTH]*2+3])
+                yy,xx=np.nonzero(boots)
+                measured.append(float(np.quantile(yy,.995))+1-head_box(Image.fromarray(key))[1])
+                widths.append(float(np.quantile(xx,.98)-np.quantile(xx,.02)))
+            heights[direction]=float(np.median(measured))
+            spans[direction]=max(widths)
+        self.assertLessEqual(max(heights.values())-min(heights.values()),2)
+        for candidate,reference in [('side-left','side'),('back-left','front-left'),('back-quarter','front-quarter')]:
+            self.assertEqual(CONFIG['views'][candidate]['motionReference'],reference)
+            self.assertLessEqual(spans[candidate],spans[reference]+4,f'{candidate}: overextended stride')
+
+    def test_left_profile_does_not_snap_from_belt_to_staff_hand(self):
+        colours=json.loads((SOURCE/'palette.json').read_text())['colours']
+        _,left=registered_keys('side-left',colours)
+        _,right=registered_keys('side',colours)
+        a=np.array([r['landmarks']['head'][0] for r in left])
+        b=np.array([r['landmarks']['head'][0] for r in right])
+        np.testing.assert_allclose(a,256-b,atol=.001)
+        self.assertLess(np.max(np.abs(np.roll(a,-1)-a)),4.1)
 
     def test_compact_atlas_reconstructs_every_direction_and_duplicate_exactly(self):
         # Different bounds and shared endpoints exercise packing rather than a mock.

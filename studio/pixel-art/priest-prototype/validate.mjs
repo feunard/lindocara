@@ -99,12 +99,32 @@ for(const [name,c] of Object.entries(manifest.clips)){
 const frame=(name,row,f)=>cells.get(name)[row][f];
 function difference(a,b){let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;}
 const seamReport=[];
+const runHeights=[];
 for(let r=0;r<8;r++){
   const direction=manifest.directions[r];
   const keys=report.registration[direction].run;
   assert.deepEqual(keys.map(k=>k.frame),[0,6,12,18,24,30],`${direction}: painted key coverage`);
   assert.deepEqual(keys.map(k=>k.role),['contact-a','passing-a','flight-a','contact-b','passing-b','flight-b']);
   assert.equal(report.motionTracks,undefined,'Do not replace painted motion with a cut-out rig');
+  for(const key of keys){
+    assert.equal(key.targetBodyHeight,96.5,`${direction}: body height contract`);
+    assert(Math.abs(key.scale*key.sourceBodyHeight-96.5)<1e-8,`${direction}: body density drift`);
+  }
+  // The source report is not sufficient: inspect the reconstructed raster too.
+  // A narrow charcoal connected component is not needed here; scan hair above
+  // the face and brown soles well below it, ignoring the separate gold staff.
+  const measured=keys.map(key=>{
+    const data=frame('run',r,key.frame),hair=[],soles=[];
+    for(let y=60;y<205;y++)for(let x=104;x<151;x++){
+      const p=(y*256+x)*4,red=data[p],green=data[p+1],blue=data[p+2];
+      if(!data[p+3])continue;
+      if(y<120&&red>25&&green>25&&red<155&&green<155&&blue>red*.77&&Math.abs(red-green)<35)hair.push(y);
+      if(y>165&&red>25&&red<180&&green<130&&blue<100&&red>green*1.08&&green>blue*1.04)soles.push(y);
+    }
+    assert(hair.length>5&&soles.length>5,`${direction}: body measurement missing`);
+    return soles.sort((a,b)=>a-b)[Math.floor((soles.length-1)*.995)]+1-Math.min(...hair);
+  }).sort((a,b)=>a-b);
+  runHeights.push((measured[2]+measured[3])/2);
   for(const name of ['idle','run','swim','glide']){
     const row=cells.get(name)[r],seam=difference(row.at(-1),row[0]);
     const largest=Math.max(...row.slice(1).map((f,i)=>difference(f,row[i])));
@@ -131,6 +151,7 @@ for(let r=0;r<8;r++){
     }
   }
 }
+assert(Math.max(...runHeights)-Math.min(...runHeights)<=3,'Rendered run body sizes differ between directions');
 const expected=new Set(['manifest.json','portrait.png',...Object.values(manifest.clips).map(c=>path.basename(c.asset))]);
 assert.deepEqual((await readdir(folder)).sort(),[...expected].sort(),'Unexpected runtime assets');
 for(const legacy of ['packages/renderer/src/assets/characters/priest','packages/renderer/src/hd2d/priest-sprites.ts','studio/pixel-art/priest-rig','packages/renderer/src/assets/bonus/assassin',...['gait.py','painted_layout.py','painted_motion.py','motion_transfer.py'].map(name=>'studio/pixel-art/priest-prototype/'+name)]){

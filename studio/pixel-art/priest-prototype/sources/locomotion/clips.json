@@ -1,6 +1,7 @@
 {
   "frames": 36,
   "strideDistance": 1.8,
+  "bodyHeight": 96.5,
   "keyPhases": [
     0,
     0.16666666666666666,
@@ -59,79 +60,18 @@
       ]
     },
     "back-quarter": {
-      "sheet": "run-back-quarter-cycle.png",
+      "sheet": "run-back-quarter-matched.png",
       "columns": 3,
       "rows": 2,
       "keys": [
-        3,
-        4,
-        5,
         0,
         1,
-        2
+        2,
+        3,
+        4,
+        5
       ],
-      "registration": {
-        "3": {
-          "sourceRoot": [
-            267,
-            233
-          ],
-          "targetRoot": [
-            125.7477,
-            137.7686
-          ]
-        },
-        "4": {
-          "sourceRoot": [
-            242,
-            233
-          ],
-          "targetRoot": [
-            130.4746,
-            132.8099
-          ]
-        },
-        "5": {
-          "sourceRoot": [
-            244,
-            233
-          ],
-          "targetRoot": [
-            138.5664,
-            129.4793
-          ]
-        },
-        "0": {
-          "sourceRoot": [
-            266,
-            289
-          ],
-          "targetRoot": [
-            126.7025,
-            133.1405
-          ]
-        },
-        "1": {
-          "sourceRoot": [
-            239,
-            289
-          ],
-          "targetRoot": [
-            129.3397,
-            130.1653
-          ]
-        },
-        "2": {
-          "sourceRoot": [
-            244,
-            289
-          ],
-          "targetRoot": [
-            138.5664,
-            132.0182
-          ]
-        }
-      }
+      "motionReference": "front-quarter"
     },
     "back": {
       "sheet": "run-back.png",
@@ -147,7 +87,7 @@
       ]
     },
     "back-left": {
-      "sheet": "run-back-left-handed.png",
+      "sheet": "run-back-left-matched.png",
       "columns": 3,
       "rows": 2,
       "keys": [
@@ -157,10 +97,11 @@
         3,
         4,
         5
-      ]
+      ],
+      "motionReference": "front-left"
     },
     "side-left": {
-      "sheet": "run-side-left-handed.png",
+      "sheet": "run-side-left-matched.png",
       "columns": 3,
       "rows": 2,
       "keys": [
@@ -170,7 +111,9 @@
         3,
         4,
         5
-      ]
+      ],
+      "motionReference": "side",
+      "horizontalRegistration": {"reference": "side", "reflect": true}
     },
     "front-left": {
       "sheet": "run-front-left-handed.png",

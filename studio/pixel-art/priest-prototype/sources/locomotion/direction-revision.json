@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-08",
+  "style": "LCPixel",
+  "tool": "built-in image_gen.imagegen",
+  "parameters": ["prompt", "referenced_image_paths"],
+  "acceptedMotionViews": ["front", "front-quarter", "side", "back", "front-left"],
+  "edits": [
+    {"output": "run-side-left-matched.png", "prompt": "run-side-left-matched.prompt.txt", "references": ["reference-side-six.png", "../handedness/canonical-side-left.png", "../../../../styles/lcpixel/characters.png"], "motionReference": "side"},
+    {"output": "run-back-left-matched.png", "prompt": "run-back-left-matched.prompt.txt", "references": ["reference-front-left-six.png", "../handedness/canonical-back-left.png", "../../../../styles/lcpixel/characters.png"], "motionReference": "front-left"},
+    {"output": "run-back-quarter-matched.png", "prompt": "run-back-quarter-matched.prompt.txt", "references": ["reference-front-quarter-six.png", "../handedness/canonical-back-quarter.png", "../../../../styles/lcpixel/characters.png"], "motionReference": "front-quarter"}
+  ],
+  "referenceLayout": "The selected six cells from each approved source, in clips.json temporal order, uniformly fitted into 460 px inside equal 512 px cells. These guide images are not runtime sources.",
+  "identity": "All eight canonical views remain unchanged. Three new complete painted run cycles retain the anatomical left staff without a runtime mirror.",
+  "density": "One uniform density per cycle, calibrated from the median skull-to-sole height of the six selected keys, excluding the staff. Target 96.5 native pixels in the flexed run pose. Standing canonical bodies remain approximately 106 px. No independent frame or limb resizing.",
+  "registration": "Whole-pose ground placement. Left profile additionally follows the reflected horizontal head excursion of the approved right profile; the staff forearm otherwise contaminates the brown belt landmark. This is a whole-image translation, never a head patch or limb deformation.",
+  "delivery": "Only sources named in clips.json enter run_poses.py. The prior three rejected cycles are removed. Thirty-six offline DIS raster frames retain all six keys and the closing segment. No extra runtime interpolation or texture lane.",
+  "reproducibility": "Image generation is not bitwise reproducible. The frozen paintings, palette, density rule and pinned build dependencies reproduce the runtime atlases without another AI call."
+}

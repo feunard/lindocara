@@ -18,21 +18,26 @@ Ce code est retiré. La course utilise maintenant la même méthode raster que l
 1. Partir de dessins du personnage **entier**. Le Rogue fournit des témoins de poses ;
    le canon approuvé et la charte LCPixel fournissent l'identité du Prêtre.
 2. Sélectionner six poses par vue : contact, passage et suspension de chaque jambe.
-   La face regarde réellement le joueur. Les diagonales arrière reprennent l'amplitude
-   compacte des diagonales avant, avec des poses différentes pour les deux appuis.
+   La face regarde réellement le joueur. La gauche prend la droite comme référence de
+   mouvement ; haut gauche prend bas gauche, et haut droite prend bas droite.
+   Les cinq peintures directionnelles validées restent les références de mouvement.
    `sources/locomotion/clips.json` décrit les sources et leur ordre temporel.
-   La haut droite reprend précisément les poses compactes de la haut gauche :
-   conversion des dessins vers l'autre orientation, puis correction peinte de la
-   main du bâton. L'ordre commence à la quatrième pose pour conserver l'alternance
-   anatomique des jambes. `sources/locomotion/back-quarter-revision.json` conserve
-   les deux prompts, références et décisions de cette correction.
+   Les trois vues reprises ont chacune six peintures dédiées, avec le bâton dans la
+   main anatomique gauche. `sources/locomotion/direction-revision.json` conserve les
+   prompts exacts et les références utilisées par l'outil d'image intégré.
 3. `run_poses.py` applique une seule densité d'image par planche, puis translate chaque
    peinture entière dans le canvas commun. Une édition isolée retrouve la densité de
    son canvas de référence. Aucun membre n'est étiré, tourné ou collé séparément.
-   La diagonale arrière droite utilise des repères de ceinture vérifiés dans `clips.json` :
-   la détection brune confondait parfois botte et ceinture, décalant toute la tête de
-   dix pixels. Un pied levé peut aussi apparaître plus bas qu'un pied posé dans cette
-   perspective. Ces repères règlent le placement entier, sans reconstruire les membres.
+   La densité est calculée sur la hauteur médiane du corps des six clés sélectionnées,
+   du crâne aux semelles, hors bâton : 96,5 pixels dans la pose fléchie de course.
+   La largeur des cheveux n'est plus utilisée comme substitut de taille corporelle.
+   Les huit canons debout restent autour de 106 pixels. Flexion des genoux et suspension
+   conservent leur variation naturelle ; aucune image n'est agrandie séparément pour
+   remplir une boîte. Le rapport d'auteur conserve les mesures source et la densité.
+   Dans le profil gauche, l'avant-bras passe sur la ceinture : sa couleur brune faussait
+   l'ancre et faisait sauter tout le personnage latéralement. La peinture entière suit
+   maintenant l'excursion horizontale de tête de la droite validée, réfléchie ; le
+   dessin de la tête et des membres reste solidaire, sans découpe ni déformation.
 4. Le même flux optique bidirectionnel OpenCV DIS que le Rogue V2 construit les
    intermédiaires, y compris le raccord dernière clé → première clé. Les 36 images
    finales conservent exactement les six clés à la palette approuvée de 48 couleurs.
