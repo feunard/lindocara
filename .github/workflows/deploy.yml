@@ -190,7 +190,7 @@ jobs:
               exit 1
             fi
             if [ -e "$old" ]; then
-              mv "$old" "$current"
+              sudo -n mv "$old" "$current"
             fi
           '
 
