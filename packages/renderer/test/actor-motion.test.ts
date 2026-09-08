@@ -290,8 +290,8 @@ describe("actor animation art", () => {
       expect((sheet.renderHeight ?? 0) / sheet.frameHeight).toBeCloseTo(
         1 / PRIEST_MANIFEST.pixelsPerTile,
       );
-      expect(sheet.directionRows).toBe(5);
-      expect(sheet.directionLayout).toBeUndefined();
+      expect(sheet.directionRows).toBe(8);
+      expect(sheet.directionLayout).toBe("full");
     }
 
     const skills = ["radiant_bolt", "mend", "blink", "prayer", "divine_nova"] as const;

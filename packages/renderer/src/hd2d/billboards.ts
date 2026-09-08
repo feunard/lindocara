@@ -82,6 +82,8 @@ export interface ActorView {
   /** Authored camera-relative rows. Five rows become eight directions through mirroring. */
   directionRows?: number;
   sheetColumns?: number;
+  sheetRows?: number;
+  frameIndices?: readonly (readonly number[])[];
   directionStride?: number;
   /** Mirroring swaps anatomical feet; a half stride retains the planted foot through turns. */
   mirroredPhaseOffset?: number;
@@ -420,7 +422,7 @@ export function createBillboardRegistry(
     const cols = vertical ? 1 : (actor.sheetColumns ?? frames);
     const rows = vertical
       ? frames
-      : directionRows * Math.ceil((actor.directionStride ?? frames) / cols);
+      : (actor.sheetRows ?? directionRows * Math.ceil((actor.directionStride ?? frames) / cols));
     const billboard = makeBillboard(ctx, {
       texture,
       cols,
@@ -531,11 +533,12 @@ export function createBillboardRegistry(
             ? (frame + Math.round((actor.mirroredPhaseOffset ?? 0) * entry.frames)) % entry.frames
             : frame;
           entry.billboard.setFrame(
-            direction.row * (actor.directionStride ?? entry.frames) + directionalPhase,
+            actor.frameIndices?.[direction.row]?.[directionalPhase] ??
+              direction.row * (actor.directionStride ?? entry.frames) + directionalPhase,
           );
           entry.billboard.setFlip(direction.flipped);
         } else {
-          entry.billboard.setFrame(frame);
+          entry.billboard.setFrame(actor.frameIndices?.[0]?.[frame] ?? frame);
           entry.billboard.setFacing(actor.facing);
         }
         const material = entry.billboard.mesh.material;

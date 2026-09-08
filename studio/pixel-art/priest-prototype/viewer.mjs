@@ -25,7 +25,7 @@ function draw(){
   get('frame').max=c.frames-1;get('frame').value=frame;
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.imageSmoothingEnabled=false;
   for(let direction=0;direction<8;direction++){
-    const row=direction<5?direction:8-direction,mirror=direction>4;
+    const full=manifest.directionLayout==='full',row=full?direction:direction<5?direction:8-direction,mirror=!full&&direction>4;
     const x=direction%4*320+160,y=Math.floor(direction/4)*370;
     ctx.fillStyle='#d4d9d7';ctx.font='14px monospace';ctx.fillText(`${direction} · ${manifest.directions[row]}${mirror?' miroir':''}`,x-148,y+22);
     for(const [scale,anchorY] of [[.63,y+128],[1.35,y+342]]){
@@ -40,10 +40,10 @@ function draw(){
         }ctx.restore();
       }
       const shift=mirror&&['run','stop','start','jump-run','land-run'].includes(name)?c.frames/2:0;
-      const f=(frame+shift)%c.frames,idx=row*c.directionStride+f,im=images.get(c.asset),{width:w,height:h,anchor:a}=c.frame;
+      const f=(frame+shift)%c.frames,idx=c.frameIndices?.[row]?.[f]??row*c.directionStride+f,im=images.get(c.asset),{width:w,height:h,anchor:a}=c.frame;
       const paint=index=>ctx.drawImage(im,index%c.columns*w,Math.floor(index/c.columns)*h,w,h,-a.x*scale,-a.y*scale,w*scale,h*scale);
       ctx.save();ctx.translate(x,anchorY);if(mirror)ctx.scale(-1,1);
-      if(get('overlay').checked){ctx.globalAlpha=.25;paint(row*c.directionStride+(f+c.frames-1)%c.frames);ctx.globalAlpha=1;}
+      if(get('overlay').checked){ctx.globalAlpha=.25;paint(c.frameIndices?.[row]?.[(f+c.frames-1)%c.frames]??row*c.directionStride+(f+c.frames-1)%c.frames);ctx.globalAlpha=1;}
       paint(idx);
       if(get('motion').checked&&name==='run'){
         const keys=motionReview.registration[manifest.directions[row]].run;

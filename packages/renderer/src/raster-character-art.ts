@@ -10,6 +10,8 @@ export interface RasterClip {
   frame: { width: number; height: number; anchor: { x: number; y: number } };
   directionRows: number;
   columns: number;
+  sheetRows?: number;
+  frameIndices?: readonly (readonly number[])[];
   directionStride: number;
   phaseBuckets?: number;
   transitionFrames?: number;
@@ -71,6 +73,8 @@ export function rasterSheet(source: string, name: string, clip: RasterClip): Uni
     renderHeight: clip.frame.height / clip.pixelsPerTile,
     directionRows: clip.directionRows,
     sheetColumns: clip.columns,
+    ...(clip.sheetRows === undefined ? {} : { sheetRows: clip.sheetRows }),
+    ...(clip.frameIndices === undefined ? {} : { frameIndices: clip.frameIndices }),
     directionStride: clip.directionStride,
     ...(["run", "jump-run", "land-run", "start", "stop"].includes(name)
       ? { mirroredPhaseOffset: 0.5 }

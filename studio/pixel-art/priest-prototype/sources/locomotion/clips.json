@@ -1,14 +1,189 @@
 {
   "frames": 36,
   "strideDistance": 1.8,
-  "keyPhases": [0, 0.16666666666666666, 0.3333333333333333, 0.5, 0.6666666666666666, 0.8333333333333334],
-  "keyRoles": ["contact-a", "passing-a", "flight-a", "contact-b", "passing-b", "flight-b"],
+  "keyPhases": [
+    0,
+    0.16666666666666666,
+    0.3333333333333333,
+    0.5,
+    0.6666666666666666,
+    0.8333333333333334
+  ],
+  "keyRoles": [
+    "contact-a",
+    "passing-a",
+    "flight-a",
+    "contact-b",
+    "passing-b",
+    "flight-b"
+  ],
   "flightLift": 3,
   "views": {
-    "front": {"sheet": "run-front-six.png", "columns": 3, "rows": 2, "keys": [3, 1, 2, 0, 6, 5], "extra": "run-front-passing-opposite.png", "extraReferenceCell": 1},
-    "front-quarter": {"sheet": "run-front-quarter.png", "columns": 5, "rows": 2, "keys": [0, 8, 2, 9, 4, 7]},
-    "side": {"sheet": "run-side.png", "columns": 5, "rows": 2, "keys": [0, 8, 2, 5, 4, 9]},
-    "back-quarter": {"sheet": "run-back-quarter-staff.png", "columns": 5, "rows": 2, "keys": [0, 6, 2, 3, 9, 8]},
-    "back": {"sheet": "run-back.png", "columns": 5, "rows": 2, "keys": [0, 7, 2, 1, 6, 3]}
+    "front": {
+      "sheet": "run-front-handed.png",
+      "columns": 3,
+      "rows": 2,
+      "keys": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "front-quarter": {
+      "sheet": "run-front-quarter.png",
+      "columns": 5,
+      "rows": 2,
+      "keys": [
+        0,
+        8,
+        2,
+        9,
+        4,
+        7
+      ]
+    },
+    "side": {
+      "sheet": "run-side.png",
+      "columns": 5,
+      "rows": 2,
+      "keys": [
+        0,
+        8,
+        2,
+        5,
+        4,
+        9
+      ]
+    },
+    "back-quarter": {
+      "sheet": "run-back-quarter-cycle.png",
+      "columns": 3,
+      "rows": 2,
+      "keys": [
+        0,
+        3,
+        2,
+        1,
+        4,
+        5
+      ],
+      "registration": {
+        "0": {
+          "sourceRoot": [
+            261,
+            285
+          ],
+          "targetRoot": [
+            128,
+            143
+          ]
+        },
+        "1": {
+          "sourceRoot": [
+            244,
+            284
+          ],
+          "targetRoot": [
+            128,
+            143
+          ]
+        },
+        "2": {
+          "sourceRoot": [
+            232,
+            284
+          ],
+          "targetRoot": [
+            128,
+            141
+          ]
+        },
+        "3": {
+          "sourceRoot": [
+            264,
+            252
+          ],
+          "targetRoot": [
+            128,
+            146
+          ]
+        },
+        "4": {
+          "sourceRoot": [
+            242,
+            252
+          ],
+          "targetRoot": [
+            128,
+            146
+          ]
+        },
+        "5": {
+          "sourceRoot": [
+            232,
+            252
+          ],
+          "targetRoot": [
+            128,
+            141
+          ]
+        }
+      }
+    },
+    "back": {
+      "sheet": "run-back.png",
+      "columns": 5,
+      "rows": 2,
+      "keys": [
+        0,
+        7,
+        2,
+        1,
+        6,
+        3
+      ]
+    },
+    "back-left": {
+      "sheet": "run-back-left-handed.png",
+      "columns": 3,
+      "rows": 2,
+      "keys": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "side-left": {
+      "sheet": "run-side-left-handed.png",
+      "columns": 3,
+      "rows": 2,
+      "keys": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "front-left": {
+      "sheet": "run-front-left-handed.png",
+      "columns": 3,
+      "rows": 2,
+      "keys": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
   }
 }

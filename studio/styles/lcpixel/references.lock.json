@@ -2,8 +2,8 @@
   "style": "LCPixel",
   "styleVersion": 1,
   "sha256": {
-    "styles/lcpixel/style.json": "2c3b2be9a648058128aa26dfae4883395d93b1e20efcc5d83eba731ab7c7e5f6",
-    "styles/lcpixel/STYLE.md": "74f734f3832e91fd05704be7dbdc209792d21bf807d1646508ebed2726eb1579",
+    "styles/lcpixel/style.json": "60a6f9472568768ff89771529767cd1f320f25dced4c34c4935c1ededc1e28e3",
+    "styles/lcpixel/STYLE.md": "1407f497ecb1bffec6f31baf0abe116280203a35649f8eb75de8f8b8f5852638",
     "styles/lcpixel/characters.png": "7ba493682ac0bc6eedfb13a568db836f320d0f1949e0100efb6aaf1fbf8fd5e0",
     "pixel-art/priest-prototype/sources/simplified/canonical-native.png": "b08d9b9c1e99ec7b2d34b15764587c86a413bdb10bd6f3a535442afca17a59da",
     "pixel-art/priest-prototype/sources/simplified/palette.json": "bed050b8f353e38089e72a1be3a158c45ccdeb923a4286432a1758717de62eda",
@@ -19,6 +19,16 @@
     "pixel-art/priest-prototype/sources/simplified/view-front-quarter.png": "feab5796f0ef6505b71aeacd06db6724ecaf93ebfd65ab6ff8b9bb2d703735c1",
     "pixel-art/priest-prototype/sources/simplified/view-side.png": "dfbe675e9d58bb0e870ad1eb5b8ce5f0efec26c050dbfdc047c73b6ed7298b9b",
     "pixel-art/priest-prototype/sources/simplified/view-back-quarter.png": "def5d2c9059d8f76b301e888f798d66b70b164a963d393f7517329ab6de03c3f",
-    "pixel-art/priest-prototype/sources/simplified/view-back.png": "11b89e76fef0c383e976d6bcdc3b5abfda46c7e9fb84bc8e8ce38c81f20905f0"
+    "pixel-art/priest-prototype/sources/simplified/view-back.png": "11b89e76fef0c383e976d6bcdc3b5abfda46c7e9fb84bc8e8ce38c81f20905f0",
+    "pixel-art/priest-prototype/sources/handedness/canonical-back-quarter.png": "098a6d2545f2741473e8551aec4aef08f2b546eff0254dadc50bb91f66ff51d5",
+    "pixel-art/priest-prototype/sources/handedness/canonical-back-left.png": "f34c59a12f7da104a6c65605e583085977d6c1e2c2fe4dd7ed713d375cffed93",
+    "pixel-art/priest-prototype/sources/handedness/canonical-side-left.png": "0153025b85b7e9fc9aa9238de8f5579abfcda065582e32d6c0f53d9a04086c98",
+    "pixel-art/priest-prototype/sources/handedness/canonical-front-left.png": "60beb66ab3c61792f2eaf90ad2c515deed71a37fbd91f6918d440bae66a2d6fb",
+    "pixel-art/priest-prototype/sources/handedness/view-back-quarter.png": "2a4ae78984de0434a343e95367b68fb0dc24dd179e63b1ae01f347ca3caa077a",
+    "pixel-art/priest-prototype/sources/handedness/view-back-left.png": "52dc368a6255c7ad7fd9e1a6a26fb04d2dbfa3b26b98e5e63e2b4fe39d8b0287",
+    "pixel-art/priest-prototype/sources/handedness/view-side-left.png": "637fdea274183ac3b0e5b76ee4c77d71f0ca3a34accf0b6b635ca91a3ea97f41",
+    "pixel-art/priest-prototype/sources/handedness/view-front-left.png": "128e2f1074253a5476cb1a2952bfc744f8fbf1644b9759765048ab851ca9cc5f",
+    "pixel-art/priest-prototype/sources/handedness/turnaround.png": "3f8f61899d521a248fd4ce5627c00c17bdc6d2f1c47211a7255365a4f8b123d5",
+    "pixel-art/priest-prototype/sources/handedness/canonical-registration.json": "b8eed0599cf5b7a2c533f6df8ced0506fc75abdc3eb84dcf4cc0d95bdb863446"
   }
 }

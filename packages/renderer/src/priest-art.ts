@@ -46,7 +46,12 @@ export function isPriestSkillId(value: string): value is PriestSkillId {
 }
 
 export function priestSheet(name: PriestClip): UnitSheet {
-  return { ...rasterSheet(SOURCES[name], name, manifest.clips[name]), groundedFootprint: true };
+  return {
+    ...rasterSheet(SOURCES[name], name, manifest.clips[name]),
+    directionLayout: "full",
+    mirroredPhaseOffset: 0,
+    groundedFootprint: true,
+  };
 }
 
 export function priestMotionClip(
@@ -74,7 +79,7 @@ export function allPriestSheets(): UnitSheet[] {
   return (Object.keys(SOURCES) as PriestClip[]).map(priestSheet);
 }
 
-/** The orb centre in the displayed frame, including mirrored views and camera pitch. */
+/** The orb centre in the authored directional frame, projected at the game camera pitch. */
 export function priestWeaponOffset(
   clip: PriestClip,
   row: number,

@@ -2,7 +2,7 @@
 import cv2
 import numpy as np
 from PIL import Image
-from source_tools import cells, head_box, SOURCE
+from source_tools import cells, head_box, source_for, HANDED_SOURCE, transparent
 
 CELL = 256
 ANCHOR = (128, 190)
@@ -10,7 +10,7 @@ ANCHOR = (128, 190)
 
 def rest_image(direction):
     image = Image.new("RGBA", (CELL, CELL))
-    image.alpha_composite(Image.open(SOURCE / f"canonical-{direction}.png").convert("RGBA"), (32,54))
+    image.alpha_composite(Image.open(source_for(direction) / f"canonical-{direction}.png").convert("RGBA"), (32,54))
     return image
 
 
@@ -46,8 +46,20 @@ def body_landmarks(image):
 def registered(kind,direction):
     if kind!='cast':
         raise ValueError('This entry registers cast poses; run_poses.py registers whole running keys.')
-    raw=cells(f"{kind}-{direction}",4,2)
     source_density=[1.0]*8
+    if direction in ['back-quarter','side-left']:
+        # These four whole paintings were authored without the wrong-hand guide.
+        # The semantic bank below preserves the existing release/recovery contract.
+        poses=cells(f'cast-{direction}-four',2,2,source=HANDED_SOURCE)
+        raw=[poses[i] for i in [0,0,0,1,0,0,2,3]]
+    else:
+        raw=cells(f"{kind}-{direction}",4,2,source=source_for(direction))
+    if direction=='front-left':
+        release=transparent(Image.open(HANDED_SOURCE/'release-front-left.png'))
+        width=lambda image:head_box(image)[2]-head_box(image)[0]
+        density=float(np.median([width(image) for image in raw]))/width(release)
+        raw[3]=release.resize((round(release.width*density),round(release.height*density)),Image.Resampling.LANCZOS)
+        source_density[3]=density
     if kind=="cast" and direction=="front-quarter":
         overhead=cells("cast-front-quarter-overhead",2,1)
         width=lambda image:head_box(image)[2]-head_box(image)[0]

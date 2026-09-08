@@ -15,7 +15,8 @@ from style_system import style_prompt
 style = json.loads(STYLE.read_text(encoding="utf-8"))
 style_text=style_prompt(style)
 identity = "The SAME simplified Priest from the canonical reference: swept charcoal hair, short dark full beard, warm tan skin, ivory short split coat, one bold gold chest cross, simple gold-edged shoulder capelets with two round clasps, brown belt/gloves/boots, charcoal trousers. One straight wooden staff with plain gold halo and yellow-gold orb. No wings, ruby, beads, tassels or extra decorations."
-views = {"front":"directly towards the viewer", "front-quarter":"towards the viewer and image right, three-quarter front", "side":"directly towards image right, exact right profile", "back-quarter":"away from the viewer towards image right, three-quarter rear", "back":"directly away from the viewer"}
+identity += " The staff is always in the anatomical LEFT hand, including across orientations and releases. Never mirror asymmetric equipment."
+views = {"front":"directly towards the viewer, both eyes centered", "front-quarter":"towards the viewer and image right, three-quarter front", "side":"directly towards image right, exact right profile", "back-quarter":"away from the viewer towards image right, three-quarter rear, ear on the right edge of the head and toes pointing right", "back":"directly away from the viewer", "back-left":"away from the viewer towards image left, three-quarter rear", "side-left":"directly towards image left, exact left profile", "front-left":"towards the viewer and image left, three-quarter front"}
 for direction, view in views.items():
     canonical = f"""Use case: stylized-concept. One complete neutral LCPixel Priest facing {view}.
 Use the existing canonical painting and the locked LCPixel style board as references.
@@ -28,7 +29,7 @@ This is one identity painting, not an animation sheet. After review, running key
 painted as complete bodies and tweened offline with the Rogue V2 raster pipeline.
 """
     (OUTPUT / f"canonical-{direction}.prompt.txt").write_text(canonical,encoding="utf-8")
-    run = f"""Repaint the ten complete running poses of the corresponding Rogue witness as the approved Priest. Image 1 is the Priest identity, image 2 the pose witness (five columns, two rows), image 3 the mandatory LCPixel style board.
+    run = f"""Paint six complete running keys: contact A, passing A, flight A, opposite contact B, passing B, flight B. Image 1 is the Priest identity, image 2 the approved lower-diagonal Priest gait witness, image 3 the mandatory LCPixel style board. Exactly three columns, two rows. Keep the short compact stride amplitude of the approved witness; its orientation is not the requested orientation.
 All figures face {view}. {identity}
 Preserve connected whole-body acting: forward lean, shoulder/pelvis opposition, bent knees, ankles, two complementary foot contacts, passing poses and flight. Arms remain restrained near the ribs; staff hand keeps the same grip and carries the complete staff. Keep the same scale and perspective. No independently rotated cut-out limbs, stiff torso, repeated lead leg or idle substitution. No daggers or Rogue costume remain.
 {style_text}
@@ -46,4 +47,4 @@ Keep all eight complete figures in the exact original 4-by-2 layout on flat exac
         (OUTPUT/f"{kind}-{direction}.prompt.txt").write_text(prompt,encoding="utf-8")
 
 if __name__ == "__main__":
-    print(f"Wrote twenty LCPixel canonical, run, cast and death prompt templates to {OUTPUT}; accepted source prompts unchanged.")
+    print(f"Wrote {len(views)*4} LCPixel canonical, run, cast and death prompt templates to {OUTPUT}; accepted source prompts unchanged.")

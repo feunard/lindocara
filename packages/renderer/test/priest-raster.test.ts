@@ -62,7 +62,15 @@ describe("Priest raster integration", () => {
       for (let direction = 0; direction < 8; direction++) {
         const angle = (direction * Math.PI) / 4;
         for (const yaw of [0, 0.7, 2.2]) {
-          const view = directionalFrame({ x: Math.sin(angle), z: Math.cos(angle) }, yaw);
+          const sheet = priestSheet(name);
+          const view = directionalFrame(
+            { x: Math.sin(angle), z: Math.cos(angle) },
+            yaw,
+            sheet.directionRows,
+            sheet.directionLayout,
+          );
+          expect(view.flipped).toBe(false);
+          expect(sheet.mirroredPhaseOffset).toBe(0);
           const socket = priestWeaponOffset(name, view.row, active, view.flipped, yaw, 0.7, 0.85);
           expect(socket).not.toBeNull();
           expect(socket?.y).toBeGreaterThan(0.65);

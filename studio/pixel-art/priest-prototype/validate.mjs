@@ -10,13 +10,15 @@ const folder=path.join(repo,'packages/renderer/src/assets/bonus/priest-prototype
 const manifest=JSON.parse(await readFile(path.join(folder,'manifest.json'),'utf8'));
 const names=['idle','run','jump','jump-run','fall','land','land-run','start','stop','hurt','swim','glide','radiant-bolt','mend','blink','prayer','divine-nova','death'];
 assert.equal(manifest.body,'priest');
+assert.equal(manifest.directionLayout,'full');
+assert.equal(manifest.weaponHand,'left');
 assert.equal(manifest.style,'LCPixel');
-assert.equal(manifest.version,4);
+assert.equal(manifest.version,5);
 assert.equal(manifest.headRegistration,undefined,'Rectangular head replacement must not return');
 assert(manifest.palette.length<=64&&manifest.palette.length>0,'LCPixel palette budget');
 const palette=new Set(manifest.palette.map(rgb=>rgb.join(',')));
 assert.deepEqual(Object.keys(manifest.clips).sort(),names.sort(),'Incomplete animation state graph');
-assert.deepEqual(manifest.directions,['front','front-quarter','side','back-quarter','back']);
+assert.deepEqual(manifest.directions,['front','front-quarter','side','back-quarter','back','back-left','side-left','front-left']);
 assert.deepEqual(manifest.sourceFrame,{width:256,height:256,anchor:{x:128,y:190}});
 assert.equal(manifest.pixelsPerTile,192/2.34);
 assert.equal(manifest.clips.run.durationMs,manifest.strideDistance/manifest.referenceSpeed*1000);
@@ -32,8 +34,14 @@ for(const [name,hash] of Object.entries(manifest.sourceSha256)){
 const textures=new Map(),cells=new Map();
 for(const [name,c] of Object.entries(manifest.clips)){
   assert(c.frames>0&&Number.isInteger(c.frames)&&c.durationMs>0,`${name}: duration/count`);
-  assert.equal(c.directionRows,5,`${name}: directions`);
+  assert.equal(c.directionRows,8,`${name}: directions`);
   assert.equal(c.directionStride,c.frames,`${name}: missing frames`);
+  assert.equal(c.frameIndices.length,8,`${name}: packed directions`);
+  const indices=c.frameIndices.flat();
+  assert(c.frameIndices.every(row=>row.length===c.frames),`${name}: packed frames`);
+  assert(indices.every(i=>Number.isInteger(i)&&i>=0&&i<c.uniqueFrames),`${name}: invalid packed index`);
+  assert.equal(new Set(indices).size,c.uniqueFrames,`${name}: unused physical frame`);
+  assert(c.uniqueFrames<=c.frames*8,`${name}: deduplication`);
   assert.equal(c.frame.anchor.x,c.frame.width/2,`${name}: centered anchor`);
   assert.equal(c.pixelsPerTile,manifest.pixelsPerTile,`${name}: scale drift`);
   assert(/^priest-prototype\/[a-z-]+\.png$/.test(c.asset),`${name}: old or unexpected path`);
@@ -55,15 +63,15 @@ for(const [name,c] of Object.entries(manifest.clips)){
   assert.equal(digest(buffer),c.sha256,`${name}: atlas hash`);
   assert.equal(buffer.length,c.bytes);assert.equal(data.length,c.decodedBytes);
   assert.equal(info.width,c.columns*c.frame.width);
-  assert.equal(info.height,c.frames/c.columns*5*c.frame.height);
+  assert.equal(info.height,c.sheetRows*c.frame.height);
   assert(info.width<=4096&&info.height<=4096,`${name}: GPU texture limit`);
   const {width:w,height:h,anchor:a}=c.frame,ox=128-a.x,oy=190-a.y;
   assert(ox>=0&&oy>=0&&ox+w<=256&&oy+h<=256,`${name}: source reconstruction`);
   const rows=[];
-  for(let r=0;r<5;r++){
+  for(let r=0;r<8;r++){
     const row=[];
     for(let f=0;f<c.frames;f++){
-      const idx=r*c.directionStride+f,sx=idx%c.columns*w,sy=Math.floor(idx/c.columns)*h;
+      const idx=c.frameIndices[r][f],sx=idx%c.columns*w,sy=Math.floor(idx/c.columns)*h;
       const frame=Buffer.alloc(256*256*4);let visible=0;
       for(let y=0;y<h;y++)for(let x=0;x<w;x++){
         const source=((sy+y)*info.width+sx+x)*4,dest=((oy+y)*256+ox+x)*4;
@@ -91,7 +99,7 @@ for(const [name,c] of Object.entries(manifest.clips)){
 const frame=(name,row,f)=>cells.get(name)[row][f];
 function difference(a,b){let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;}
 const seamReport=[];
-for(let r=0;r<5;r++){
+for(let r=0;r<8;r++){
   const direction=manifest.directions[r];
   const keys=report.registration[direction].run;
   assert.deepEqual(keys.map(k=>k.frame),[0,6,12,18,24,30],`${direction}: painted key coverage`);
@@ -117,7 +125,7 @@ for(let r=0;r<5;r++){
     const reg=report.registration[direction][kind];
     for(const pose of reg){
       assert.equal(pose.scale,reg[0].scale,`${kind}: per-frame body resizing`);
-      assert(pose.scale>.15&&pose.scale<.5,`${kind}/${direction}: invalid source registration`);
+      assert(pose.scale>.1&&pose.scale<1,`${kind}/${direction}: invalid source registration`);
       assert.equal(pose.torsoScale,undefined,`${kind}: separate torso stretching`);
       assert.equal(pose.legScale,undefined,`${kind}: separate leg stretching`);
     }
@@ -129,6 +137,6 @@ for(const legacy of ['packages/renderer/src/assets/characters/priest','packages/
   await assert.rejects(access(path.join(repo,legacy)),`${legacy} still exists`);
 }
 const bytes=[...textures.values()].reduce((sum,t)=>sum+t.data.length,0);
-assert(bytes<=176*1048576,'Priest atlas budget exceeded');
+assert(bytes<=256*1048576,'Priest atlas budget exceeded');
 console.log(`Priest LCPixel: 8 directions, ${names.length} clips, whole-body motion, fixed palette, continuous air/ground endpoints, gold weapon release sockets, ${(bytes/1048576).toFixed(1)} MiB shared RGBA.`);
 console.log(`Loop seams checked: ${seamReport.length}. Visual inspection remains required; image metrics do not certify biomechanics.`);

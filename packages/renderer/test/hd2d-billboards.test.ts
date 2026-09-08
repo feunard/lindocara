@@ -103,6 +103,44 @@ function actor(id: string, x: number, z: number): ActorView {
 }
 
 describe("the billboard registry", () => {
+  it("addresses deduplicated full-direction frames without reflecting the weapon or shifting phase", () => {
+    const scene = sceneFor(flatMap(4));
+    const registry = createBillboardRegistry(
+      createHd2dContext(),
+      scene,
+      textureRegistryOf(400, 300),
+    );
+    const indices = Array.from({ length: 8 }, (_, row) => [row, (row + 3) % 10]);
+    const pose: ActorView = {
+      ...actor("handed", 0, 0),
+      frames: 2,
+      sheetColumns: 4,
+      sheetRows: 3,
+      directionStride: 2,
+      directionRows: 8,
+      directionLayout: "full",
+      frameIndices: indices,
+      frameWidth: 100,
+      frameHeight: 100,
+      frame: 1,
+      mirroredPhaseOffset: 0,
+      directionalFacing: { x: 0, z: 1 },
+    };
+    for (let row = 0; row < 8; row++) {
+      const angle = (row * Math.PI) / 4;
+      registry.sync([{ ...pose, directionalFacing: { x: Math.sin(angle), z: Math.cos(angle) } }]);
+      const mesh = meshes(scene.root)[0];
+      if (!mesh || !(mesh.material instanceof THREE.MeshLambertMaterial) || !mesh.material.map)
+        throw new Error("Expected mapped billboard");
+      const map = mesh.material.map,
+        physical = (row + 3) % 10;
+      expect(map.repeat.x).toBeCloseTo(1 / 4);
+      expect(map.repeat.y).toBeCloseTo(1 / 3);
+      expect(map.offset.x).toBeCloseTo((physical % 4) / 4);
+      expect(map.offset.y).toBeCloseTo(1 - (Math.floor(physical / 4) + 1) / 3);
+    }
+    registry.dispose();
+  });
   it("addresses wrapped directional strips and retains the anatomical contact across a mirror", () => {
     const scene = sceneFor(flatMap(4)),
       ctx = createHd2dContext();

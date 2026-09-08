@@ -1,10 +1,8 @@
 const root='/packages/renderer/src/assets/bonus/';
 const params=new URLSearchParams(location.search),requested=params.get('priest');
-const priestUrl=requested?.startsWith('/artifacts/priest-motion/')?requested:root+'priest-prototype/manifest.json';
+const priestUrl=(requested?.startsWith('/artifacts/priest-motion/')||requested?.startsWith('/artifacts/priest-handedness/')||requested?.startsWith('/artifacts/priest-prototype/pilot/'))?requested:root+'priest-prototype/manifest.json';
 const get=id=>document.getElementById(id),canvas=get('comparison'),ctx=canvas.getContext('2d');
 const selected=params.has('direction')?Number(params.get('direction')):null;
-const directions=selected!==null&&Number.isInteger(selected)&&selected>=0&&selected<8?[selected]:[0,1,2,3,4,5,6,7];
-if(directions.length===1){canvas.width=400;canvas.height=440;}
 // PLAYER_ACTIONS (engine/combat-actions.ts), presentation only.
 const impacts={'radiant-bolt':140,mend:240,blink:180,prayer:320,'divine-nova':400,'dual-slash':105,'shadow-step':110,vanish:80,'poisoned-shiv':125,'shadow-dance':180};
 async function load(url){
@@ -15,6 +13,8 @@ async function load(url){
   return {manifest,images};
 }
 const [priest,rogue]=await Promise.all([load(priestUrl),load(root+'assassin-v2/manifest.json')]);
+const directions=priest.manifest.previewDirection!==undefined?[priest.manifest.previewDirection]:selected!==null&&Number.isInteger(selected)&&selected>=0&&selected<8?[selected]:[0,1,2,3,4,5,6,7];
+if(directions.length===1){canvas.width=400;canvas.height=440;}
 for(const [id,data] of [['priest',priest],['rogue',rogue]]){
   for(const name of Object.keys(data.manifest.clips))get(id).add(new Option(name,name));
   get(id).value='run';
@@ -40,11 +40,12 @@ function draw(){
   get('scrub').value=pphase;
   ctx.clearRect(0,0,canvas.width,canvas.height);ctx.imageSmoothingEnabled=false;
   for(const [position,direction] of directions.entries()){
-    const row=direction<=4?direction:8-direction,mirror=direction>4;
+    const labelRow=priest.manifest.previewDirection!==undefined?0:priest.manifest.directionLayout==='full'?direction:direction<=4?direction:8-direction;
     const left=position%4*400,top=Math.floor(position/4)*440;
-    ctx.fillStyle='#dfe8e1';ctx.font='14px monospace';ctx.fillText(`${direction} ${priest.manifest.directions[row]}${mirror?' miroir':''}`,left+12,top+20);
+    ctx.fillStyle='#dfe8e1';ctx.font='14px monospace';ctx.fillText(`${direction} ${priest.manifest.directions[labelRow]}`,left+12,top+20);
     for(const [data,name,phase,x,label] of [[priest,pn,pphase,left+103,'Prêtre'],[rogue,rn,rphase,left+297,'Assassin V2']]){
       ctx.font='12px monospace';ctx.fillStyle='#c3cdbc';ctx.fillText(label,x-35,top+42);
+      const full=data.manifest.directionLayout==='full',row=data.manifest.previewDirection!==undefined?0:full?direction:direction<=4?direction:8-direction,mirror=!full&&direction>4;
       const c=data.manifest.clips[name],count=c.transitionFrames??c.frames;
       let f=frameOf(c,name,phase);
       if(mirror&&['run','start','stop','jump-run','land-run'].includes(name))f=(f+c.frames/2)%c.frames;
@@ -65,7 +66,7 @@ function draw(){
         ctx.translate(x,anchorY);if(mirror)ctx.scale(-1,1);
         const spriteScale=scale*priest.manifest.pixelsPerTile/c.pixelsPerTile;
         const paint=index=>{
-          const atlasIndex=row*c.directionStride+index,{width:w,height:h,anchor:a}=c.frame;
+          const atlasIndex=c.frameIndices?.[row]?.[index]??row*c.directionStride+index,{width:w,height:h,anchor:a}=c.frame;
           ctx.drawImage(data.images.get(c.asset),atlasIndex%c.columns*w,Math.floor(atlasIndex/c.columns)*h,w,h,-a.x*spriteScale,-a.y*spriteScale,w*spriteScale,h*spriteScale);
         };
         if(get('onion').checked){ctx.globalAlpha=.22;paint(bank*count+(f%count+count-1)%count);ctx.globalAlpha=1;}

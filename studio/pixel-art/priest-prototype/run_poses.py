@@ -49,8 +49,21 @@ def registered_keys(direction, colours):
         density = densities[index]
         s = scale * density
         lift = CONFIG["flightLift"] if role.startswith("flight") else 0
-        dx = ANCHOR[0] - m["pelvis"][0] * s
-        dy = ANCHOR[1] - m["ground"] * s - lift
+        placement = spec.get("registration", {}).get(str(index))
+        if placement:
+            # Rear views can put a lifted sole below the planted foot in screen
+            # space. The brown-pixel heuristic also confuses belt and boots.
+            # Reviewed whole-painting anchors avoid both errors. They describe a
+            # translation only; they never reconstruct or deform body parts.
+            source_root, target_root = placement["sourceRoot"], placement["targetRoot"]
+            m["pelvis"] = source_root
+            m["chest"] = [m["neck"][0] * .4 + source_root[0] * .6,
+                           m["neck"][1] + (source_root[1] - m["neck"][1]) * .48]
+            dx = target_root[0] - source_root[0] * s
+            dy = target_root[1] - source_root[1] * s
+        else:
+            dx = ANCHOR[0] - m["pelvis"][0] * s
+            dy = ANCHOR[1] - m["ground"] * s - lift
         matrix = np.array([[s, 0, dx], [0, s, dy]], dtype="float32")
         frame = cv2.warpAffine(np.array(source), matrix, (CELL, CELL),
                                flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_CONSTANT)
@@ -64,6 +77,7 @@ def registered_keys(direction, colours):
         records.append({"sourceIndex": index, "phase": phase, "role": role,
                         "frame": round(phase * FRAMES), "scale": scale,
                         "sourceSheetDensity": density, "offset": [dx, dy],
+                        "registration": "reviewed-whole-pose" if placement else "automatic-foot",
                         "source": m, "landmarks": landmarks})
     return keys, records
 
@@ -77,4 +91,5 @@ def run_cycle(direction):
 
 
 def source_files():
-    return [SOURCE / "clips.json", *sorted(SOURCE.glob("*.png"))]
+    names={spec[key] for spec in CONFIG['views'].values() for key in ['sheet','extra'] if key in spec}
+    return [SOURCE / "clips.json", *[SOURCE/name for name in sorted(names)]]

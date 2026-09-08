@@ -303,6 +303,8 @@ export interface BillboardActorSheet {
   axis?: "x" | "y";
   directionRows?: number;
   sheetColumns?: number;
+  sheetRows?: number;
+  frameIndices?: readonly (readonly number[])[];
   directionStride?: number;
   mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";
@@ -414,6 +416,8 @@ function actorSheetView(sheet: BillboardActorSheet) {
     frameAxis: sheet.axis ?? ("x" as const),
     ...(sheet.directionRows === undefined ? {} : { directionRows: sheet.directionRows }),
     ...(sheet.sheetColumns === undefined ? {} : { sheetColumns: sheet.sheetColumns }),
+    ...(sheet.sheetRows === undefined ? {} : { sheetRows: sheet.sheetRows }),
+    ...(sheet.frameIndices === undefined ? {} : { frameIndices: sheet.frameIndices }),
     ...(sheet.directionStride === undefined ? {} : { directionStride: sheet.directionStride }),
     ...(sheet.mirroredPhaseOffset === undefined
       ? {}
@@ -2066,7 +2070,12 @@ export class Hd2dRenderer implements RendererLike {
         (player.action.skillId === "radiant_bolt" || player.action.skillId === "mend")
       ) {
         const scene = this.#scene;
-        const direction = directionalFrame(player.action.direction, scene.ctx.yaw());
+        const direction = directionalFrame(
+          player.action.direction,
+          scene.ctx.yaw(),
+          view.directionRows,
+          view.directionLayout,
+        );
         const offset = priestWeaponOffset(
           priestMotionClip("attack", player.action.skillId),
           direction.row,

@@ -507,6 +507,9 @@ export interface UnitSheet {
   directionRows?: number;
   /** Packed strips may wrap over several texture rows per direction. */
   sheetColumns?: number;
+  sheetRows?: number;
+  /** Optional indices of deduplicated frames, indexed by authored view and logical frame. */
+  frameIndices?: readonly (readonly number[])[];
   directionStride?: number;
   mirroredPhaseOffset?: number;
   directionLayout?: "mirrored" | "full";

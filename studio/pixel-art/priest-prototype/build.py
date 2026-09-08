@@ -14,8 +14,9 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[2]
 sys.path.insert(0, str(ROOT.parent / "lib"))
-from raster_animation import interpolate, pack, sha
-from source_tools import cells, head_box, NAMES, SOURCE
+from raster_animation import interpolate, sha
+from compact_atlas import pack
+from source_tools import cells, head_box, NAMES, SOURCE, HANDED_SOURCE, source_for
 from registration import registered, rest_image, body_landmarks, CELL, ANCHOR
 from run_poses import run_cycle, source_files, STRIDE_DISTANCE, FRAMES
 from palette import colour_frame
@@ -66,7 +67,7 @@ def orb_point(frame, near=None, max_y=None):
 
 
 def death_keys(direction):
-    raw=cells(f"death-{direction}")
+    raw=cells('death-side-left-four',2,2,source=HANDED_SOURCE) if direction=='side-left' else cells(f"death-{direction}",source=source_for(direction))
     head=head_box(raw[0])
     rest_head=head_box(rest_image(direction))
     scale=(rest_head[2]-rest_head[0])/(head[2]-head[0])
@@ -80,7 +81,10 @@ def death_keys(direction):
         frame[:,:,3]=(frame[:,:,3]>=128).astype("uint8")*255
         frame[frame[:,:,3]==0]=0
         frames.append(frame)
-    frames[-1]=frames[-2].copy()
+    if direction=='side-left':
+        frames.append(frames[-1].copy())
+    else:
+        frames[-1]=frames[-2].copy()
     return frames
 
 
@@ -173,7 +177,7 @@ def bake():
             elif name=="hurt": nodes=[(0,rest),(.25,death[0]),(1,rest)]
             elif name=="swim": nodes=[(0,apex),(.5,at(.9)),(1,apex)]
             elif name=="glide": nodes=[(0,apex),(.5,compress),(1,apex)]
-            elif name=="death": nodes=[(0,rest)]+list(zip([.10,.23,.35,.47,.59,.73,.88,1],death))
+            elif name=="death": nodes=[(0,rest)]+list(zip([.10,.35,.59,.88,1] if direction=='side-left' else [.10,.23,.35,.47,.59,.73,.88,1],death))
             else:
                 release=spec["activeFrame"]/(spec["frames"]-1)
                 if name in ["radiant-bolt","mend"]:
@@ -191,13 +195,15 @@ def bake():
     for name,rows in rendered.items():
         clips[name]=pack(OUT,name,rows,{**SPECS[name],"weaponSockets":sockets(rows,name)},anchor=ANCHOR,pixels_per_tile=PP)
     clips["start"]={**clips["stop"],"durationMs":100}
-    paintings=sorted(p for p in SOURCE.glob('*.png') if p.name.startswith(('canonical-','cast-','death-')))
-    inputs=[Path(__file__),*[ROOT/name for name in ["source_tools.py","registration.py","run_poses.py","palette.py"]],ROOT.parent/"lib/raster_animation.py",*paintings,*source_files(),SOURCE/"canonical-registration.json",SOURCE/"palette.json",ROOT.parents[1]/"styles/lcpixel/style.json"]
+    paintings=[source_for(direction)/f"{kind}-{direction}{'-four' if (kind=='cast' and direction in ['back-quarter','side-left']) or (kind=='death' and direction=='side-left') else ''}.png" for direction in NAMES for kind in ['canonical','cast','death']]
+    paintings.append(SOURCE/'cast-front-quarter-overhead.png')
+    paintings.append(HANDED_SOURCE/'release-front-left.png')
+    inputs=[Path(__file__),*[ROOT/name for name in ["source_tools.py","registration.py","run_poses.py","palette.py","prepare_handedness.py"]],ROOT.parent/"lib/raster_animation.py",ROOT.parent/"lib/compact_atlas.py",*paintings,*source_files(),SOURCE/"canonical-registration.json",HANDED_SOURCE/"canonical-registration.json",SOURCE/"palette.json",ROOT.parents[1]/"styles/lcpixel/style.json"]
     report={'registration':registrations,
             'method':'Whole painted keys. Landmarks describe key registration only, not a reconstructed skeleton or proof of foot contact.'}
     report_path=ROOT/'authoring-report.json'
     report_path.write_text(json.dumps(report,separators=(',',':'))+'\n',encoding='utf-8')
-    manifest={"version":4,"body":"priest","style":"LCPixel","method":"registered whole painted poses and offline bidirectional raster inbetweening, shared with Rogue V2","sourceFrame":{"width":CELL,"height":CELL,"anchor":{"x":ANCHOR[0],"y":ANCHOR[1]}},"pixelsPerTile":PP,"strideDistance":STRIDE,"referenceSpeed":SPEED,"runtimeScale":1,"directions":NAMES,"palette":colours,"authoringReportSha256":sha(report_path),"sourceSha256":{p.relative_to(REPO).as_posix():sha(p) for p in inputs},"clips":clips}
+    manifest={"version":5,"directionLayout":"full","weaponHand":"left","body":"priest","style":"LCPixel","method":"registered whole painted poses and offline bidirectional raster inbetweening, shared with Rogue V2","sourceFrame":{"width":CELL,"height":CELL,"anchor":{"x":ANCHOR[0],"y":ANCHOR[1]}},"pixelsPerTile":PP,"strideDistance":STRIDE,"referenceSpeed":SPEED,"runtimeScale":1,"directions":NAMES,"palette":colours,"authoringReportSha256":sha(report_path),"sourceSha256":{p.relative_to(REPO).as_posix():sha(p) for p in inputs},"clips":clips}
     (OUT/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n",encoding="utf-8")
     Image.open(SOURCE/"canonical-front.png").save(OUT/"portrait.png")
     print(f"Packed {len(clips)} clips",flush=True)
@@ -214,6 +220,14 @@ def main():
         witness(f"run-{args.pilot}",run,sockets([run],"run")[0])
         REVIEW.mkdir(parents=True,exist_ok=True)
         (REVIEW/f"motion-{args.pilot}.json").write_text(json.dumps({"tracks":tracks},indent=2))
+        # A single reviewed direction can be played without rebuilding the game atlases.
+        pilot=REVIEW/'pilot'
+        pilot.mkdir(parents=True,exist_ok=True)
+        clip=pack(pilot,'run',[run],SPECS['run'],anchor=ANCHOR,pixels_per_tile=PP)
+        manifest={'directions':[args.pilot],'directionLayout':'full','previewDirection':NAMES.index(args.pilot),
+                  'strideDistance':STRIDE,'pixelsPerTile':PP,'clips':{'run':clip}}
+        (pilot/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+        print('Pilot: http://localhost:5330/studio/pixel-art/priest-prototype/compare.html?priest=/artifacts/priest-prototype/pilot/manifest.json')
         return
     bake()
 

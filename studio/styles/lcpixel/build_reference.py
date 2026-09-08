@@ -21,6 +21,9 @@ for i,name in enumerate(["Assassin V2","Gardien runique","Rodeuse","Pretre"]):
     d.text((i*480+180,380),name,fill=(232,224,203,255))
 board.save(STYLE/"characters.png")
 files=[STYLE/"style.json",STYLE/"STYLE.md",STYLE/"characters.png",SOURCE/"canonical-native.png",SOURCE/"palette.json",SOURCE/"design-reference.png",SOURCE/"turnaround.png",SOURCE/"style-reference.png",*[SOURCE/f"{kind}-{name}.png" for kind in ["canonical","view"] for name in ["front","front-quarter","side","back-quarter","back"]]]
+handed=SOURCE.parent/'handedness'
+files += [handed/f'{kind}-{name}.png' for kind in ['canonical','view'] for name in ['back-quarter','back-left','side-left','front-left']]
+files += [handed/'turnaround.png',handed/'canonical-registration.json']
 hashes={}
 for path in files:
     data=path.read_bytes() if path.suffix==".png" else path.read_text(encoding="utf-8").replace("\r\n","\n").encode("utf-8")

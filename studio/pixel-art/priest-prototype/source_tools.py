@@ -13,7 +13,14 @@ from PIL import ImageDraw
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[2]
 SOURCE = ROOT / "sources/simplified"
-NAMES = ["front", "front-quarter", "side", "back-quarter", "back"]
+NAMES = ["front", "front-quarter", "side", "back-quarter", "back", "back-left", "side-left", "front-left"]
+HANDED_SOURCE = ROOT / "sources/handedness"
+HANDED_VIEWS = ["back-quarter", "back-left", "side-left", "front-left"]
+
+
+def source_for(direction):
+    """Explicit authored views: never fall back to a mirrored right-handed drawing."""
+    return HANDED_SOURCE if direction in HANDED_VIEWS else SOURCE
 
 
 def head_box(image):
@@ -36,8 +43,8 @@ def head_box(image):
     return [int(x), int(y), int(x + w), int(y + h)]
 
 
-def cells(name, columns=4, rows=2):
-    a = np.array(transparent(Image.open(SOURCE / f"{name}.png")))
+def cells(name, columns=4, rows=2, source=SOURCE):
+    a = np.array(transparent(Image.open(source / f"{name}.png")))
     count, labels, stats, centers = cv2.connectedComponentsWithStats((a[:, :, 3] > 0).astype("uint8"), 8)
     bodies = sorted(range(1, count), key=lambda i: -stats[i, cv2.CC_STAT_AREA])[:columns * rows]
     if min(stats[i, cv2.CC_STAT_AREA] for i in bodies) < 1000:
